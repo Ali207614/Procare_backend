@@ -1,3 +1,7 @@
+import { PermissionsModule } from './permissions/permissions.module';
+import { RolesModule } from './roles/roles.module';
+import { RolesController } from './roles/roles.controller';
+import { RolesService } from './roles/roles.service';
 import { AdminsModule } from './admins/admins.module';
 import { AdminsController } from './admins/admins.controller';
 import { AdminsService } from './admins/admins.service';
@@ -23,6 +27,8 @@ import { FeatureModule } from './feature/feature.module';
 
 @Module({
   imports: [
+    PermissionsModule,
+    RolesModule,
     FeatureModule,
     ConfigModule.forRoot({
       isGlobal: true,
@@ -37,9 +43,11 @@ import { FeatureModule } from './feature/feature.module';
     AdminsModule,
   ],
   controllers: [
+    RolesController,
     AdminsController,
   ],
   providers: [
+    RolesService,
     AdminsService,
   ],
 })

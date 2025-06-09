@@ -13,7 +13,7 @@ exports.seed = async function (knex) {
 
   const permissions = [
     // Profile permissions
-    { id: '00000000-0000-0000-0000-000000000001', name: 'admin.profile.view', description: 'O‘z profilini ko‘rish huquqi' },
+
     { id: '00000000-0000-0000-0000-000000000002', name: 'admin.profile.edit.basic', description: 'Profil umumiy maydonlarini tahrirlash huquqi' },
     { id: '00000000-0000-0000-0000-000000000003', name: 'admin.profile.edit.sensitive', description: 'Profil maxfiy maʼlumotlarini tahrirlash huquqi' },
 
@@ -36,11 +36,6 @@ exports.seed = async function (knex) {
     { id: '00000000-0000-0000-0000-000000000015', name: 'status_permission.update', description: 'Status permissionni o‘zgartirish huquqi' },
     { id: '00000000-0000-0000-0000-000000000016', name: 'status_permission.delete', description: 'Status permissionni o‘chirish huquqi' },
 
-    // Admin CRUD
-    { id: '00000000-0000-0000-0000-000000000017', name: 'admin.read', description: 'Adminlarni ko‘rish huquqi' },
-    { id: '00000000-0000-0000-0000-000000000018', name: 'admin.create', description: 'Admin yaratish huquqi' },
-    { id: '00000000-0000-0000-0000-000000000019', name: 'admin.update', description: 'Adminni o‘zgartirish huquqi' },
-    { id: '00000000-0000-0000-0000-000000000020', name: 'admin.delete', description: 'Adminni o‘chirish huquqi' },
 
     // Role CRUD
     { id: '00000000-0000-0000-0000-000000000021', name: 'role.read', description: 'Rollarni ko‘rish huquqi' },

@@ -16,15 +16,6 @@ export class AdminsService {
 
     private readonly table = 'admins';
 
-    async createIfNotExists(phone: string, language: string) {
-        const existing = await this.knex(this.table)
-            .where({ phone_number: phone })
-            .first();
-
-        if (!existing) {
-            await this.knex(this.table).insert({ phone_number: phone, language });
-        }
-    }
 
     async findByPhoneNumber(phone: string) {
         return this.knex(this.table).where({ phone_number: phone }).first();
@@ -39,8 +30,6 @@ export class AdminsService {
                 location: 'admin_not_found',
             });
         }
-
-        delete admin.password;
 
         return admin;
     }
@@ -107,13 +96,9 @@ export class AdminsService {
         }
     }
 
-
-
-
-
-
     async changePassword(admin: AdminPayload, dto: ChangePasswordDto) {
         const dbAdmin = await this.findById(admin.id);
+
 
         const isMatch = await bcrypt.compare(dto.current_password, dbAdmin.password);
         if (!isMatch) {
