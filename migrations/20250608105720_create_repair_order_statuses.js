@@ -1,0 +1,31 @@
+exports.up = async function (knex) {
+    await knex.schema.createTable('repair_order_statuses', (table) => {
+        table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+
+        table.string('name_uz').notNullable();
+        table.string('name_ru').notNullable();
+        table.string('slug').notNullable().unique();
+
+        table.string('bg_color').notNullable();
+        table.string('color').notNullable();
+
+        table.integer('sort').defaultTo(1).notNullable();
+
+        table.boolean('can_user_view').defaultTo(true);
+        table.boolean('is_active').defaultTo(true);
+        table.enu('status', ['Open', 'Deleted']).defaultTo('Open');
+
+        table.uuid('branch_id').notNullable();
+        table.foreign('branch_id').references('id').inTable('branches').onDelete('CASCADE');
+
+        table.uuid('created_by').nullable();
+        table.foreign('created_by').references('id').inTable('admins').onDelete('SET NULL');
+
+        table.timestamp('created_at').defaultTo(knex.fn.now());
+        table.timestamp('updated_at').defaultTo(knex.fn.now());
+    });
+};
+
+exports.down = async function (knex) {
+    await knex.schema.dropTableIfExists('repair_order_statuses');
+};

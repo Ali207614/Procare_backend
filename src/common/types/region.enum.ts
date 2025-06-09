@@ -1,0 +1,16 @@
+export enum RegionEnum {
+    ANDIJON = 'andijon',
+    BUXORO = 'buxoro',
+    FARGONA = 'fargona',
+    JIZZAX = 'jizzax',
+    XORAZM = 'xorazm',
+    NAMANGAN = 'namangan',
+    NAVOIY = 'navoiy',
+    QASHQADARYO = 'qashqadaryo',
+    QORAQALPOGISTON = 'qoraqalpogiston',
+    SAMARQAND = 'samarqand',
+    SIRDARYO = 'sirdaryo',
+    SURXONDARYO = 'surxondaryo',
+    TOSHKENT = 'toshkent',
+    TOSHKENT_SHAHAR = 'toshkent_shahar',
+}
