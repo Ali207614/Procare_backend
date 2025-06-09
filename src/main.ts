@@ -52,7 +52,11 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup('api/v1/docs', app, document);
+
+  const globalPrefix = 'api/v1';
+  app.setGlobalPrefix(globalPrefix);
+  SwaggerModule.setup(`${globalPrefix}/docs`, app, document);
 
 
   app.useGlobalPipes(
@@ -98,9 +102,9 @@ async function bootstrap() {
 
 
 
-  await app.listen(3000);
-  logger.log(`Application is running on: http://localhost:3000`);
-  logger.log(`Swagger docs available at: http://localhost:3000/api/docs`);
+  await app.listen(process.env.PORT);
+  logger.log(`Application is running on: http://localhost:${process.env.PORT}/${globalPrefix}`);
+  logger.log(`Swagger docs available at: http://localhost:${process.env.PORT}/${globalPrefix}/docs`);
 }
 
 bootstrap();

@@ -18,7 +18,6 @@ import { RedisService } from 'src/common/redis/redis.service';
 import { FeatureService } from 'src/feature/feature.service';
 import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
-import moment from 'moment-timezone';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { AdminsService } from 'src/admins/admins.service';
@@ -40,22 +39,31 @@ export class AuthService {
     async sendVerificationCode(dto: SmsDto) {
         const existingAdmin = await this.adminsService.findByPhoneNumber(dto.phone_number);
 
-        if (existingAdmin) {
-            this.adminsService.checkAdminAccessControl(existingAdmin, { blockIfVerified: true });
+        if (!existingAdmin) {
+            throw new NotFoundException({
+                message: 'Admin not found. Please contact super admin.',
+                location: 'admin_not_found',
+            });
         }
 
-        await this.adminsService.createIfNotExists(dto.phone_number, dto.language);
+        if (existingAdmin.status !== 'pending') {
+            throw new ConflictException({
+                message: 'Admin already registered or not allowed to verify.',
+                location: 'invalid_status',
+            });
+        }
 
         const code = Math.floor(100000 + Math.random() * 900000).toString();
-        console.log(code)
+        console.log('Verification code:', code);
+
         await this.redisService.set(`verify:${dto.phone_number}`, code, 300); // 5 min TTL
 
         // TODO: await this.smsService.send(dto.phone_number, code);
 
-        return {
-            message: 'Verification code sent successfully',
-        };
+        return { message: 'Verification code sent successfully' };
     }
+
+
 
     async verifyCode(dto: VerifyDto) {
         const storedCode = await this.redisService.get(`verify:${dto.phone_number}`);
@@ -73,24 +81,35 @@ export class AuthService {
         return { message: 'Phone number verified successfully' };
     }
 
+
     async completeRegistration(dto: RegisterDto) {
         const admin = await this.adminsService.findByPhoneNumber(dto.phone_number);
 
-        if (admin && admin.status === 'active') {
+        if (!admin) {
+            throw new NotFoundException({
+                message: 'Admin not found. Please contact super admin.',
+                location: 'admin_not_found',
+            });
+        }
+
+        if (admin.status !== 'pending') {
             throw new ConflictException({
                 message: 'Admin already completed registration',
                 location: 'already_registered',
             });
         }
 
-        this.adminsService.checkAdminAccessControl(admin, { requireVerified: true });
+        if (!admin.phone_verified) {
+            throw new BadRequestException({
+                message: 'Phone number not verified',
+                location: 'phone_not_verified',
+            });
+        }
 
         const hashedPassword = await bcrypt.hash(dto.password, 10);
 
         await this.adminsService.updateAdminByPhone(dto.phone_number, {
-            username: dto.username,
             password: hashedPassword,
-            region: dto?.region || '',
             status: 'active',
         });
 
@@ -103,6 +122,7 @@ export class AuthService {
             access_token: token,
         };
     }
+
 
     async login(loginDto: LoginDto) {
         const admin = await this.adminsService.findByPhoneNumber(

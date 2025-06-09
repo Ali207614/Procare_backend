@@ -19,10 +19,4 @@ export class LoginDto {
         context: { location: 'invalid_password_length_max' },
     })
     password: string;
-
-
-    @ApiProperty({ example: true, required: false })
-    @IsOptional()
-    @IsBoolean()
-    force?: boolean;
 }

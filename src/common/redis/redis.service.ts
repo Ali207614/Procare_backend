@@ -1,21 +1,28 @@
+// redis.service.ts
 import { Injectable, Inject } from '@nestjs/common';
 import { RedisClientType } from 'redis';
 
 @Injectable()
 export class RedisService {
+    private readonly prefix = process.env.REDIS_PREFIX || 'procare'; // projectga mos prefix
+
     constructor(@Inject('REDIS_CLIENT') private readonly client: RedisClientType) { }
 
+    private buildKey(key: string): string {
+        return `${this.prefix}:${key}`;
+    }
+
     async set(key: string, value: any, ttlSeconds = 3600): Promise<void> {
-        await this.client.set(key, JSON.stringify(value), { EX: ttlSeconds });
+        await this.client.set(this.buildKey(key), JSON.stringify(value), { EX: ttlSeconds });
     }
 
     async get<T = any>(key: string): Promise<T | null> {
-        const data = await this.client.get(key);
+        const data = await this.client.get(this.buildKey(key));
         return typeof data === 'string' ? JSON.parse(data) : null;
     }
 
     async del(key: string): Promise<void> {
-        await this.client.del(key);
+        await this.client.del(this.buildKey(key));
     }
 
     getClient(): RedisClientType {

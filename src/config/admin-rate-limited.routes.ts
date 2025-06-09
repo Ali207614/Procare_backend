@@ -1,7 +1,8 @@
 import { RequestMethod } from '@nestjs/common';
 
 export const RateLimitedAdminRoutes = [
-    { path: 'subscription/cancel', method: RequestMethod.POST },
-    { path: 'subscription/grant', method: RequestMethod.POST },
+
+    { path: 'admins/me', method: RequestMethod.GET },
+    { path: 'admins/change-password', method: RequestMethod.GET },
     { path: 'features', method: RequestMethod.PATCH },
 ];

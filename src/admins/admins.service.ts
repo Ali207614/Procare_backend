@@ -73,7 +73,7 @@ export class AdminsService {
                 location: 'admin_not_found',
             });
         }
-        if (admin?.status === 'banned') {
+        if (admin?.status === 'Banned') {
             throw new BadRequestException({
                 message: 'This phone number is banned',
                 error: 'BannedAdmin',
@@ -81,7 +81,7 @@ export class AdminsService {
             });
         }
 
-        if (admin?.status === 'inactive') {
+        if (!admin?.is_active) {
             throw new BadRequestException({
                 message: 'This phone number is inactive',
                 error: 'InactiveAdmin',
