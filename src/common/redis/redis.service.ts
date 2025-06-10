@@ -25,6 +25,17 @@ export class RedisService {
         await this.client.del(this.buildKey(key));
     }
 
+    async flushByPrefix(pattern: string): Promise<void> {
+        const fullPattern = this.buildKey(pattern);
+        const keys = await this.client.keys(fullPattern);
+
+        if (keys.length > 0) {
+            await Promise.all(keys.map(key => this.client.del(key)));
+        }
+    }
+
+
+
     getClient(): RedisClientType {
         return this.client;
     }

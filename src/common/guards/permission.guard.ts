@@ -22,9 +22,13 @@ export class PermissionsGuard implements CanActivate {
 
         const request = context.switchToHttp().getRequest();
         const user = request.user;
+        console.log(user, ' bu user')
 
         if (!user) {
-            throw new ForbiddenException('User not found');
+            throw new ForbiddenException({
+                message: 'The specified user does not exist or is no longer active.',
+                location: 'not_found',
+            });
         }
 
         const userPermissions = await this.permissionsService.getPermissions(user.id);
@@ -34,7 +38,10 @@ export class PermissionsGuard implements CanActivate {
         );
 
         if (!hasPermission) {
-            throw new ForbiddenException('Permission denied');
+            throw new ForbiddenException({
+                message: 'You do not have the required permissions to perform this action.',
+                location: 'permission_denied',
+            });
         }
 
         return true;

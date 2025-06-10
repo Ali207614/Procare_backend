@@ -39,7 +39,6 @@ export class JwtAdminAuthGuard extends AuthGuard('jwt-admin') {
             });
         }
 
-        // Passport joylagan payload'ni biz qayta admin sifatida qo'yamiz:
         request.admin = admin;
 
         return true;

@@ -1,3 +1,4 @@
+import { BranchesModule } from './branches/branches.module';
 import { PermissionsModule } from './permissions/permissions.module';
 import { RolesModule } from './roles/roles.module';
 import { RolesController } from './roles/roles.controller';
@@ -27,6 +28,7 @@ import { FeatureModule } from './feature/feature.module';
 
 @Module({
   imports: [
+    BranchesModule,
     PermissionsModule,
     RolesModule,
     FeatureModule,

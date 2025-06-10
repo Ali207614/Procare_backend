@@ -8,6 +8,12 @@ export class ResetPasswordDto {
 
     @ApiProperty({ example: '123456' })
     @IsString({ context: { location: 'invalid_reset_code' } })
+    @MinLength(1, {
+        context: { location: 'invalid_code_length_min' },
+    })
+    @MaxLength(20, {
+        context: { location: 'invalid_code_length_max' },
+    })
     code: string;
 
     @ApiProperty({ example: 'newpass123' })

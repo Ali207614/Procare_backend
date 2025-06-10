@@ -16,9 +16,9 @@ export class RateLimiterAdminMiddleware implements NestMiddleware {
     ) {
         this.limiter = rateLimit({
             windowMs: 60 * 1000,
-            max: 40, // Admin uchun yuqori limit
-            keyGenerator: (req) => req?.admin?.id || req.ip,
-            skip: (req: Request) => !req?.admin, // ❗ faqat adminlar uchun ishlaydi
+            max: 20, // Admin uchun yuqori limit
+            keyGenerator: (req) => req?.user?.id || req.ip,
+            skip: (req: Request) => !req?.user, // ❗ faqat adminlar uchun ishlaydi
             handler: (req: Request, res: Response) => {
                 const statusCode = 429;
                 const statusMessage = HttpStatus[statusCode] || 'Too Many Requests';
