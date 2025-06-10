@@ -32,7 +32,6 @@ export class PermissionsService {
     }
 
     private async loadPermissionsFromDB(adminId: string): Promise<string[]> {
-        console.log(adminId, ' bu adminId')
         const rows = await this.knex('admin_roles as ar')
             .join('role_permissions as rp', 'rp.role_id', 'ar.role_id')
             .join('permissions as p', 'p.id', 'rp.permission_id')

@@ -81,12 +81,6 @@ export class CreateBranchDto {
     @IsEnum(['Open', 'Deleted'])
     status?: 'Open' | 'Deleted';
 
-    @ApiProperty({ example: 1, description: 'Sorting order of the branch' })
-    @IsOptional()
-    @IsNumber()
-    @Min(0)
-    @Max(9999)
-    sort?: number;
 
     @ApiProperty({ example: true, description: 'Whether the branch is active' })
     @IsOptional()

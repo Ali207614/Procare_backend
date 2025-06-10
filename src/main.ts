@@ -11,6 +11,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggerService } from './common/logger/logger.service';
+import { extractError } from './common/utils/validation.util';
 
 
 
@@ -67,37 +68,19 @@ async function bootstrap() {
       transformOptions: {
         enableImplicitConversion: true,
       },
-
       exceptionFactory: (errors) => {
-        const extractError = (errList): { message: string; location: string | null } => {
-          for (const err of errList) {
-            if (err.constraints && err.contexts) {
-              const key = Object.keys(err.constraints)[0];
-              return {
-                message: err.constraints[key],
-                location: err.contexts[key]?.location || null,
-              };
-            }
-            if (err.children?.length) {
-              const nested = extractError(err.children);
-              if (nested) return nested;
-            }
-          }
-          return { message: 'Unexpected error', location: null };
-        };
-
         const { message, location } = extractError(errors);
 
         return new BadRequestException({
           message,
           error: 'ValidationError',
           location,
+          timestamp: new Date().toISOString(),
+          statusCode: 400,
         });
-      }
+      },
     }),
-
-    // ✅ Custom sanitization pipe
-    new SanitizationPipe(), // Foydalanuvchi kiritgan ma’lumotda <script> va XSS hujumlarini tozalaydi
+    new SanitizationPipe(),
   );
 
 
