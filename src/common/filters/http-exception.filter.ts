@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { LoggerService } from '../logger/logger.service';
+import { DatabaseError } from 'pg';
+import { parsePgError } from '../utils/pg-error.util';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -28,6 +30,19 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
         let message = 'Unexpected error';
         let errorType = 'InternalServerError';
+
+        if (exception instanceof DatabaseError) {
+            const parsed = parsePgError(exception);
+
+            return response.status(parsed.status).json({
+                statusCode: parsed.status,
+                message: parsed.message,
+                error: parsed.errorType,
+                location: parsed.location,
+                timestamp: new Date().toISOString(),
+                path: request.url,
+            });
+        }
 
         if (typeof exceptionResponse === 'string') {
             message = exceptionResponse;

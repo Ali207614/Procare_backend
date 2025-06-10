@@ -19,7 +19,6 @@ export class JwtAdminAuthGuard extends AuthGuard('jwt-admin') {
 
         const request = context.switchToHttp().getRequest();
         const admin = request.user;
-
         const authHeader = request.headers['authorization'] as string;
         if (!authHeader?.startsWith('Bearer ')) {
             throw new UnauthorizedException({
@@ -40,7 +39,6 @@ export class JwtAdminAuthGuard extends AuthGuard('jwt-admin') {
         }
 
         request.admin = admin;
-
         return true;
     }
 }

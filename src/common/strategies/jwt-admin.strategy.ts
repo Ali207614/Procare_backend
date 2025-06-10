@@ -18,6 +18,7 @@ export class JwtAdminStrategy extends PassportStrategy(Strategy, 'jwt-admin') {
         return {
             id: payload.id,
             phone_number: payload.phone_number,
+            role: payload.role
         };
     }
 }

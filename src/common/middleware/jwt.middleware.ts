@@ -1,16 +1,17 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import * as jwt from 'jsonwebtoken';
+import { decode } from 'jsonwebtoken';
 import { UserPayload } from '../types/user-payload.interface';
 
 @Injectable()
-export class JwtUserMiddleware implements NestMiddleware {
+export class JwtMiddleware implements NestMiddleware {
     use(req: Request, res: Response, next: NextFunction) {
         const authHeader = req.headers.authorization;
         if (authHeader?.startsWith('Bearer ')) {
             const token = authHeader.split(' ')[1];
             try {
-                const decoded = jwt.decode(token) as UserPayload;
+                const decoded = decode(token) as UserPayload;
                 if (decoded?.id) {
                     req.user = {
                         id: decoded.id,

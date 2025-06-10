@@ -15,15 +15,12 @@ export class PermissionsGuard implements CanActivate {
             context.getHandler(),
             context.getClass(),
         ]);
-
         if (!requiredPermissions || requiredPermissions.length === 0) {
             return true;
         }
 
         const request = context.switchToHttp().getRequest();
         const user = request.user;
-        console.log(user, ' bu user')
-
         if (!user) {
             throw new ForbiddenException({
                 message: 'The specified user does not exist or is no longer active.',
@@ -32,7 +29,6 @@ export class PermissionsGuard implements CanActivate {
         }
 
         const userPermissions = await this.permissionsService.getPermissions(user.id);
-
         const hasPermission = requiredPermissions.every((permission) =>
             userPermissions.includes(permission)
         );

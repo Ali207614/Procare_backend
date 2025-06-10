@@ -7,7 +7,7 @@ import { LoggerService } from '../logger/logger.service';
 import { HttpStatus } from '@nestjs/common';
 
 @Injectable()
-export class RateLimiterByUserMiddleware implements NestMiddleware {
+export class RateLimiterMiddleware implements NestMiddleware {
     private limiter;
 
     constructor(

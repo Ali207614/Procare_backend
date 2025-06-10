@@ -36,7 +36,7 @@ export class BranchesService {
 
         if (redisKey) {
             const cached = await this.redisService.get(redisKey);
-            if (cached) return cached;
+            if (cached && cached?.length) return cached;
         }
 
         const query = this.knex('branches')

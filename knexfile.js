@@ -42,3 +42,5 @@ module.exports = {
 
 
 // flushall - redis full delete
+
+// npx knex seed:run

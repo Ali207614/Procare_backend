@@ -113,7 +113,7 @@ export class AuthService {
             status: 'active',
         });
 
-        const payload = { id: admin.id, phone_number: admin.phone_number };
+        const payload = { id: admin.id, phone_number: admin.phone_number, role: 'admin' };
         const token = this.jwtService.sign(payload);
 
         await this.setAdminSession(admin.id, token);
@@ -147,7 +147,7 @@ export class AuthService {
             });
         }
 
-        const payload = { id: admin.id, phone_number: admin.phone_number };
+        const payload = { id: admin.id, phone_number: admin.phone_number, role: 'admin' };
         const token = this.jwtService.sign(payload);
 
         await this.setAdminSession(admin.id, token);

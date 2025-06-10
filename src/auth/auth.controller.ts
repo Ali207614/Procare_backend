@@ -11,8 +11,8 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 
-@ApiTags('Auth')
-@Controller('auth')
+@ApiTags('Auth-admin')
+@Controller('auth/admin')
 export class AuthController {
     constructor(private readonly authService: AuthService) { }
 

@@ -15,21 +15,22 @@ import { LoggerModule } from './common/logger/logger.module';
 import { AuthModule } from './auth/auth.module';
 import { LoggingMiddleware } from './common/middleware/logging.middleware';
 import { RateLimitedAdminRoutes } from './config/admin-rate-limited.routes';
-import { RateLimiterAdminMiddleware } from './common/middleware/rate-limiter-by-admin.middleware';
-import { JwtAdminMiddleware } from './common/middleware/jwt-admin.middleware';
-import { JwtUserMiddleware } from './common/middleware/jwt-user.middleware';
 import { RateLimitedUserRoutes } from './config/user-rate-limited.routes';
-import { RateLimiterByUserMiddleware } from './common/middleware/rate-limiter-by-user.middleware';
 import { PublicRoutes } from './config/public.routes';
 import { RateLimiterByIpMiddleware } from './common/middleware/rate-limiter-by-ip.middleware';
 import { MaintenanceMiddleware } from './common/middleware/maintenance.middleware';
 import { FeatureModule } from './feature/feature.module';
+import { JwtMiddleware } from './common/middleware/jwt.middleware';
+import { RateLimiterMiddleware } from './common/middleware/rate-limiter.middleware';
+import { PermissionsService } from './permissions/permissions.service';
+import { APP_GUARD } from '@nestjs/core';
+import { PermissionsGuard } from './common/guards/permission.guard';
 
 
 @Module({
   imports: [
-    BranchesModule,
     PermissionsModule,
+    BranchesModule,
     RolesModule,
     FeatureModule,
     ConfigModule.forRoot({
@@ -64,11 +65,11 @@ export class AppModule implements NestModule {
       .forRoutes(...PublicRoutes);
 
     consumer
-      .apply(JwtUserMiddleware, RateLimiterByUserMiddleware)
+      .apply(JwtMiddleware, RateLimiterMiddleware)
       .forRoutes(...RateLimitedUserRoutes);
 
     consumer
-      .apply(JwtAdminMiddleware, RateLimiterAdminMiddleware)
+      .apply(JwtMiddleware, RateLimiterMiddleware)
       .forRoutes(...RateLimitedAdminRoutes);
 
     consumer

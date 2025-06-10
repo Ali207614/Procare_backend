@@ -21,7 +21,8 @@ import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
-
+import { PermissionsGuard } from 'src/common/guards/permission.guard';
+import { SetPermissions } from 'src/common/decorators/permission-decorator';
 @ApiTags('Branches')
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
@@ -30,6 +31,8 @@ export class BranchesController {
     constructor(private readonly service: BranchesService) { }
 
     @Post()
+    @UseGuards(PermissionsGuard)
+    @SetPermissions('branch.create', 'branch.view')
     @ApiOperation({ summary: 'Create new branch' })
     @ApiResponse({ status: 201, description: 'Branch created successfully' })
     @ApiResponse({ status: 400, description: 'Validation failed' })
@@ -42,6 +45,8 @@ export class BranchesController {
     }
 
     @Get()
+    @UseGuards(PermissionsGuard)
+    @SetPermissions('branch.view')
     @ApiOperation({ summary: 'Get list of active branches (paginated)' })
     @ApiQuery({ name: 'offset', required: false, example: 0 })
     @ApiQuery({ name: 'limit', required: false, example: 10 })

@@ -9,39 +9,43 @@ export class PermissionsService {
         private readonly redisService: RedisService,
     ) { }
 
-    private getCacheKey(userId: string) {
-        return `user:${userId}:permissions`;
+    private getCacheKey(adminId: string): string {
+        return `admin:${adminId}:permissions`;
     }
 
-    async getPermissions(userId: string): Promise<string[]> {
-        const cacheKey = this.getCacheKey(userId);
-        const redis = this.redisService.getClient();
+    async getPermissions(adminId: string): Promise<string[]> {
+        const start = Date.now();
 
-        const cachedPermissions: any = await redis.get(cacheKey);
-        if (cachedPermissions) {
-            return cachedPermissions;
+        const cacheKey = this.getCacheKey(adminId);
+        const cached = await this.redisService.get<string[]>(cacheKey);
+        if (cached && cached?.length) {
+            const duration = Date.now() - start;
+            console.log(`🛠 Permissions: (${duration}ms)`);
+            return cached;
         }
 
-        const permissions = await this.loadPermissionsFromDB(userId);
-
-        await redis.set(cacheKey, JSON.stringify(permissions), { EX: 300 });
+        const permissions = await this.loadPermissionsFromDB(adminId);
+        await this.redisService.set(cacheKey, permissions, 300); // 5 min cache
+        const duration = Date.now() - start;
+        console.log(`🛠 Permissions: (${duration}ms)`);
         return permissions;
     }
 
-    private async loadPermissionsFromDB(userId: string): Promise<string[]> {
-        const rows = await this.knex('user_roles as ur')
-            .join('role_permissions as rp', 'rp.role_id', 'ur.role_id')
+    private async loadPermissionsFromDB(adminId: string): Promise<string[]> {
+        console.log(adminId, ' bu adminId')
+        const rows = await this.knex('admin_roles as ar')
+            .join('role_permissions as rp', 'rp.role_id', 'ar.role_id')
             .join('permissions as p', 'p.id', 'rp.permission_id')
-            .where('ur.user_id', userId)
+            .where('ar.admin_id', adminId)
+            .andWhere('p.is_active', true)
+            .andWhere('p.status', 'Open')
             .select('p.name')
             .groupBy('p.name');
-
         return rows.map(row => row.name);
     }
 
-    async clearPermissionCache(userId: string) {
-        const cacheKey = this.getCacheKey(userId);
-        const redis = this.redisService.getClient();
-        await redis.del(cacheKey);
+    async clearPermissionCache(adminId: string): Promise<void> {
+        const cacheKey = this.getCacheKey(adminId);
+        await this.redisService.del(cacheKey);
     }
 }
