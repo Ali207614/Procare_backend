@@ -1,60 +1,151 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectKnex, Knex } from 'nestjs-knex';
 import { RedisService } from 'src/common/redis/redis.service';
 import { CreateRoleDto } from './dto/create-role.dto';
+import { UpdateRoleDto } from './dto/update-role.dto';
 
 @Injectable()
 export class RolesService {
     constructor(
         @InjectKnex() private readonly knex: Knex,
-        private readonly redisService: RedisService,
+        private readonly redisService: RedisService
     ) { }
 
-    private getCacheKey(userId: string) {
-        return `user:${userId}:roles`;
-    }
+    async create(dto: CreateRoleDto, adminId: string) {
+        const existing = await this.knex('roles')
+            .whereRaw('LOWER(name) = ?', dto.name.toLowerCase())
+            .andWhere({ status: 'Open' })
+            .first();
 
-    async getRolesByUserId(userId: string): Promise<string[]> {
-        const cacheKey = this.getCacheKey(userId);
-
-        const cachedRoles: any = await this.redisService.get(cacheKey);
-        if (cachedRoles && cachedRoles?.length) {
-            return cachedRoles;
+        if (existing) {
+            throw new BadRequestException({
+                message: 'Role name already exists',
+                location: 'role_name',
+            });
         }
 
-        const rows = await this.knex('user_roles')
-            .select('roles.name')
-            .join('roles', 'roles.id', 'user_roles.role_id')
-            .where('user_roles.user_id', userId);
+        if (dto.permission_ids?.length) {
+            const foundPermissions = await this.knex('permissions')
+                .whereIn('id', dto.permission_ids)
+                .andWhere({ is_active: true, status: 'Open' });
 
-        const roles: any = rows.map(row => row.name);
+            if (foundPermissions.length !== dto.permission_ids.length) {
+                throw new BadRequestException({
+                    message: 'Some permission IDs are invalid or inactive',
+                    location: 'permission_ids',
+                });
+            }
+        }
 
-        await this.redisService.set(cacheKey, roles, 300);
-
-        return roles;
-    }
-
-    async clearUserRolesCache(userId: string): Promise<void> {
-        const cacheKey = this.getCacheKey(userId);
-        await this.redisService.del(cacheKey);
-    }
-
-    async createRole(dto: CreateRoleDto) {
-        const [created] = await this.knex('roles')
-            .insert({ name: dto.name, description: dto.description })
+        const [role] = await this.knex('roles')
+            .insert({
+                name: dto.name,
+                created_by: adminId,
+            })
             .returning('*');
-        return created;
-    }
 
-    async deleteRole(id: string) {
-        const deleted = await this.knex('roles')
-            .where({ id })
-            .del();
+        if (dto.permission_ids?.length) {
+            const mappings = dto.permission_ids.map((permission_id) => ({
+                role_id: role.id,
+                permission_id,
+            }));
 
-        if (!deleted) {
-            throw new NotFoundException('Role not found');
+            await this.knex('role_permissions').insert(mappings);
         }
 
-        return { success: true };
+        return role;
+    }
+
+
+    async findAll() {
+        return this.knex('roles').where({ is_active: true, status: 'Open' });
+    }
+
+    async findOne(id: string) {
+        const role = await this.knex('roles').where({
+            id,
+            status: 'Open'
+        }).first();
+        if (!role) {
+            throw new NotFoundException({
+                message: 'Role not found',
+                location: 'role_not_found',
+            });
+        }
+        return role;
+    }
+
+    async update(id: string, dto: UpdateRoleDto) {
+        const role = await this.findOne(id);
+
+        if (dto.name && dto.name.toLowerCase() !== role.name.toLowerCase()) {
+            const nameExists = await this.knex('roles')
+                .whereRaw('LOWER(name) = ?', dto.name.toLowerCase())
+                .andWhereNot({ id })
+                .andWhere({ status: 'Open' })
+                .first();
+
+            if (nameExists) {
+                throw new BadRequestException({
+                    message: 'Role name already exists',
+                    location: 'role_name',
+                });
+            }
+        }
+
+        if (dto.permission_ids) {
+            const foundPermissions = await this.knex('permissions')
+                .whereIn('id', dto.permission_ids)
+                .andWhere({ is_active: true, status: 'Open' });
+
+            if (foundPermissions.length !== dto.permission_ids.length) {
+                throw new BadRequestException({
+                    message: 'Some permission IDs are invalid or inactive',
+                    location: 'permission_ids',
+                });
+            }
+
+            await this.knex('role_permissions').where({ role_id: id }).del();
+
+            const mappings = dto.permission_ids.map((permission_id) => ({
+                role_id: id,
+                permission_id,
+            }));
+
+            await this.knex('role_permissions').insert(mappings);
+        }
+
+        await this.knex('roles')
+            .where({ id })
+            .update({
+                ...(dto.name && { name: dto.name }),
+                ...(dto.is_active !== undefined && { is_active: dto.is_active }),
+                ...(dto.status && { status: dto.status }),
+                updated_at: new Date(),
+            });
+
+        const adminIds = await this.knex('admin_roles')
+            .where({ role_id: id })
+            .pluck('admin_id');
+
+        await Promise.all(
+            adminIds.map((adminId) =>
+                this.redisService.del(`admin:${adminId}:permissions`)
+            )
+        );
+
+        return { message: 'Role updated successfully' };
+    }
+
+
+
+    async delete(id: string) {
+        await this.findOne(id); // check exists
+        await this.knex('roles').where({ id }).update({
+            is_active: false,
+            status: 'Deleted',
+            updated_at: new Date(),
+        });
+        return { message: 'Role deleted (soft) successfully' };
     }
 }

@@ -33,13 +33,17 @@ export class PermissionsService {
 
     private async loadPermissionsFromDB(adminId: string): Promise<string[]> {
         const rows = await this.knex('admin_roles as ar')
-            .join('role_permissions as rp', 'rp.role_id', 'ar.role_id')
+            .join('roles as r', 'r.id', 'ar.role_id')
+            .join('role_permissions as rp', 'rp.role_id', 'r.id')
             .join('permissions as p', 'p.id', 'rp.permission_id')
             .where('ar.admin_id', adminId)
+            .andWhere('r.is_active', true)
+            .andWhere('r.status', 'Open')
             .andWhere('p.is_active', true)
             .andWhere('p.status', 'Open')
             .select('p.name')
             .groupBy('p.name');
+
         return rows.map(row => row.name);
     }
 

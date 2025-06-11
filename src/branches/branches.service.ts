@@ -120,24 +120,40 @@ export class BranchesService {
 
     async update(branch: any, dto: UpdateBranchDto) {
         await this.knex('branches')
-          .where({ id: branch.id })
-          .update({
-            ...dto,
-            updated_at: new Date(),
-          });
-      
+            .where({ id: branch.id })
+            .update({
+                ...dto,
+                updated_at: new Date(),
+            });
+
         const updated = await this.knex('branches').where({ id: branch.id }).first();
-      
-        // ✅ Faqat shu branch uchun Redis yoziladi
+
         await this.redisService.set(`${this.redisKeyById}:${branch.id}`, updated, 3600);
-      
-        // ✅ List keshlari tozalanadi (offset, limit, search bo‘yicha)
+
         await this.redisService.flushByPrefix(`${this.redisKey}*`);
-      
+
         return {
-          message: 'Branch updated successfully',
-          data: updated,
+            message: 'Branch updated successfully',
+            data: updated,
         };
-      }
-      
+    }
+
+    async delete(branch: any) {
+        let branchId = branch.id
+
+        await this.knex('branches')
+            .where({ id: branchId })
+            .update({
+                is_active: false,
+                status: 'Deleted',
+                updated_at: new Date(),
+            });
+
+        await this.redisService.del(`${this.redisKeyById}:${branchId}`);
+        await this.redisService.flushByPrefix(`${this.redisKey}*`);
+
+        return { message: 'Branch deleted successfully' };
+    }
+
+
 }

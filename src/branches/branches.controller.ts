@@ -8,6 +8,7 @@ import {
     Query,
     Patch,
     Req,
+    Delete,
 } from '@nestjs/common';
 import { BranchesService } from './branches.service';
 import { CreateBranchDto } from './dto/create-branch.dto';
@@ -100,5 +101,14 @@ export class BranchesController {
         @Body() dto: UpdateBranchDto,
     ) {
         return this.service.update(req.branch, dto);
+    }
+
+    @Delete(':id')
+    @UseGuards(PermissionsGuard, BranchExistGuard)
+    @SetPermissions('branch.delete')
+    @ApiOperation({ summary: 'Delete branch by ID (soft delete)' })
+    @ApiParam({ name: 'id', description: 'Branch ID (UUID)' })
+    async delete(@Req() req,) {
+        return this.service.delete(req.branch);
     }
 }
