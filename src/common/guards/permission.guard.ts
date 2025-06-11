@@ -1,6 +1,15 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import {
+    Injectable,
+    CanActivate,
+    ExecutionContext,
+    ForbiddenException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { PERMISSIONS_KEY } from '../decorators/permission-decorator';
+import {
+    PERMISSIONS_KEY,
+    PERMISSIONS_MODE_KEY,
+    PermissionMode,
+} from '../decorators/permission-decorator';
 import { PermissionsService } from '../../permissions/permissions.service';
 
 @Injectable()
@@ -11,16 +20,25 @@ export class PermissionsGuard implements CanActivate {
     ) { }
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
-        const requiredPermissions = this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [
-            context.getHandler(),
-            context.getClass(),
-        ]);
-        if (!requiredPermissions || requiredPermissions.length === 0) {
+        const requiredPermissions =
+            this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [
+                context.getHandler(),
+                context.getClass(),
+            ]) ?? [];
+
+        const mode: PermissionMode =
+            this.reflector.getAllAndOverride(PERMISSIONS_MODE_KEY, [
+                context.getHandler(),
+                context.getClass(),
+            ]) || 'OR';
+
+        if (requiredPermissions.length === 0) {
             return true;
         }
 
         const request = context.switchToHttp().getRequest();
         const user = request.user;
+
         if (!user) {
             throw new ForbiddenException({
                 message: 'The specified user does not exist or is no longer active.',
@@ -29,9 +47,11 @@ export class PermissionsGuard implements CanActivate {
         }
 
         const userPermissions = await this.permissionsService.getPermissions(user.id);
-        const hasPermission = requiredPermissions.every((permission) =>
-            userPermissions.includes(permission)
-        );
+
+        const hasPermission =
+            mode === 'AND'
+                ? requiredPermissions.every((p) => userPermissions.includes(p))
+                : requiredPermissions.some((p) => userPermissions.includes(p));
 
         if (!hasPermission) {
             throw new ForbiddenException({

@@ -1,8 +1,5 @@
-import { Body, Controller, forwardRef, Get, Inject, Post, Req, UseGuards, UseInterceptors } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { AuthService } from 'src/auth/auth.service';
-import { CurrentUser } from 'src/common/decorators/current-user.decorator';
-import { UserPayload } from 'src/common/types/user-payload.interface';
+import { Body, Controller, Delete, forwardRef, Get, Inject, Param, Patch, Post, Req, UseGuards, UseInterceptors } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { JwtAdminAuthGuard } from '../common/guards/jwt-admin.guard';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { AdminsService } from './admins.service';
@@ -11,15 +8,19 @@ import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { ClassSerializerInterceptor } from 'src/common/interceptors/class-serializer.interceptor';
 import { plainToInstance } from 'class-transformer';
 import { AdminProfileDto } from './dto/admin-profile.dto';
+import { PermissionsGuard } from 'src/common/guards/permission.guard';
+import { SetAllPermissions, SetPermissions } from 'src/common/decorators/permission-decorator';
+import { CreateAdminDto } from './dto/create-admin.dto';
+import { UpdateAdminDto } from './dto/update-admin.dto';
 
 @ApiBearerAuth()
+@UseGuards(JwtAdminAuthGuard)
 @ApiTags('Admins')
 @Controller('admins')
 export class AdminsController {
     constructor(
         private readonly adminsService: AdminsService) { }
 
-    @UseGuards(JwtAdminAuthGuard)
     @UseInterceptors(ClassSerializerInterceptor)
     @Get('me')
     getProfile(@CurrentAdmin() admin: AdminPayload) {
@@ -28,10 +29,34 @@ export class AdminsController {
 
     }
 
-    @UseGuards(JwtAdminAuthGuard)
     @Post('change-password')
     changePassword(@CurrentAdmin() admin: AdminPayload, @Body() dto: ChangePasswordDto) {
         return this.adminsService.changePassword(admin, dto);
     }
 
+    @Post()
+    @UseGuards(PermissionsGuard)
+    @SetPermissions('admin.manage.create')
+    @ApiOperation({ summary: 'Create new admin (without password)' })
+    async create(@CurrentAdmin() admin: AdminPayload, @Body() dto: CreateAdminDto) {
+        return this.adminsService.create(admin.id, dto);
+    }
+
+    @Patch(':id')
+    @UseGuards(PermissionsGuard)
+    @SetPermissions('admin.manage.edit', 'admin.profile.edit.basic', 'admin.profile.edit.sensitive')
+    @ApiParam({ name: 'id', description: 'Admin ID' })
+    @ApiOperation({ summary: 'Update admin data' })
+    async update(@Req() req, @Param('id') id: string, @Body() dto: UpdateAdminDto) {
+        return this.adminsService.update(req.admin, id, dto);
+    }
+
+    @Delete(':id')
+    @UseGuards(PermissionsGuard)
+    @SetAllPermissions('admin.manage.delete')
+    @ApiParam({ name: 'id', description: 'Admin ID (UUID)' })
+    @ApiOperation({ summary: 'Delete admin by ID (soft delete)' })
+    async delete(@Req() req, @Param('id') id: string) {
+        return this.adminsService.delete(req.admin, id);
+    }
 }

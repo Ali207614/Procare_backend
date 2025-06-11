@@ -80,8 +80,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
         const log = `[${request.method}] ${request.url} - ${status} → ${message}`;
         if (status >= 500) {
             const shortMessage = exception instanceof Error ? `${exception.name}: ${exception.message}` : message;
-            this.logger.error(`${log} → ${shortMessage}`);
+            const stack = exception instanceof Error ? exception.stack : undefined;
 
+            this.logger.error(`${log} → ${shortMessage}`, stack);
         }
 
         response.status(status).json(errorResponse);

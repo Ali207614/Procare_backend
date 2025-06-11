@@ -110,7 +110,7 @@ export class AuthService {
 
         await this.adminsService.updateAdminByPhone(dto.phone_number, {
             password: hashedPassword,
-            status: 'active',
+            status: 'Open',
         });
 
         const payload = { id: admin.id, phone_number: admin.phone_number, role: 'admin' };

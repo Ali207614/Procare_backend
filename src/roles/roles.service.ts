@@ -56,7 +56,6 @@ export class RolesService {
         return role;
     }
 
-
     async findAll() {
         return this.knex('roles').where({ is_active: true, status: 'Open' });
     }
@@ -136,8 +135,6 @@ export class RolesService {
 
         return { message: 'Role updated successfully' };
     }
-
-
 
     async delete(id: string) {
         await this.findOne(id); // check exists

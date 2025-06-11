@@ -7,7 +7,11 @@ export class LoggerService implements NestLoggerService {
         level: 'info',
         format: format.combine(
             format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-            format.printf(({ level, message, timestamp }) => `[${timestamp}] ${level.toUpperCase()}: ${message}`)
+            format.errors({ stack: true }), // Stack trace qo‘shiladi
+            format.printf(({ level, message, timestamp, stack }) => {
+                const msg = typeof message === 'string' ? message : JSON.stringify(message);
+                return `[${timestamp}] ${level.toUpperCase()}: ${msg}${stack ? `\n${stack}` : ''}`;
+            })
         ),
         transports: [
             new transports.Console(),
@@ -21,7 +25,7 @@ export class LoggerService implements NestLoggerService {
     }
 
     error(message: string, trace?: string) {
-        this.logger.error(`${message} ${trace || ''}`);
+        this.logger.error(message, trace ? { stack: trace } : undefined);
     }
 
     warn(message: string) {

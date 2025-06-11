@@ -1,24 +1,29 @@
 
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
 import { RedisService } from 'src/common/redis/redis.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import * as bcrypt from 'bcrypt';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
+import { CreateAdminDto } from './dto/create-admin.dto';
+import { PermissionsService } from 'src/permissions/permissions.service';
+import { UpdateAdminDto } from './dto/update-admin.dto';
+import { extractDefinedFields } from 'src/common/utils/extract-defined-fields.util';
 
 @Injectable()
 export class AdminsService {
     constructor(
         @InjectKnex() private readonly knex: Knex,
         private readonly redisService: RedisService,
+        private readonly permissionsService: PermissionsService
     ) { }
 
     private readonly table = 'admins';
 
 
     async findByPhoneNumber(phone: string) {
-        return this.knex(this.table).where({ phone_number: phone }).first();
+        return this.knex(this.table).where({ phone_number: phone, }).first();
     }
 
     async findById(id: string) {
@@ -33,8 +38,6 @@ export class AdminsService {
 
         return admin;
     }
-
-
 
     async markPhoneVerified(phone: string) {
         await this.knex(this.table)
@@ -115,4 +118,211 @@ export class AdminsService {
 
         return { message: '✅ Password changed successfully' };
     }
+
+    async create(adminId: string, dto: CreateAdminDto) {
+        const existing = await this.knex('admins')
+            .whereRaw('LOWER(phone_number) = ?', dto.phone_number.toLowerCase())
+            .andWhereNot({ status: 'Deleted' })
+            .first();
+
+        if (existing) {
+            throw new BadRequestException({
+                message: 'Phone number already exists',
+                location: 'phone_number',
+            });
+        }
+
+        if (dto.role_ids?.length) {
+            const foundRoles = await this.knex('roles')
+                .whereIn('id', dto.role_ids)
+                .andWhere({ is_active: true, status: 'Open' });
+
+            if (foundRoles.length !== dto.role_ids.length) {
+                throw new BadRequestException({
+                    message: 'Some role IDs are invalid or inactive',
+                    location: 'role_ids',
+                });
+            }
+        }
+
+        if (dto.branch_ids?.length) {
+            const foundBranches = await this.knex('branches')
+                .whereIn('id', dto.branch_ids)
+                .andWhere({ is_active: true, status: 'Open' });
+
+            if (foundBranches.length !== dto.branch_ids.length) {
+                throw new BadRequestException({
+                    message: 'Some branch IDs are invalid or inactive',
+                    location: 'branch_ids',
+                });
+            }
+        }
+
+        const [admin] = await this.knex('admins')
+            .insert({
+                ...dto,
+                status: 'Pending',
+                created_by: adminId
+            })
+            .returning('*');
+
+        if (dto.role_ids?.length) {
+            const rolesData = dto.role_ids.map((role_id) => ({
+                admin_id: admin.id,
+                role_id,
+            }));
+            await this.knex('admin_roles').insert(rolesData);
+        }
+
+        if (dto.branch_ids?.length) {
+            const branchData = dto.branch_ids.map((branch_id) => ({
+                admin_id: admin.id,
+                branch_id,
+            }));
+            await this.knex('admin_branches').insert(branchData);
+        }
+        await this.permissionsService.getPermissions(admin.id);
+
+        return admin;
+    }
+
+    async update(currentAdmin: any, targetAdminId: string, dto: UpdateAdminDto & { role_ids?: string[], branch_ids?: string[] }) {
+        const target = await this.knex('admins').where({ id: targetAdminId }).first();
+
+        if (!target) {
+            throw new NotFoundException({
+                message: 'Admin not found',
+                location: 'admin_not_found',
+            });
+        }
+
+        const isSelf = currentAdmin.id === target.id;
+        const permissions = await this.permissionsService.getPermissions(currentAdmin.id);
+
+        const canEditOthers = permissions.includes('admin.manage.edit');
+        const canEditOwnBasic = permissions.includes('admin.profile.edit.basic');
+        const canEditOwnSensitive = permissions.includes('admin.profile.edit.sensitive');
+
+        if (!isSelf && !canEditOthers) {
+            throw new ForbiddenException({
+                message: 'You cannot edit other admins',
+                location: 'edit_forbidden',
+            });
+        }
+
+        if (isSelf && !canEditOthers) {
+            const sensitiveFields = ['passport_series', 'birth_date', 'hire_date', 'id_card_number', 'language', 'role_ids', 'branch_ids'];
+            for (const field of sensitiveFields) {
+                if (dto[field] !== undefined && !canEditOwnSensitive) {
+                    throw new ForbiddenException({
+                        message: `You cannot edit your ${field}`,
+                        location: field,
+                    });
+                }
+            }
+
+            const basicFields = ['first_name', 'last_name'];
+            if (!canEditOwnBasic) {
+                for (const field of basicFields) {
+                    if (dto[field] !== undefined) {
+                        throw new ForbiddenException({
+                            message: `You cannot edit your ${field}`,
+                            location: field,
+                        });
+                    }
+                }
+            }
+        }
+
+        const updateData: Record<string, any> = extractDefinedFields(dto, [
+            'first_name',
+            'last_name',
+            'passport_series',
+            'birth_date',
+            'hire_date',
+            'id_card_number',
+            'language',
+        ]);
+
+        updateData.updated_at = new Date();
+
+        if (Object.keys(updateData).length > 1) {
+            await this.knex('admins')
+                .where({ id: targetAdminId })
+                .update(updateData);
+        }
+
+        if (dto.role_ids !== undefined) {
+            await this.knex('admin_roles').where({ admin_id: targetAdminId }).del();
+            if (Array.isArray(dto.role_ids) && dto.role_ids.length) {
+                const roleData = dto.role_ids.map(role_id => ({
+                    admin_id: targetAdminId,
+                    role_id,
+                }));
+                await this.knex('admin_roles').insert(roleData);
+            }
+        }
+
+        if (dto.branch_ids !== undefined) {
+            await this.knex('admin_branches').where({ admin_id: targetAdminId }).del();
+            if (Array.isArray(dto.branch_ids) && dto.branch_ids.length) {
+                const branchData = dto.branch_ids.map(branch_id => ({
+                    admin_id: targetAdminId,
+                    branch_id,
+                }));
+                await this.knex('admin_branches').insert(branchData);
+            }
+        }
+
+        await this.permissionsService.clearPermissionCache(targetAdminId);
+        await this.permissionsService.getPermissions(targetAdminId);
+
+        return {
+            message: 'Admin updated successfully',
+        };
+    }
+
+    async delete(requestingAdmin: any, targetAdminId: string) {
+        const target = await this.knex('admins').where({ id: targetAdminId }).first();
+
+        if (!target) {
+            throw new NotFoundException({
+                message: 'Admin not found',
+                location: 'admin_not_found',
+            });
+        }
+
+        if (requestingAdmin.id === target.id) {
+            throw new ForbiddenException({
+                message: 'You cannot delete yourself',
+                location: 'self_delete',
+            });
+        }
+
+        const permissions = await this.permissionsService.getPermissions(requestingAdmin.id);
+
+        if (!permissions.includes('admin.manage.delete')) {
+            throw new ForbiddenException({
+                message: 'You do not have permission to delete admins',
+                location: 'permission_denied',
+            });
+        }
+
+        await this.knex('admins')
+            .where({ id: targetAdminId })
+            .update({
+                is_active: false,
+                status: 'Deleted',
+                updated_at: new Date(),
+            });
+
+        await this.permissionsService.clearPermissionCache(targetAdminId);
+
+        return {
+            message: 'Admin deleted successfully',
+            deleted_admin_id: targetAdminId,
+        };
+    }
+
+
 }
