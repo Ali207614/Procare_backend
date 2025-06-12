@@ -1,3 +1,5 @@
+import { PhoneOsTypesModule } from './phone-os-types/phone-os-types.module';
+import { PhoneOsTypesService } from './phone-os-types/phone-os-types.service';
 import { PhoneProblemMappingsModule } from './phone-problem-mappings/phone-problem-mappings.module';
 import { PhoneProblemMappingsService } from './phone-problem-mappings/phone-problem-mappings.service';
 import { PhoneProblemMappingsController } from './phone-problem-mappings/phone-problem-mappings.controller';
@@ -38,6 +40,7 @@ import { PhoneCategoriesController } from './phone-categories/phone-categories.c
 
 @Module({
   imports: [
+    PhoneOsTypesModule,
     PhoneProblemMappingsModule,
     ProblemCategoriesModule,
     PhoneCategoriesModule,
@@ -65,6 +68,7 @@ import { PhoneCategoriesController } from './phone-categories/phone-categories.c
     AdminsController,
   ],
   providers: [
+    PhoneOsTypesService,
     PhoneProblemMappingsService,
     ProblemCategoriesService,
     PhoneCategoriesService,

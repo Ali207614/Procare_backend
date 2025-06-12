@@ -69,6 +69,11 @@ exports.seed = async function (knex) {
 
     { id: '00000000-0000-0000-0000-000000000041', name: 'phone-problem-mapping.create', description: 'Telefon va muomolarni bog‘lash' },
     { id: '00000000-0000-0000-0000-000000000042', name: 'phone-problem-mapping.delete', description: 'Telefon va muomolarni o‘chirish' },
+
+    { id: '00000000-0000-0000-0000-000000000043', name: 'phone-os-type.view', description: 'Telefon os type ko‘rish huquqi' },
+    { id: '00000000-0000-0000-0000-000000000044', name: 'phone-os-type.create', description: 'Telefon os type yaratish huquqi' },
+    { id: '00000000-0000-0000-0000-000000000045', name: 'phone-os-type.update', description: 'Telefon os type o‘zgartirish huquqi' },
+    { id: '00000000-0000-0000-0000-000000000046', name: 'phone-os-type.delete', description: 'Telefon os type o‘chirish' },
   ];
 
   for (const perm of permissions) {

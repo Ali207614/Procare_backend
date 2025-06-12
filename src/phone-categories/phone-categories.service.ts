@@ -5,10 +5,14 @@ import { CreatePhoneCategoryDto } from './dto/create-phone-category.dto';
 import { getNextSortValue } from 'src/common/utils/sort.util';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
 import { UpdatePhoneCategoryDto } from './dto/update-phone-category.dto';
+import { PhoneOsTypesService } from 'src/phone-os-types/phone-os-types.service';
 
 @Injectable()
 export class PhoneCategoriesService {
-    constructor(@InjectKnex() private readonly knex: Knex) { }
+    constructor(
+        @InjectKnex() private readonly knex: Knex,
+        private readonly phoneOsTypesService: PhoneOsTypesService
+    ) { }
 
     async create(dto: CreatePhoneCategoryDto, adminId: string) {
         const { parent_id, name_uz, name_ru, name_en, phone_os_type_id } = dto;
@@ -166,9 +170,7 @@ export class PhoneCategoriesService {
         }
 
         if (dto?.phone_os_type_id) {
-            const osExists = await this.knex('phone_os_types')
-                .where({ id: dto.phone_os_type_id, is_active: true, status: 'Open' })
-                .first();
+            const osExists = await this.phoneOsTypesService.findAll()
             if (!osExists) {
                 throw new BadRequestException({
                     message: 'Phone OS type not found or inactive',
