@@ -1,3 +1,5 @@
+import { PhoneCategoriesModule } from './phone-categories/phone-categories.module';
+import { PhoneCategoriesService } from './phone-categories/phone-categories.service';
 import { BranchesModule } from './branches/branches.module';
 import { PermissionsModule } from './permissions/permissions.module';
 import { RolesModule } from './roles/roles.module';
@@ -29,6 +31,7 @@ import { PermissionsGuard } from './common/guards/permission.guard';
 
 @Module({
   imports: [
+    PhoneCategoriesModule,
     PermissionsModule,
     BranchesModule,
     RolesModule,
@@ -50,6 +53,7 @@ import { PermissionsGuard } from './common/guards/permission.guard';
     AdminsController,
   ],
   providers: [
+    PhoneCategoriesService,
     RolesService,
     AdminsService,
   ],

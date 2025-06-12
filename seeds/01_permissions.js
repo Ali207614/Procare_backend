@@ -56,16 +56,16 @@ exports.seed = async function (knex) {
     { id: '00000000-0000-0000-0000-000000000032', name: 'brand.delete', description: 'Brandni o‘chirish huquqi' },
 
     // Phone CRUD
-    { id: '00000000-0000-0000-0000-000000000033', name: 'phone.view', description: 'Telefonlarni ko‘rish huquqi' },
-    { id: '00000000-0000-0000-0000-000000000034', name: 'phone.create', description: 'Telefon yaratish huquqi' },
-    { id: '00000000-0000-0000-0000-000000000035', name: 'phone.update', description: 'Telefonni o‘zgartirish huquqi' },
-    { id: '00000000-0000-0000-0000-000000000036', name: 'phone.delete', description: 'Telefonni o‘chirish huquqi' },
+    { id: '00000000-0000-0000-0000-000000000033', name: 'phone-category.view', description: 'Telefonlarni ko‘rish huquqi' },
+    { id: '00000000-0000-0000-0000-000000000034', name: 'phone-category.create', description: 'Telefon yaratish huquqi' },
+    { id: '00000000-0000-0000-0000-000000000035', name: 'phone-category.update', description: 'Telefonni o‘zgartirish huquqi' },
+    { id: '00000000-0000-0000-0000-000000000036', name: 'phone-category.delete', description: 'Telefonni o‘chirish huquqi' },
 
     // Problem CRUD
-    { id: '00000000-0000-0000-0000-000000000037', name: 'problem.view', description: 'Muammolarni ko‘rish huquqi' },
-    { id: '00000000-0000-0000-0000-000000000038', name: 'problem.create', description: 'Muammo yaratish huquqi' },
-    { id: '00000000-0000-0000-0000-000000000039', name: 'problem.update', description: 'Muammoni o‘zgartirish huquqi' },
-    { id: '00000000-0000-0000-0000-000000000040', name: 'problem.delete', description: 'Muammoni o‘chirish huquqi' },
+    { id: '00000000-0000-0000-0000-000000000037', name: 'problem-category.view', description: 'Muammolarni ko‘rish huquqi' },
+    { id: '00000000-0000-0000-0000-000000000038', name: 'problem-category.create', description: 'Muammo yaratish huquqi' },
+    { id: '00000000-0000-0000-0000-000000000039', name: 'problem-category.update', description: 'Muammoni o‘zgartirish huquqi' },
+    { id: '00000000-0000-0000-0000-000000000040', name: 'problem-category.delete', description: 'Muammoni o‘chirish huquqi' },
   ];
 
   for (const perm of permissions) {

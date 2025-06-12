@@ -4,20 +4,16 @@ exports.up = async function (knex) {
         table.string('name').notNullable().unique();
         table.boolean('is_active').defaultTo(true);
         table.enu('status', ['Open', 'Deleted']).defaultTo('Open');
-        table.uuid('created_by').nullable();
-        table.foreign('created_by').references('id').inTable('admins').onDelete('SET NULL');
+        table.uuid('created_by').nullable().references('id').inTable('admins').onDelete('SET NULL');
         table.timestamp('created_at').defaultTo(knex.fn.now());
         table.timestamp('updated_at').defaultTo(knex.fn.now());
     });
 
     await knex.schema.createTable('role_permissions', (table) => {
-        table.uuid('role_id').notNullable();
-        table.uuid('permission_id').notNullable();
+        table.uuid('role_id').notNullable().references('id').inTable('roles').onDelete('CASCADE');
+        table.uuid('permission_id').notNullable().references('id').inTable('permissions').onDelete('CASCADE');
 
         table.primary(['role_id', 'permission_id']);
-
-        table.foreign('role_id').references('id').inTable('roles').onDelete('CASCADE');
-        table.foreign('permission_id').references('id').inTable('permissions').onDelete('CASCADE');
     });
 };
 
