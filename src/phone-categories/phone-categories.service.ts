@@ -36,6 +36,17 @@ export class PhoneCategoriesService {
                 });
             }
 
+            const isParentBoundToProblems = await this.knex('phone_problem_mappings')
+                .where({ phone_category_id: parent_id })
+                .first();
+
+            if (isParentBoundToProblems) {
+                throw new BadRequestException({
+                    message: 'Cannot add child to a phone category already linked with problems',
+                    location: 'parent_id',
+                });
+            }
+
             const existing = await this.knex('phone_categories')
                 .where({ parent_id, name_uz })
                 .orWhere({ parent_id, name_ru })
@@ -64,30 +75,45 @@ export class PhoneCategoriesService {
     }
 
     async findAll(phone_os_type_id?: string, parent_id?: string, query?: PaginationQueryDto) {
-        const q = this.knex('phone_categories')
-            .where({ is_active: true, status: 'Open' });
+        const q = this.knex('phone_categories as pc')
+            .where('pc.is_active', true)
+            .andWhere('pc.status', 'Open')
+            .select(
+                'pc.*',
+                this.knex.raw(`(
+              SELECT COALESCE(JSON_AGG(row_to_json(c.*)), '[]')
+              FROM phone_categories c
+              WHERE c.parent_id = pc.id AND c.is_active = true AND c.status = 'Open'
+            ) as children`),
+                this.knex.raw(`(
+              SELECT COALESCE(JSON_AGG(row_to_json(p.*)), '[]')
+              FROM phone_problem_mappings ppm
+              JOIN problem_categories p ON p.id = ppm.problem_category_id
+              WHERE ppm.phone_category_id = pc.id 
+            ) as problems`)
+            );
 
         if (phone_os_type_id) {
-            q.andWhere({ phone_os_type_id });
+            q.andWhere('pc.phone_os_type_id', phone_os_type_id);
         }
 
         if (parent_id) {
-            q.andWhere({ parent_id });
+            q.andWhere('pc.parent_id', parent_id);
         } else {
-            q.whereNull('parent_id');
+            q.whereNull('pc.parent_id');
         }
 
         if (query?.search) {
             q.andWhere((builder) =>
                 builder
-                    .whereILike('name_uz', `%${query.search}%`)
-                    .orWhereILike('name_ru', `%${query.search}%`)
-                    .orWhereILike('name_en', `%${query.search}%`)
+                    .whereILike('pc.name_uz', `%${query.search}%`)
+                    .orWhereILike('pc.name_ru', `%${query.search}%`)
+                    .orWhereILike('pc.name_en', `%${query.search}%`)
             );
         }
 
         return q
-            .orderBy('sort', 'asc')
+            .orderBy('pc.sort', 'asc')
             .offset(query?.offset || 0)
             .limit(query?.limit || 20);
     }
@@ -123,6 +149,17 @@ export class PhoneCategoriesService {
             if (!parent) {
                 throw new BadRequestException({
                     message: 'Parent category not found or inactive',
+                    location: 'parent_id',
+                });
+            }
+
+            const isParentBoundToProblems = await this.knex('phone_problem_mappings')
+                .where({ phone_category_id: parentId })
+                .first();
+
+            if (isParentBoundToProblems) {
+                throw new BadRequestException({
+                    message: 'Cannot add child to a phone category already linked with problems',
                     location: 'parent_id',
                 });
             }
@@ -193,7 +230,7 @@ export class PhoneCategoriesService {
 
     async delete(id: string) {
         const category = await this.knex('phone_categories')
-            .where({ id, is_active: true, status: 'Open' })
+            .where({ id, status: 'Open' })
             .first();
 
         if (!category) {
@@ -203,11 +240,34 @@ export class PhoneCategoriesService {
             });
         }
 
+        const hasChildren = await this.knex('phone_categories')
+            .where({ parent_id: id, status: 'Open' })
+            .first();
+
+        if (hasChildren) {
+            throw new BadRequestException({
+                message: 'Cannot delete category with child categories',
+                location: 'has_children',
+            });
+        }
+
+        const hasProblems = await this.knex('phone_problem_mappings')
+            .where({ phone_category_id: id })
+            .first();
+
+        if (hasProblems) {
+            throw new BadRequestException({
+                message: 'Cannot delete category with linked problems',
+                location: 'has_problems',
+            });
+        }
+
         await this.knex('phone_categories')
             .where({ id })
             .update({ status: 'Deleted', updated_at: new Date() });
 
         return { message: 'Phone category deleted (soft)' };
     }
+
 
 }

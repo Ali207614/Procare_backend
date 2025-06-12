@@ -1,3 +1,9 @@
+import { PhoneProblemMappingsModule } from './phone-problem-mappings/phone-problem-mappings.module';
+import { PhoneProblemMappingsService } from './phone-problem-mappings/phone-problem-mappings.service';
+import { PhoneProblemMappingsController } from './phone-problem-mappings/phone-problem-mappings.controller';
+import { ProblemCategoriesModule } from './problem-categories/problem-categories.module';
+import { ProblemCategoriesService } from './problem-categories/problem-categories.service';
+import { ProblemCategoriesController } from './problem-categories/problem-categories.controller';
 import { PhoneCategoriesModule } from './phone-categories/phone-categories.module';
 import { PhoneCategoriesService } from './phone-categories/phone-categories.service';
 import { BranchesModule } from './branches/branches.module';
@@ -27,10 +33,13 @@ import { RateLimiterMiddleware } from './common/middleware/rate-limiter.middlewa
 import { PermissionsService } from './permissions/permissions.service';
 import { APP_GUARD } from '@nestjs/core';
 import { PermissionsGuard } from './common/guards/permission.guard';
+import { PhoneCategoriesController } from './phone-categories/phone-categories.controller';
 
 
 @Module({
   imports: [
+    PhoneProblemMappingsModule,
+    ProblemCategoriesModule,
     PhoneCategoriesModule,
     PermissionsModule,
     BranchesModule,
@@ -49,10 +58,15 @@ import { PermissionsGuard } from './common/guards/permission.guard';
     AdminsModule,
   ],
   controllers: [
+    PhoneProblemMappingsController,
+    ProblemCategoriesController,
+    PhoneCategoriesController,
     RolesController,
     AdminsController,
   ],
   providers: [
+    PhoneProblemMappingsService,
+    ProblemCategoriesService,
     PhoneCategoriesService,
     RolesService,
     AdminsService,

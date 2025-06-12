@@ -66,6 +66,9 @@ exports.seed = async function (knex) {
     { id: '00000000-0000-0000-0000-000000000038', name: 'problem-category.create', description: 'Muammo yaratish huquqi' },
     { id: '00000000-0000-0000-0000-000000000039', name: 'problem-category.update', description: 'Muammoni o‘zgartirish huquqi' },
     { id: '00000000-0000-0000-0000-000000000040', name: 'problem-category.delete', description: 'Muammoni o‘chirish huquqi' },
+
+    { id: '00000000-0000-0000-0000-000000000041', name: 'phone-problem-mapping.create', description: 'Telefon va muomolarni bog‘lash' },
+    { id: '00000000-0000-0000-0000-000000000042', name: 'phone-problem-mapping.delete', description: 'Telefon va muomolarni o‘chirish' },
   ];
 
   for (const perm of permissions) {

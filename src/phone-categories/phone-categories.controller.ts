@@ -48,8 +48,8 @@ export class PhoneCategoriesController {
     @SetPermissions('phone-category.view')
     @ApiOperation({ summary: 'List phone categories by OS and optionally by parent_id' })
     async findAll(
-        @Query('phone_os_type_id') phone_os_type_id: string,
-        @Query('parent_id') parent_id: string,
+        @Query('phone_os_type_id', ParseUUIDPipe) phone_os_type_id: string,
+        @Query('parent_id', ParseUUIDPipe) parent_id: string,
         @Query() query: PaginationQueryDto,
     ) {
         return this.service.findAll(phone_os_type_id, parent_id, query);
