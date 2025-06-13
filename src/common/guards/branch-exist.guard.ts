@@ -15,7 +15,7 @@ export class BranchExistGuard implements CanActivate {
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
         const request = context.switchToHttp().getRequest();
-        let branchId = request.params.id;
+        let branchId = request?.body?.branch_id || request?.qeuery?.branch_id || request.params.id
 
         try {
             const parser = new ParseUUIDPipe();

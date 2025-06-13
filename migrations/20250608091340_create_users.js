@@ -13,7 +13,6 @@ exports.up = async function (knex) {
 
         table.string('passport_series');
         table.date('birth_date');
-        table.date('hire_date');
         table.string('id_card_number');
         table.string('language').defaultTo('uz');
 
@@ -22,7 +21,7 @@ exports.up = async function (knex) {
 
         table.timestamp('created_at').defaultTo(knex.fn.now());
         table.timestamp('updated_at').defaultTo(knex.fn.now());
-        table.unique(['user_id', 'phone_number']);
+        table.unique(['id', 'phone_number']);
     });
 };
 

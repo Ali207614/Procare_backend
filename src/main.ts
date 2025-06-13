@@ -40,16 +40,23 @@ async function bootstrap() {
   );
 
   const config = new DocumentBuilder()
-    .setTitle('Procare API')
-    .setDescription('API for Admins')
-    .setVersion('1.0')
-    .addBearerAuth({
-      type: 'http',
-      scheme: 'bearer',
-      bearerFormat: 'JWT',
-      name: 'Authorization',
-      in: 'header',
-    }, 'access-token')
+    .setTitle('📱 Procare Admin API')
+    .setDescription(`
+    <b>Procare</b> is an online phone repair management platform.<br />
+    This <b>Admin API</b> allows you to manage branches, repair orders, users, and related technical operations.
+  `.trim())
+    .setVersion('1.0.0')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'Authorization',
+        in: 'header',
+        description: 'Enter your JWT token in the format: <code>Bearer &lt;token&gt;</code>',
+      },
+      'access-token',
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

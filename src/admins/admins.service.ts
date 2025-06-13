@@ -258,7 +258,6 @@ export class AdminsService {
             const trx = await this.knex.transaction();
 
             try {
-                // 🟩 Role IDs update
                 if (dto.role_ids !== undefined) {
                     await trx('admin_roles').where({ admin_id: targetAdminId }).del();
 
@@ -271,7 +270,6 @@ export class AdminsService {
                     }
                 }
 
-                // 🟦 Branch IDs update
                 if (dto.branch_ids !== undefined) {
                     await trx('admin_branches').where({ admin_id: targetAdminId }).del();
 

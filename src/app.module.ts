@@ -1,3 +1,6 @@
+import { RepairOrderStatusesModule } from './repair-order-statuses/repair-order-statuses.module';
+import { RepairOrderStatusesService } from './repair-order-statuses/repair-order-statuses.service';
+import { RepairOrderStatusesController } from './repair-order-statuses/repair-order-statuses.controller';
 import { PhoneOsTypesModule } from './phone-os-types/phone-os-types.module';
 import { PhoneOsTypesService } from './phone-os-types/phone-os-types.service';
 import { PhoneProblemMappingsModule } from './phone-problem-mappings/phone-problem-mappings.module';
@@ -40,6 +43,7 @@ import { PhoneCategoriesController } from './phone-categories/phone-categories.c
 
 @Module({
   imports: [
+    RepairOrderStatusesModule,
     PhoneOsTypesModule,
     PhoneProblemMappingsModule,
     ProblemCategoriesModule,
@@ -61,6 +65,7 @@ import { PhoneCategoriesController } from './phone-categories/phone-categories.c
     AdminsModule,
   ],
   controllers: [
+    RepairOrderStatusesController,
     PhoneProblemMappingsController,
     ProblemCategoriesController,
     PhoneCategoriesController,
@@ -68,6 +73,7 @@ import { PhoneCategoriesController } from './phone-categories/phone-categories.c
     AdminsController,
   ],
   providers: [
+    RepairOrderStatusesService,
     PhoneOsTypesService,
     PhoneProblemMappingsService,
     ProblemCategoriesService,

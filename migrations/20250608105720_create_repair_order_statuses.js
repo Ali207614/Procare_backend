@@ -5,7 +5,6 @@ exports.up = async function (knex) {
         table.string('name_uz').notNullable();
         table.string('name_ru').notNullable();
         table.string('name_en').notNullable();
-        table.string('slug').notNullable().unique();
 
         table.string('bg_color').notNullable();
         table.string('color').notNullable();
