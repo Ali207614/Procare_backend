@@ -2,8 +2,7 @@ exports.up = async function (knex) {
     await knex.schema.createTable('repair_order_payments', (table) => {
         table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
 
-        table.uuid('repair_order_id').notNullable();
-        table.foreign('repair_order_id').references('id').inTable('repair_orders').onDelete('CASCADE');
+        table.uuid('repair_order_id').notNullable().references('id').inTable('repair_orders').onDelete('CASCADE');
 
         table.decimal('amount', 12, 2).notNullable();
         table.enu('currency', ['UZS', 'USD', 'EUR']).notNullable();
@@ -11,8 +10,7 @@ exports.up = async function (knex) {
         table.string('description');
         table.enu('status', ['Open', 'Cancel']).defaultTo('Open');
 
-        table.uuid('created_by').notNullable();
-        table.foreign('created_by').references('id').inTable('admins').onDelete('RESTRICT');
+        table.uuid('created_by').notNullable().references('id').inTable('admins').onDelete('RESTRICT');
 
         table.timestamp('created_at').defaultTo(knex.fn.now());
         table.timestamp('updated_at').defaultTo(knex.fn.now());

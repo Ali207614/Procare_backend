@@ -1,5 +1,5 @@
 
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
 import { RedisService } from 'src/common/redis/redis.service';
@@ -166,7 +166,7 @@ export class AdminsService {
             })
             .returning('*');
 
-        if (dto.role_ids?.length) {
+        if (dto?.role_ids?.length) {
             const rolesData = dto.role_ids.map((role_id) => ({
                 admin_id: admin.id,
                 role_id,
@@ -174,12 +174,14 @@ export class AdminsService {
             await this.knex('admin_roles').insert(rolesData);
         }
 
-        if (dto.branch_ids?.length) {
+        if (dto?.branch_ids?.length) {
             const branchData = dto.branch_ids.map((branch_id) => ({
                 admin_id: admin.id,
                 branch_id,
             }));
             await this.knex('admin_branches').insert(branchData);
+
+            await this.redisService.del(`admin:${admin.id}:branches`);
         }
         await this.permissionsService.getPermissions(admin.id);
 
@@ -252,25 +254,49 @@ export class AdminsService {
                 .update(updateData);
         }
 
-        if (dto.role_ids !== undefined) {
-            await this.knex('admin_roles').where({ admin_id: targetAdminId }).del();
-            if (Array.isArray(dto.role_ids) && dto.role_ids.length) {
-                const roleData = dto.role_ids.map(role_id => ({
-                    admin_id: targetAdminId,
-                    role_id,
-                }));
-                await this.knex('admin_roles').insert(roleData);
-            }
-        }
+        if (dto.role_ids !== undefined || dto.branch_ids !== undefined) {
+            const trx = await this.knex.transaction();
 
-        if (dto.branch_ids !== undefined) {
-            await this.knex('admin_branches').where({ admin_id: targetAdminId }).del();
-            if (Array.isArray(dto.branch_ids) && dto.branch_ids.length) {
-                const branchData = dto.branch_ids.map(branch_id => ({
-                    admin_id: targetAdminId,
-                    branch_id,
-                }));
-                await this.knex('admin_branches').insert(branchData);
+            try {
+                // 🟩 Role IDs update
+                if (dto.role_ids !== undefined) {
+                    await trx('admin_roles').where({ admin_id: targetAdminId }).del();
+
+                    if (Array.isArray(dto.role_ids) && dto.role_ids.length > 0) {
+                        const roleData = dto.role_ids.map(role_id => ({
+                            admin_id: targetAdminId,
+                            role_id,
+                        }));
+                        await trx('admin_roles').insert(roleData);
+                    }
+                }
+
+                // 🟦 Branch IDs update
+                if (dto.branch_ids !== undefined) {
+                    await trx('admin_branches').where({ admin_id: targetAdminId }).del();
+
+                    if (Array.isArray(dto.branch_ids) && dto.branch_ids.length > 0) {
+                        const branchData = dto.branch_ids.map(branch_id => ({
+                            admin_id: targetAdminId,
+                            branch_id,
+                        }));
+                        await trx('admin_branches').insert(branchData);
+                    }
+                }
+
+                await trx.commit();
+
+            } catch (error) {
+                await trx.rollback();
+                throw new InternalServerErrorException({
+                    message: 'Failed to update admin roles or branches',
+                    location: 'admin_update_failure',
+                });
+            }
+
+            // ❗ Redisni transaction tashqarisida o‘chirish kerak
+            if (dto.branch_ids !== undefined) {
+                await this.redisService.del(`admin:${targetAdminId}:branches`);
             }
         }
 

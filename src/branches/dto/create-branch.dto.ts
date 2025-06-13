@@ -18,14 +18,43 @@ export class CreateBranchDto {
     @IsNotEmpty()
     @MinLength(1, { context: { location: 'branch_name_min' } })
     @MaxLength(100, { context: { location: 'branch_name_max' } })
-    name: string;
+    name_uz: string;
+
+    @ApiProperty({ example: 'Main Office', description: 'Name of the branch' })
+    @IsString()
+    @IsNotEmpty()
+    @MinLength(1, { context: { location: 'branch_name_min' } })
+    @MaxLength(100, { context: { location: 'branch_name_max' } })
+    name_ru: string;
+
+    @ApiProperty({ example: 'Main Office', description: 'Name of the branch' })
+    @IsString()
+    @IsNotEmpty()
+    @MinLength(1, { context: { location: 'branch_name_min' } })
+    @MaxLength(100, { context: { location: 'branch_name_max' } })
+    name_en: string;
+
 
     @ApiProperty({ example: 'Chilonzor 9 kvartal', description: 'Branch address or location' })
     @IsOptional()
     @IsString()
     @MinLength(1, { context: { location: 'branch_address_min' } })
     @MaxLength(200, { context: { location: 'branch_address_max' } })
-    address?: string;
+    address_uz?: string;
+
+    @ApiProperty({ example: 'Chilonzor 9 kvartal', description: 'Branch address or location' })
+    @IsOptional()
+    @IsString()
+    @MinLength(1, { context: { location: 'branch_address_min' } })
+    @MaxLength(200, { context: { location: 'branch_address_max' } })
+    address_ru?: string;
+
+    @ApiProperty({ example: 'Chilonzor 9 kvartal', description: 'Branch address or location' })
+    @IsOptional()
+    @IsString()
+    @MinLength(1, { context: { location: 'branch_address_min' } })
+    @MaxLength(200, { context: { location: 'branch_address_max' } })
+    address_en?: string;
 
     @ApiProperty({ example: 41.2995, description: 'Latitude coordinate of the branch' })
     @IsOptional()
@@ -75,11 +104,6 @@ export class CreateBranchDto {
     @MinLength(4, { context: { location: 'color_min' } })
     @MaxLength(10, { context: { location: 'color_max' } })
     color?: string;
-
-    @ApiProperty({ example: 'Open', enum: ['Open', 'Deleted'], description: 'Branch status' })
-    @IsOptional()
-    @IsEnum(['Open', 'Deleted'])
-    status?: 'Open' | 'Deleted';
 
 
     @ApiProperty({ example: true, description: 'Whether the branch is active' })

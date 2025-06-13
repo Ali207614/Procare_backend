@@ -1,9 +1,17 @@
 exports.up = async function (knex) {
     await knex.schema.createTable('branches', (table) => {
         table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
-        table.string('name').notNullable().unique();
 
-        table.string('address'); // 📍 Manzil (orientir)
+        table.string('name_uz').notNullable();
+        table.string('name_ru').notNullable();
+        table.string('name_en').notNullable();
+
+        table.string('address_uz');
+        table.string('address_ru');
+        table.string('address_en');
+
+        table.boolean('is_protected').defaultTo(false);
+
         table.decimal('lat', 10, 7); // 📍 Latitude
         table.decimal('long', 10, 7); // 📍 Longitude
         table.string('support_phone'); // 📞 Support raqam

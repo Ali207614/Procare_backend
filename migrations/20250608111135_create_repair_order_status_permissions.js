@@ -2,14 +2,11 @@ exports.up = async function (knex) {
     await knex.schema.createTable('repair_order_status_permissions', (table) => {
         table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
 
-        table.uuid('branch_id').notNullable();
-        table.foreign('branch_id').references('id').inTable('branches').onDelete('CASCADE');
+        table.uuid('branch_id').notNullable().references('id').inTable('branches').onDelete('CASCADE');
 
-        table.uuid('status_id').notNullable();
-        table.foreign('status_id').references('id').inTable('repair_order_statuses').onDelete('CASCADE');
+        table.uuid('status_id').notNullable().references('id').inTable('repair_order_statuses').onDelete('CASCADE');
 
-        table.uuid('admin_id').notNullable();
-        table.foreign('admin_id').references('id').inTable('admins').onDelete('CASCADE');
+        table.uuid('admin_id').notNullable().references('id').inTable('admins').onDelete('CASCADE');
 
         table.boolean('can_add').defaultTo(true);
         table.boolean('can_view').defaultTo(true);

@@ -12,6 +12,7 @@ import { PermissionsGuard } from 'src/common/guards/permission.guard';
 import { SetAllPermissions, SetPermissions } from 'src/common/decorators/permission-decorator';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { UpdateAdminDto } from './dto/update-admin.dto';
+import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
@@ -47,7 +48,7 @@ export class AdminsController {
     @SetPermissions('admin.manage.edit', 'admin.profile.edit.basic', 'admin.profile.edit.sensitive')
     @ApiParam({ name: 'id', description: 'Admin ID' })
     @ApiOperation({ summary: 'Update admin data' })
-    async update(@Req() req, @Param('id') id: string, @Body() dto: UpdateAdminDto) {
+    async update(@Req() req, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateAdminDto) {
         return this.adminsService.update(req.admin, id, dto);
     }
 

@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
 import { RedisClientType } from 'redis';
@@ -16,6 +16,10 @@ export class BranchesService {
 
     private readonly redisKey = 'branches:all';
     private readonly redisKeyById = 'branches:by_id';
+
+    private getAdminBranchesKey(adminId: string): string {
+        return `admin:${adminId}:branches`;
+    }
 
     async create(dto: CreateBranchDto, adminId: string) {
         const nextSort = await getNextSortValue(this.knex, 'branches');
@@ -71,6 +75,36 @@ export class BranchesService {
         return branches;
     }
 
+    async findByAdminId(adminId: string): Promise<any[]> {
+        const redisKey = this.getAdminBranchesKey(adminId);
+
+        const cached = await this.redisService.get(redisKey);
+        if (cached?.length) {
+            return cached;
+        }
+
+        const branches = await this.knex('branches as b')
+            .join('admin_branches as ab', 'ab.branch_id', 'b.id')
+            .where('ab.admin_id', adminId)
+            .andWhere('b.status', 'Open')
+            .andWhere('b.is_active', true)
+            .select(
+                'b.id',
+                'b.name_uz',
+                'b.name_ru',
+                'b.name_en',
+                'b.bg_color',
+                'b.color',
+                'b.sort'
+            )
+            .orderBy('b.sort', 'asc');
+
+        await this.redisService.set(redisKey, branches, 3600);
+
+        return branches;
+    }
+
+
     async findOne(id: string) {
         const branch = await this.knex('branches').where({ id }).first();
         if (!branch) throw new NotFoundException({
@@ -119,6 +153,13 @@ export class BranchesService {
     }
 
     async update(branch: any, dto: UpdateBranchDto) {
+        if (dto?.is_active === false && branch?.is_protected) {
+            throw new ForbiddenException({
+                message: 'This branch is system-protected and cannot be deleted or deactivated.',
+                location: 'branch_protected',
+            });
+        }
+
         await this.knex('branches')
             .where({ id: branch.id })
             .update({
@@ -140,6 +181,13 @@ export class BranchesService {
 
     async delete(branch: any) {
         let branchId = branch.id
+
+        if (branch?.is_protected) {
+            throw new ForbiddenException({
+                message: 'This branch is system-protected and cannot be deleted or deactivated.',
+                location: 'branch_protected',
+            });
+        }
 
         await this.knex('branches')
             .where({ id: branchId })
