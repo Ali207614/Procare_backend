@@ -1,38 +1,89 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+    Controller,
+    Get,
+    Post,
+    Body,
+    Patch,
+    Param,
+    Delete,
+    Req,
+    UseGuards,
+    Query,
+} from '@nestjs/common';
+import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { RepairOrderStatusesService } from './repair-order-statuses.service';
 import { CreateRepairOrderStatusDto } from './dto/create-repair-order-status.dto';
-import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
-import { PermissionsGuard } from 'src/common/guards/permission.guard';
+import { RepairOrderStatusExistGuard } from 'src/common/guards/repair-order-status-exist.guard';
 import { SetPermissions } from 'src/common/decorators/permission-decorator';
-import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
-import { AdminPayload } from 'src/common/types/admin-payload.interface';
-import { BranchExistGuard } from 'src/common/guards/branch-exist.guard';
+import { PermissionsGuard } from 'src/common/guards/permission.guard';
+import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
+import { UpdateRepairOrderStatusDto } from './dto/update-repair-order-status.dto';
+import { UpdateRepairOrderStatusSortDto } from './dto/update-repair-order-status-sort.dto';
 
 @ApiTags('Repair Order Statuses')
-@ApiBearerAuth()
-@UseGuards(JwtAdminAuthGuard)
 @Controller('repair-order-statuses')
 export class RepairOrderStatusesController {
     constructor(private readonly service: RepairOrderStatusesService) { }
 
     @Post()
-    @UseGuards(PermissionsGuard, BranchExistGuard)
-    @SetPermissions('repair-order-status.create')
-    @ApiOperation({ summary: 'Create new repair order status' })
-    @ApiResponse({ status: 201, description: 'Status created successfully' })
-    async create(
-        @CurrentAdmin() admin: AdminPayload,
-        @Body() dto: CreateRepairOrderStatusDto
-    ) {
-        return this.service.create(dto, admin.id);
+    @UseGuards(PermissionsGuard)
+    @SetPermissions('repair_order_status.create')
+    @ApiOperation({ summary: 'Create a new repair order status' })
+    async create(@Req() req, @Body() dto: CreateRepairOrderStatusDto) {
+        return this.service.create(dto, req.admin.id);
     }
 
-    @Get()
+    @Get('viewable')
     @UseGuards(PermissionsGuard)
-    @SetPermissions('repair-order-status.view')
-    @ApiOperation({ summary: 'List all repair order statuses' })
-    async findAll() {
-        return this.service.findAll();
+    @SetPermissions('repair_order_status.view')
+    @ApiOperation({ summary: 'Get viewable statuses for current admin' })
+    @ApiQuery({ name: 'branch_id', required: true })
+    async getViewable(
+        @Req() req,
+        @Query('branch_id', ParseUUIDPipe) branchId: string,
+    ) {
+        return this.service.findViewable(req.admin.id, branchId);
+    }
+
+    @Get('all')
+    @UseGuards(PermissionsGuard)
+    @SetPermissions('repair_order_status.view_all')
+    @ApiOperation({ summary: 'Get all statuses for admin panel' })
+    @ApiQuery({ name: 'branch_id', required: true })
+    async getAll(@Query('branch_id', ParseUUIDPipe) branchId: string) {
+        return this.service.findAllStatuses(branchId);
+    }
+
+    @Patch(':id/sort')
+    @UseGuards(PermissionsGuard, RepairOrderStatusExistGuard)
+    @SetPermissions('repair_order_status.update')
+    @ApiOperation({ summary: 'Update status sort order' })
+    @ApiParam({ name: 'id', description: 'Status ID (UUID)' })
+    async updateSort(
+        @Req() req,
+        @Body() dto: UpdateRepairOrderStatusSortDto,
+    ) {
+        return this.service.updateSort(req.status, dto.sort);
+    }
+
+    @Patch(':id')
+    @UseGuards(PermissionsGuard, RepairOrderStatusExistGuard)
+    @SetPermissions('repair_order_status.update')
+    @ApiOperation({ summary: 'Update repair order status by ID' })
+    @ApiParam({ name: 'id', description: 'Status ID (UUID)' })
+    async update(
+        @Req() req,
+        @Body() dto: UpdateRepairOrderStatusDto,
+    ) {
+        return this.service.update(req.status, dto);
+    }
+
+    @Delete(':id')
+    @UseGuards(PermissionsGuard, RepairOrderStatusExistGuard)
+    @SetPermissions('repair_order_status.delete')
+    @ApiOperation({ summary: 'Soft delete repair order status by ID' })
+    @ApiParam({ name: 'id', description: 'Status ID (UUID)' })
+    async delete(@Req() req) {
+        return this.service.delete(req.status);
     }
 }

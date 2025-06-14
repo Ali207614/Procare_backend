@@ -64,7 +64,7 @@ export class BranchesController {
         return this.service.findAll(offset, limit, search);
     }
 
-    @Get('my')
+    @Get('viewable')
     @ApiOperation({ summary: 'Get branches assigned to current admin' })
     @ApiResponse({ status: 200, description: 'List of assigned branches returned' })
     async findMyBranches(@CurrentAdmin() admin: AdminPayload,) {

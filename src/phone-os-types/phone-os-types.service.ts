@@ -25,7 +25,7 @@ export class PhoneOsTypesService {
 
     async findAll() {
         const cached = await this.redisService.get(this.redisKey);
-        if (cached) return cached;
+        if (cached !== null) return cached;
 
         const osTypes = await this.knex('phone_os_types')
             .where({ is_active: true, status: 'Open' })

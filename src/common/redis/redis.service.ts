@@ -26,7 +26,7 @@ export class RedisService {
     }
 
     async flushByPrefix(pattern: string): Promise<void> {
-        const fullPattern = this.buildKey(pattern);
+        const fullPattern = this.buildKey(`${pattern}*`);
         const keys = await this.client.keys(fullPattern);
 
         if (keys.length > 0) {

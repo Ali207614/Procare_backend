@@ -32,8 +32,8 @@ export class BranchesService {
             })
             .returning('*');
 
-        await this.redisService.flushByPrefix(`${this.redisKey}*`);
-        await this.redisService.flushByPrefix(`${this.redisKeyById}*`);
+        await this.redisService.flushByPrefix(`${this.redisKey}`);
+        await this.redisService.flushByPrefix(`${this.redisKeyById}`);
 
         const allBranches = await this.knex('branches')
             .where({ is_active: true, status: 'Open' });
@@ -53,7 +53,7 @@ export class BranchesService {
 
         if (redisKey) {
             const cached = await this.redisService.get(redisKey);
-            if (cached && cached?.length) return cached;
+            if (cached) return cached;
         }
 
         const query = this.knex('branches')
@@ -79,7 +79,7 @@ export class BranchesService {
         const redisKey = this.getAdminBranchesKey(adminId);
 
         const cached = await this.redisService.get(redisKey);
-        if (cached?.length) {
+        if (cached) {
             return cached;
         }
 
@@ -103,7 +103,6 @@ export class BranchesService {
 
         return branches;
     }
-
 
     async findOne(id: string) {
         const branch = await this.knex('branches').where({ id }).first();
@@ -142,8 +141,8 @@ export class BranchesService {
 
             await trx.commit();
 
-            await this.redisService.flushByPrefix(`${this.redisKey}*`);
-            await this.redisService.flushByPrefix(`${this.redisKeyById}*`);
+            await this.redisService.flushByPrefix(`${this.redisKey}`);
+            await this.redisService.flushByPrefix(`${this.redisKeyById}`);
 
             return { message: 'Sort updated successfully' };
         } catch (error) {
@@ -171,7 +170,7 @@ export class BranchesService {
 
         await this.redisService.set(`${this.redisKeyById}:${branch.id}`, updated, 3600);
 
-        await this.redisService.flushByPrefix(`${this.redisKey}*`);
+        await this.redisService.flushByPrefix(`${this.redisKey}`);
 
         return {
             message: 'Branch updated successfully',
@@ -198,7 +197,7 @@ export class BranchesService {
             });
 
         await this.redisService.del(`${this.redisKeyById}:${branchId}`);
-        await this.redisService.flushByPrefix(`${this.redisKey}*`);
+        await this.redisService.flushByPrefix(`${this.redisKey}`);
 
         return { message: 'Branch deleted successfully' };
     }
