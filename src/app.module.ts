@@ -35,9 +35,6 @@ import { MaintenanceMiddleware } from './common/middleware/maintenance.middlewar
 import { FeatureModule } from './feature/feature.module';
 import { JwtMiddleware } from './common/middleware/jwt.middleware';
 import { RateLimiterMiddleware } from './common/middleware/rate-limiter.middleware';
-import { PermissionsService } from './permissions/permissions.service';
-import { APP_GUARD } from '@nestjs/core';
-import { PermissionsGuard } from './common/guards/permission.guard';
 import { PhoneCategoriesController } from './phone-categories/phone-categories.controller';
 
 

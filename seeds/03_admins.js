@@ -4,7 +4,7 @@ exports.seed = async function (knex) {
 
   // 1️⃣ Super admin yaratamiz
   const superAdmin = {
-    id: '00000000-0000-0000-0000-aaaaaaaaaaaa',
+    id: '00000000-0000-0000-0000-000000000000',
     first_name: 'Super',
     last_name: 'Admin',
     phone_number: '+998903367448',

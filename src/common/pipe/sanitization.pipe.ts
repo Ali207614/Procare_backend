@@ -27,6 +27,8 @@ export class SanitizationPipe implements PipeTransform {
         for (const key in obj) {
             if (typeof obj[key] === 'string') {
                 cleanObj[key] = sanitizeHtml(obj[key]);
+            } else if (Array.isArray(obj[key])) {
+                cleanObj[key] = obj[key]; // ⚠️ ARRAYGA TEGMANG
             } else if (typeof obj[key] === 'object' && obj[key] !== null) {
                 cleanObj[key] = this.sanitizeObject(obj[key]);
             } else {

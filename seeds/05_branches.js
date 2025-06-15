@@ -1,7 +1,7 @@
 
 exports.seed = async function (knex) {
   const NO_BRANCH_ID = '00000000-0000-0000-0000-000000000000';
-  const superAdminId = '00000000-0000-0000-0000-aaaaaaaaaaaa';
+  const superAdminId = '00000000-0000-0000-0000-000000000000';
 
   await knex('branches').del();
 
@@ -28,7 +28,7 @@ exports.seed = async function (knex) {
     status: 'Open',
     is_active: true,
     is_protected: true,
-    sort: 0,
+    sort: 1,
 
     created_by: superAdminId,
     created_at: knex.fn.now(),

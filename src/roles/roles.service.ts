@@ -75,65 +75,67 @@ export class RolesService {
     }
 
     async update(id: string, dto: UpdateRoleDto) {
-        const role = await this.findOne(id);
+        return await this.knex.transaction(async (trx) => {
+            const role = await this.findOne(id);
 
-        if (dto.name && dto.name.toLowerCase() !== role.name.toLowerCase()) {
-            const nameExists = await this.knex('roles')
-                .whereRaw('LOWER(name) = ?', dto.name.toLowerCase())
-                .andWhereNot({ id })
-                .andWhere({ status: 'Open' })
-                .first();
+            if (dto.name && dto.name.toLowerCase() !== role.name.toLowerCase()) {
+                const nameExists = await trx('roles')
+                    .whereRaw('LOWER(name) = ?', dto.name.toLowerCase())
+                    .andWhereNot({ id })
+                    .andWhere({ status: 'Open' })
+                    .first();
 
-            if (nameExists) {
-                throw new BadRequestException({
-                    message: 'Role name already exists',
-                    location: 'role_name',
-                });
-            }
-        }
-
-        if (dto.permission_ids) {
-            const foundPermissions = await this.knex('permissions')
-                .whereIn('id', dto.permission_ids)
-                .andWhere({ is_active: true, status: 'Open' });
-
-            if (foundPermissions.length !== dto.permission_ids.length) {
-                throw new BadRequestException({
-                    message: 'Some permission IDs are invalid or inactive',
-                    location: 'permission_ids',
-                });
+                if (nameExists) {
+                    throw new BadRequestException({
+                        message: 'Role name already exists',
+                        location: 'role_name',
+                    });
+                }
             }
 
-            await this.knex('role_permissions').where({ role_id: id }).del();
+            if (dto.permission_ids) {
+                const foundPermissions = await trx('permissions')
+                    .whereIn('id', dto.permission_ids)
+                    .andWhere({ is_active: true, status: 'Open' });
 
-            const mappings = dto.permission_ids.map((permission_id) => ({
-                role_id: id,
-                permission_id,
-            }));
+                if (foundPermissions.length !== dto.permission_ids.length) {
+                    throw new BadRequestException({
+                        message: 'Some permission IDs are invalid or inactive',
+                        location: 'permission_ids',
+                    });
+                }
 
-            await this.knex('role_permissions').insert(mappings);
-        }
+                await trx('role_permissions').where({ role_id: id }).del();
 
-        await this.knex('roles')
-            .where({ id })
-            .update({
-                ...(dto.name && { name: dto.name }),
-                ...(dto.is_active !== undefined && { is_active: dto.is_active }),
-                ...(dto.status && { status: dto.status }),
-                updated_at: new Date(),
-            });
+                const mappings = dto.permission_ids.map((permission_id) => ({
+                    role_id: id,
+                    permission_id,
+                }));
 
-        const adminIds = await this.knex('admin_roles')
-            .where({ role_id: id })
-            .pluck('admin_id');
+                await trx('role_permissions').insert(mappings);
+            }
 
-        await Promise.all(
-            adminIds.map((adminId) =>
-                this.redisService.del(`admin:${adminId}:permissions`)
-            )
-        );
+            await trx('roles')
+                .where({ id })
+                .update({
+                    ...(dto.name && { name: dto.name }),
+                    ...(dto.is_active !== undefined && { is_active: dto.is_active }),
+                    ...(dto.status && { status: dto.status }),
+                    updated_at: new Date(),
+                });
 
-        return { message: 'Role updated successfully' };
+            const adminIds = await trx('admin_roles')
+                .where({ role_id: id })
+                .pluck('admin_id');
+
+            await Promise.all(
+                adminIds.map((adminId) =>
+                    this.redisService.del(`admin:${adminId}:permissions`)
+                )
+            );
+
+            return { message: 'Role updated successfully' };
+        });
     }
 
     async delete(id: string) {

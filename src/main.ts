@@ -68,26 +68,27 @@ async function bootstrap() {
 
 
   app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
-      exceptionFactory: (errors) => {
-        const { message, location } = extractError(errors);
-
-        return new BadRequestException({
-          message,
-          error: 'ValidationError',
-          location,
-          timestamp: new Date().toISOString(),
-          statusCode: 400,
-        });
-      },
-    }),
-    new SanitizationPipe(),
+    ...[
+      new SanitizationPipe(),
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+        transformOptions: {
+          enableImplicitConversion: true,
+        },
+        exceptionFactory: (errors) => {
+          const { message, location } = extractError(errors);
+          return new BadRequestException({
+            message,
+            error: 'ValidationError',
+            location,
+            timestamp: new Date().toISOString(),
+            statusCode: 400,
+          });
+        },
+      }),
+    ]
   );
 
 

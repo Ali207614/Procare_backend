@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
 import { RedisClientType } from 'redis';
@@ -21,7 +21,21 @@ export class BranchesService {
         return `admin:${adminId}:branches`;
     }
 
+
     async create(dto: CreateBranchDto, adminId: string) {
+        const existing = await this.knex('branches')
+            .whereRaw('LOWER(name_uz) = LOWER(?)', [dto.name_uz])
+            .orWhereRaw('LOWER(name_ru) = LOWER(?)', [dto.name_ru])
+            .orWhereRaw('LOWER(name_en) = LOWER(?)', [dto.name_en])
+            .first();
+
+        if (existing) {
+            throw new BadRequestException({
+                message: 'Branch name already exists in one of the languages',
+                location: 'branch_name_conflict',
+            });
+        }
+
         const nextSort = await getNextSortValue(this.knex, 'branches');
 
         const [branch] = await this.knex('branches')
@@ -46,6 +60,7 @@ export class BranchesService {
 
         return branch;
     }
+
 
     async findAll(offset = 0, limit = 10, search?: string) {
         const isSearch = Boolean(search);
@@ -159,6 +174,27 @@ export class BranchesService {
             });
         }
 
+        if (dto.name_uz || dto.name_ru || dto.name_en) {
+            const conflict = await this.knex('branches')
+                .whereNot('id', branch.id)
+                .andWhere((qb) => {
+                    if (dto.name_uz)
+                        qb.orWhereRaw('LOWER(name_uz) = LOWER(?)', [dto.name_uz]);
+                    if (dto.name_ru)
+                        qb.orWhereRaw('LOWER(name_ru) = LOWER(?)', [dto.name_ru]);
+                    if (dto.name_en)
+                        qb.orWhereRaw('LOWER(name_en) = LOWER(?)', [dto.name_en]);
+                })
+                .first();
+
+            if (conflict) {
+                throw new BadRequestException({
+                    message: 'Another branch already has one of these names',
+                    location: 'branch_name_conflict',
+                });
+            }
+        }
+
         await this.knex('branches')
             .where({ id: branch.id })
             .update({
@@ -166,10 +202,11 @@ export class BranchesService {
                 updated_at: new Date(),
             });
 
-        const updated = await this.knex('branches').where({ id: branch.id }).first();
+        const updated = await this.knex('branches')
+            .where({ id: branch.id })
+            .first();
 
         await this.redisService.set(`${this.redisKeyById}:${branch.id}`, updated, 3600);
-
         await this.redisService.flushByPrefix(`${this.redisKey}`);
 
         return {
@@ -201,6 +238,4 @@ export class BranchesService {
 
         return { message: 'Branch deleted successfully' };
     }
-
-
 }

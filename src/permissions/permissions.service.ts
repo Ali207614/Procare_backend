@@ -18,16 +18,16 @@ export class PermissionsService {
 
         const cacheKey = this.getCacheKey(adminId);
         const cached = await this.redisService.get<string[]>(cacheKey);
-        if (cached && cached?.length) {
+        if (cached !== null) {
             const duration = Date.now() - start;
-            console.log(`🛠 Permissions: (${duration}ms)`);
+            console.log(`🛠 Permissions: (${duration}ms) redis`);
             return cached;
         }
 
         const permissions = await this.loadPermissionsFromDB(adminId);
         await this.redisService.set(cacheKey, permissions, 300); // 5 min cache
         const duration = Date.now() - start;
-        console.log(`🛠 Permissions: (${duration}ms)`);
+        console.log(`🛠 Permissions: (${duration}ms) knex`);
         return permissions;
     }
 

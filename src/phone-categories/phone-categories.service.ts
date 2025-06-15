@@ -18,14 +18,16 @@ export class PhoneCategoriesService {
         const { parent_id, name_uz, name_ru, name_en, phone_os_type_id } = dto;
 
 
-        const osExists = await this.knex('phone_os_types')
-            .where({ id: phone_os_type_id, is_active: true, status: 'Open' })
-            .first();
-        if (!osExists) {
-            throw new BadRequestException({
-                message: 'Phone OS type not found or inactive',
-                location: 'phone_os_type_id',
-            });
+        if (phone_os_type_id) {
+            const allOsTypes = await this.phoneOsTypesService.findAll(); // bu yerda faqat is_active && status = 'Open' qaytsin
+            const found = allOsTypes.find(os => os.id === phone_os_type_id);
+
+            if (!found) {
+                throw new BadRequestException({
+                    message: 'Phone OS type not found or inactive',
+                    location: 'phone_os_type_id',
+                });
+            }
         }
 
         if (parent_id) {
@@ -170,8 +172,10 @@ export class PhoneCategoriesService {
         }
 
         if (dto?.phone_os_type_id) {
-            const osExists = await this.phoneOsTypesService.findAll()
-            if (!osExists) {
+            const allOsTypes = await this.phoneOsTypesService.findAll();
+            const found = allOsTypes.find(os => os.id === dto.phone_os_type_id);
+
+            if (!found) {
                 throw new BadRequestException({
                     message: 'Phone OS type not found or inactive',
                     location: 'phone_os_type_id',
@@ -270,6 +274,4 @@ export class PhoneCategoriesService {
 
         return { message: 'Phone category deleted (soft)' };
     }
-
-
 }

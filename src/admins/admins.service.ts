@@ -269,7 +269,6 @@ export class AdminsService {
                         await trx('admin_roles').insert(roleData);
                     }
                 }
-
                 if (dto.branch_ids !== undefined) {
                     await trx('admin_branches').where({ admin_id: targetAdminId }).del();
 
@@ -278,6 +277,7 @@ export class AdminsService {
                             admin_id: targetAdminId,
                             branch_id,
                         }));
+                        console.log(branchData, ' bu branchData')
                         await trx('admin_branches').insert(branchData);
                     }
                 }
@@ -320,15 +320,6 @@ export class AdminsService {
             throw new ForbiddenException({
                 message: 'You cannot delete yourself',
                 location: 'self_delete',
-            });
-        }
-
-        const permissions = await this.permissionsService.getPermissions(requestingAdmin.id);
-
-        if (!permissions.includes('admin.manage.delete')) {
-            throw new ForbiddenException({
-                message: 'You do not have permission to delete admins',
-                location: 'permission_denied',
             });
         }
 
