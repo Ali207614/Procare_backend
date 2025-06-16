@@ -6,17 +6,19 @@ import { defaultRepairOrderStatusPermissions } from 'src/common/utils/repair-sta
 import { CreateRepairOrderStatusDto } from './dto/create-repair-order-status.dto';
 import { UpdateRepairOrderStatusDto } from './dto/update-repair-order-status.dto';
 import { RedisService } from 'src/common/redis/redis.service';
+import { extractStatusPermissionFields } from 'src/common/utils/extract-status-permissions.util';
+import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 
 @Injectable()
 export class RepairOrderStatusesService {
     private readonly redisKey = 'status_viewable:';
     private readonly redisKeyAll = 'repair_order_statuses:all:';
     private readonly redisKeyById = 'repair_order_statuses:id';
-    private readonly redisKeyPrefix = 'repair_order_statuses:id:';
 
     constructor(
         @InjectKnex() private readonly knex: Knex,
         private readonly redisService: RedisService,
+        private readonly repairOrderStatusPermissions: RepairOrderStatusPermissionsService
     ) { }
 
     async create(dto: CreateRepairOrderStatusDto, adminId: string) {
@@ -100,31 +102,6 @@ export class RepairOrderStatusesService {
         return created;
     }
 
-
-    async findViewable(adminId: string, branchId: string) {
-        const cacheKey = `${this.redisKey}${branchId}:${adminId}`;
-        const cached = await this.redisService.get(cacheKey);
-        if (cached !== null) return cached;
-
-        const statusIds = await this.knex('repair_order_status_permissions')
-            .select('status_id')
-            .where({ admin_id: adminId, branch_id: branchId, can_view: true });
-
-        const ids = statusIds.map((s) => s.status_id);
-        if (!ids.length) {
-            await this.redisService.set(cacheKey, [], 300);
-            return [];
-        }
-
-        const statuses = await this.knex('repair_order_statuses')
-            .whereIn('id', ids)
-            .andWhere({ is_active: true, status: 'Open', branch_id: branchId })
-            .orderBy('sort', 'asc');
-
-        await this.redisService.set(cacheKey, statuses, 3600);
-        return statuses;
-    }
-
     async findAllStatuses(branchId: string) {
         const cacheKey = `${this.redisKeyAll}${branchId}`;
         const cached = await this.redisService.get(cacheKey);
@@ -136,6 +113,46 @@ export class RepairOrderStatusesService {
 
         await this.redisService.set(cacheKey, statuses, 3600);
         return statuses;
+    }
+
+    async findViewable(adminId: string, branchId: string) {
+        const cacheKey = `${this.redisKey}${branchId}:${adminId}`;
+        const cached = await this.redisService.get(cacheKey);
+        if (cached !== null) return cached;
+
+        const permissions = await this.repairOrderStatusPermissions.findByAdminBranch(adminId, branchId)
+
+        if (!permissions.length) {
+            await this.redisService.set(cacheKey, [], 300);
+            return [];
+        }
+
+        const viewableIds = permissions
+            .filter(p => p.can_view)
+            .map(p => p.status_id);
+
+        if (!viewableIds.length) {
+            await this.redisService.set(cacheKey, [], 300);
+            return [];
+        }
+
+        const statuses = await this.knex('repair_order_statuses')
+            .whereIn('id', viewableIds)
+            .andWhere({ is_active: true, status: 'Open', branch_id: branchId })
+            .orderBy('sort', 'asc');
+
+        const merged = statuses.map((status) => {
+            const matched = permissions.find(p => p.status_id === status.id);
+            return {
+                ...status,
+                permissions: matched
+                    ? extractStatusPermissionFields(matched)
+                    : {},
+            };
+        });
+
+        await this.redisService.set(cacheKey, merged, 3600);
+        return merged;
     }
 
     async updateSort(status: any, newSort: number) {
@@ -243,7 +260,7 @@ export class RepairOrderStatusesService {
     }
 
     async getOrLoadStatusById(statusId: string) {
-        const redisKey = `${this.redisKeyPrefix}${statusId}`;
+        const redisKey = `${this.redisKeyById}:${statusId}`;
         let status = await this.redisService.get(redisKey);
 
         if (!status) {

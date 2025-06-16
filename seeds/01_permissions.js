@@ -81,6 +81,7 @@ exports.seed = async function (knex) {
     { id: '00000000-0000-0000-0000-000000000050', name: 'repair_order_status.delete', description: 'Branch Status o‘chirish' },
 
     { id: '00000000-0000-0000-0000-000000000051', name: 'repair_order_status_transitions.manage', description: 'Branch Status Transition manage' },
+    { id: '00000000-0000-0000-0000-000000000052', name: 'repair_order_status_permissions.manage', description: 'Branch Status Permssions manage' },
   ];
 
   for (const perm of permissions) {

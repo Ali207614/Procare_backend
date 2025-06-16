@@ -16,11 +16,10 @@ export class RepairOrderStatusExistGuard implements CanActivate {
         private readonly repairOrderStatusService: RepairOrderStatusesService
     ) { }
 
-    private readonly redisKeyPrefix = 'repair_order_statuses:id:';
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
         const request = context.switchToHttp().getRequest();
-        const statusId = request.params?.id;
+        const statusId = request.body.status_id || request.params?.id;
 
         try {
             const parser = new ParseUUIDPipe();

@@ -1,3 +1,6 @@
+import { RepairOrderStatusPermissionsModule } from './repair-order-status-permission/repair-order-status-permissions.module';
+import { RepairOrderStatusPermissionsController } from './repair-order-status-permission/repair-order-status-permissions.controller';
+import { RepairOrderStatusPermissionsService } from './repair-order-status-permission/repair-order-status-permissions.service';
 import { RepairOrderStatusTransitionsModule } from './repair_order_status_transitions/repair-order-status-transitions.module';
 import { RepairOrderStatusTransitionsService } from './repair_order_status_transitions/repair-order-status-transitions.service';
 import { RepairOrderStatusesModule } from './repair-order-statuses/repair-order-statuses.module';
@@ -42,6 +45,7 @@ import { PhoneCategoriesController } from './phone-categories/phone-categories.c
 
 @Module({
   imports: [
+    RepairOrderStatusPermissionsModule,
     RepairOrderStatusTransitionsModule,
     RepairOrderStatusesModule,
     PhoneOsTypesModule,
@@ -65,6 +69,7 @@ import { PhoneCategoriesController } from './phone-categories/phone-categories.c
     AdminsModule,
   ],
   controllers: [
+    RepairOrderStatusPermissionsController,
     RepairOrderStatusesController,
     PhoneProblemMappingsController,
     ProblemCategoriesController,
@@ -73,6 +78,7 @@ import { PhoneCategoriesController } from './phone-categories/phone-categories.c
     AdminsController,
   ],
   providers: [
+    RepairOrderStatusPermissionsService,
     RepairOrderStatusTransitionsService,
     RepairOrderStatusesService,
     PhoneOsTypesService,
