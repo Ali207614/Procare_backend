@@ -9,6 +9,7 @@ import {
     ArrayUnique,
     MinLength,
     MaxLength,
+    ArrayMaxSize,
 } from 'class-validator';
 
 export class CreateAdminDto {
@@ -63,6 +64,7 @@ export class CreateAdminDto {
     @IsOptional()
     @IsArray({ context: { location: 'role_ids' } })
     @ArrayUnique({ context: { location: 'role_ids' } })
+    @ArrayMaxSize(20, { context: { location: 'role_ids' } }) // ✅ uzunlik cheklovi
     @IsUUID('all', { each: true, context: { location: 'role_ids' } })
     role_ids?: string[];
 
@@ -70,6 +72,7 @@ export class CreateAdminDto {
     @IsOptional()
     @IsArray({ context: { location: 'branch_ids' } })
     @ArrayUnique({ context: { location: 'branch_ids' } })
+    @ArrayMaxSize(20, { context: { location: 'branch_ids' } }) // ✅ uzunlik cheklovi
     @IsUUID('all', { each: true, context: { location: 'branch_ids' } })
     branch_ids?: string[];
 }

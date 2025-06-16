@@ -19,7 +19,7 @@ export class PhoneCategoriesService {
 
 
         if (phone_os_type_id) {
-            const allOsTypes = await this.phoneOsTypesService.findAll(); // bu yerda faqat is_active && status = 'Open' qaytsin
+            const allOsTypes = await this.phoneOsTypesService.findAll();
             const found = allOsTypes.find(os => os.id === phone_os_type_id);
 
             if (!found) {
@@ -126,12 +126,12 @@ export class PhoneCategoriesService {
 
     async update(id: string, dto: UpdatePhoneCategoryDto) {
         const category = await this.knex('phone_categories')
-            .where({ id, is_active: true, status: 'Open' })
+            .where({ id, status: 'Open' })
             .first();
 
         if (!category) {
             throw new BadRequestException({
-                message: 'Phone category not found or inactive',
+                message: 'Phone category not found',
                 location: 'id',
             });
         }
@@ -192,7 +192,7 @@ export class PhoneCategoriesService {
 
     async updateSort(id: string, newSort: number) {
         const category = await this.knex('phone_categories')
-            .where({ id, is_active: true, status: 'Open' })
+            .where({ id, status: 'Open' })
             .first();
 
         if (!category) {

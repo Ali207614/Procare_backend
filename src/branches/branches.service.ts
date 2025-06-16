@@ -50,7 +50,7 @@ export class BranchesService {
         await this.redisService.flushByPrefix(`${this.redisKeyById}`);
 
         const allBranches = await this.knex('branches')
-            .where({ is_active: true, status: 'Open' });
+            .where({ status: 'Open' });
 
         await Promise.all(
             allBranches.map((b) =>
@@ -72,7 +72,7 @@ export class BranchesService {
         }
 
         const query = this.knex('branches')
-            .where({ is_active: true, status: 'Open' });
+            .where({ status: 'Open' });
 
         if (isSearch) {
             query.andWhereILike('name', `%${search}%`);
@@ -120,7 +120,7 @@ export class BranchesService {
     }
 
     async findOne(id: string) {
-        const branch = await this.knex('branches').where({ id }).first();
+        const branch = await this.knex('branches').where({ id, status: 'Open' }).first();
         if (!branch) throw new NotFoundException({
             message: 'Branch not found',
             location: "branch_not_found"

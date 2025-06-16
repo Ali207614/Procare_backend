@@ -59,7 +59,7 @@ export class ProblemCategoriesService {
                 this.knex.raw(`(
               SELECT COALESCE(JSON_AGG(row_to_json(c.*)), '[]')
               FROM problem_categories c
-              WHERE c.parent_id = pc.id AND c.status = 'Open' and c.is_active = true
+              WHERE c.parent_id = pc.id AND c.status = 'Open'
             ) as children`)
             );
 

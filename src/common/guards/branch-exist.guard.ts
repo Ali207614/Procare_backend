@@ -29,7 +29,7 @@ export class BranchExistGuard implements CanActivate {
 
         if (!branch) {
             branch = await this.knex('branches')
-                .where({ id: branchId, is_active: true, status: 'Open' })
+                .where({ id: branchId, status: 'Open' })
                 .first();
 
             if (!branch) {

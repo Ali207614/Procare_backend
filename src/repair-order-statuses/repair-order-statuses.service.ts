@@ -20,8 +20,36 @@ export class RepairOrderStatusesService {
 
     async create(dto: CreateRepairOrderStatusDto, adminId: string) {
         let branchId = dto.branch_id;
+        let branch;
 
-        if (!branchId) {
+        if (branchId) {
+            const redisKey = `branches:by_id:${branchId}`;
+            branch = await this.redisService.get(redisKey);
+
+            if (!branch) {
+                branch = await this.knex('branches')
+                    .where({ id: branchId, status: 'Open' })
+                    .first();
+
+                if (!branch) {
+                    throw new BadRequestException({
+                        message: 'Branch not found or deleted',
+                        location: 'branch_id',
+                    });
+                }
+
+                if (!branch?.is_active) {
+                    throw new BadRequestException({
+                        message: 'Branch inactive',
+                        location: 'branch_id',
+                    });
+                }
+
+                await this.redisService.set(redisKey, branch, 3600);
+            }
+
+            branchId = branch.id;
+        } else {
             const defaultBranch = await this.knex('branches')
                 .select('id')
                 .where({ is_protected: true, is_active: true, status: 'Open' })
@@ -42,7 +70,12 @@ export class RepairOrderStatusesService {
         });
 
         const [created] = await this.knex('repair_order_statuses')
-            .insert({ ...dto, branch_id: branchId, sort: nextSort, created_by: adminId })
+            .insert({
+                ...dto,
+                branch_id: branchId,
+                sort: nextSort,
+                created_by: adminId,
+            })
             .returning('*');
 
         const admins = await this.knex('admin_branches')
@@ -65,6 +98,7 @@ export class RepairOrderStatusesService {
 
         return created;
     }
+
 
     async findViewable(adminId: string, branchId: string) {
         const cacheKey = `${this.redisKey}${branchId}:${adminId}`;
@@ -96,7 +130,7 @@ export class RepairOrderStatusesService {
         if (cached !== null) return cached;
 
         const statuses = await this.knex('repair_order_statuses')
-            .where({ branch_id: branchId, is_active: true, status: 'Open' })
+            .where({ branch_id: branchId, status: 'Open' })
             .orderBy('sort', 'asc');
 
         await this.redisService.set(cacheKey, statuses, 3600);
@@ -143,11 +177,37 @@ export class RepairOrderStatusesService {
     }
 
     async update(status: any, dto: UpdateRepairOrderStatusDto) {
-        if (dto?.is_active === false && status?.slug === 'protected') {
-            throw new ForbiddenException({
-                message: 'This status is protected and cannot be deactivated.',
-                location: 'status_protected',
-            });
+
+        let branchId = dto.branch_id;
+        let branch;
+
+        if (branchId) {
+            const redisKey = `branches:by_id:${branchId}`;
+            branch = await this.redisService.get(redisKey);
+
+            if (!branch) {
+                branch = await this.knex('branches')
+                    .where({ id: branchId, status: 'Open' })
+                    .first();
+
+                if (!branch) {
+                    throw new BadRequestException({
+                        message: 'Branch not found or deleted',
+                        location: 'branch_id',
+                    });
+                }
+
+                if (!branch?.is_active) {
+                    throw new BadRequestException({
+                        message: 'Branch inactive',
+                        location: 'branch_id',
+                    });
+                }
+
+                await this.redisService.set(redisKey, branch, 3600);
+            }
+
+            branchId = branch.id;
         }
 
         await this.knex('repair_order_statuses')

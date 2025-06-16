@@ -57,7 +57,7 @@ export class RolesService {
     }
 
     async findAll() {
-        return this.knex('roles').where({ is_active: true, status: 'Open' });
+        return this.knex('roles').where({ status: 'Open' });
     }
 
     async findOne(id: string) {

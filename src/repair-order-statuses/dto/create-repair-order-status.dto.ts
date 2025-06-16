@@ -14,26 +14,36 @@ export class CreateRepairOrderStatusDto {
     @ApiProperty({ example: 'Qabul qilindi', description: 'Name in Uzbek' })
     @IsString()
     @IsNotEmpty()
+    @MinLength(1, { context: { location: 'status_name_min' } })
+    @MaxLength(50, { context: { location: 'status_name_max' } })
     name_uz: string;
 
     @ApiProperty({ example: 'Принят', description: 'Name in Russian' })
     @IsString()
     @IsNotEmpty()
+    @MinLength(1, { context: { location: 'status_name_min' } })
+    @MaxLength(50, { context: { location: 'status_name_max' } })
     name_ru: string;
 
     @ApiProperty({ example: 'Received', description: 'Name in English' })
     @IsString()
     @IsNotEmpty()
+    @MinLength(1, { context: { location: 'status_name_min' } })
+    @MaxLength(50, { context: { location: 'status_name_max' } })
     name_en: string;
 
     @ApiProperty({ example: '#FFFFFF', description: 'Background color' })
     @IsString()
-    @IsNotEmpty()
+    @IsOptional()
+    @MinLength(1, { context: { location: 'status_name_min' } })
+    @MaxLength(20, { context: { location: 'status_name_max' } })
     bg_color: string;
 
     @ApiProperty({ example: '#000000', description: 'Text color' })
     @IsString()
-    @IsNotEmpty()
+    @IsOptional()
+    @MinLength(1, { context: { location: 'status_name_min' } })
+    @MaxLength(20, { context: { location: 'status_name_max' } })
     color: string;
 
 

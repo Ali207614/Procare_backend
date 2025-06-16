@@ -1,6 +1,13 @@
 import { RequestMethod } from '@nestjs/common';
 
 export const RateLimitedAdminRoutes = [
+    { path: 'repair-order-statuses/', method: RequestMethod.POST },
+    { path: 'repair-order-statuses/viewable', method: RequestMethod.GET },
+    { path: 'repair-order-statuses/all', method: RequestMethod.GET },
+    { path: 'repair-order-statuses/:id/sort', method: RequestMethod.GET },
+    { path: 'repair-order-statuses/:id', method: RequestMethod.DELETE },
+    { path: 'repair-order-statuses/:id', method: RequestMethod.PATCH },
+
     { path: 'branches/', method: RequestMethod.POST },
     { path: 'branches/', method: RequestMethod.GET },
     { path: 'branches/:id', method: RequestMethod.GET },

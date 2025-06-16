@@ -34,7 +34,7 @@ export class RepairOrderStatusExistGuard implements CanActivate {
 
         if (!status) {
             status = await this.knex('repair_order_statuses')
-                .where({ id: statusId, is_active: true })
+                .where({ id: statusId, status: 'Open' })
                 .first();
 
             if (!status) {
