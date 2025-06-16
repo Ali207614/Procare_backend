@@ -8,5 +8,6 @@ import { PermissionsModule } from 'src/permissions/permissions.module';
     imports: [RedisModule, PermissionsModule],
     controllers: [RepairOrderStatusesController],
     providers: [RepairOrderStatusesService],
+    exports: [RepairOrderStatusesService]
 })
 export class RepairOrderStatusesModule { }

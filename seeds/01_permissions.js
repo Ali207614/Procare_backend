@@ -74,6 +74,13 @@ exports.seed = async function (knex) {
     { id: '00000000-0000-0000-0000-000000000044', name: 'phone-os-type.create', description: 'Telefon os type yaratish huquqi' },
     { id: '00000000-0000-0000-0000-000000000045', name: 'phone-os-type.update', description: 'Telefon os type o‘zgartirish huquqi' },
     { id: '00000000-0000-0000-0000-000000000046', name: 'phone-os-type.delete', description: 'Telefon os type o‘chirish' },
+
+    { id: '00000000-0000-0000-0000-000000000047', name: 'repair_order_status.create', description: 'Branch Status ko‘rish huquqi' },
+    { id: '00000000-0000-0000-0000-000000000048', name: 'repair_order_status.view', description: 'Branch Status yaratish huquqi' },
+    { id: '00000000-0000-0000-0000-000000000049', name: 'repair_order_status.update', description: 'Branch Status o‘zgartirish huquqi' },
+    { id: '00000000-0000-0000-0000-000000000050', name: 'repair_order_status.delete', description: 'Branch Status o‘chirish' },
+
+    { id: '00000000-0000-0000-0000-000000000051', name: 'repair_order_status_transitions.manage', description: 'Branch Status Transition manage' },
   ];
 
   for (const perm of permissions) {

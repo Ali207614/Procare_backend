@@ -7,6 +7,7 @@ exports.up = async function (knex) {
         table.uuid('branch_id').notNullable().references('id').inTable('branches').onDelete('CASCADE');
 
         table.decimal('total', 12, 2).notNullable().defaultTo(0);
+        table.string('imei', 50).nullable();
 
         table.uuid('phone_category_id').notNullable().references('id').inTable('phone_categories').onDelete('RESTRICT');
 
@@ -17,7 +18,12 @@ exports.up = async function (knex) {
 
         table.integer('sort').defaultTo(1).notNullable();
 
+        table.enu('priority', ['Low', 'Medium', 'High', 'Highest']).notNullable().defaultTo('Medium');
+        table.integer('priority_level').notNullable().defaultTo(2);
+
         table.uuid('created_by').notNullable().references('id').inTable('admins').onDelete('RESTRICT');
+
+        table.string('description', 1000).nullable();
 
         table.timestamp('created_at').defaultTo(knex.fn.now());
         table.timestamp('updated_at').defaultTo(knex.fn.now());

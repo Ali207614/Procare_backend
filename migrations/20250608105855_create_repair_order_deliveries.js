@@ -8,6 +8,7 @@ exports.up = async function (knex) {
         table.decimal('long', 10, 7).notNullable();
         table.string('description').notNullable();
 
+
         table.uuid('created_by').notNullable().references('id').inTable('admins').onDelete('RESTRICT');
 
         table.timestamp('created_at').defaultTo(knex.fn.now());

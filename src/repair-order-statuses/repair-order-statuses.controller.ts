@@ -10,7 +10,7 @@ import {
     UseGuards,
     Query,
 } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { RepairOrderStatusesService } from './repair-order-statuses.service';
 import { CreateRepairOrderStatusDto } from './dto/create-repair-order-status.dto';
 import { RepairOrderStatusExistGuard } from 'src/common/guards/repair-order-status-exist.guard';
@@ -19,8 +19,11 @@ import { PermissionsGuard } from 'src/common/guards/permission.guard';
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { UpdateRepairOrderStatusDto } from './dto/update-repair-order-status.dto';
 import { UpdateRepairOrderStatusSortDto } from './dto/update-repair-order-status-sort.dto';
+import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 
 @ApiTags('Repair Order Statuses')
+@ApiBearerAuth()
+@UseGuards(JwtAdminAuthGuard)
 @Controller('repair-order-statuses')
 export class RepairOrderStatusesController {
     constructor(private readonly service: RepairOrderStatusesService) { }
@@ -35,7 +38,6 @@ export class RepairOrderStatusesController {
 
     @Get('viewable')
     @UseGuards(PermissionsGuard)
-    @SetPermissions('repair_order_status.view')
     @ApiOperation({ summary: 'Get viewable statuses for current admin' })
     @ApiQuery({ name: 'branch_id', required: true })
     async getViewable(
@@ -47,7 +49,7 @@ export class RepairOrderStatusesController {
 
     @Get('all')
     @UseGuards(PermissionsGuard)
-    @SetPermissions('repair_order_status.view_all')
+    @SetPermissions('repair_order_status.view')
     @ApiOperation({ summary: 'Get all statuses for admin panel' })
     @ApiQuery({ name: 'branch_id', required: true })
     async getAll(@Query('branch_id', ParseUUIDPipe) branchId: string) {

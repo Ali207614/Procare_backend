@@ -8,12 +8,12 @@ import { InjectKnex } from 'nestjs-knex';
 import { Knex } from 'knex';
 import { RedisService } from 'src/common/redis/redis.service';
 import { ParseUUIDPipe } from '../pipe/parse-uuid.pipe';
+import { RepairOrderStatusesService } from 'src/repair-order-statuses/repair-order-statuses.service';
 
 @Injectable()
 export class RepairOrderStatusExistGuard implements CanActivate {
     constructor(
-        @InjectKnex() private readonly knex: Knex,
-        private readonly redisService: RedisService,
+        private readonly repairOrderStatusService: RepairOrderStatusesService
     ) { }
 
     private readonly redisKeyPrefix = 'repair_order_statuses:id:';
@@ -29,25 +29,7 @@ export class RepairOrderStatusExistGuard implements CanActivate {
             throw err;
         }
 
-        const redisKey = `${this.redisKeyPrefix}${statusId}`;
-        let status = await this.redisService.get(redisKey);
-
-        if (!status) {
-            status = await this.knex('repair_order_statuses')
-                .where({ id: statusId, status: 'Open' })
-                .first();
-
-            if (!status) {
-                throw new NotFoundException({
-                    message: 'Repair order status not found or inactive',
-                    location: 'repair_order_status_invalid',
-                });
-            }
-
-            await this.redisService.set(redisKey, status, 3600);
-        }
-
-        request.status = status;
+        request.status = await this.repairOrderStatusService.getOrLoadStatusById(statusId);
         return true;
     }
 }

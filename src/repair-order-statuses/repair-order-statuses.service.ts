@@ -12,6 +12,7 @@ export class RepairOrderStatusesService {
     private readonly redisKey = 'status_viewable:';
     private readonly redisKeyAll = 'repair_order_statuses:all:';
     private readonly redisKeyById = 'repair_order_statuses:id';
+    private readonly redisKeyPrefix = 'repair_order_statuses:id:';
 
     constructor(
         @InjectKnex() private readonly knex: Knex,
@@ -239,5 +240,27 @@ export class RepairOrderStatusesService {
         await this.redisService.flushByPrefix(`${this.redisKeyAll}${status.branch_id}`);
 
         return { message: 'Status deleted successfully' };
+    }
+
+    async getOrLoadStatusById(statusId: string) {
+        const redisKey = `${this.redisKeyPrefix}${statusId}`;
+        let status = await this.redisService.get(redisKey);
+
+        if (!status) {
+            status = await this.knex('repair_order_statuses')
+                .where({ id: statusId, status: 'Open' })
+                .first();
+
+            if (!status) {
+                throw new BadRequestException({
+                    message: 'Repair order status not found or inactive',
+                    location: 'from_status_id',
+                });
+            }
+
+            await this.redisService.set(redisKey, status, 3600);
+        }
+
+        return status;
     }
 }
