@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectKnex } from 'nestjs-knex';
 import { getNextSortValue } from 'src/common/utils/sort.util';
@@ -15,6 +17,7 @@ import { DeliveryUpdaterService } from './services/delivery-updater.service';
 import { UpdateRepairOrderDto } from './dto/update-repair-order.dto';
 import { PaginationQuery } from 'src/common/types/pagination-query.interface';
 import { RedisService } from 'src/common/redis/redis.service';
+import { loadSQL } from 'src/common/utils/sql-loader.util';
 @Injectable()
 export class RepairOrdersService {
     private readonly table = 'repair_orders';
@@ -181,4 +184,71 @@ export class RepairOrdersService {
 
         return result;
     }
+
+    async softDelete(adminId: string, orderId: string) {
+        const trx = await this.knex.transaction();
+
+        try {
+            const order = await trx(this.table).where({ id: orderId, status: 'Open' }).first();
+
+            if (!order || order.status === 'Deleted') {
+                throw new NotFoundException({
+                    message: 'Repair order not found or already deleted',
+                    location: 'repair_order_id',
+                });
+            }
+
+            await this.permissionService.validatePermissionOrThrow(adminId, order.status_id, 'can_delete', 'repair_order_permission');
+
+            await this.changeLogger.logIfChanged(
+                trx,
+                orderId,
+                'status',
+                order.status,
+                'Deleted',
+                adminId,
+            );
+
+            await trx(this.table)
+                .update({ status: 'Deleted', updated_at: new Date() })
+                .where({ id: orderId });
+
+            await trx.commit();
+
+            await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
+
+            return { message: 'Repair order deleted (soft) successfully' };
+        } catch (err) {
+            await trx.rollback();
+            throw err;
+        }
+    }
+
+    async findById(adminId: string, orderId: string) {
+        const query = loadSQL('repair-orders/queries/find-by-id.sql');
+
+        const result = await this.knex.raw(query, { orderId });
+        const order = result.rows?.[0];
+
+        if (!order) {
+            throw new NotFoundException({
+                message: 'Repair order not found',
+                location: 'repair_order_id',
+            });
+        }
+
+        await this.permissionService.validatePermissionOrThrow(
+            adminId,
+            order.status_id,
+            'can_view',
+            'repair_order_permission',
+        );
+
+        return {
+            message: 'Repair order retrieved successfully',
+            data: order,
+        };
+    }
+
+
 }

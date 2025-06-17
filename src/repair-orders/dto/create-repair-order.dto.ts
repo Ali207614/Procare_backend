@@ -6,32 +6,38 @@ import {
 import { Type } from 'class-transformer';
 
 class ProblemDto {
+    @ApiProperty()
     @IsUUID('all', { context: { location: 'problem_category_id' } })
     problem_category_id: string;
 
+    @ApiProperty()
     @IsNumber({}, { context: { location: 'price' } })
     price: number;
 
+    @ApiProperty()
     @IsNumber({}, { context: { location: 'estimated_minutes' } })
     estimated_minutes: number;
 }
 
 class CommentDto {
+    @ApiProperty()
     @IsString({ context: { location: 'text' } })
     @MaxLength(1000, { context: { location: 'text' } })
     text: string;
 }
 
 class LocationDto {
+    @ApiProperty()
     @IsNumber({}, { context: { location: 'lat' } })
     lat: number;
 
+    @ApiProperty()
     @IsNumber({}, { context: { location: 'long' } })
     long: number;
 
+    @ApiProperty()
     @IsString({ context: { location: 'description' } })
     description: string;
-
 }
 
 export class CreateRepairOrderDto {

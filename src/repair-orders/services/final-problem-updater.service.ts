@@ -32,7 +32,7 @@ export class FinalProblemUpdaterService {
             throw new BadRequestException({
                 message: 'Some final problems are not allowed for this phone category',
                 location: 'final_problems',
-                invalid_problem_ids: invalid,
+
             });
         }
 

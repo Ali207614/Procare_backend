@@ -35,5 +35,5 @@ export class RepairOrderChangeLoggerService {
             await this.logIfChanged(trx, orderId, key, oldVal, newVal, adminId);
         }
     }
-    
+
 }

@@ -7,7 +7,7 @@ import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { PermissionsGuard } from 'src/common/guards/permission.guard';
 import { SetPermissions } from 'src/common/decorators/permission-decorator';
 import { BranchExistGuard } from 'src/common/guards/branch-exist.guard';
-import { RepairOrderStatusExistGuard } from 'src/common/guards/repair-order-status-exist.guard';
+
 
 @ApiTags('Repair Order Status Permissions')
 @ApiBearerAuth()
@@ -19,7 +19,7 @@ export class RepairOrderStatusPermissionsController {
     ) { }
 
     @Post('bulk-assign')
-    @UseGuards(PermissionsGuard, BranchExistGuard, RepairOrderStatusExistGuard)
+    @UseGuards(PermissionsGuard, BranchExistGuard)
     @SetPermissions('repair_order_status_permissions.manage')
     @ApiOperation({ summary: 'Bulk assign or update permissions to multiple admins' })
     async bulkAssign(

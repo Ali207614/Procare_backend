@@ -31,7 +31,7 @@ export class InitialProblemUpdaterService {
             throw new BadRequestException({
                 message: 'Some initial problems are not allowed for this phone category',
                 location: 'initial_problems',
-                invalid_problem_ids: invalid,
+
             });
         }
 

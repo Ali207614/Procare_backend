@@ -15,22 +15,31 @@ export class RepairOrderStatusPermissionsService {
     private readonly redisKeyByAdminBranch = 'repair_order_status_permissions:by_admin_branch';
 
     async createMany(dto: AssignRepairOrderStatusPermissionsDto) {
-        const { branch_id, status_id, admin_ids, ...permissions } = dto;
+        const { branch_id, status_ids, admin_ids, ...permissions } = dto;
 
         const trx = await this.knex.transaction();
 
         try {
             await trx('repair_order_status_permissions')
-                .where({ branch_id, status_id })
+                .where({ branch_id })
                 .whereIn('admin_id', admin_ids)
+                .whereIn('status_id', status_ids)
                 .del();
 
-            const inserts = admin_ids.map((admin_id) => ({
-                admin_id,
-                branch_id,
-                status_id,
-                ...permissions,
-            }));
+            const inserts = [];
+
+            for (const admin_id of admin_ids) {
+                for (const status_id of status_ids) {
+                    inserts.push({
+                        admin_id,
+                        status_id,
+                        branch_id,
+                        ...permissions,
+                        created_at: new Date(),
+                        updated_at: new Date(),
+                    });
+                }
+            }
 
             const inserted = await trx('repair_order_status_permissions')
                 .insert(inserts)
@@ -41,7 +50,7 @@ export class RepairOrderStatusPermissionsService {
             await Promise.all(inserted.map((row) => this.flushAndReloadCache(row)));
 
             return {
-                message: 'Permissions assigned successfully to selected admins',
+                message: 'Permissions assigned successfully to selected admins and statuses',
                 count: inserted.length,
             };
         } catch (error) {

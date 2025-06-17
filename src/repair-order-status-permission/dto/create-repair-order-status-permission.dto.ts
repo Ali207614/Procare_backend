@@ -13,9 +13,12 @@ export class AssignRepairOrderStatusPermissionsDto {
     @IsUUID('all', { context: { location: 'branch_id' } })
     branch_id: string;
 
-    @ApiProperty()
-    @IsUUID('all', { context: { location: 'status_id' } })
-    status_id: string;
+    @ApiProperty({ type: [String] })
+    @IsArray({ context: { location: 'status_ids' } })
+    @ArrayNotEmpty({ context: { location: 'status_ids' } })
+    @ArrayUnique({ context: { location: 'status_ids' } })
+    @IsUUID('all', { each: true, context: { location: 'status_ids' } })
+    status_ids: string[];
 
     @ApiProperty({ type: [String] })
     @IsArray({ context: { location: 'admin_ids' } })
