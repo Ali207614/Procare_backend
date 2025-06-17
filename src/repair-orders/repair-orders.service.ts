@@ -74,7 +74,6 @@ export class RepairOrdersService {
         }
     }
 
-
     async update(adminId: string, orderId: string, dto: UpdateRepairOrderDto) {
         const trx = await this.knex.transaction();
 
@@ -120,7 +119,6 @@ export class RepairOrdersService {
         }
 
     }
-
 
     async findAllByAdminBranch(adminId: string, branchId: string, query: PaginationQuery) {
         const { page = 1, limit = 20, sortBy = 'sort', sortOrder = 'asc' } = query;
@@ -183,6 +181,4 @@ export class RepairOrdersService {
 
         return result;
     }
-
-
 }
