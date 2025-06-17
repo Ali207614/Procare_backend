@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { RepairOrderStatusPermissionsService } from "src/repair-order-status-permission/repair-order-status-permissions.service";
 import { RepairOrderChangeLoggerService } from "./repair-order-change-logger.service";
 
@@ -9,10 +9,32 @@ export class FinalProblemUpdaterService {
         private readonly changeLogger: RepairOrderChangeLoggerService,
     ) { }
 
-    async update(trx, orderId, problems, adminId, statusId) {
-        if (!problems) return;
+    async update(trx, orderId, problems, adminId, statusId, phoneCategoryId: string) {
+        if (!problems?.length) return;
 
-        await this.permissionService.validatePermissionOrThrow(adminId, statusId, 'can_change_final_problems', 'final_problems');
+        await this.permissionService.validatePermissionOrThrow(
+            adminId,
+            statusId,
+            'can_change_final_problems',
+            'final_problems',
+        );
+
+        const problemIds = problems.map((p) => p.problem_category_id);
+
+        const allowed = await trx('phone_problem_mappings')
+            .where({ phone_category_id: phoneCategoryId })
+            .whereIn('problem_category_id', problemIds)
+            .pluck('problem_category_id');
+
+        const invalid = problemIds.filter((id) => !allowed.includes(id));
+
+        if (invalid.length) {
+            throw new BadRequestException({
+                message: 'Some final problems are not allowed for this phone category',
+                location: 'final_problems',
+                invalid_problem_ids: invalid,
+            });
+        }
 
         const old = await trx('repair_order_final_problems')
             .where({ repair_order_id: orderId })
@@ -32,6 +54,13 @@ export class FinalProblemUpdaterService {
 
         await trx('repair_order_final_problems').insert(rows);
 
-        await this.changeLogger.logIfChanged(trx, orderId, 'final_problems', old, problems, adminId);
+        await this.changeLogger.logIfChanged(
+            trx,
+            orderId,
+            'final_problems',
+            old,
+            problems,
+            adminId,
+        );
     }
 }

@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
     IsUUID, IsOptional, IsEnum, IsArray, ArrayNotEmpty,
-    ArrayUnique, IsNumber, IsString, MaxLength, ValidateNested,
+    ArrayUnique, IsNumber, IsString, MaxLength, ValidateNested, IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -31,6 +31,7 @@ class LocationDto {
 
     @IsString({ context: { location: 'description' } })
     description: string;
+
 }
 
 export class CreateRepairOrderDto {

@@ -13,6 +13,8 @@ import { CommentUpdaterService } from './services/comment-updater.service';
 import { PickupUpdaterService } from './services/pickup-updater.service';
 import { DeliveryUpdaterService } from './services/delivery-updater.service';
 import { UpdateRepairOrderDto } from './dto/update-repair-order.dto';
+import { PaginationQuery } from 'src/common/types/pagination-query.interface';
+import { RedisService } from 'src/common/redis/redis.service';
 @Injectable()
 export class RepairOrdersService {
     private readonly table = 'repair_orders';
@@ -27,7 +29,8 @@ export class RepairOrdersService {
         private readonly commentUpdater: CommentUpdaterService,
         private readonly pickupUpdater: PickupUpdaterService,
         private readonly deliveryUpdater: DeliveryUpdaterService,
-        private readonly helper: RepairOrderCreateHelperService
+        private readonly helper: RepairOrderCreateHelperService,
+        private readonly redisService: RedisService
     ) { }
 
     async create(adminId: string, branchId: string, statusId: string, dto: CreateRepairOrderDto) {
@@ -36,9 +39,9 @@ export class RepairOrdersService {
         try {
             await this.permissionService.validatePermissionOrThrow(adminId, statusId, 'can_add', 'repair_order_permission');
 
-            const sort = await getNextSortValue(this.knex, 'repair_orders', { where: { branch_id: branchId } });
+            const sort = await getNextSortValue(this.knex, this.table, { where: { branch_id: branchId } });
 
-            const [order] = await trx('repair_orders')
+            const [order] = await trx(this.table)
                 .insert({
                     user_id: dto.user_id,
                     branch_id: branchId,
@@ -62,6 +65,8 @@ export class RepairOrdersService {
 
             await trx.commit();
 
+            await this.redisService.flushByPrefix(`${this.table}:${branchId}`);
+
             return { message: 'Repair order created successfully', data: order };
         } catch (err) {
             await trx.rollback();
@@ -74,7 +79,7 @@ export class RepairOrdersService {
         const trx = await this.knex.transaction();
 
         try {
-            const order = await trx('repair_orders').where({ id: orderId }).first();
+            const order = await trx(this.table).where({ id: orderId, status: 'Open' }).first();
             if (!order) {
                 throw new NotFoundException({ message: 'Repair order not found', location: 'repair_order_id' });
             }
@@ -93,19 +98,20 @@ export class RepairOrdersService {
             }
 
             if (Object.keys(updatedFields).length) {
-                await trx('repair_orders').update({ ...updatedFields, updated_at: new Date() }).where({ id: orderId });
+                await trx(this.table).update({ ...updatedFields, updated_at: new Date() }).where({ id: orderId });
             }
 
             await this.changeLogger.logMultipleFieldsIfChanged(trx, orderId, logFields, adminId);
 
             await this.assignAdminUpdater.update(trx, orderId, dto.admin_ids, adminId, statusId);
-            await this.initialProblemUpdater.update(trx, orderId, dto.initial_problems, adminId, statusId);
-            await this.finalProblemUpdater.update(trx, orderId, dto.final_problems, adminId, statusId);
+            await this.initialProblemUpdater.update(trx, orderId, dto.initial_problems, adminId, statusId, dto.phone_category_id);
+            await this.finalProblemUpdater.update(trx, orderId, dto.final_problems, adminId, statusId, dto.phone_category_id);
             await this.commentUpdater.update(trx, orderId, dto.comments, adminId, statusId);
             await this.pickupUpdater.update(trx, orderId, dto.pickup, adminId, statusId);
             await this.deliveryUpdater.update(trx, orderId, dto.delivery, adminId, statusId);
 
             await trx.commit();
+            await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
 
             return { message: 'Repair order updated successfully' };
         } catch (err) {
@@ -116,23 +122,67 @@ export class RepairOrdersService {
     }
 
 
-    async findAllByBranch(adminId: string, branchId: string) {
+    async findAllByAdminBranch(adminId: string, branchId: string, query: PaginationQuery) {
+        const { page = 1, limit = 20, sortBy = 'sort', sortOrder = 'asc' } = query;
+        const offset = (page - 1) * limit;
+
         const permissions = await this.permissionService.findByAdminBranch(adminId, branchId);
+        const statusIds = permissions.filter(p => p.can_view).map(p => p.status_id);
+        if (!statusIds.length) return {};
 
-        const viewableStatusIds = permissions
-            .filter((p) => p.can_view)
-            .map((p) => p.status_id);
+        const allCacheKeys = statusIds.map(
+            statusId => `${this.table}:${branchId}:${adminId}:${statusId}:${sortBy}:${sortOrder}:${page}:${limit}`
+        );
 
-        if (!viewableStatusIds.length) {
-            return [];
+        const cachedResults = await this.redisService.mget(...allCacheKeys);
+
+        const result: Record<string, any[]> = {};
+        const missingStatusIds: string[] = [];
+
+        statusIds.forEach((statusId, index) => {
+            const cached = cachedResults[index];
+            if (cached !== null) {
+                result[statusId] = cached;
+            } else {
+                missingStatusIds.push(statusId);
+            }
+        });
+
+        if (missingStatusIds.length) {
+            const freshOrders = await this.knex('repair_orders as ro')
+                .leftJoin('users as u', 'ro.user_id', 'u.id')
+                .leftJoin('repair_order_pickups as p', 'ro.id', 'p.repair_order_id')
+                .leftJoin('repair_order_deliveries as d', 'ro.id', 'd.repair_order_id')
+                .leftJoin('phone_categories as pc', 'ro.phone_category_id', 'pc.id')
+                .select(
+                    'ro.*',
+                    'u.first_name as client_first_name',
+                    'u.last_name as client_last_name',
+                    'u.phone_number as client_phone_number',
+                    'p.description as pickup_description',
+                    'd.description as delivery_description',
+                    'pc.name_uz as phone_name'
+                )
+                .where('ro.branch_id', branchId)
+                .where('ro.branch_id', branchId)
+                .whereIn('ro.status_id', missingStatusIds)
+                .andWhere('ro.status', '!=', 'Deleted')
+                .orderBy('ro.status_id')
+                .orderBy(`ro.${sortBy}`, sortOrder);
+
+            for (const statusId of missingStatusIds) {
+                const filtered = freshOrders.filter(o => o.status_id === statusId);
+                const paginated = filtered.slice(offset, offset + limit);
+
+                const cacheKey = `${this.table}:${branchId}:${adminId}:${statusId}:${sortBy}:${sortOrder}:${page}:${limit}`;
+                await this.redisService.set(cacheKey, paginated, 300);
+
+                result[statusId] = paginated;
+            }
         }
 
-        const orders = await this.knex('repair_orders')
-            .whereIn('status_id', viewableStatusIds)
-            .andWhere({ branch_id: branchId })
-            .orderBy('created_at', 'desc');
-
-        return orders;
+        return result;
     }
+
 
 }

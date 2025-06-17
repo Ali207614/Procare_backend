@@ -55,4 +55,17 @@ export class RedisService {
     getClient(): RedisClientType {
         return this.client;
     }
+
+    async mget<T = any>(...keys: string[]): Promise<(T | null)[]> {
+        try {
+            const redisKeys = keys.map((k) => this.buildKey(k));
+            const results = await this.client.mGet(redisKeys);
+
+            return results.map((item: any) => (item ? JSON.parse(item) : null));
+        } catch (error) {
+            this.logger.error(`Redis MGET error: ${error.message}`);
+            return keys.map(() => null); // Har bir key uchun null qaytaradi
+        }
+    }
+
 }

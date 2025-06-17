@@ -18,6 +18,7 @@ import { UpdateRepairOrderDto } from './dto/update-repair-order.dto';
 import { BranchExistGuard } from 'src/common/guards/branch-exist.guard';
 import { RepairOrderStatusExistGuard } from 'src/common/guards/repair-order-status-exist.guard';
 import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { PaginationQuery } from 'src/common/types/pagination-query.interface';
 
 @ApiTags('Repair Orders')
 @Controller('repair-orders')
@@ -46,14 +47,22 @@ export class RepairOrdersController {
 
     @Get()
     @UseGuards(BranchExistGuard)
+    @ApiParam({ name: 'branchId' })
+    @ApiQuery({ name: 'page', required: false })
+    @ApiQuery({ name: 'branch_id', required: true })
+    @ApiQuery({ name: 'limit', required: false })
+    @ApiQuery({ name: 'sortBy', enum: ['sort', 'priority', 'created_at'], required: false })
+    @ApiQuery({ name: 'sortOrder', enum: ['asc', 'desc'], required: false })
     @ApiOperation({ summary: 'Get all repair orders by branchId (can_view only)' })
     @ApiQuery({ name: 'branch_id', description: 'Branch ID', required: true })
     findAllByBranch(
         @Req() req,
-        @Query('branch_id', ParseUUIDPipe) branchId: string, // query orqali olamiz
+        @Query('branch_id', ParseUUIDPipe) branchId: string,
+        @Query() query: PaginationQuery,
     ) {
-        return this.service.findAllByBranch(req.admin.id, branchId);
+        return this.service.findAllByAdminBranch(req.admin.id, branchId, query);
     }
+
 
     @Get(':id')
     @ApiOperation({ summary: 'Get repair order by ID (with permission)' })

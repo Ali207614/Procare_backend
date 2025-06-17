@@ -7,7 +7,7 @@ exports.up = async function (knex) {
         table.decimal('lat', 10, 7).notNullable();
         table.decimal('long', 10, 7).notNullable();
         table.string('description').notNullable();
-
+        table.boolean('is_main').defaultTo(false);
 
         table.uuid('created_by').notNullable().references('id').inTable('admins').onDelete('RESTRICT');
 
