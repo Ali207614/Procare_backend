@@ -6,7 +6,7 @@ exports.up = async function (knex) {
         table.text('content_ru').notNullable();
         table.text('content_en').notNullable();
 
-        table.string('version').notNullable().unique(); // ex: v1.0, v2.0
+        table.string('version').notNullable().unique(); 
 
         table.boolean('is_active').defaultTo(true);
         table.enu('status', ['Open', 'Deleted']).defaultTo('Open');

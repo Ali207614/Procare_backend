@@ -49,11 +49,7 @@ exports.seed = async function (knex) {
     { id: '00000000-0000-0000-0000-000000000027', name: 'branch.update', description: 'Filialni o‘zgartirish huquqi' },
     { id: '00000000-0000-0000-0000-000000000028', name: 'branch.delete', description: 'Filialni o‘chirish huquqi' },
 
-    // Brand CRUD
-    { id: '00000000-0000-0000-0000-000000000029', name: 'brand.view', description: 'Brandlarni ko‘rish huquqi' },
-    { id: '00000000-0000-0000-0000-000000000030', name: 'brand.create', description: 'Brand yaratish huquqi' },
-    { id: '00000000-0000-0000-0000-000000000031', name: 'brand.update', description: 'Brandni o‘zgartirish huquqi' },
-    { id: '00000000-0000-0000-0000-000000000032', name: 'brand.delete', description: 'Brandni o‘chirish huquqi' },
+
 
     // Phone CRUD
     { id: '00000000-0000-0000-0000-000000000033', name: 'phone-category.view', description: 'Telefonlarni ko‘rish huquqi' },

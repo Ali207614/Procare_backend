@@ -45,4 +45,15 @@ export class RepairOrderStatusPermissionsController {
     ) {
         return this.service.findByAdminStatus(adminId, statusId);
     }
+
+    @Get('by-admin/:adminId/branch/:branchId')
+    @ApiOperation({ summary: 'Get permission for a specific admin and status (from Redis)' })
+    @ApiParam({ name: 'adminId', description: 'Admin ID' })
+    @ApiParam({ name: 'branchId', description: 'Branch ID' })
+    async getByAdminBranch(
+        @Param('adminId', ParseUUIDPipe) adminId: string,
+        @Param('branchId', ParseUUIDPipe) branchId: string,
+    ) {
+        return this.service.findByAdminBranch(adminId, branchId);
+    }
 }

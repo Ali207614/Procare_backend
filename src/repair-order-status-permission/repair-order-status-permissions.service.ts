@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectKnex } from 'nestjs-knex';
 import { Knex } from 'knex';
 import { AssignRepairOrderStatusPermissionsDto } from './dto/create-repair-order-status-permission.dto';
@@ -110,7 +110,14 @@ export class RepairOrderStatusPermissionsService {
         ]);
     }
 
+    async validatePermissionOrThrow(adminId: string, statusId: string, permissionField: any, location: string) {
+        const permission = await this.findByAdminStatus(adminId, statusId);
 
-
-
+        if (!permission?.[permissionField]) {
+            throw new ForbiddenException({
+                message: `You do not have permission: ${permissionField}`,
+                location,
+            });
+        }
+    }
 }

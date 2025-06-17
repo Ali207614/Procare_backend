@@ -19,7 +19,7 @@ export class RepairOrderStatusExistGuard implements CanActivate {
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
         const request = context.switchToHttp().getRequest();
-        const statusId = request.body.status_id || request.params?.id;
+        const statusId = request.body.status_id || request.query.status_id || request.params?.id;
 
         try {
             const parser = new ParseUUIDPipe();
