@@ -18,6 +18,8 @@ import { UpdateRepairOrderDto } from './dto/update-repair-order.dto';
 import { PaginationQuery } from 'src/common/types/pagination-query.interface';
 import { RedisService } from 'src/common/redis/redis.service';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
+import { MoveRepairOrderDto } from './dto/move-repair-order.dto';
+import { UpdateRepairOrderSortDto } from './dto/update-repair-order-sort.dto';
 @Injectable()
 export class RepairOrdersService {
     private readonly table = 'repair_orders';
@@ -315,5 +317,178 @@ export class RepairOrdersService {
             message: 'Repair order retrieved successfully',
             data: order,
         };
+    }
+
+    async sendStatusChangeNotification(
+        trx: Knex.Transaction,
+        orderId: string,
+        newStatusId: string,
+        changedByAdminId: string,
+    ) {
+        const order = await trx('repair_orders').where({ id: orderId }).first();
+        if (!order) return;
+
+        const permissionedAdmins = await trx('repair_order_status_permissions')
+            .select('admin_id')
+            .where({
+                status_id: newStatusId,
+                branch_id: order.branch_id,
+                can_notification: true,
+            });
+
+        if (!permissionedAdmins.length) return;
+
+        const now = new Date();
+
+        const notifications = permissionedAdmins.map((a) => ({
+            admin_id: a.admin_id,
+            title: 'Buyurtma holati o‘zgardi',
+            message: `Buyurtma yangi statusga o'tdi`,
+            type: 'info',
+            meta: {
+                order_id: order.id,
+                from_status_id: order.status_id,
+                to_status_id: newStatusId,
+                changed_by: changedByAdminId,
+                action: 'status_changed',
+            },
+            created_at: now,
+            updated_at: now,
+        }));
+
+        await trx('notifications').insert(notifications);
+    }
+
+    async move(adminId: string, orderId: string, dto: MoveRepairOrderDto) {
+        const trx = await this.knex.transaction();
+
+        try {
+            const order = await trx(this.table).where({ id: orderId, status: 'Open' }).first();
+            if (!order) {
+                throw new NotFoundException({
+                    message: 'Repair order not found',
+                    location: 'repair_order_id',
+                });
+            }
+
+            if (dto.status_id !== order.status_id) {
+                const transitionExists = await trx('repair_order_status_transitions')
+                    .where({
+                        from_status_id: order.status_id,
+                        to_status_id: dto.status_id,
+                    })
+                    .first();
+
+                if (!transitionExists) {
+                    throw new BadRequestException({
+                        message: 'Status transition is not allowed',
+                        location: 'status_id',
+                    });
+                }
+
+                await this.sendStatusChangeNotification(trx, orderId, dto.status_id, adminId);
+            }
+
+            await this.permissionService.validatePermissionOrThrow(adminId, order.status_id, 'can_change_status', 'repair_order_permission');
+
+            const updates: Partial<typeof order> = {};
+            const logs = [];
+
+            if (dto.status_id !== order.status_id) {
+                updates.status_id = dto.status_id;
+                logs.push({ key: 'status_id', oldVal: order.status_id, newVal: dto.status_id });
+            }
+
+            if (dto.sort !== order.sort) {
+                updates.sort = dto.sort;
+                logs.push({ key: 'sort', oldVal: order.sort, newVal: dto.sort });
+            }
+
+            if (Object.keys(updates).length) {
+                updates.updated_at = new Date();
+                await trx(this.table).update(updates).where({ id: orderId });
+            }
+
+            await this.changeLogger.logMultipleFieldsIfChanged(trx, orderId, logs, adminId);
+
+            await trx.commit();
+            await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
+
+            return { message: 'Repair order moved successfully' };
+        } catch (err) {
+            await trx.rollback();
+            throw err;
+        }
+    }
+
+    async updateSort(orderId: string, newSort: number, adminId: string) {
+        const trx = await this.knex.transaction();
+
+        try {
+            const order = await trx('repair_orders')
+                .where({ id: orderId, status: 'Open' })
+                .first();
+
+            if (!order) {
+                throw new NotFoundException({
+                    message: 'Repair order not found or inactive',
+                    location: 'repair_order_id',
+                });
+            }
+
+            await this.permissionService.validatePermissionOrThrow(adminId, order.status_id, 'can_update', 'repair_order_permission');
+
+            const currentSort = order.sort;
+            const branchId = order.branch_id;
+            const statusId = order.status_id;
+
+            if (newSort === currentSort) {
+                return { message: 'No change needed' };
+            }
+
+            if (newSort < currentSort) {
+                await trx('repair_orders')
+                    .where({ branch_id: branchId, status_id: statusId })
+                    .andWhere('sort', '>=', newSort)
+                    .andWhere('sort', '<', currentSort)
+                    .andWhere('status', 'Open')
+                    .update({ sort: this.knex.raw('sort + 1') });
+            } else {
+                await trx('repair_orders')
+                    .where({ branch_id: branchId, status_id: statusId })
+                    .andWhere('sort', '<=', newSort)
+                    .andWhere('sort', '>', currentSort)
+                    .andWhere('status', 'Open')
+                    .update({ sort: this.knex.raw('sort - 1') });
+            }
+
+            // Update current order
+            await trx('repair_orders')
+                .where({ id: orderId })
+                .update({
+                    sort: newSort,
+                    updated_at: new Date(),
+                });
+
+            // Log
+            await this.changeLogger.logIfChanged(
+                trx,
+                orderId,
+                'sort',
+                currentSort,
+                newSort,
+                adminId
+            );
+
+            await trx.commit();
+
+            // Clear redis cache
+            await this.redisService.flushByPrefix(`${this.table}:${branchId}`);
+
+            return { message: 'Repair order sort updated successfully' };
+        } catch (err) {
+            await trx.rollback();
+            throw err;
+        }
     }
 }

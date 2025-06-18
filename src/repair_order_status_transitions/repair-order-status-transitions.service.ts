@@ -39,12 +39,10 @@ export class RepairOrderStatusTransitionsService {
         const trx = await this.knex.transaction();
 
         try {
-            // 1. Eski transitionlarni o'chiramiz
             await trx('repair_order_status_transitions')
                 .where({ from_status_id })
                 .del();
 
-            // 2. Yangi yozuvlarni kiritamiz
             const inserts = to_status_ids.map((toId) => ({
                 from_status_id,
                 to_status_id: toId,

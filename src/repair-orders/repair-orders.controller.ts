@@ -20,6 +20,10 @@ import { RepairOrderStatusExistGuard } from 'src/common/guards/repair-order-stat
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { PaginationQuery } from 'src/common/types/pagination-query.interface';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
+import { MoveRepairOrderDto } from './dto/move-repair-order.dto';
+import { UpdateRepairOrderSortDto } from './dto/update-repair-order-sort.dto';
+import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
 
 @ApiTags('Repair Orders')
 @ApiBearerAuth()
@@ -64,12 +68,7 @@ export class RepairOrdersController {
     }
 
 
-    @Delete(':id')
-    @ApiOperation({ summary: 'Soft delete a repair order (with permission)' })
-    @ApiParam({ name: 'id', description: 'Repair Order ID' })
-    delete(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
-        return this.service.softDelete(req.admin.id, id);
-    }
+
 
     @Get(':id')
     @ApiOperation({ summary: 'Get repair order by ID (with permission)' })
@@ -78,4 +77,34 @@ export class RepairOrdersController {
         return this.service.findById(req.admin.id, id);
     }
 
+    @Patch(':id/move')
+    @UseGuards(RepairOrderStatusExistGuard)
+    @ApiOperation({ summary: 'Move repair order' })
+    @ApiParam({ name: 'id', description: 'Repair Order ID' })
+    move(
+        @Param('id', ParseUUIDPipe) id: string,
+        @Req() req,
+        @Body() dto: MoveRepairOrderDto,
+    ) {
+        return this.service.move(req.admin.id, id, dto);
+    }
+
+    @Patch(':id/sort')
+    @UseGuards(PermissionsGuard, RepairOrderStatusExistGuard)
+    @ApiOperation({ summary: 'Update status sort order' })
+    @ApiParam({ name: 'id', description: 'Status ID (UUID)' })
+    async updateSort(
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() dto: UpdateRepairOrderSortDto,
+        @CurrentAdmin() admin: AdminPayload,
+    ) {
+        return this.service.updateSort(id, dto.sort, admin.id);
+    }
+
+    @Delete(':id')
+    @ApiOperation({ summary: 'Soft delete a repair order (with permission)' })
+    @ApiParam({ name: 'id', description: 'Repair Order ID' })
+    delete(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
+        return this.service.softDelete(req.admin.id, id);
+    }
 }

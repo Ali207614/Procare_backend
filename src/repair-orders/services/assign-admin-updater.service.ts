@@ -11,7 +11,7 @@ export class AssignAdminUpdaterService {
 
     async update(
         trx,
-        orderId,
+        orderId: string,
         newAdminIds: string[] | undefined,
         adminId: string,
         statusId: string,
@@ -50,12 +50,39 @@ export class AssignAdminUpdaterService {
         }
 
         if (toAdd.length) {
+            const now = new Date();
+
+            // Insert new assigns
             const rows = toAdd.map((id) => ({
                 repair_order_id: orderId,
                 admin_id: id,
-                created_at: new Date(),
+                created_at: now,
             }));
             await trx('repair_order_assign_admins').insert(rows);
+
+            // Notification to newly added admins
+            const order = await trx('repair_orders')
+                .where({ id: orderId })
+                .first();
+
+            if (order) {
+                const notifications = toAdd.map((newAdminId) => ({
+                    admin_id: newAdminId,
+                    title: 'Yangi buyurtma tayinlandi',
+                    message: 'Sizga yangi repair order biriktirildi.',
+                    type: 'info',
+                    meta: {
+                        order_id: order.id,
+                        branch_id: order.branch_id,
+                        assigned_by: adminId,
+                        action: 'assigned_to_order',
+                    },
+                    created_at: now,
+                    updated_at: now,
+                }));
+
+                await trx('notifications').insert(notifications);
+            }
         }
 
         await this.changeLogger.logIfChanged(
@@ -67,5 +94,6 @@ export class AssignAdminUpdaterService {
             adminId,
         );
     }
+
 
 }

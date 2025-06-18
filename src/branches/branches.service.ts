@@ -73,6 +73,7 @@ export class BranchesService {
                     color: '#ffffff',
                     sort: 1000 + index,
                     can_user_view: s.can_user_view,
+                    can_add_payment: false,
                     is_active: true,
                     is_protected: true,
                     type: s.key,

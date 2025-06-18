@@ -52,6 +52,11 @@ export class CreateRepairOrderStatusDto {
     @IsBoolean()
     can_user_view?: boolean;
 
+    @ApiProperty({ example: true, description: 'Can add payment' })
+    @IsOptional()
+    @IsBoolean()
+    can_add_payment?: boolean;
+
     @ApiProperty({ example: 'uuid', description: 'Branch ID' })
     @IsOptional()
     @IsUUID()

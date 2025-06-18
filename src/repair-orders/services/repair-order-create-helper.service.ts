@@ -9,10 +9,21 @@ export class RepairOrderCreateHelperService {
         private readonly permissionService: RepairOrderStatusPermissionsService,
     ) { }
 
-    async insertAssignAdmins(trx: Knex.Transaction, dto: CreateRepairOrderDto, adminId: string, statusId: string, orderId: string) {
+    async insertAssignAdmins(
+        trx: Knex.Transaction,
+        dto: CreateRepairOrderDto,
+        adminId: string,
+        statusId: string,
+        orderId: string,
+    ) {
         if (!dto.admin_ids?.length) return;
 
-        await this.permissionService.validatePermissionOrThrow(adminId, statusId, 'can_assign_admin', 'admin_ids');
+        await this.permissionService.validatePermissionOrThrow(
+            adminId,
+            statusId,
+            'can_assign_admin',
+            'admin_ids',
+        );
 
         const uniqueIds = [...new Set(dto.admin_ids)];
 
@@ -29,13 +40,37 @@ export class RepairOrderCreateHelperService {
             });
         }
 
+        const now = new Date();
+
         const rows = uniqueIds.map((id) => ({
             repair_order_id: orderId,
             admin_id: id,
-            created_at: new Date(),
+            created_at: now,
         }));
-
         await trx('repair_order_assign_admins').insert(rows);
+
+        const order = await trx('repair_orders')
+            .where({ id: orderId })
+            .first();
+
+        if (order) {
+            const notifications = uniqueIds.map((adminId) => ({
+                admin_id: adminId,
+                title: 'Yangi buyurtma tayinlandi',
+                message: 'Sizga yangi repair order biriktirildi.',
+                type: 'info',
+                meta: {
+                    order_id: order.id,
+                    branch_id: order.branch_id,
+                    assigned_by: adminId,
+                    action: 'assigned_to_order',
+                },
+                created_at: now,
+                updated_at: now,
+            }));
+
+            await trx('notifications').insert(notifications);
+        }
     }
 
 
