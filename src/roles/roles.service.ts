@@ -77,7 +77,8 @@ export class RolesService {
     async update(id: string, dto: UpdateRoleDto) {
         return await this.knex.transaction(async (trx) => {
             const role = await this.findOne(id);
-            if (dto?.is_active === false && role?.is_protected) {
+
+            if (role?.is_protected && ((Array.isArray(dto.permission_ids) && dto.permission_ids.length > 0) || dto?.is_active === false)) {
                 throw new ForbiddenException({
                     message: 'This role is system-protected and cannot be deleted or deactivated.',
                     location: 'role_protected',
@@ -99,7 +100,7 @@ export class RolesService {
                 }
             }
 
-            if (dto.permission_ids) {
+            if (Array.isArray(dto.permission_ids) && dto.permission_ids.length > 0) {
                 const foundPermissions = await trx('permissions')
                     .whereIn('id', dto.permission_ids)
                     .andWhere({ is_active: true, status: 'Open' });

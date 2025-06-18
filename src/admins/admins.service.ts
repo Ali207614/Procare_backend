@@ -10,6 +10,8 @@ import { CreateAdminDto } from './dto/create-admin.dto';
 import { PermissionsService } from 'src/permissions/permissions.service';
 import { UpdateAdminDto } from './dto/update-admin.dto';
 import { extractDefinedFields } from 'src/common/utils/extract-defined-fields.util';
+import { FindAllAdminsDto } from './dto/find-all-admins.dto';
+import { loadSQL } from 'src/common/utils/sql-loader.util';
 
 @Injectable()
 export class AdminsService {
@@ -27,7 +29,11 @@ export class AdminsService {
     }
 
     async findById(id: string) {
-        const admin = await this.knex(this.table).where({ id }).first();
+        const sql = loadSQL('admins/queries/find-one.sql');
+
+        const result = await this.knex.raw(sql, { admin_id: id });
+
+        const admin = result.rows[0];
 
         if (!admin) {
             throw new NotFoundException({
@@ -37,6 +43,21 @@ export class AdminsService {
         }
 
         return admin;
+    }
+
+    async findAll(query: FindAllAdminsDto) {
+        const sql = loadSQL('admins/queries/find-all.sql');
+
+        const data = await this.knex.raw(sql, {
+            search: query.search ?? null,
+            status: query.status?.length ? query.status : null,
+            branch_ids: query.branch_ids?.length ? query.branch_ids : null,
+            role_ids: query.role_ids?.length ? query.role_ids : null,
+            limit: query.limit ?? 20,
+            offset: query.offset ?? 0,
+        });
+
+        return data.rows
     }
 
     async markPhoneVerified(phone: string) {
@@ -101,7 +122,6 @@ export class AdminsService {
 
     async changePassword(admin: AdminPayload, dto: ChangePasswordDto) {
         const dbAdmin = await this.findById(admin.id);
-
 
         const isMatch = await bcrypt.compare(dto.current_password, dbAdmin.password);
         if (!isMatch) {
@@ -189,12 +209,19 @@ export class AdminsService {
     }
 
     async update(currentAdmin: any, targetAdminId: string, dto: UpdateAdminDto & { role_ids?: string[], branch_ids?: string[] }) {
-        const target = await this.knex('admins').where({ id: targetAdminId }).first();
+        const target = await this.knex('admins').where({ id: targetAdminId, status: 'Open' }).first();
 
         if (!target) {
             throw new NotFoundException({
                 message: 'Admin not found',
                 location: 'admin_not_found',
+            });
+        }
+
+        if (target?.is_protected && (dto?.is_active === false || (Array.isArray(dto.role_ids) && dto.role_ids.length > 0))) {
+            throw new ForbiddenException({
+                message: 'This admin is system-protected and cannot be deleted or deactivated.',
+                location: 'admin_protected',
             });
         }
 
@@ -213,7 +240,7 @@ export class AdminsService {
         }
 
         if (isSelf && !canEditOthers) {
-            const sensitiveFields = ['passport_series', 'birth_date', 'hire_date', 'id_card_number', 'language', 'role_ids', 'branch_ids'];
+            const sensitiveFields = ['passport_series', 'birth_date', 'hire_date', 'id_card_number', 'language', 'role_ids', 'branch_ids', 'is_active'];
             for (const field of sensitiveFields) {
                 if (dto[field] !== undefined && !canEditOwnSensitive) {
                     throw new ForbiddenException({
@@ -244,6 +271,7 @@ export class AdminsService {
             'hire_date',
             'id_card_number',
             'language',
+            'is_active'
         ]);
 
         updateData.updated_at = new Date();
@@ -307,7 +335,7 @@ export class AdminsService {
     }
 
     async delete(requestingAdmin: any, targetAdminId: string) {
-        const target = await this.knex('admins').where({ id: targetAdminId }).first();
+        const target = await this.knex('admins').where({ id: targetAdminId, status: 'Open' }).first();
 
         if (!target) {
             throw new NotFoundException({
@@ -315,6 +343,15 @@ export class AdminsService {
                 location: 'admin_not_found',
             });
         }
+
+        if (target?.is_protected) {
+            throw new ForbiddenException({
+                message: 'This admin is system-protected and cannot be deleted or deactivated.',
+                location: 'admin_protected',
+            });
+        }
+
+
 
         if (requestingAdmin.id === target.id) {
             throw new ForbiddenException({
@@ -338,6 +375,4 @@ export class AdminsService {
             deleted_admin_id: targetAdminId,
         };
     }
-
-
 }

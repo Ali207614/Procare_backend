@@ -10,6 +10,7 @@ import {
     MinLength,
     MaxLength,
     ArrayMaxSize,
+    IsBoolean,
 } from 'class-validator';
 
 export class CreateAdminDto {
@@ -75,4 +76,9 @@ export class CreateAdminDto {
     @ArrayMaxSize(20, { context: { location: 'branch_ids' } }) // ✅ uzunlik cheklovi
     @IsUUID('all', { each: true, context: { location: 'branch_ids' } })
     branch_ids?: string[];
+
+    @ApiProperty({ example: true, description: 'Admin is active' })
+    @IsOptional()
+    @IsBoolean()
+    is_active?: boolean;
 }

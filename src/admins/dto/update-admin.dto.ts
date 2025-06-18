@@ -1,5 +1,5 @@
 import {
-    IsString, IsOptional, IsDateString, MaxLength, MinLength, IsArray, ArrayUnique, IsUUID,
+    IsString, IsOptional, IsDateString, MaxLength, MinLength, IsArray, ArrayUnique, IsUUID, IsBoolean,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -58,4 +58,9 @@ export class UpdateAdminDto {
     @IsUUID('all', { each: true, context: { location: 'branch_ids' } })
     @Type(() => String)
     branch_ids?: string[];
+
+    @ApiProperty({ example: true, description: 'Admin is active' })
+    @IsOptional()
+    @IsBoolean()
+    is_active?: boolean;
 }

@@ -10,6 +10,7 @@ exports.up = async function (knex) {
         table.boolean('phone_verified').defaultTo(false);
         table.string('verification_code');
         table.string('password');
+        table.boolean('is_protected').defaultTo(false);
 
         table.string('passport_series');
         table.date('birth_date');

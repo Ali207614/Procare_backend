@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, forwardRef, Get, Inject, Param, Patch, Post, Req, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, forwardRef, Get, Inject, Param, Patch, Post, Query, Req, UseGuards, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { JwtAdminAuthGuard } from '../common/guards/jwt-admin.guard';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -13,6 +13,7 @@ import { SetAllPermissions, SetPermissions } from 'src/common/decorators/permiss
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { UpdateAdminDto } from './dto/update-admin.dto';
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
+import { FindAllAdminsDto } from './dto/find-all-admins.dto';
 
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
@@ -57,7 +58,18 @@ export class AdminsController {
     @SetAllPermissions('admin.manage.delete')
     @ApiParam({ name: 'id', description: 'Admin ID (UUID)' })
     @ApiOperation({ summary: 'Delete admin by ID (soft delete)' })
-    async delete(@Req() req, @Param('id') id: string) {
+    async delete(@Req() req, @Param('id', ParseUUIDPipe) id: string) {
         return this.adminsService.delete(req.admin, id);
+    }
+
+    @Get()
+    @UseInterceptors(ClassSerializerInterceptor)
+    @UseGuards(PermissionsGuard)
+    @SetAllPermissions('admin.manage.view')
+    @ApiOperation({ summary: 'Get all admins with filters and pagination' })
+    async findAll(@Query() query: FindAllAdminsDto) {
+        const result = await this.adminsService.findAll(query);
+
+        return result.map((admin) => plainToInstance(AdminProfileDto, admin));
     }
 }

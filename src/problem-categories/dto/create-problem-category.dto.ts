@@ -10,6 +10,7 @@ import {
     IsUUID,
     IsBoolean,
     IsEnum,
+    Max,
 } from 'class-validator';
 
 export class CreateProblemCategoryDto {
@@ -23,11 +24,15 @@ export class CreateProblemCategoryDto {
     @ApiProperty({ example: 'Стекло', description: 'Problem name in Russian' })
     @IsString()
     @IsNotEmpty()
+    @MinLength(1, { context: { location: 'problem_name_min' } })
+    @MaxLength(100, { context: { location: 'problem_name_max' } })
     name_ru: string;
 
     @ApiProperty({ example: 'Glass', description: 'Problem name in English' })
     @IsString()
     @IsNotEmpty()
+    @MinLength(1, { context: { location: 'problem_name_min' } })
+    @MaxLength(100, { context: { location: 'problem_name_max' } })
     name_en: string;
 
     @ApiProperty({ example: 'uuid', description: 'Parent problem category ID' })
@@ -38,11 +43,13 @@ export class CreateProblemCategoryDto {
     @ApiProperty({ example: 110000, description: 'Price of the problem fix' })
     @IsNumber()
     @Min(0)
+    @Max(10000000000000000000)
     price: number;
 
     @ApiProperty({ example: 30, description: 'Estimated repair time in minutes' })
     @IsNumber()
     @Min(1)
+    @Max(10000000000000000000)
     estimated_minutes: number;
 
     @ApiProperty({ example: true, description: 'Whether the category is active' })

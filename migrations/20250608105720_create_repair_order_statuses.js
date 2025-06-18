@@ -1,7 +1,5 @@
 exports.up = async function (knex) {
-    await knex.raw(`
-        CREATE TYPE repair_order_status_type AS ENUM ('Completed', 'Cancelled');
-    `);
+
 
     await knex.schema.createTable('repair_order_statuses', (table) => {
         table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
@@ -18,10 +16,7 @@ exports.up = async function (knex) {
         table.boolean('can_user_view').defaultTo(true);
         table.boolean('is_active').defaultTo(true);
 
-        table.enu('type', ['Completed', 'Cancelled'], {
-            useNative: true,
-            enumName: 'repair_order_status_type',
-        }).nullable();
+        table.enu('type', ['Completed', 'Cancelled']).nullable();
 
         table.boolean('is_protected').defaultTo(false);
 
@@ -33,4 +28,7 @@ exports.up = async function (knex) {
         table.timestamp('created_at').defaultTo(knex.fn.now());
         table.timestamp('updated_at').defaultTo(knex.fn.now());
     });
+};
+exports.down = async function (knex) {
+    await knex.schema.dropTableIfExists('repair_order_statuses');
 };
