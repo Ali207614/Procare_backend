@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
     IsUUID, IsOptional, IsEnum, IsArray, ArrayNotEmpty,
     ArrayUnique, IsNumber, IsString, MaxLength, ValidateNested, IsBoolean,
@@ -56,6 +56,16 @@ export class CreateRepairOrderDto {
     @ApiProperty()
     @IsUUID('all', { context: { location: 'status_id' } })
     status_id: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsUUID('all', { context: { location: 'courier_id' } })
+    courier_id: string;
+
+    @ApiPropertyOptional({ enum: ['Low', 'Medium', 'High', 'Highest'] })
+    @IsOptional()
+    @IsEnum(['Low', 'Medium', 'High', 'Highest'], { context: { location: 'priority' } })
+    priority?: 'Low' | 'Medium' | 'High' | 'Highest';
 
     @ApiProperty({ type: [String] })
     @IsArray({ context: { location: 'admin_ids' } })

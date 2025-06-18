@@ -12,11 +12,11 @@ exports.up = async function (knex) {
 
         table.boolean('is_protected').defaultTo(false);
 
-        table.decimal('lat', 10, 7); // 📍 Latitude
-        table.decimal('long', 10, 7); // 📍 Longitude
-        table.string('support_phone'); // 📞 Support raqam
-        table.time('work_start_time'); // 🕐 Ish boshlanishi
-        table.time('work_end_time');   // 🕐 Ish tugashi
+        table.decimal('lat', 10, 7);
+        table.decimal('long', 10, 7);
+        table.string('support_phone'); 
+        table.time('work_start_time');
+        table.time('work_end_time');  
 
         table.string('bg_color');
         table.string('color');

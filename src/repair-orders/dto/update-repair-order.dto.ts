@@ -55,6 +55,11 @@ export class UpdateRepairOrderDto {
 
     @ApiPropertyOptional()
     @IsOptional()
+    @IsUUID('all', { context: { location: 'branch_id' } })
+    branch_id: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
     @IsUUID('all', { context: { location: 'status_id' } })
     status_id?: string;
 
@@ -62,6 +67,10 @@ export class UpdateRepairOrderDto {
     @IsOptional()
     @IsUUID('all', { context: { location: 'phone_category_id' } })
     phone_category_id?: string;
+
+    @ApiPropertyOptional()
+    @IsUUID('all', { context: { location: 'courier_id' } })
+    courier_id: string;
 
     @ApiPropertyOptional({ enum: ['Low', 'Medium', 'High', 'Highest'] })
     @IsOptional()

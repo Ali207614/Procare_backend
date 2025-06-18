@@ -3,6 +3,7 @@ exports.up = async function (knex) {
         table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
         table.string('name').notNullable().unique();
         table.boolean('is_active').defaultTo(true);
+        table.boolean('is_protected').defaultTo(false);
         table.enu('status', ['Open', 'Deleted']).defaultTo('Open');
         table.uuid('created_by').nullable().references('id').inTable('admins').onDelete('SET NULL');
         table.timestamp('created_at').defaultTo(knex.fn.now());

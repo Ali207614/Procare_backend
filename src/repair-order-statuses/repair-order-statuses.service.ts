@@ -196,6 +196,13 @@ export class RepairOrderStatusesService {
 
     async update(status: any, dto: UpdateRepairOrderStatusDto) {
 
+        if (dto?.is_active === false && status?.is_protected) {
+            throw new ForbiddenException({
+                message: 'This status is system-protected and cannot be deleted or deactivated.',
+                location: 'status_protected',
+            });
+        }
+
         let branchId = dto.branch_id;
         let branch;
 
@@ -247,7 +254,12 @@ export class RepairOrderStatusesService {
     }
 
     async delete(status: any) {
-
+        if (status?.is_protected) {
+            throw new ForbiddenException({
+                message: 'This status is system-protected and cannot be deleted or deactivated.',
+                location: 'status_protected',
+            });
+        }
         await this.knex('repair_order_statuses')
             .where({ id: status.id })
             .update({ status: 'Deleted', updated_at: new Date() });

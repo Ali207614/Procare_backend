@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectKnex, Knex } from 'nestjs-knex';
 import { RedisService } from 'src/common/redis/redis.service';
 import { CreateRoleDto } from './dto/create-role.dto';
@@ -77,6 +77,12 @@ export class RolesService {
     async update(id: string, dto: UpdateRoleDto) {
         return await this.knex.transaction(async (trx) => {
             const role = await this.findOne(id);
+            if (dto?.is_active === false && role?.is_protected) {
+                throw new ForbiddenException({
+                    message: 'This role is system-protected and cannot be deleted or deactivated.',
+                    location: 'role_protected',
+                });
+            }
 
             if (dto.name && dto.name.toLowerCase() !== role.name.toLowerCase()) {
                 const nameExists = await trx('roles')
@@ -139,7 +145,14 @@ export class RolesService {
     }
 
     async delete(id: string) {
-        await this.findOne(id); // check exists
+        let role = await this.findOne(id);
+
+        if (role?.is_protected) {
+            throw new ForbiddenException({
+                message: 'This role is system-protected and cannot be deleted or deactivated.',
+                location: 'role_protected',
+            });
+        }
         await this.knex('roles').where({ id }).update({
             is_active: false,
             status: 'Deleted',

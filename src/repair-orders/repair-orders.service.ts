@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectKnex } from 'nestjs-knex';
 import { getNextSortValue } from 'src/common/utils/sort.util';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
@@ -42,6 +42,38 @@ export class RepairOrdersService {
         try {
             await this.permissionService.validatePermissionOrThrow(adminId, statusId, 'can_add', 'repair_order_permission');
 
+            const user = await this.knex('users')
+                .where({ id: dto.user_id, status: 'Open' })
+                .first();
+            if (!user) {
+                throw new BadRequestException({
+                    message: 'User not found or inactive',
+                    location: 'user_id',
+                });
+            }
+
+            const phone = await this.knex('phone_categories')
+                .where({ id: dto.phone_category_id, is_active: true, status: 'Open' })
+                .first();
+            if (!phone) {
+                throw new BadRequestException({
+                    message: 'Phone category not found or inactive',
+                    location: 'phone_category_id',
+                });
+            }
+
+            if (dto.courier_id) {
+                const courier = await this.knex('admins')
+                    .where({ id: dto.courier_id, is_active: true, status: 'Open' })
+                    .first();
+                if (!courier) {
+                    throw new BadRequestException({
+                        message: 'Courier not found or inactive',
+                        location: 'courier_id',
+                    });
+                }
+            }
+
             const sort = await getNextSortValue(this.knex, this.table, { where: { branch_id: branchId } });
 
             const [order] = await trx(this.table)
@@ -49,6 +81,8 @@ export class RepairOrdersService {
                     user_id: dto.user_id,
                     branch_id: branchId,
                     phone_category_id: dto.phone_category_id,
+                    courier_id: dto.courier_id || null,
+                    priority: dto.priority || 'Medium',
                     status_id: statusId,
                     sort,
                     delivery_method: 'Self',
@@ -67,7 +101,6 @@ export class RepairOrdersService {
             await this.helper.insertDelivery(trx, dto, adminId, statusId, order.id);
 
             await trx.commit();
-
             await this.redisService.flushByPrefix(`${this.table}:${branchId}`);
 
             return { message: 'Repair order created successfully', data: order };
@@ -92,10 +125,45 @@ export class RepairOrdersService {
             const logFields = [];
             const updatedFields: Partial<typeof order> = {};
 
-            for (const field of ['user_id', 'status_id', 'priority', 'phone_category_id']) {
+            for (const field of [
+                'user_id',
+                'status_id',
+                'priority',
+                'phone_category_id',
+                'branch_id',
+                'courier_id',
+            ]) {
                 if (dto[field] !== undefined && dto[field] !== order[field]) {
                     updatedFields[field] = dto[field];
                     logFields.push({ key: field, oldVal: order[field], newVal: dto[field] });
+                }
+            }
+
+            if (dto.user_id) {
+                const user = await this.knex('users').where({ id: dto.user_id, status: 'Open' }).first();
+                if (!user) {
+                    throw new BadRequestException({ message: 'User not found or inactive', location: 'user_id' });
+                }
+            }
+
+            if (dto.phone_category_id) {
+                const phone = await this.knex('phone_categories').where({ id: dto.phone_category_id, is_active: true, status: 'Open' }).first();
+                if (!phone) {
+                    throw new BadRequestException({ message: 'Phone category not found or inactive', location: 'phone_category_id' });
+                }
+            }
+
+            if (dto.branch_id) {
+                const branch = await this.knex('branches').where({ id: dto.branch_id, is_active: true, status: 'Open' }).first();
+                if (!branch) {
+                    throw new BadRequestException({ message: 'Branch not found or inactive', location: 'branch_id' });
+                }
+            }
+
+            if (dto.courier_id) {
+                const courier = await this.knex('admins').where({ id: dto.courier_id, is_active: true, status: 'Open' }).first();
+                if (!courier) {
+                    throw new BadRequestException({ message: 'Courier not found or inactive', location: 'courier_id' });
                 }
             }
 
@@ -120,7 +188,6 @@ export class RepairOrdersService {
             await trx.rollback();
             throw err;
         }
-
     }
 
     async findAllByAdminBranch(adminId: string, branchId: string, query: PaginationQuery) {
@@ -249,6 +316,4 @@ export class RepairOrdersService {
             data: order,
         };
     }
-
-
 }

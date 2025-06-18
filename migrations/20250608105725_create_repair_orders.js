@@ -18,6 +18,9 @@ exports.up = async function (knex) {
 
         table.integer('sort').defaultTo(1).notNullable();
 
+        table.uuid('courier_id').nullable().references('id').inTable('admins').onDelete('SET NULL');
+
+
         table.enu('priority', ['Low', 'Medium', 'High', 'Highest']).notNullable().defaultTo('Medium');
         table.integer('priority_level').notNullable().defaultTo(2);
 

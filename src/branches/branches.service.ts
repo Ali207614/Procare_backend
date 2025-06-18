@@ -23,43 +23,82 @@ export class BranchesService {
 
 
     async create(dto: CreateBranchDto, adminId: string) {
-        const existing = await this.knex('branches')
-            .whereRaw('LOWER(name_uz) = LOWER(?)', [dto.name_uz])
-            .orWhereRaw('LOWER(name_ru) = LOWER(?)', [dto.name_ru])
-            .orWhereRaw('LOWER(name_en) = LOWER(?)', [dto.name_en])
-            .first();
+        return await this.knex.transaction(async (trx) => {
+            const existing = await trx('branches')
+                .whereRaw('LOWER(name_uz) = LOWER(?)', [dto.name_uz])
+                .orWhereRaw('LOWER(name_ru) = LOWER(?)', [dto.name_ru])
+                .orWhereRaw('LOWER(name_en) = LOWER(?)', [dto.name_en])
+                .first();
 
-        if (existing) {
-            throw new BadRequestException({
-                message: 'Branch name already exists in one of the languages',
-                location: 'branch_name_conflict',
-            });
-        }
+            if (existing) {
+                throw new BadRequestException({
+                    message: 'Branch name already exists in one of the languages',
+                    location: 'branch_name_conflict',
+                });
+            }
 
-        const nextSort = await getNextSortValue(this.knex, 'branches');
+            const nextSort = await getNextSortValue(this.knex, 'branches');
 
-        const [branch] = await this.knex('branches')
-            .insert({
-                ...dto,
-                sort: nextSort,
-                created_by: adminId,
-            })
-            .returning('*');
+            const [branch] = await trx('branches')
+                .insert({
+                    ...dto,
+                    sort: nextSort,
+                    created_by: adminId,
+                })
+                .returning('*');
 
-        await this.redisService.flushByPrefix(`${this.redisKey}`);
-        await this.redisService.flushByPrefix(`${this.redisKeyById}`);
+            const now = new Date();
 
-        const allBranches = await this.knex('branches')
-            .where({ status: 'Open' });
+            const predefinedStatuses = [
+                {
+                    key: 'Completed',
+                    names: { uz: 'Tugallangan', ru: 'Завершено', en: 'Completed' },
+                    bg_color: '#27ae60',
+                    can_user_view: true,
+                },
+                {
+                    key: 'Cancelled',
+                    names: { uz: 'Bekor qilingan', ru: 'Отменено', en: 'Cancelled' },
+                    bg_color: '#c0392b',
+                    can_user_view: false,
+                },
+            ];
 
-        await Promise.all(
-            allBranches.map((b) =>
-                this.redisService.set(`${this.redisKeyById}:${b.id}`, b, 3600)
-            )
-        );
+            await trx('repair_order_statuses').insert(
+                predefinedStatuses.map((s, index) => ({
+                    name_uz: s.names.uz,
+                    name_ru: s.names.ru,
+                    name_en: s.names.en,
+                    bg_color: s.bg_color,
+                    color: '#ffffff',
+                    sort: 1000 + index,
+                    can_user_view: s.can_user_view,
+                    is_active: true,
+                    is_protected: true,
+                    type: s.key,
+                    status: 'Open',
+                    branch_id: branch.id,
+                    created_by: adminId,
+                    created_at: now,
+                    updated_at: now,
+                }))
+            );
 
-        return branch;
+            await this.redisService.flushByPrefix(`${this.redisKey}`);
+            await this.redisService.flushByPrefix(`${this.redisKeyById}`);
+
+            const allBranches = await this.knex('branches').where({ status: 'Open' });
+
+            await Promise.all(
+                allBranches.map((b) =>
+                    this.redisService.set(`${this.redisKeyById}:${b.id}`, b, 3600)
+                )
+            );
+
+            return branch;
+        });
     }
+
 
 
     async findAll(offset = 0, limit = 10, search?: string) {
