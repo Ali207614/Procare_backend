@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
+import { NotificationService } from "src/notification/notification.service";
 import { RepairOrderStatusPermissionsService } from "src/repair-order-status-permission/repair-order-status-permissions.service";
 import { RepairOrderChangeLoggerService } from "./repair-order-change-logger.service";
 
@@ -7,6 +8,7 @@ export class AssignAdminUpdaterService {
     constructor(
         private readonly permissionService: RepairOrderStatusPermissionsService,
         private readonly changeLogger: RepairOrderChangeLoggerService,
+        private readonly notificationService: NotificationService
     ) { }
 
     async update(
@@ -82,6 +84,15 @@ export class AssignAdminUpdaterService {
                 }));
 
                 await trx('notifications').insert(notifications);
+
+                await this.notificationService.notifyAdmins(trx, toAdd, {
+                    title: 'Yangi buyurtma',
+                    message: 'Sizga yangi buyurtma biriktirildi.',
+                    meta: {
+                        order_id: order.id,
+                        action: 'assigned_to_order',
+                    },
+                });
             }
         }
 

@@ -1,3 +1,5 @@
+import { NotificationModule } from './notification/notification.module';
+import { NotificationService } from './notification/notification.service';
 import { RepairOrdersModule } from './repair-orders/repair-orders.module';
 import { RepairOrdersService } from './repair-orders/repair-orders.service';
 import { RepairOrdersController } from './repair-orders/repair-orders.controller';
@@ -48,6 +50,7 @@ import { PhoneCategoriesController } from './phone-categories/phone-categories.c
 
 @Module({
   imports: [
+    NotificationModule,
     RepairOrdersModule,
     RepairOrderStatusPermissionsModule,
     RepairOrderStatusTransitionsModule,
@@ -83,6 +86,7 @@ import { PhoneCategoriesController } from './phone-categories/phone-categories.c
     AdminsController,
   ],
   providers: [
+    NotificationService,
     RepairOrdersService,
     RepairOrderStatusPermissionsService,
     RepairOrderStatusTransitionsService,

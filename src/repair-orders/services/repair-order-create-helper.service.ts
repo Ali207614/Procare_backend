@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import type { Knex } from 'knex';
+import { NotificationService } from 'src/notification/notification.service';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { CreateRepairOrderDto } from '../dto/create-repair-order.dto';
 
@@ -7,6 +8,7 @@ import { CreateRepairOrderDto } from '../dto/create-repair-order.dto';
 export class RepairOrderCreateHelperService {
     constructor(
         private readonly permissionService: RepairOrderStatusPermissionsService,
+        private readonly notificationService: NotificationService
     ) { }
 
     async insertAssignAdmins(
@@ -70,6 +72,15 @@ export class RepairOrderCreateHelperService {
             }));
 
             await trx('notifications').insert(notifications);
+
+            await this.notificationService.notifyAdmins(trx, uniqueIds, {
+                title: 'Yangi buyurtma',
+                message: 'Sizga yangi buyurtma biriktirildi.',
+                meta: {
+                    order_id: order.id,
+                    action: 'assigned_to_order',
+                },
+            });
         }
     }
 
