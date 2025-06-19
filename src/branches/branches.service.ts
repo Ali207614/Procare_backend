@@ -28,6 +28,7 @@ export class BranchesService {
                 .whereRaw('LOWER(name_uz) = LOWER(?)', [dto.name_uz])
                 .orWhereRaw('LOWER(name_ru) = LOWER(?)', [dto.name_ru])
                 .orWhereRaw('LOWER(name_en) = LOWER(?)', [dto.name_en])
+                .andWhereNot({ status: 'Deleted' })
                 .first();
 
             if (existing) {

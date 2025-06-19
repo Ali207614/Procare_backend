@@ -39,6 +39,11 @@ class LocationDto {
     @IsString({ context: { location: 'description' } })
     @MaxLength(1000, { context: { location: 'text' } })
     description: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsUUID('all', { context: { location: 'courier_id' } })
+    courier_id: string;
 }
 
 export class CreateRepairOrderDto {
@@ -58,10 +63,7 @@ export class CreateRepairOrderDto {
     @IsUUID('all', { context: { location: 'status_id' } })
     status_id: string;
 
-    @ApiPropertyOptional()
-    @IsOptional()
-    @IsUUID('all', { context: { location: 'courier_id' } })
-    courier_id: string;
+
 
     @ApiPropertyOptional({ enum: ['Low', 'Medium', 'High', 'Highest'] })
     @IsOptional()

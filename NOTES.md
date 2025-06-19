@@ -1,6 +1,6 @@
 # Courier bilan Arendani qilish kerak
 
-# Courerirni API Ni qilish
+Courerirni API Ni qilish
 
 # Payment
 
@@ -15,5 +15,3 @@ ilovasiga sms borishi kerak
 # Zapchastlarni qilish har bitta problem uchun alohida
 
 # Rasmlarni qilish kerak
-
-# Userlarni qilish kerak

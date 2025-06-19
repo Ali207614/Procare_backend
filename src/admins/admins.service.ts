@@ -209,7 +209,8 @@ export class AdminsService {
     }
 
     async update(currentAdmin: any, targetAdminId: string, dto: UpdateAdminDto & { role_ids?: string[], branch_ids?: string[] }) {
-        const target = await this.knex('admins').where({ id: targetAdminId, status: 'Open' }).first();
+
+        const target = await this.knex('admins').where({ id: targetAdminId }).andWhereNot({ status: 'Deleted' }).first();
 
         if (!target) {
             throw new NotFoundException({
@@ -333,7 +334,7 @@ export class AdminsService {
     }
 
     async delete(requestingAdmin: any, targetAdminId: string) {
-        const target = await this.knex('admins').where({ id: targetAdminId, status: 'Open' }).first();
+        const target = await this.knex('admins').where({ id: targetAdminId }).andWhereNot({ status: 'Deleted' }).first();
 
         if (!target) {
             throw new NotFoundException({

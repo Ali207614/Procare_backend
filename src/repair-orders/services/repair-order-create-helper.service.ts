@@ -202,6 +202,18 @@ export class RepairOrderCreateHelperService {
     async insertPickup(trx: Knex.Transaction, dto: CreateRepairOrderDto, adminId: string, statusId: string, orderId: string) {
         if (!dto.pickup) return;
 
+        if (dto?.pickup?.courier_id) {
+            const courier = await trx('admins')
+                .where({ id: dto.pickup.courier_id, is_active: true, status: 'Open' })
+                .first();
+            if (!courier) {
+                throw new BadRequestException({
+                    message: 'Courier not found or inactive',
+                    location: 'courier_id',
+                });
+            }
+        }
+
         await this.permissionService.validatePermissionOrThrow(adminId, statusId, 'can_pickup_manage', 'pickup');
 
         await trx('repair_order_pickups').insert({
@@ -215,6 +227,18 @@ export class RepairOrderCreateHelperService {
 
     async insertDelivery(trx: Knex.Transaction, dto: CreateRepairOrderDto, adminId: string, statusId: string, orderId: string) {
         if (!dto.delivery) return;
+
+        if (dto?.delivery?.courier_id) {
+            const courier = await trx('admins')
+                .where({ id: dto.delivery.courier_id, is_active: true, status: 'Open' })
+                .first();
+            if (!courier) {
+                throw new BadRequestException({
+                    message: 'Courier not found or inactive',
+                    location: 'courier_id',
+                });
+            }
+        }
 
         await this.permissionService.validatePermissionOrThrow(adminId, statusId, 'can_delivery_manage', 'delivery');
 

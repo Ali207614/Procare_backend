@@ -64,18 +64,6 @@ export class RepairOrdersService {
                 });
             }
 
-            if (dto.courier_id) {
-                const courier = await this.knex('admins')
-                    .where({ id: dto.courier_id, is_active: true, status: 'Open' })
-                    .first();
-                if (!courier) {
-                    throw new BadRequestException({
-                        message: 'Courier not found or inactive',
-                        location: 'courier_id',
-                    });
-                }
-            }
-
             const sort = await getNextSortValue(this.knex, this.table, { where: { branch_id: branchId } });
 
             const [order] = await trx(this.table)
@@ -83,7 +71,6 @@ export class RepairOrdersService {
                     user_id: dto.user_id,
                     branch_id: branchId,
                     phone_category_id: dto.phone_category_id,
-                    courier_id: dto.courier_id || null,
                     priority: dto.priority || 'Medium',
                     status_id: statusId,
                     sort,
@@ -133,7 +120,6 @@ export class RepairOrdersService {
                 'priority',
                 'phone_category_id',
                 'branch_id',
-                'courier_id',
             ]) {
                 if (dto[field] !== undefined && dto[field] !== order[field]) {
                     updatedFields[field] = dto[field];
@@ -162,12 +148,7 @@ export class RepairOrdersService {
                 }
             }
 
-            if (dto.courier_id) {
-                const courier = await this.knex('admins').where({ id: dto.courier_id, is_active: true, status: 'Open' }).first();
-                if (!courier) {
-                    throw new BadRequestException({ message: 'Courier not found or inactive', location: 'courier_id' });
-                }
-            }
+
 
             if (Object.keys(updatedFields).length) {
                 await trx(this.table).update({ ...updatedFields, updated_at: new Date() }).where({ id: orderId });

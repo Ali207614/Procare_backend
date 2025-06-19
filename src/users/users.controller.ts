@@ -10,7 +10,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
-@ApiTags('Admins')
+@ApiTags('Users')
 @Controller('users')
 export class UsersController {
     constructor(private readonly usersService: UsersService) { }
@@ -44,4 +44,12 @@ export class UsersController {
     async delete(@Param('id', ParseUUIDPipe) id: string) {
         return this.usersService.delete(id);
     }
+
+
+    @Get(':id')
+    @ApiOperation({ summary: 'Find user with related repair orders' })
+    async findOneWithOrders(@Param('id', ParseUUIDPipe) id: string) {
+        return this.usersService.findOneWithOrders(id);
+    }
+
 }

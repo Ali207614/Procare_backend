@@ -1,3 +1,5 @@
+import { CouriersModule } from './couriers/couriers.module';
+import { CouriersService } from './couriers/couriers.service';
 import { UsersModule } from './users/users.module';
 import { UsersController } from './users/users.controller';
 import { NotificationModule } from './notification/notification.module';
@@ -54,6 +56,7 @@ import { UsersService } from './users/users.service';
 
 @Module({
   imports: [
+    CouriersModule,
     UsersModule,
     NotificationModule,
     RepairOrdersModule,
@@ -93,6 +96,7 @@ import { UsersService } from './users/users.service';
     NotificationController
   ],
   providers: [
+    CouriersService,
     NotificationService,
     RepairOrdersService,
     RepairOrderStatusPermissionsService,
