@@ -1,3 +1,5 @@
+import { UsersModule } from './users/users.module';
+import { UsersController } from './users/users.controller';
 import { NotificationModule } from './notification/notification.module';
 import { NotificationService } from './notification/notification.service';
 import { RepairOrdersModule } from './repair-orders/repair-orders.module';
@@ -46,10 +48,13 @@ import { FeatureModule } from './feature/feature.module';
 import { JwtMiddleware } from './common/middleware/jwt.middleware';
 import { RateLimiterMiddleware } from './common/middleware/rate-limiter.middleware';
 import { PhoneCategoriesController } from './phone-categories/phone-categories.controller';
+import { NotificationController } from './notification/notification.controller';
+import { UsersService } from './users/users.service';
 
 
 @Module({
   imports: [
+    UsersModule,
     NotificationModule,
     RepairOrdersModule,
     RepairOrderStatusPermissionsModule,
@@ -76,6 +81,7 @@ import { PhoneCategoriesController } from './phone-categories/phone-categories.c
     AdminsModule,
   ],
   controllers: [
+    UsersController,
     RepairOrdersController,
     RepairOrderStatusPermissionsController,
     RepairOrderStatusesController,
@@ -84,6 +90,7 @@ import { PhoneCategoriesController } from './phone-categories/phone-categories.c
     PhoneCategoriesController,
     RolesController,
     AdminsController,
+    NotificationController
   ],
   providers: [
     NotificationService,
@@ -97,6 +104,7 @@ import { PhoneCategoriesController } from './phone-categories/phone-categories.c
     PhoneCategoriesService,
     RolesService,
     AdminsService,
+    UsersService
   ],
 })
 export class AppModule implements NestModule {

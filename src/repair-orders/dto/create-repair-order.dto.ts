@@ -37,6 +37,7 @@ class LocationDto {
 
     @ApiProperty()
     @IsString({ context: { location: 'description' } })
+    @MaxLength(1000, { context: { location: 'text' } })
     description: string;
 }
 

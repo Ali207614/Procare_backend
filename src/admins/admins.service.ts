@@ -305,7 +305,6 @@ export class AdminsService {
                             admin_id: targetAdminId,
                             branch_id,
                         }));
-                        console.log(branchData, ' bu branchData')
                         await trx('admin_branches').insert(branchData);
                     }
                 }
@@ -320,7 +319,6 @@ export class AdminsService {
                 });
             }
 
-            // ❗ Redisni transaction tashqarisida o‘chirish kerak
             if (dto.branch_ids !== undefined) {
                 await this.redisService.del(`admin:${targetAdminId}:branches`);
             }

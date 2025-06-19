@@ -54,7 +54,6 @@ export class AssignAdminUpdaterService {
         if (toAdd.length) {
             const now = new Date();
 
-            // Insert new assigns
             const rows = toAdd.map((id) => ({
                 repair_order_id: orderId,
                 admin_id: id,
@@ -62,7 +61,6 @@ export class AssignAdminUpdaterService {
             }));
             await trx('repair_order_assign_admins').insert(rows);
 
-            // Notification to newly added admins
             const order = await trx('repair_orders')
                 .where({ id: orderId })
                 .first();
@@ -105,6 +103,4 @@ export class AssignAdminUpdaterService {
             adminId,
         );
     }
-
-
 }

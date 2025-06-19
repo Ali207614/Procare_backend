@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { BranchesModule } from "src/branches/branches.module";
 import { RedisModule } from "src/common/redis/redis.module";
+import { NotificationGateway } from "src/notification/notification.gateway";
 import { NotificationModule } from "src/notification/notification.module";
 import { RepairOrderStatusPermissionsModule } from "src/repair-order-status-permission/repair-order-status-permissions.module";
 import { AssignAdminUpdaterService } from "./services/assign-admin-updater.service";
@@ -13,7 +14,7 @@ import { RepairOrderChangeLoggerService } from "./services/repair-order-change-l
 import { RepairOrderCreateHelperService } from "./services/repair-order-create-helper.service";
 
 @Module({
-    imports: [RepairOrderStatusPermissionsModule, RedisModule, NotificationModule],
+    imports: [RepairOrderStatusPermissionsModule, RedisModule, NotificationModule, NotificationGateway],
     providers: [
         AssignAdminUpdaterService,
         InitialProblemUpdaterService,

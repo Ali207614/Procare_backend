@@ -1,11 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Knex } from 'knex';
+import { InjectKnex } from 'nestjs-knex';
+import { FindNotificationsDto } from './dto/find-notification.dto';
 import { NotificationGateway } from './notification.gateway';
 
 @Injectable()
 export class NotificationService {
     constructor(
-        private readonly knex: Knex,
+        @InjectKnex() private readonly knex: Knex,
         private readonly gateway: NotificationGateway,
     ) { }
 
@@ -31,4 +33,59 @@ export class NotificationService {
             meta: payload.meta,
         });
     }
+
+
+    async findAll(adminId: string, query: FindNotificationsDto) {
+        const page = Number(query.page) || 1;
+        const limit = Number(query.limit) || 20;
+        const offset = (page - 1) * limit;
+
+        const q = this.knex('notifications')
+            .where({ admin_id: adminId })
+            .orderBy('created_at', 'desc')
+            .limit(limit)
+            .offset(offset);
+
+        if (query.is_read === 'true') {
+            q.andWhere({ is_read: true });
+        } else if (query.is_read === 'false') {
+            q.andWhere({ is_read: false });
+        }
+
+        const data = await q;
+
+        return data
+    }
+
+    async markAsRead(adminId: string, notificationId: string) {
+        const affected = await this.knex('notifications')
+            .update({
+                is_read: true,
+                read_at: new Date(),
+                updated_at: new Date(),
+            })
+            .where({ id: notificationId, admin_id: adminId, is_read: false });
+
+        if (!affected) {
+            throw new NotFoundException({
+                message: 'Notification not found or already read',
+                location: 'notification_id',
+            });
+        }
+
+        return { message: 'Notification marked as read' };
+    }
+
+    async markAllAsRead(adminId: string) {
+        await this.knex('notifications')
+            .update({
+                is_read: true,
+                read_at: new Date(),
+                updated_at: new Date(),
+            })
+            .where({ admin_id: adminId, is_read: false });
+
+        return { message: 'All notifications marked as read' };
+    }
+
 }
