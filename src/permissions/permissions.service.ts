@@ -51,4 +51,38 @@ export class PermissionsService {
         const cacheKey = this.getCacheKey(adminId);
         await this.redisService.del(cacheKey);
     }
+
+    async findAll(query: {
+        search?: string;
+        limit?: number;
+        offset?: number;
+        sortBy?: string;
+        sortOrder?: 'asc' | 'desc';
+    }) {
+        const {
+            search,
+            limit = 20,
+            offset = 0,
+            sortBy = 'created_at',
+            sortOrder = 'desc',
+        } = query;
+
+        const qb = this.knex('permissions')
+            .where('is_active', true)
+            .andWhere('status', 'Open');
+
+        if (search) {
+            qb.andWhere((builder) =>
+                builder
+                    .whereILike('name', `%${search}%`)
+                    .orWhereILike('description', `%${search}%`)
+            );
+        }
+
+        return qb
+            .orderBy(sortBy, sortOrder)
+            .limit(limit)
+            .offset(offset)
+            .select('id', 'name', 'description', 'created_at');
+    }
 }

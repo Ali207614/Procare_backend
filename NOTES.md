@@ -15,3 +15,5 @@ ilovasiga sms borishi kerak
 # Zapchastlarni qilish har bitta problem uchun alohida
 
 # Rasmlarni qilish kerak
+
+# Move bo'lganda socket ishlashi kerak

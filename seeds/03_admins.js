@@ -24,7 +24,6 @@ exports.seed = async function (knex) {
 
   await knex('admins').insert(superAdmin);
 
-  // 2️⃣ Rolega bog‘lash uchun role id olamiz (Super Admin role id ni bilamiz)
   const superAdminRoleId = '00000000-0000-0000-0000-999999999999';
 
   await knex('admin_roles').insert({

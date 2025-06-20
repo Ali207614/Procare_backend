@@ -1,3 +1,6 @@
+import { RentalPhoneDevicesModule } from './rental-phone-devices/rental-phone-devices.module';
+import { RentalPhoneDevicesService } from './rental-phone-devices/rental-phone-devices.service';
+import { RentalPhoneDevicesController } from './rental-phone-devices/rental-phone-devices.controller';
 import { CouriersModule } from './couriers/couriers.module';
 import { CouriersService } from './couriers/couriers.service';
 import { UsersModule } from './users/users.module';
@@ -52,10 +55,15 @@ import { RateLimiterMiddleware } from './common/middleware/rate-limiter.middlewa
 import { PhoneCategoriesController } from './phone-categories/phone-categories.controller';
 import { NotificationController } from './notification/notification.controller';
 import { UsersService } from './users/users.service';
+import { PermissionsService } from './permissions/permissions.service';
+import { PermissionsController } from './permissions/permissions.controller';
+import { ScheduleModule } from '@nestjs/schedule';
 
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
+    RentalPhoneDevicesModule,
     CouriersModule,
     UsersModule,
     NotificationModule,
@@ -84,6 +92,7 @@ import { UsersService } from './users/users.service';
     AdminsModule,
   ],
   controllers: [
+    RentalPhoneDevicesController,
     UsersController,
     RepairOrdersController,
     RepairOrderStatusPermissionsController,
@@ -93,9 +102,12 @@ import { UsersService } from './users/users.service';
     PhoneCategoriesController,
     RolesController,
     AdminsController,
-    NotificationController
+    NotificationController,
+    PermissionsController
   ],
   providers: [
+    RentalPhoneDevicesService,
+    PermissionsService,
     CouriersService,
     NotificationService,
     RepairOrdersService,

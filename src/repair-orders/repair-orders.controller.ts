@@ -67,9 +67,6 @@ export class RepairOrdersController {
         return this.service.findAllByAdminBranch(req.admin.id, req.branch.id, query);
     }
 
-
-
-
     @Get(':id')
     @ApiOperation({ summary: 'Get repair order by ID (with permission)' })
     @ApiParam({ name: 'id', description: 'Repair Order ID' })

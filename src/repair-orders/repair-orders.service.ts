@@ -19,7 +19,8 @@ import { PaginationQuery } from 'src/common/types/pagination-query.interface';
 import { RedisService } from 'src/common/redis/redis.service';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
 import { MoveRepairOrderDto } from './dto/move-repair-order.dto';
-import { UpdateRepairOrderSortDto } from './dto/update-repair-order-sort.dto';
+
+
 @Injectable()
 export class RepairOrdersService {
     private readonly table = 'repair_orders';
