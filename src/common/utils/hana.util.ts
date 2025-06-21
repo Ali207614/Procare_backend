@@ -6,11 +6,9 @@ import { LoggerService } from '../logger/logger.service';
 const logger = new LoggerService();
 
 const connectionParams = {
-    serverNode: process.env.server_node,
-    uid: process.env.uid,
-    pwd: process.env.password,
-    encrypt: 'true',
-    sslValidateCertificate: 'false',
+    serverNode: process.env.SERVER_NODE,
+    uid: process.env.UID,
+    pwd: process.env.PASSWORD,
 };
 
 let globalConnection: hanaClient.Connection | null = null;
@@ -48,7 +46,6 @@ export async function executeParam(query: string, params: any[] = []): Promise<a
 
 export async function executeOnce(query: string, params: any[] = []): Promise<any[]> {
     const tempConn = hanaClient.createConnection();
-
     return new Promise((resolve, reject) => {
         tempConn.connect(connectionParams, (err: any) => {
             if (err) {

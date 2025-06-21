@@ -79,12 +79,6 @@ import { ScheduleModule } from '@nestjs/schedule';
     BranchesModule,
     RolesModule,
     FeatureModule,
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: process.env.NODE_ENV === 'docker'
-        ? ['.env.docker', '.env']
-        : ['.env.local', '.env'],
-    }),
     KnexModule.forRoot({ config: knexConfig }),
     RedisModule,
     LoggerModule,

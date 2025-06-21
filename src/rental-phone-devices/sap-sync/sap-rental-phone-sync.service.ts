@@ -4,50 +4,67 @@ import { LoggerService } from 'src/common/logger/logger.service';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
 import { executeOnce } from 'src/common/utils/hana.util';
 
+
+
+
 @Injectable()
 export class SapRentalPhoneSyncService {
 
     constructor(@InjectKnex() private readonly knex: Knex, private readonly loggerService: LoggerService) { }
 
     async syncFromSap(): Promise<void> {
-        const query = loadSQL('rental-phone-devices/queries/sap-rental-phone-sync.sql');
-        const sapPhones = await executeOnce(query, []);
+        const start = Date.now();
 
-        const now = new Date();
+        try {
+            let query = loadSQL('rental-phone-devices/queries/sap-rental-phone-sync.sql');
 
-        const rowsToUpsert = sapPhones.map(row => ({
-            code: row.code,
-            name: row.name,
-            is_free: row.is_free === 'Y' || row.is_free === true,
-            price: row.price ?? null,
-            currency: row.currency ?? null,
-            is_available: true,
-            is_synced_from_sap: true,
-            updated_at: now,
-            created_at: now,
-        }));
+            const schema = process.env.SAP_SCHEMA || 'PROBOX_PROD_3';
 
-        const sapCodes = sapPhones.map(row => row.code);
+            query = query.replace(/{{schema}}/g, schema);
+            const sapPhones = await executeOnce(query, []);
 
-        await this.knex('rental_phone_devices')
-            .insert(rowsToUpsert)
-            .onConflict('code')
-            .merge([
-                'name',
-                'is_free',
-                'price',
-                'currency',
-                'is_available',
-                'is_synced_from_sap',
-                'updated_at',
-            ]);
+            const now = new Date();
 
-        await this.knex('rental_phone_devices')
-            .whereNotIn('code', sapCodes)
-            .andWhere('is_synced_from_sap', true)
-            .update({ is_available: false, updated_at: now });
+            const rowsToUpsert = sapPhones.map(row => ({
+                code: row.ItemCode,
+                name: row.ItemName,
+                is_free: row.U_IS_FREE === 'YES',
+                price: row.U_PRICE ?? null,
+                currency: "UZS",
+                is_available: true,
+                is_synced_from_sap: true,
+                updated_at: now,
+                created_at: now,
+            }));
 
-        this.loggerService.log(`✅ SAP rental phones synced: ${sapPhones.length} items`);
+            const sapCodes = sapPhones.map(row => row.ItemCode);
+
+            await this.knex('rental_phone_devices')
+                .insert(rowsToUpsert)
+                .onConflict('code')
+                .merge([
+                    'name',
+                    'is_free',
+                    'price',
+                    'currency',
+                    'is_available',
+                    'is_synced_from_sap',
+                    'updated_at',
+                ]);
+
+            await this.knex('rental_phone_devices')
+                .whereNotIn('code', sapCodes)
+                .andWhere('is_synced_from_sap', true)
+                .update({ is_available: false, updated_at: now });
+
+            const duration = Date.now() - start;
+            this.loggerService.log(`✅ SAP rental phones synced: ${sapPhones.length} items (${duration}ms)`);
+
+        } catch (error) {
+            this.loggerService.error('❌ SAP rental phone sync failed', error?.stack || error?.message);
+            throw error;
+        }
     }
+
 
 }

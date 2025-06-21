@@ -1,9 +1,13 @@
-SELECT
-  T0."ItemCode" AS code,
-  T0."ItemName" AS name,
-  T0."U_ISFREE" AS is_free,
-  T0."U_PRICE" AS price,
-  T0."U_CURRENCY" AS currency
-FROM "OITM" T0
-WHERE T0."U_TYPE" = 'RENTAL_PHONE'
-  AND T0."validFor" = 'Y'
+SELECT 
+  T0."Code", 
+  T0."U_ItemCode", 
+  T0."U_ItemName", 
+  T1."ItemCode", 
+  T1."ItemName",
+  T1."OnHand",
+  T0."U_IS_FREE", 
+  T0."U_PRICE", 
+  T0."U_IS_AVAILABLE" 
+FROM "{{schema}}"."@RENTAL_PHONES" T0
+LEFT JOIN "{{schema}}"."OITM" T1 ON T0."U_ItemCode" = T1."ItemCode"
+WHERE T0."U_IS_AVAILABLE" = 'YES' and T1."OnHand" > 0

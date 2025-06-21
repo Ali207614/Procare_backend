@@ -27,8 +27,6 @@ export class RentalPhoneDevicesService {
             });
         }
 
-        const total = await baseQuery.clone().count('* as count').first();
-
         const data = await baseQuery
             .clone()
             .select('id', 'code', 'name', 'is_free', 'price', 'currency', 'is_available', 'created_at')

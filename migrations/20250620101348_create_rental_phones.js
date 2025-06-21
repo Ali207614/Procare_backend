@@ -12,6 +12,7 @@ exports.up = async function (knex) {
         table.boolean('is_available').notNullable().defaultTo(true);
         table.boolean('is_synced_from_sap').notNullable().defaultTo(false);
         table.text('notes').nullable();
+        table.integer('sort').defaultTo(1).notNullable();
 
         table.timestamp('created_at').defaultTo(knex.fn.now());
         table.timestamp('updated_at').defaultTo(knex.fn.now());

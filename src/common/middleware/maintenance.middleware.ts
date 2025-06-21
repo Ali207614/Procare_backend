@@ -21,8 +21,6 @@ export class MaintenanceMiddleware implements NestMiddleware {
             const reqPath = rawPath.split('?')[0].replace(/\/+$/, '');
             const reqMethod = req.method.toUpperCase();
 
-            console.log('🔍 path:', reqPath);
-            console.log('🔍 method:', reqMethod);
 
             const isExcluded = MaintenanceExcludedRoutes.some((route) => {
                 const routeBase = route.path.split('/:')[0]; // `/booking/date`
