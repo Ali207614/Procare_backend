@@ -2,7 +2,9 @@
 https://docs.nestjs.com/providers#services
 */
 
+import { InjectQueue } from '@nestjs/bull';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Queue } from 'bull';
 import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -14,6 +16,7 @@ export class UsersService {
 
     constructor(
         @InjectKnex() private readonly knex: Knex,
+        @InjectQueue('sap') private readonly sapQueue: Queue,
     ) { }
 
     async create(dto: CreateUserDto) {
@@ -44,6 +47,22 @@ export class UsersService {
                 updated_at: new Date(),
             })
             .returning('*');
+
+        await this.sapQueue.add(
+            'create-bp',
+            {
+                userId: user.id,
+                cardName: `${user.first_name} ${user.last_name}`,
+                phone: user.phone_number,
+            },
+            {
+                attempts: 5,
+                backoff: {
+                    type: 'exponential',
+                    delay: 30000,
+                },
+            },
+        );
 
         return {
             message: 'User created successfully',

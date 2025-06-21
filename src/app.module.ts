@@ -1,3 +1,4 @@
+import { SapModule } from './sap/sap.module';
 import { RentalPhoneDevicesModule } from './rental-phone-devices/rental-phone-devices.module';
 import { RentalPhoneDevicesService } from './rental-phone-devices/rental-phone-devices.service';
 import { RentalPhoneDevicesController } from './rental-phone-devices/rental-phone-devices.controller';
@@ -62,6 +63,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
+    SapModule,
     ScheduleModule.forRoot(),
     RentalPhoneDevicesModule,
     CouriersModule,

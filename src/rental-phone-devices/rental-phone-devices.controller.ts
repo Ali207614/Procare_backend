@@ -2,12 +2,15 @@
 https://docs.nestjs.com/controllers#controllers
 */
 
-import { Controller, Get, Query } from '@nestjs/common';
-import { ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { FindRentalPhoneDevicesDto } from './dto/find-rental-phone-devices.dto';
 import { RentalPhoneDevicesService } from './rental-phone-devices.service';
-
-@Controller()
+@ApiTags('Rental Phones')
+@ApiBearerAuth()
+@UseGuards(JwtAdminAuthGuard)
+@Controller('rental-phones')
 export class RentalPhoneDevicesController {
 
     constructor(private readonly rentalPhoneDevicesService: RentalPhoneDevicesService) { }

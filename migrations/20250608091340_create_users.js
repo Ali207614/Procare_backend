@@ -4,6 +4,7 @@ exports.up = async function (knex) {
     await knex.schema.createTable('users', (table) => {
         table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
 
+        table.string('sap_card_code').unique().nullable()
         table.string('first_name');
         table.string('last_name');
         table.string('phone_number').unique().notNullable();
