@@ -10,6 +10,7 @@ import { DeliveryUpdaterService } from "./services/delivery-updater.service";
 import { FinalProblemUpdaterService } from "./services/final-problem-updater.service";
 import { InitialProblemUpdaterService } from "./services/initial-problem-updater.service";
 import { PickupUpdaterService } from "./services/pickup-updater.service";
+import { RentalPhoneUpdaterService } from "./services/rental-phone-updater.service";
 import { RepairOrderChangeLoggerService } from "./services/repair-order-change-logger.service";
 import { RepairOrderCreateHelperService } from "./services/repair-order-create-helper.service";
 
@@ -23,7 +24,8 @@ import { RepairOrderCreateHelperService } from "./services/repair-order-create-h
         PickupUpdaterService,
         DeliveryUpdaterService,
         RepairOrderChangeLoggerService,
-        RepairOrderCreateHelperService
+        RepairOrderCreateHelperService,
+        RentalPhoneUpdaterService
     ],
     exports: [
         AssignAdminUpdaterService,
@@ -33,7 +35,8 @@ import { RepairOrderCreateHelperService } from "./services/repair-order-create-h
         PickupUpdaterService,
         DeliveryUpdaterService,
         RepairOrderChangeLoggerService,
-        RepairOrderCreateHelperService
+        RepairOrderCreateHelperService,
+        RentalPhoneUpdaterService
     ],
 })
 export class RepairOrdersModule { }

@@ -8,6 +8,8 @@ exports.up = async function (knex) {
         table.uuid('rental_phone_device_id').notNullable()
             .references('id').inTable('rental_phone_devices').onDelete('RESTRICT');
 
+        table.string('sap_order_id').nullable();
+
         table.boolean('is_free').nullable();
         table.decimal('price', 12, 2).nullable();
         table.enu('currency', ['UZS', 'USD', 'EUR']).nullable();

@@ -19,6 +19,7 @@ import { PaginationQuery } from 'src/common/types/pagination-query.interface';
 import { RedisService } from 'src/common/redis/redis.service';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
 import { MoveRepairOrderDto } from './dto/move-repair-order.dto';
+import { RentalPhoneUpdaterService } from './services/rental-phone-updater.service';
 
 
 @Injectable()
@@ -35,6 +36,7 @@ export class RepairOrdersService {
         private readonly commentUpdater: CommentUpdaterService,
         private readonly pickupUpdater: PickupUpdaterService,
         private readonly deliveryUpdater: DeliveryUpdaterService,
+        private readonly rentalPhoneUpdater: RentalPhoneUpdaterService,
         private readonly helper: RepairOrderCreateHelperService,
         private readonly redisService: RedisService
     ) { }
@@ -54,6 +56,13 @@ export class RepairOrdersService {
                     location: 'user_id',
                 });
             }
+
+            // if (!user?.sap_card_code) {
+            //     throw new BadRequestException({
+            //         message: 'User has no SAP card code. Cannot create rental order.',
+            //         location: 'user_id',
+            //     });
+            // }
 
             const phone = await this.knex('phone_categories')
                 .where({ id: dto.phone_category_id, is_active: true, status: 'Open' })
@@ -84,6 +93,7 @@ export class RepairOrdersService {
                 .returning('*');
 
             await this.helper.insertAssignAdmins(trx, dto, adminId, statusId, order.id);
+            await this.helper.insertRentalPhone(trx, dto, adminId, statusId, order.id);
             await this.helper.insertInitialProblems(trx, dto, adminId, statusId, order.id);
             await this.helper.insertFinalProblems(trx, dto, adminId, statusId, order.id);
             await this.helper.insertComments(trx, dto, adminId, statusId, order.id);
@@ -108,6 +118,7 @@ export class RepairOrdersService {
             if (!order) {
                 throw new NotFoundException({ message: 'Repair order not found', location: 'repair_order_id' });
             }
+
 
             const statusId = order.status_id;
             await this.permissionService.validatePermissionOrThrow(adminId, statusId, 'can_update', 'repair_order_permission');
@@ -150,7 +161,6 @@ export class RepairOrdersService {
             }
 
 
-
             if (Object.keys(updatedFields).length) {
                 await trx(this.table).update({ ...updatedFields, updated_at: new Date() }).where({ id: orderId });
             }
@@ -158,6 +168,7 @@ export class RepairOrdersService {
             await this.changeLogger.logMultipleFieldsIfChanged(trx, orderId, logFields, adminId);
 
             await this.assignAdminUpdater.update(trx, orderId, dto.admin_ids, adminId, statusId);
+            await this.rentalPhoneUpdater.update(trx, orderId, dto.rental_phone, adminId, statusId);
             await this.initialProblemUpdater.update(trx, orderId, dto.initial_problems, adminId, statusId, dto.phone_category_id);
             await this.finalProblemUpdater.update(trx, orderId, dto.final_problems, adminId, statusId, dto.phone_category_id);
             await this.commentUpdater.update(trx, orderId, dto.comments, adminId, statusId);

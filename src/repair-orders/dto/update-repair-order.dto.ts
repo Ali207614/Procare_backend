@@ -8,6 +8,9 @@ import {
     IsString,
     MaxLength,
     IsNumber,
+    ValidateIf,
+    Min,
+    IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
@@ -45,6 +48,60 @@ class LocationDto {
     @ApiPropertyOptional()
     @IsString({ context: { location: 'description' } })
     description: string;
+}
+
+class RentalPhoneDto {
+    @ApiPropertyOptional({
+        example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec',
+        description: 'ID of the rental phone device',
+    })
+    @IsUUID('all', { context: { location: 'rental_phone_device_id' } })
+    rental_phone_device_id: string;
+
+    @ApiPropertyOptional({
+        example: true,
+        description: 'Indicates if the rental phone is free (no cost)',
+    })
+    @IsOptional()
+    @IsBoolean()
+    is_free?: boolean;
+
+
+    @ApiPropertyOptional({
+        example: 50000,
+        description: 'Price of the rental phone (0 if free, > 0 if not free)',
+    })
+    @IsOptional()
+    @IsNumber({}, { context: { location: 'price' } })
+    @ValidateIf((o) => o.is_free === false || o.is_free === undefined)
+    @Min(1, {
+        context: { location: 'price' },
+        message: 'Price must be greater than 0 when is_free is false or undefined',
+    })
+    @ValidateIf((o) => o.is_free === true)
+    @Min(0, {
+        context: { location: 'price' },
+        message: 'Price must be 0 when is_free is true',
+    })
+    price?: number;
+
+    @ApiPropertyOptional({
+        example: 'UZS',
+        enum: ['UZS', 'USD', 'EUR'],
+        description: 'Currency of the rental phone price',
+    })
+    @IsOptional()
+    @IsEnum(['UZS', 'USD', 'EUR'], { context: { location: 'currency' } })
+    currency?: 'UZS' | 'USD' | 'EUR';
+
+    @ApiPropertyOptional({
+        example: 'Temporary replacement for customer during repair',
+        description: 'Additional notes about the rental phone',
+    })
+    @IsOptional()
+    @IsString({ context: { location: 'notes' } })
+    @MaxLength(1000, { context: { location: 'notes' } })
+    notes?: string;
 }
 
 export class UpdateRepairOrderDto {
@@ -113,4 +170,10 @@ export class UpdateRepairOrderDto {
     @ValidateNested()
     @Type(() => LocationDto)
     delivery?: LocationDto;
+
+    @ApiPropertyOptional({ type: RentalPhoneDto })
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => RentalPhoneDto)
+    rental_phone?: RentalPhoneDto;
 }

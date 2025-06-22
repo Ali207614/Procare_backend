@@ -82,6 +82,11 @@ exports.seed = async function (knex) {
     { id: '00000000-0000-0000-0000-000000000053', name: 'user.manage.create', description: 'User create' },
     { id: '00000000-0000-0000-0000-000000000054', name: 'user.manage.update', description: 'User update' },
     { id: '00000000-0000-0000-0000-000000000055', name: 'user.manage.delete', description: 'User update' },
+
+    { id: '00000000-0000-0000-0000-000000000056', name: 'can_pickup_manage', description: 'Can pickup manage' },
+    { id: '00000000-0000-0000-0000-000000000057', name: 'can_delivery_manage', description: 'Can delivery manage' },
+
+    { id: '00000000-0000-0000-0000-000000000058', name: 'can_manage_rental_phone', description: 'Can manger rental phone' },
   ];
 
   for (const perm of permissions) {

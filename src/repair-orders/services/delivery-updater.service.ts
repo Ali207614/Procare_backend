@@ -12,6 +12,8 @@ export class DeliveryUpdaterService {
     async update(trx, orderId, delivery, adminId, statusId) {
         if (!delivery) return;
 
+        await this.permissionService.validatePermissionOrThrow(adminId, statusId, 'can_pickup_manage', 'admin_ids');
+
         if (delivery?.courier_id) {
             const courier = await trx('admins').where({ id: delivery.courier_id, is_active: true, status: 'Open' }).first();
             if (!courier) {

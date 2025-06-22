@@ -1,4 +1,6 @@
+import { InjectQueue } from '@nestjs/bull';
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { Queue } from 'bull';
 import type { Knex } from 'knex';
 import { NotificationService } from 'src/notification/notification.service';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
@@ -8,8 +10,77 @@ import { CreateRepairOrderDto } from '../dto/create-repair-order.dto';
 export class RepairOrderCreateHelperService {
     constructor(
         private readonly permissionService: RepairOrderStatusPermissionsService,
-        private readonly notificationService: NotificationService
+        private readonly notificationService: NotificationService,
+        @InjectQueue('sap') private readonly sapQueue: Queue,
     ) { }
+
+
+    async insertRentalPhone(
+        trx: Knex.Transaction,
+        dto: CreateRepairOrderDto,
+        adminId: string,
+        statusId: string,
+        orderId: string,
+    ) {
+        if (!dto.rental_phone) return;
+
+        await this.permissionService.validatePermissionOrThrow(
+            adminId,
+            statusId,
+            'can_manage_rental_phone',
+            'repair_order_rental_phones',
+        );
+
+        const phone = dto.rental_phone;
+
+        const device = await trx('rental_phone_devices')
+            .where({ id: phone.rental_phone_device_id, is_available: true })
+            .first();
+
+        if (!device) {
+            throw new BadRequestException({
+                message: 'Rental phone device not found or unavailable',
+                location: 'rental_phone.rental_phone_device_id',
+            });
+        }
+
+        const [inserted] = await trx('repair_order_rental_phones')
+            .insert({
+                repair_order_id: orderId,
+                rental_phone_device_id: phone.rental_phone_device_id,
+                is_free: phone.is_free ?? null,
+                price: phone.price ?? null,
+                currency: phone.currency ?? 'UZS',
+                status: 'Active',
+                rented_at: new Date(),
+                returned_at: null,
+                notes: phone.notes ?? null,
+                created_by: adminId,
+                created_at: new Date(),
+                updated_at: new Date(),
+            })
+            .returning('*');
+
+        await trx('rental_phone_devices')
+            .where({ id: phone.rental_phone_device_id })
+            .update({ is_available: false, updated_at: new Date() });
+
+        const user = await trx('users').where({ id: dto.user_id }).first();
+        
+        if (!user?.sap_card_code) {
+            throw new BadRequestException({
+                message: 'User has no SAP card code. Cannot create rental order.',
+                location: 'user_id',
+            });
+        }
+        await this.sapQueue.add('create-rental-order', {
+            repair_order_rental_phone_id: inserted.id,
+            cardCode: user.sap_card_code,
+            itemCode: device.code,
+            startDate: new Date().toISOString().split('T')[0],
+        });
+    }
+
 
     async insertAssignAdmins(
         trx: Knex.Transaction,
