@@ -12,7 +12,6 @@ import {
     Delete,
 } from '@nestjs/common';
 import { RepairOrdersService } from './repair-orders.service';
-import { PermissionsGuard } from 'src/common/guards/permission.guard';
 import { CreateRepairOrderDto } from './dto/create-repair-order.dto';
 import { UpdateRepairOrderDto } from './dto/update-repair-order.dto';
 import { BranchExistGuard } from 'src/common/guards/branch-exist.guard';
@@ -29,7 +28,6 @@ import { AdminPayload } from 'src/common/types/admin-payload.interface';
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
 @Controller('repair-orders')
-@UseGuards(PermissionsGuard)
 export class RepairOrdersController {
     constructor(private readonly service: RepairOrdersService) { }
 
@@ -87,7 +85,7 @@ export class RepairOrdersController {
     }
 
     @Patch(':id/sort')
-    @UseGuards(PermissionsGuard, RepairOrderStatusExistGuard)
+    @UseGuards(RepairOrderStatusExistGuard)
     @ApiOperation({ summary: 'Update status sort order' })
     @ApiParam({ name: 'id', description: 'Status ID (UUID)' })
     async updateSort(

@@ -12,7 +12,7 @@ import { SapService } from "./sap.service";
             name: 'sap',
         }),
         RedisModule,
-        LoggerModule
+        LoggerModule,
     ],
     providers: [SapService, SapQueueProcessor],
     exports: [SapService, BullModule],

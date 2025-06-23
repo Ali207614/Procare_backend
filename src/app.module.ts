@@ -59,6 +59,7 @@ import { UsersService } from './users/users.service';
 import { PermissionsService } from './permissions/permissions.service';
 import { PermissionsController } from './permissions/permissions.controller';
 import { ScheduleModule } from '@nestjs/schedule';
+import { SapService } from './sap/sap.service';
 
 
 @Module({
@@ -88,11 +89,10 @@ import { ScheduleModule } from '@nestjs/schedule';
     AdminsModule,
   ],
   controllers: [
+    RepairOrderStatusesController,
     RentalPhoneDevicesController,
     UsersController,
-    RepairOrdersController,
     RepairOrderStatusPermissionsController,
-    RepairOrderStatusesController,
     PhoneProblemMappingsController,
     ProblemCategoriesController,
     PhoneCategoriesController,
@@ -102,11 +102,11 @@ import { ScheduleModule } from '@nestjs/schedule';
     PermissionsController
   ],
   providers: [
+    RepairOrdersService,
     RentalPhoneDevicesService,
     PermissionsService,
     CouriersService,
     NotificationService,
-    RepairOrdersService,
     RepairOrderStatusPermissionsService,
     RepairOrderStatusTransitionsService,
     RepairOrderStatusesService,
@@ -116,6 +116,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     PhoneCategoriesService,
     RolesService,
     AdminsService,
+    SapService,
     UsersService
   ],
 })

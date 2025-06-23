@@ -21,6 +21,12 @@ export class ResetPasswordDto {
     @MinLength(4, { context: { location: 'invalid_password_min' } })
     @MaxLength(20, { context: { location: 'invalid_password_max' } })
     new_password: string;
+
+    @ApiProperty({ example: 'newpass123' })
+    @IsString()
+    @MinLength(4, { context: { location: 'invalid_password_min' } })
+    @MaxLength(20, { context: { location: 'invalid_password_max' } })
+    confirm_new_password: string;
 }
 
 

@@ -9,7 +9,7 @@ import { PermissionsModule } from 'src/permissions/permissions.module';
 import { SapModule } from 'src/sap/sap.module';
 
 @Module({
-    imports: [PermissionsModule, SapModule],
+    imports: [SapModule, PermissionsModule],
     controllers: [UsersController],
     providers: [
         UsersService,],

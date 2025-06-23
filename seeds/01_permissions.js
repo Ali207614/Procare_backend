@@ -87,6 +87,10 @@ exports.seed = async function (knex) {
     { id: '00000000-0000-0000-0000-000000000057', name: 'can_delivery_manage', description: 'Can delivery manage' },
 
     { id: '00000000-0000-0000-0000-000000000058', name: 'can_manage_rental_phone', description: 'Can manger rental phone' },
+
+    { id: '00000000-0000-0000-0000-000000000059', name: 'can_comment', description: 'Can Comments' },
+
+    { id: '00000000-0000-0000-0000-000000000060', name: 'can_assign_admin', description: 'Can Assign admins' },
   ];
 
   for (const perm of permissions) {

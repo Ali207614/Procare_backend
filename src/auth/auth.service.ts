@@ -35,7 +35,6 @@ export class AuthService {
 
     private readonly RESET_PREFIX = 'reset-code:';
 
-
     async sendVerificationCode(dto: SmsDto) {
         const existingAdmin = await this.adminsService.findByPhoneNumber(dto.phone_number);
 
@@ -63,8 +62,6 @@ export class AuthService {
         return { message: 'Verification code sent successfully' };
     }
 
-
-
     async verifyCode(dto: VerifyDto) {
         const storedCode = await this.redisService.get(`verify:${dto.phone_number}`);
 
@@ -81,9 +78,15 @@ export class AuthService {
         return { message: 'Phone number verified successfully' };
     }
 
-
     async completeRegistration(dto: RegisterDto) {
         const admin = await this.adminsService.findByPhoneNumber(dto.phone_number);
+
+        if (dto.password !== dto.confirm_password) {
+            throw new BadRequestException({
+                message: 'Passwords do not match',
+                location: 'confirmPassword',
+            });
+        }
 
         if (!admin) {
             throw new NotFoundException({
@@ -122,7 +125,6 @@ export class AuthService {
             access_token: token,
         };
     }
-
 
     async login(loginDto: LoginDto) {
         const admin = await this.adminsService.findByPhoneNumber(
@@ -199,6 +201,13 @@ export class AuthService {
             });
         }
 
+        if (dto.new_password !== dto.confirm_new_password) {
+            throw new BadRequestException({
+                message: 'Passwords do not match',
+                location: 'confirm_new_password',
+            });
+        }
+
         const hashed = await bcrypt.hash(dto.new_password, 10);
         await this.knex('admins')
             .where({ phone_number: dto.phone_number })
@@ -209,8 +218,7 @@ export class AuthService {
         return { message: '✅ Password reset successfully' };
     }
 
-
     private async setAdminSession(adminId: string, token: string) {
-        await this.redisService.set(`session:admin:${adminId}`, token, 60 * 60 * 24 * 7); // 7 kun TTL
+        await this.redisService.set(`session:admin:${adminId}`, token, 60 * 60 * 24 * 7);
     }
 }

@@ -4,7 +4,7 @@ import type { Knex } from 'knex';
 @Injectable()
 export class RepairOrderChangeLoggerService {
     async logIfChanged(
-        trx: Knex.Transaction,
+        trx: Knex.Transaction | Knex,
         orderId: string,
         field: string,
         oldValue: any,

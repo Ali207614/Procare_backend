@@ -11,7 +11,7 @@ export class NotificationService {
         private readonly gateway: NotificationGateway,
     ) { }
 
-    async notifyAdmins(trx: Knex.Transaction, adminIds: string[], payload: any) {
+    async notifyAdmins(trx: Knex.Transaction | Knex, adminIds: string[], payload: any) {
         const now = new Date();
 
         const records = adminIds.map((adminId) => ({

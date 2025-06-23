@@ -6,7 +6,7 @@ import { SapRentalPhoneSyncService } from '../sap-sync/sap-rental-phone-sync.ser
 export class RentalPhoneSyncTask {
     constructor(private readonly sapSyncService: SapRentalPhoneSyncService) { }
 
-    @Cron(CronExpression.EVERY_10_MINUTES)
+    @Cron(CronExpression.EVERY_HOUR)
     async handleSync() {
         await this.sapSyncService.syncFromSap();
     }

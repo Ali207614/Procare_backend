@@ -1,5 +1,4 @@
-import * as fs from 'fs';
-import * as path from 'path';
+
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectKnex } from 'nestjs-knex';
 import { getNextSortValue } from 'src/common/utils/sort.util';
@@ -8,18 +7,13 @@ import { CreateRepairOrderDto } from './dto/create-repair-order.dto';
 import type { Knex } from 'knex';
 import { RepairOrderCreateHelperService } from './services/repair-order-create-helper.service';
 import { RepairOrderChangeLoggerService } from './services/repair-order-change-logger.service';
-import { AssignAdminUpdaterService } from './services/assign-admin-updater.service';
 import { InitialProblemUpdaterService } from './services/initial-problem-updater.service';
 import { FinalProblemUpdaterService } from './services/final-problem-updater.service';
-import { CommentUpdaterService } from './services/comment-updater.service';
-import { PickupUpdaterService } from './services/pickup-updater.service';
-import { DeliveryUpdaterService } from './services/delivery-updater.service';
 import { UpdateRepairOrderDto } from './dto/update-repair-order.dto';
 import { PaginationQuery } from 'src/common/types/pagination-query.interface';
 import { RedisService } from 'src/common/redis/redis.service';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
 import { MoveRepairOrderDto } from './dto/move-repair-order.dto';
-import { RentalPhoneUpdaterService } from './services/rental-phone-updater.service';
 
 
 @Injectable()
@@ -30,13 +24,8 @@ export class RepairOrdersService {
         @InjectKnex() private readonly knex: Knex,
         private readonly permissionService: RepairOrderStatusPermissionsService,
         private readonly changeLogger: RepairOrderChangeLoggerService,
-        private readonly assignAdminUpdater: AssignAdminUpdaterService,
         private readonly initialProblemUpdater: InitialProblemUpdaterService,
         private readonly finalProblemUpdater: FinalProblemUpdaterService,
-        private readonly commentUpdater: CommentUpdaterService,
-        private readonly pickupUpdater: PickupUpdaterService,
-        private readonly deliveryUpdater: DeliveryUpdaterService,
-        private readonly rentalPhoneUpdater: RentalPhoneUpdaterService,
         private readonly helper: RepairOrderCreateHelperService,
         private readonly redisService: RedisService
     ) { }
@@ -57,12 +46,12 @@ export class RepairOrdersService {
                 });
             }
 
-            // if (!user?.sap_card_code) {
-            //     throw new BadRequestException({
-            //         message: 'User has no SAP card code. Cannot create rental order.',
-            //         location: 'user_id',
-            //     });
-            // }
+            if (!user?.sap_card_code) {
+                throw new BadRequestException({
+                    message: 'User has no SAP card code. Cannot create rental order.',
+                    location: 'user_id',
+                });
+            }
 
             const phone = await this.knex('phone_categories')
                 .where({ id: dto.phone_category_id, is_active: true, status: 'Open' })
@@ -167,13 +156,8 @@ export class RepairOrdersService {
 
             await this.changeLogger.logMultipleFieldsIfChanged(trx, orderId, logFields, adminId);
 
-            await this.assignAdminUpdater.update(trx, orderId, dto.admin_ids, adminId, statusId);
-            await this.rentalPhoneUpdater.update(trx, orderId, dto.rental_phone, adminId, statusId);
             await this.initialProblemUpdater.update(trx, orderId, dto.initial_problems, adminId, statusId, dto.phone_category_id);
             await this.finalProblemUpdater.update(trx, orderId, dto.final_problems, adminId, statusId, dto.phone_category_id);
-            await this.commentUpdater.update(trx, orderId, dto.comments, adminId, statusId);
-            await this.pickupUpdater.update(trx, orderId, dto.pickup, adminId, statusId);
-            await this.deliveryUpdater.update(trx, orderId, dto.delivery, adminId, statusId);
 
             await trx.commit();
             await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);

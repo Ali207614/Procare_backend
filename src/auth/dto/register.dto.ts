@@ -24,4 +24,15 @@ export class RegisterDto {
     })
     password: string;
 
+    @ApiProperty({ example: '111', description: 'Password' })
+    @IsString({
+        context: { location: 'invalid_password' },
+    })
+    @MinLength(4, {
+        context: { location: 'invalid_password_length_min' },
+    })
+    @MaxLength(20, {
+        context: { location: 'invalid_password_length_max' },
+    })
+    confirm_password: string;
 }
