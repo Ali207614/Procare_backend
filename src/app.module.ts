@@ -10,7 +10,6 @@ import { NotificationModule } from './notification/notification.module';
 import { NotificationService } from './notification/notification.service';
 import { RepairOrdersModule } from './repair-orders/repair-orders.module';
 import { RepairOrdersService } from './repair-orders/repair-orders.service';
-import { RepairOrdersController } from './repair-orders/repair-orders.controller';
 import { RepairOrderStatusPermissionsModule } from './repair-order-status-permission/repair-order-status-permissions.module';
 import { RepairOrderStatusPermissionsController } from './repair-order-status-permission/repair-order-status-permissions.controller';
 import { RepairOrderStatusPermissionsService } from './repair-order-status-permission/repair-order-status-permissions.service';
@@ -38,7 +37,6 @@ import { AdminsModule } from './admins/admins.module';
 import { AdminsController } from './admins/admins.controller';
 import { AdminsService } from './admins/admins.service';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
 import { KnexModule } from 'nestjs-knex';
 import knexConfig from './config/knex.config';
 import { RedisModule } from './common/redis/redis.module';
@@ -60,7 +58,6 @@ import { PermissionsService } from './permissions/permissions.service';
 import { PermissionsController } from './permissions/permissions.controller';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SapService } from './sap/sap.service';
-
 
 @Module({
   imports: [
@@ -99,7 +96,7 @@ import { SapService } from './sap/sap.service';
     RolesController,
     AdminsController,
     NotificationController,
-    PermissionsController
+    PermissionsController,
   ],
   providers: [
     RepairOrdersService,
@@ -117,30 +114,20 @@ import { SapService } from './sap/sap.service';
     RolesService,
     AdminsService,
     SapService,
-    UsersService
+    UsersService,
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
+    consumer.apply(MaintenanceMiddleware).forRoutes('*');
 
-    consumer
-      .apply(MaintenanceMiddleware).forRoutes('*');
+    consumer.apply(RateLimiterByIpMiddleware).forRoutes(...PublicRoutes);
 
-    consumer
-      .apply(RateLimiterByIpMiddleware)
-      .forRoutes(...PublicRoutes);
+    consumer.apply(JwtMiddleware, RateLimiterMiddleware).forRoutes(...RateLimitedUserRoutes);
 
-    consumer
-      .apply(JwtMiddleware, RateLimiterMiddleware)
-      .forRoutes(...RateLimitedUserRoutes);
+    consumer.apply(JwtMiddleware, RateLimiterMiddleware).forRoutes(...RateLimitedAdminRoutes);
 
-    consumer
-      .apply(JwtMiddleware, RateLimiterMiddleware)
-      .forRoutes(...RateLimitedAdminRoutes);
-
-    consumer
-      .apply(LoggingMiddleware).forRoutes('*');
-
+    consumer.apply(LoggingMiddleware).forRoutes('*');
 
     // consumer
     //   .apply(VerifyRawBodyMiddleware, VerifyPaymeSignatureMiddleware)
@@ -151,4 +138,3 @@ export class AppModule implements NestModule {
     //   .forRoutes({ path: 'payments/click/callback', method: RequestMethod.POST });
   }
 }
-

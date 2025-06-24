@@ -1,4 +1,3 @@
-
 exports.seed = async function (knex) {
   await knex('role_permissions').del();
   await knex('roles').del();

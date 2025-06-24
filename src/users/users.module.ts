@@ -9,9 +9,8 @@ import { PermissionsModule } from 'src/permissions/permissions.module';
 import { SapModule } from 'src/sap/sap.module';
 
 @Module({
-    imports: [SapModule, PermissionsModule],
-    controllers: [UsersController],
-    providers: [
-        UsersService,],
+  imports: [SapModule, PermissionsModule],
+  controllers: [UsersController],
+  providers: [UsersService],
 })
-export class UsersModule { }
+export class UsersModule {}

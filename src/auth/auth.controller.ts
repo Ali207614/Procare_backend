@@ -14,59 +14,59 @@ import { AdminPayload } from 'src/common/types/admin-payload.interface';
 @ApiTags('Auth-admin')
 @Controller('auth/admin')
 export class AuthController {
-    constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
-    @Post('send-code')
-    @ApiOperation({ summary: 'Send verification code to phone number' })
-    @ApiResponse({ status: 201, description: 'Verification code sent successfully' })
-    @ApiResponse({ status: 400, description: 'Bad Request' })
-    sendCode(@Body() dto: SmsDto) {
-        return this.authService.sendVerificationCode(dto);
-    }
+  @Post('send-code')
+  @ApiOperation({ summary: 'Send verification code to phone number' })
+  @ApiResponse({ status: 201, description: 'Verification code sent successfully' })
+  @ApiResponse({ status: 400, description: 'Bad Request' })
+  sendCode(@Body() dto: SmsDto) {
+    return this.authService.sendVerificationCode(dto);
+  }
 
-    @Post('verify-code')
-    @ApiOperation({ summary: 'Verify the received code' })
-    @ApiResponse({ status: 200, description: 'Code verified successfully' })
-    @ApiResponse({ status: 400, description: 'Invalid code' })
-    verifyCode(@Body() dto: VerifyDto) {
-        return this.authService.verifyCode(dto);
-    }
+  @Post('verify-code')
+  @ApiOperation({ summary: 'Verify the received code' })
+  @ApiResponse({ status: 200, description: 'Code verified successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid code' })
+  verifyCode(@Body() dto: VerifyDto) {
+    return this.authService.verifyCode(dto);
+  }
 
-    @Post('register')
-    @ApiOperation({ summary: 'Complete registration' })
-    @ApiResponse({ status: 201, description: 'User registered successfully' })
-    completeRegister(@Body() dto: RegisterDto) {
-        return this.authService.completeRegistration(dto);
-    }
+  @Post('register')
+  @ApiOperation({ summary: 'Complete registration' })
+  @ApiResponse({ status: 201, description: 'User registered successfully' })
+  completeRegister(@Body() dto: RegisterDto) {
+    return this.authService.completeRegistration(dto);
+  }
 
-    @Post('login')
-    @ApiOperation({ summary: 'Login and receive access token' })
-    @ApiResponse({ status: 200, description: 'Login successful' })
-    @ApiResponse({ status: 401, description: 'Invalid credentials' })
-    login(@Body() dto: LoginDto) {
-        return this.authService.login(dto);
-    }
+  @Post('login')
+  @ApiOperation({ summary: 'Login and receive access token' })
+  @ApiResponse({ status: 200, description: 'Login successful' })
+  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  login(@Body() dto: LoginDto) {
+    return this.authService.login(dto);
+  }
 
-    @Post('forgot-password')
-    @ApiOperation({ summary: 'Request password reset code' })
-    @ApiResponse({ status: 200, description: 'Reset code sent' })
-    forgotPassword(@Body() dto: ForgotPasswordDto) {
-        return this.authService.forgotPassword(dto);
-    }
+  @Post('forgot-password')
+  @ApiOperation({ summary: 'Request password reset code' })
+  @ApiResponse({ status: 200, description: 'Reset code sent' })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto);
+  }
 
-    @Post('reset-password')
-    @ApiOperation({ summary: 'Reset password using reset code' })
-    @ApiResponse({ status: 200, description: 'Password reset successful' })
-    resetPassword(@Body() dto: ResetPasswordDto) {
-        return this.authService.resetPassword(dto);
-    }
+  @Post('reset-password')
+  @ApiOperation({ summary: 'Reset password using reset code' })
+  @ApiResponse({ status: 200, description: 'Password reset successful' })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
+  }
 
-    @Post('logout')
-    @ApiBearerAuth()
-    @UseGuards(JwtAdminAuthGuard)
-    @ApiOperation({ summary: 'Logout current admin' })
-    @ApiResponse({ status: 200, description: 'Logged out successfully' })
-    logout(@CurrentAdmin() admin: AdminPayload) {
-        return this.authService.logout(admin.id);
-    }
+  @Post('logout')
+  @ApiBearerAuth()
+  @UseGuards(JwtAdminAuthGuard)
+  @ApiOperation({ summary: 'Logout current admin' })
+  @ApiResponse({ status: 200, description: 'Logged out successfully' })
+  logout(@CurrentAdmin() admin: AdminPayload) {
+    return this.authService.logout(admin.id);
+  }
 }

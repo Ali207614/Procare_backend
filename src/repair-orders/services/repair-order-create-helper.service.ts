@@ -66,7 +66,7 @@ export class RepairOrderCreateHelperService {
             .update({ is_available: false, updated_at: new Date() });
 
         const user = await trx('users').where({ id: dto.user_id }).first();
-        
+
         if (!user?.sap_card_code) {
             throw new BadRequestException({
                 message: 'User has no SAP card code. Cannot create rental order.',

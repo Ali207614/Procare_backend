@@ -10,28 +10,22 @@ import { JwtAdminStrategy } from 'src/common/strategies/jwt-admin.strategy';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 
 @Module({
-    imports: [
-        AdminsModule,
-        ConfigModule,
-        RedisModule,
-        FeatureModule,
-        JwtModule.registerAsync({
-            imports: [ConfigModule],
-            useFactory: async (configService: ConfigService) => ({
-                secret: configService.get<string>('JWT_SECRET'),
-                signOptions: { expiresIn: '1d' },
-            }),
-            inject: [ConfigService],
-        }),
-    ],
-    providers: [
-        AuthService,
-        JwtAdminStrategy,
-        JwtAdminAuthGuard,
-    ],
-    exports: [
-        AuthService,
-    ],
-    controllers: [AuthController],
+  imports: [
+    AdminsModule,
+    ConfigModule,
+    RedisModule,
+    FeatureModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET'),
+        signOptions: { expiresIn: '1d' },
+      }),
+      inject: [ConfigService],
+    }),
+  ],
+  providers: [AuthService, JwtAdminStrategy, JwtAdminAuthGuard],
+  exports: [AuthService],
+  controllers: [AuthController],
 })
-export class AuthModule { }
+export class AuthModule {}

@@ -1,5 +1,11 @@
-
-import { BadRequestException, ForbiddenException, Injectable, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
 import { RedisService } from 'src/common/redis/redis.service';
@@ -12,366 +18,406 @@ import { UpdateAdminDto } from './dto/update-admin.dto';
 import { extractDefinedFields } from 'src/common/utils/extract-defined-fields.util';
 import { FindAllAdminsDto } from './dto/find-all-admins.dto';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
+import { ParseUUIDPipe } from '../common/pipe/parse-uuid.pipe';
 
 @Injectable()
 export class AdminsService {
-    constructor(
-        @InjectKnex() private readonly knex: Knex,
-        private readonly redisService: RedisService,
-        private readonly permissionsService: PermissionsService
-    ) { }
+  constructor(
+    @InjectKnex() private readonly knex: Knex,
+    private readonly redisService: RedisService,
+    private readonly permissionsService: PermissionsService,
+  ) {}
 
-    private readonly table = 'admins';
+  private readonly table = 'admins';
 
+  async findByPhoneNumber(phone: string) {
+    return this.knex(this.table).where({ phone_number: phone }).first();
+  }
 
-    async findByPhoneNumber(phone: string) {
-        return this.knex(this.table).where({ phone_number: phone, }).first();
+  async findById(id: string) {
+    const sql = loadSQL('admins/queries/find-one.sql');
+
+    const result = await this.knex.raw(sql, { admin_id: id });
+
+    const admin = result.rows[0];
+
+    if (!admin) {
+      throw new NotFoundException({
+        message: 'Admin not found',
+        location: 'admin_not_found',
+      });
     }
 
-    async findById(id: string) {
-        const sql = loadSQL('admins/queries/find-one.sql');
+    return admin;
+  }
 
-        const result = await this.knex.raw(sql, { admin_id: id });
+  async findAll(query: FindAllAdminsDto) {
+    const sql = loadSQL('admins/queries/find-all.sql');
 
-        const admin = result.rows[0];
+    const data = await this.knex.raw(sql, {
+      search: query.search ?? null,
+      status: query.status?.length ? query.status : null,
+      branch_ids: query.branch_ids?.length ? query.branch_ids : null,
+      role_ids: query.role_ids?.length ? query.role_ids : null,
+      limit: query.limit ?? 20,
+      offset: query.offset ?? 0,
+    });
 
-        if (!admin) {
-            throw new NotFoundException({
-                message: 'Admin not found',
-                location: 'admin_not_found',
-            });
-        }
+    return data.rows;
+  }
 
-        return admin;
+  async markPhoneVerified(phone: string) {
+    await this.knex(this.table).where({ phone_number: phone }).update({
+      phone_verified: true,
+      verification_code: null,
+      status: 'pending',
+      updated_at: new Date(),
+    });
+  }
+
+  async updateAdminByPhone(phone: string, data: any) {
+    await this.knex(this.table)
+      .where({ phone_number: phone })
+      .update({ ...data, updated_at: new Date() });
+  }
+
+  checkAdminAccessControl(
+    admin: any,
+    options: { requireVerified?: boolean; blockIfVerified?: boolean } = {},
+  ) {
+    const { requireVerified = false, blockIfVerified = false } = options;
+
+    if (!admin) {
+      throw new UnauthorizedException({
+        message: 'Admin not found',
+        location: 'admin_not_found',
+      });
+    }
+    if (admin?.status === 'Banned') {
+      throw new BadRequestException({
+        message: 'This phone number is banned',
+        error: 'BannedAdmin',
+        location: 'phone_banned',
+      });
     }
 
-    async findAll(query: FindAllAdminsDto) {
-        const sql = loadSQL('admins/queries/find-all.sql');
+    if (!admin?.is_active) {
+      throw new BadRequestException({
+        message: 'This phone number is inactive',
+        error: 'InactiveAdmin',
+        location: 'phone_inactive',
+      });
+    }
 
-        const data = await this.knex.raw(sql, {
-            search: query.search ?? null,
-            status: query.status?.length ? query.status : null,
-            branch_ids: query.branch_ids?.length ? query.branch_ids : null,
-            role_ids: query.role_ids?.length ? query.role_ids : null,
-            limit: query.limit ?? 20,
-            offset: query.offset ?? 0,
+    if (blockIfVerified && admin?.phone_verified) {
+      throw new BadRequestException({
+        message: 'Phone number already verified',
+        error: 'AlreadyVerified',
+        location: 'phone_verified',
+      });
+    }
+
+    if (requireVerified && !admin?.phone_verified) {
+      throw new BadRequestException({
+        message: 'Phone number not verified',
+        error: 'PhoneNotVerified',
+        location: 'phone_unverified',
+      });
+    }
+  }
+
+  async changePassword(admin: AdminPayload, dto: ChangePasswordDto) {
+    const dbAdmin = await this.findById(admin.id);
+
+    const isMatch = await bcrypt.compare(dto.current_password, dbAdmin.password);
+    if (!isMatch) {
+      throw new BadRequestException({
+        message: '⛔ Current password is incorrect',
+        location: 'wrong_current_password',
+      });
+    }
+
+    const hashed = await bcrypt.hash(dto.new_password, 10);
+    await this.knex(this.table)
+      .where({ id: admin.id })
+      .update({ password: hashed, updated_at: new Date() });
+
+    return { message: '✅ Password changed successfully' };
+  }
+
+  async create(adminId: string, dto: CreateAdminDto) {
+    const existing = await this.knex('admins')
+      .whereRaw('LOWER(phone_number) = ?', dto.phone_number.toLowerCase())
+      .andWhereNot({ status: 'Deleted' })
+      .first();
+
+    if (existing) {
+      throw new BadRequestException({
+        message: 'Phone number already exists',
+        location: 'phone_number',
+      });
+    }
+
+    if (dto.role_ids?.length) {
+      const foundRoles = await this.knex('roles')
+        .whereIn('id', dto.role_ids)
+        .andWhere({ is_active: true, status: 'Open' });
+
+      if (foundRoles.length !== dto.role_ids.length) {
+        throw new BadRequestException({
+          message: 'Some role IDs are invalid or inactive',
+          location: 'role_ids',
         });
-
-        return data.rows
+      }
     }
 
-    async markPhoneVerified(phone: string) {
-        await this.knex(this.table)
-            .where({ phone_number: phone })
-            .update({
-                phone_verified: true,
-                verification_code: null,
-                status: 'pending',
-                updated_at: new Date(),
-            });
+    if (dto.branch_ids?.length) {
+      const foundBranches = await this.knex('branches')
+        .whereIn('id', dto.branch_ids)
+        .andWhere({ is_active: true, status: 'Open' });
+
+      if (foundBranches.length !== dto.branch_ids.length) {
+        throw new BadRequestException({
+          message: 'Some branch IDs are invalid or inactive',
+          location: 'branch_ids',
+        });
+      }
     }
 
-    async updateAdminByPhone(phone: string, data: any) {
-        await this.knex(this.table)
-            .where({ phone_number: phone })
-            .update({ ...data, updated_at: new Date() });
+    const [admin] = await this.knex('admins')
+      .insert({
+        ...dto,
+        status: 'Pending',
+        created_by: adminId,
+      })
+      .returning('*');
+
+    if (dto?.role_ids?.length) {
+      const rolesData = dto.role_ids.map((role_id) => ({
+        admin_id: admin.id,
+        role_id,
+      }));
+      await this.knex('admin_roles').insert(rolesData);
     }
 
-    checkAdminAccessControl(admin: any, options: { requireVerified?: boolean; blockIfVerified?: boolean } = {}) {
-        const { requireVerified = false, blockIfVerified = false } = options;
+    if (dto?.branch_ids?.length) {
+      const branchData = dto.branch_ids.map((branch_id) => ({
+        admin_id: admin.id,
+        branch_id,
+      }));
+      await this.knex('admin_branches').insert(branchData);
 
-        if (!admin) {
-            throw new UnauthorizedException({
-                message: 'Admin not found',
-                location: 'admin_not_found',
-            });
-        }
-        if (admin?.status === 'Banned') {
-            throw new BadRequestException({
-                message: 'This phone number is banned',
-                error: 'BannedAdmin',
-                location: 'phone_banned',
-            });
-        }
+      await this.redisService.del(`admin:${admin.id}:branches`);
+    }
+    await this.permissionsService.getPermissions(admin.id);
 
-        if (!admin?.is_active) {
-            throw new BadRequestException({
-                message: 'This phone number is inactive',
-                error: 'InactiveAdmin',
-                location: 'phone_inactive',
-            });
-        }
+    return admin;
+  }
 
+  async update(
+    currentAdmin: any,
+    targetAdminId: string,
+    dto: UpdateAdminDto & { role_ids?: string[]; branch_ids?: string[] },
+  ) {
+    const target = await this.knex('admins')
+      .where({ id: targetAdminId })
+      .andWhereNot({ status: 'Deleted' })
+      .first();
 
-        if (blockIfVerified && admin?.phone_verified) {
-            throw new BadRequestException({
-                message: 'Phone number already verified',
-                error: 'AlreadyVerified',
-                location: 'phone_verified',
-            });
-        }
-
-        if (requireVerified && !admin?.phone_verified) {
-            throw new BadRequestException({
-                message: 'Phone number not verified',
-                error: 'PhoneNotVerified',
-                location: 'phone_unverified',
-            });
-        }
+    if (!target) {
+      throw new NotFoundException({
+        message: 'Admin not found',
+        location: 'admin_not_found',
+      });
     }
 
-    async changePassword(admin: AdminPayload, dto: ChangePasswordDto) {
-        const dbAdmin = await this.findById(admin.id);
-
-        const isMatch = await bcrypt.compare(dto.current_password, dbAdmin.password);
-        if (!isMatch) {
-            throw new BadRequestException({
-                message: '⛔ Current password is incorrect',
-                location: 'wrong_current_password',
-            });
-        }
-
-        const hashed = await bcrypt.hash(dto.new_password, 10);
-        await this.knex(this.table)
-            .where({ id: admin.id })
-            .update({ password: hashed, updated_at: new Date() });
-
-        return { message: '✅ Password changed successfully' };
+    if (
+      target?.is_protected &&
+      (dto?.is_active === false || (Array.isArray(dto.role_ids) && dto.role_ids.length > 0))
+    ) {
+      throw new ForbiddenException({
+        message: 'This admin is system-protected and cannot be deleted or deactivated.',
+        location: 'admin_protected',
+      });
     }
 
-    async create(adminId: string, dto: CreateAdminDto) {
-        const existing = await this.knex('admins')
-            .whereRaw('LOWER(phone_number) = ?', dto.phone_number.toLowerCase())
-            .andWhereNot({ status: 'Deleted' })
-            .first();
+    const isSelf = currentAdmin.id === target.id;
+    const permissions = await this.permissionsService.getPermissions(currentAdmin.id);
 
-        if (existing) {
-            throw new BadRequestException({
-                message: 'Phone number already exists',
-                location: 'phone_number',
+    const canEditOthers = permissions.includes('admin.manage.edit');
+    const canEditOwnBasic = permissions.includes('admin.profile.edit.basic');
+    const canEditOwnSensitive = permissions.includes('admin.profile.edit.sensitive');
+
+    if (!isSelf && !canEditOthers) {
+      throw new ForbiddenException({
+        message: 'You cannot edit other admins',
+        location: 'edit_forbidden',
+      });
+    }
+
+    if (isSelf && !canEditOthers) {
+      const sensitiveFields = [
+        'passport_series',
+        'birth_date',
+        'hire_date',
+        'id_card_number',
+        'language',
+        'role_ids',
+        'branch_ids',
+        'is_active',
+      ];
+      for (const field of sensitiveFields) {
+        if (dto[field] !== undefined && !canEditOwnSensitive) {
+          throw new ForbiddenException({
+            message: `You cannot edit your ${field}`,
+            location: field,
+          });
+        }
+      }
+
+      const basicFields = ['first_name', 'last_name'];
+      if (!canEditOwnBasic) {
+        for (const field of basicFields) {
+          if (dto[field] !== undefined) {
+            throw new ForbiddenException({
+              message: `You cannot edit your ${field}`,
+              location: field,
             });
+          }
         }
+      }
+    }
 
-        if (dto.role_ids?.length) {
-            const foundRoles = await this.knex('roles')
-                .whereIn('id', dto.role_ids)
-                .andWhere({ is_active: true, status: 'Open' });
+    const updateData: Record<string, any> = extractDefinedFields(dto, [
+      'first_name',
+      'last_name',
+      'passport_series',
+      'birth_date',
+      'hire_date',
+      'id_card_number',
+      'language',
+      'is_active',
+    ]);
 
-            if (foundRoles.length !== dto.role_ids.length) {
-                throw new BadRequestException({
-                    message: 'Some role IDs are invalid or inactive',
-                    location: 'role_ids',
-                });
-            }
-        }
+    updateData.updated_at = new Date();
 
-        if (dto.branch_ids?.length) {
-            const foundBranches = await this.knex('branches')
-                .whereIn('id', dto.branch_ids)
-                .andWhere({ is_active: true, status: 'Open' });
+    if (Object.keys(updateData).length > 1) {
+      await this.knex('admins').where({ id: targetAdminId }).update(updateData);
+    }
 
-            if (foundBranches.length !== dto.branch_ids.length) {
-                throw new BadRequestException({
-                    message: 'Some branch IDs are invalid or inactive',
-                    location: 'branch_ids',
-                });
-            }
-        }
+    if (dto.role_ids !== undefined || dto.branch_ids !== undefined) {
+      const trx = await this.knex.transaction();
 
-        const [admin] = await this.knex('admins')
-            .insert({
-                ...dto,
-                status: 'Pending',
-                created_by: adminId
-            })
-            .returning('*');
+      try {
+        if (dto.role_ids !== undefined) {
+          await trx('admin_roles').where({ admin_id: targetAdminId }).del();
 
-        if (dto?.role_ids?.length) {
-            const rolesData = dto.role_ids.map((role_id) => ({
-                admin_id: admin.id,
-                role_id,
+          if (Array.isArray(dto.role_ids) && dto.role_ids.length > 0) {
+            const roleData = dto.role_ids.map((role_id) => ({
+              admin_id: targetAdminId,
+              role_id,
             }));
-            await this.knex('admin_roles').insert(rolesData);
+            await trx('admin_roles').insert(roleData);
+          }
         }
 
-        if (dto?.branch_ids?.length) {
-            const branchData = dto.branch_ids.map((branch_id) => ({
-                admin_id: admin.id,
-                branch_id,
-            }));
-            await this.knex('admin_branches').insert(branchData);
+        if (dto.branch_ids !== undefined) {
+          if (!Array.isArray(dto.branch_ids) || dto.branch_ids.length === 0) {
+            throw new BadRequestException({
+              message: 'branch_ids must be a non-empty array',
+              location: 'branch_ids',
+            });
+          }
 
-            await this.redisService.del(`admin:${admin.id}:branches`);
-        }
-        await this.permissionsService.getPermissions(admin.id);
+          const parser = new ParseUUIDPipe();
 
-        return admin;
-    }
+          let branchIds: string[];
 
-    async update(currentAdmin: any, targetAdminId: string, dto: UpdateAdminDto & { role_ids?: string[], branch_ids?: string[] }) {
+          try {
+            branchIds = dto.branch_ids.map((id) => parser.transform(id));
+          } catch (err) {
+            throw new BadRequestException({
+              message: 'One or more branch IDs are not valid UUIDs',
+              location: 'branch_ids',
+            });
+          }
 
-        const target = await this.knex('admins').where({ id: targetAdminId }).andWhereNot({ status: 'Deleted' }).first();
+          const foundBranches = await this.knex('branches')
+            .whereIn('id', branchIds)
+            .andWhere({ status: 'Open' });
 
-        if (!target) {
+          const foundIds = foundBranches.map((b) => b.id);
+          const missingIds = branchIds.filter((id) => !foundIds.includes(id));
+
+          if (missingIds.length > 0) {
             throw new NotFoundException({
-                message: 'Admin not found',
-                location: 'admin_not_found',
+              message: 'Some branches were not found or inactive',
+              location: 'branch_ids',
+              missing_ids: missingIds,
             });
+          }
         }
+        await trx.commit();
+      } catch (error) {
+        console.log(error);
+        await trx.rollback();
+        throw new InternalServerErrorException({
+          message: 'Failed to update admin roles or branches',
+          location: 'admin_update_failure',
+        });
+      }
 
-        if (target?.is_protected && (dto?.is_active === false || (Array.isArray(dto.role_ids) && dto.role_ids.length > 0))) {
-            throw new ForbiddenException({
-                message: 'This admin is system-protected and cannot be deleted or deactivated.',
-                location: 'admin_protected',
-            });
-        }
-
-        const isSelf = currentAdmin.id === target.id;
-        const permissions = await this.permissionsService.getPermissions(currentAdmin.id);
-
-        const canEditOthers = permissions.includes('admin.manage.edit');
-        const canEditOwnBasic = permissions.includes('admin.profile.edit.basic');
-        const canEditOwnSensitive = permissions.includes('admin.profile.edit.sensitive');
-
-        if (!isSelf && !canEditOthers) {
-            throw new ForbiddenException({
-                message: 'You cannot edit other admins',
-                location: 'edit_forbidden',
-            });
-        }
-
-        if (isSelf && !canEditOthers) {
-            const sensitiveFields = ['passport_series', 'birth_date', 'hire_date', 'id_card_number', 'language', 'role_ids', 'branch_ids', 'is_active'];
-            for (const field of sensitiveFields) {
-                if (dto[field] !== undefined && !canEditOwnSensitive) {
-                    throw new ForbiddenException({
-                        message: `You cannot edit your ${field}`,
-                        location: field,
-                    });
-                }
-            }
-
-            const basicFields = ['first_name', 'last_name'];
-            if (!canEditOwnBasic) {
-                for (const field of basicFields) {
-                    if (dto[field] !== undefined) {
-                        throw new ForbiddenException({
-                            message: `You cannot edit your ${field}`,
-                            location: field,
-                        });
-                    }
-                }
-            }
-        }
-
-        const updateData: Record<string, any> = extractDefinedFields(dto, [
-            'first_name',
-            'last_name',
-            'passport_series',
-            'birth_date',
-            'hire_date',
-            'id_card_number',
-            'language',
-            'is_active'
-        ]);
-
-        updateData.updated_at = new Date();
-
-        if (Object.keys(updateData).length > 1) {
-            await this.knex('admins')
-                .where({ id: targetAdminId })
-                .update(updateData);
-        }
-
-        if (dto.role_ids !== undefined || dto.branch_ids !== undefined) {
-            const trx = await this.knex.transaction();
-
-            try {
-                if (dto.role_ids !== undefined) {
-                    await trx('admin_roles').where({ admin_id: targetAdminId }).del();
-
-                    if (Array.isArray(dto.role_ids) && dto.role_ids.length > 0) {
-                        const roleData = dto.role_ids.map(role_id => ({
-                            admin_id: targetAdminId,
-                            role_id,
-                        }));
-                        await trx('admin_roles').insert(roleData);
-                    }
-                }
-                if (dto.branch_ids !== undefined) {
-                    await trx('admin_branches').where({ admin_id: targetAdminId }).del();
-
-                    if (Array.isArray(dto.branch_ids) && dto.branch_ids.length > 0) {
-                        const branchData = dto.branch_ids.map(branch_id => ({
-                            admin_id: targetAdminId,
-                            branch_id,
-                        }));
-                        await trx('admin_branches').insert(branchData);
-                    }
-                }
-
-                await trx.commit();
-
-            } catch (error) {
-                await trx.rollback();
-                throw new InternalServerErrorException({
-                    message: 'Failed to update admin roles or branches',
-                    location: 'admin_update_failure',
-                });
-            }
-
-            if (dto.branch_ids !== undefined) {
-                await this.redisService.del(`admin:${targetAdminId}:branches`);
-            }
-        }
-
-        await this.permissionsService.clearPermissionCache(targetAdminId);
-        await this.permissionsService.getPermissions(targetAdminId);
-
-        return {
-            message: 'Admin updated successfully',
-        };
+      if (dto.branch_ids !== undefined) {
+        await this.redisService.del(`admin:${targetAdminId}:branches`);
+      }
     }
 
-    async delete(requestingAdmin: any, targetAdminId: string) {
-        const target = await this.knex('admins').where({ id: targetAdminId }).andWhereNot({ status: 'Deleted' }).first();
+    await this.permissionsService.clearPermissionCache(targetAdminId);
+    await this.permissionsService.getPermissions(targetAdminId);
 
-        if (!target) {
-            throw new NotFoundException({
-                message: 'Admin not found',
-                location: 'admin_not_found',
-            });
-        }
+    return {
+      message: 'Admin updated successfully',
+    };
+  }
 
-        if (target?.is_protected) {
-            throw new ForbiddenException({
-                message: 'This admin is system-protected and cannot be deleted or deactivated.',
-                location: 'admin_protected',
-            });
-        }
+  async delete(requestingAdmin: any, targetAdminId: string) {
+    const target = await this.knex('admins')
+      .where({ id: targetAdminId })
+      .andWhereNot({ status: 'Deleted' })
+      .first();
 
-
-
-        if (requestingAdmin.id === target.id) {
-            throw new ForbiddenException({
-                message: 'You cannot delete yourself',
-                location: 'self_delete',
-            });
-        }
-
-        await this.knex('admins')
-            .where({ id: targetAdminId })
-            .update({
-                is_active: false,
-                status: 'Deleted',
-                updated_at: new Date(),
-            });
-
-        await this.permissionsService.clearPermissionCache(targetAdminId);
-
-        return {
-            message: 'Admin deleted successfully',
-            deleted_admin_id: targetAdminId,
-        };
+    if (!target) {
+      throw new NotFoundException({
+        message: 'Admin not found',
+        location: 'admin_not_found',
+      });
     }
+
+    if (target?.is_protected) {
+      throw new ForbiddenException({
+        message: 'This admin is system-protected and cannot be deleted or deactivated.',
+        location: 'admin_protected',
+      });
+    }
+
+    if (requestingAdmin.id === target.id) {
+      throw new ForbiddenException({
+        message: 'You cannot delete yourself',
+        location: 'self_delete',
+      });
+    }
+
+    await this.knex('admins').where({ id: targetAdminId }).update({
+      is_active: false,
+      status: 'Deleted',
+      updated_at: new Date(),
+    });
+
+    await this.permissionsService.clearPermissionCache(targetAdminId);
+
+    return {
+      message: 'Admin deleted successfully',
+      deleted_admin_id: targetAdminId,
+    };
+  }
 }

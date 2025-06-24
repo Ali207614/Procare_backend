@@ -4,14 +4,8 @@ import { RedisModule } from 'src/common/redis/redis.module';
 import { KnexModule } from 'nestjs-knex';
 
 @Module({
-    imports: [
-        RedisModule,
-    ],
-    providers: [
-        PermissionsService,
-    ],
-    exports: [
-        PermissionsService,
-    ],
+  imports: [RedisModule],
+  providers: [PermissionsService],
+  exports: [PermissionsService],
 })
-export class PermissionsModule { }
+export class PermissionsModule {}

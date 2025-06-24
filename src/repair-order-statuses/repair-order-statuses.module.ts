@@ -6,13 +6,9 @@ import { PermissionsModule } from 'src/permissions/permissions.module';
 import { RepairOrderStatusPermissionsModule } from 'src/repair-order-status-permission/repair-order-status-permissions.module';
 
 @Module({
-    imports: [
-        RedisModule,
-        PermissionsModule,
-        forwardRef(() => RepairOrderStatusPermissionsModule)
-    ],
-    controllers: [RepairOrderStatusesController],
-    providers: [RepairOrderStatusesService],
-    exports: [RepairOrderStatusesService]
+  imports: [RedisModule, PermissionsModule, forwardRef(() => RepairOrderStatusPermissionsModule)],
+  controllers: [RepairOrderStatusesController],
+  providers: [RepairOrderStatusesService],
+  exports: [RepairOrderStatusesService],
 })
-export class RepairOrderStatusesModule { }
+export class RepairOrderStatusesModule {}

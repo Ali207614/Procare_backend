@@ -7,37 +7,30 @@ import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 
-
 @ApiTags('Repair Orders Assign Admin')
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
 @Controller('repair-orders/:orderId/assign-admins')
 export class AssignAdminController {
-    constructor(
-        private readonly assignAdminUpdater: AssignAdminUpdaterService,
-    ) { }
+  constructor(private readonly assignAdminUpdater: AssignAdminUpdaterService) {}
 
-    @Post()
-    async assignAdmins(
-        @Param('orderId', ParseUUIDPipe) orderId: string,
-        @Body() dto: AssignAdminsDto,
-        @CurrentAdmin() admin: AdminPayload,
-    ) {
-        await this.assignAdminUpdater.create(
-            orderId,
-            dto.admin_ids,
-            admin.id,
-        );
-        return { message: '✅ Admins assigned successfully' };
-    }
+  @Post()
+  async assignAdmins(
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+    @Body() dto: AssignAdminsDto,
+    @CurrentAdmin() admin: AdminPayload,
+  ) {
+    await this.assignAdminUpdater.create(orderId, dto.admin_ids, admin.id);
+    return { message: '✅ Admins assigned successfully' };
+  }
 
-    @Delete(':adminId')
-    async removeAdmin(
-        @Param('orderId', ParseUUIDPipe) orderId: string,
-        @Param('adminId', ParseUUIDPipe) adminId: string,
-        @CurrentAdmin() admin: AdminPayload,
-    ) {
-        await this.assignAdminUpdater.delete(orderId, adminId, admin.id);
-        return { message: '🗑️ Admin removed from order' };
-    }
+  @Delete(':adminId')
+  async removeAdmin(
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+    @Param('adminId', ParseUUIDPipe) adminId: string,
+    @CurrentAdmin() admin: AdminPayload,
+  ) {
+    await this.assignAdminUpdater.delete(orderId, adminId, admin.id);
+    return { message: '🗑️ Admin removed from order' };
+  }
 }

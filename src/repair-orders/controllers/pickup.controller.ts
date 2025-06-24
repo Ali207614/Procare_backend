@@ -11,39 +11,36 @@ import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 @UseGuards(JwtAdminAuthGuard)
 @Controller('repair-orders/:orderId/pickup')
 export class PickupController {
-    constructor(private readonly pickupUpdater: PickupUpdaterService) { }
+  constructor(private readonly pickupUpdater: PickupUpdaterService) {}
 
-    @Post()
-    async create(
-        @Param('orderId') orderId: string,
-        @Body() dto: CreateOrUpdatePickupDto,
-        @CurrentAdmin() admin: AdminPayload,
-    ) {
-        const result = await this.pickupUpdater.create(orderId, dto, admin.id);
-        return {
-            message: '✅ Pickup created',
-            pickup: result,
-        };
-    }
+  @Post()
+  async create(
+    @Param('orderId') orderId: string,
+    @Body() dto: CreateOrUpdatePickupDto,
+    @CurrentAdmin() admin: AdminPayload,
+  ) {
+    const result = await this.pickupUpdater.create(orderId, dto, admin.id);
+    return {
+      message: '✅ Pickup created',
+      pickup: result,
+    };
+  }
 
-    @Patch()
-    async update(
-        @Param('orderId') orderId: string,
-        @Body() dto: CreateOrUpdatePickupDto,
-        @CurrentAdmin() admin: AdminPayload,
-    ) {
-        const result = await this.pickupUpdater.update(orderId, dto, admin.id);
-        return {
-            message: '✏️ Pickup updated',
-            pickup: result,
-        };
-    }
+  @Patch()
+  async update(
+    @Param('orderId') orderId: string,
+    @Body() dto: CreateOrUpdatePickupDto,
+    @CurrentAdmin() admin: AdminPayload,
+  ) {
+    const result = await this.pickupUpdater.update(orderId, dto, admin.id);
+    return {
+      message: '✏️ Pickup updated',
+      pickup: result,
+    };
+  }
 
-    @Delete()
-    async delete(
-        @Param('orderId') orderId: string,
-        @CurrentAdmin() admin: AdminPayload,
-    ) {
-        return this.pickupUpdater.delete(orderId, admin.id);
-    }
+  @Delete()
+  async delete(@Param('orderId') orderId: string, @CurrentAdmin() admin: AdminPayload) {
+    return this.pickupUpdater.delete(orderId, admin.id);
+  }
 }

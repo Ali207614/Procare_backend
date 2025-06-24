@@ -1,6 +1,3 @@
-# Courier bilan Arendani qilish kerak
-
-Courerirni API Ni qilish
 
 # Payment
 

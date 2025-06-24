@@ -1,24 +1,24 @@
 import {
-    Controller,
-    Get,
-    Post,
-    Body,
-    Param,
-    UseGuards,
-    Query,
-    Patch,
-    Req,
-    Delete,
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  UseGuards,
+  Query,
+  Patch,
+  Req,
+  Delete,
 } from '@nestjs/common';
 import { BranchesService } from './branches.service';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import {
-    ApiBearerAuth,
-    ApiOperation,
-    ApiResponse,
-    ApiTags,
-    ApiParam,
-    ApiQuery,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+  ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
@@ -35,87 +35,78 @@ import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 @UseGuards(JwtAdminAuthGuard)
 @Controller('branches')
 export class BranchesController {
-    constructor(private readonly service: BranchesService) { }
+  constructor(private readonly service: BranchesService) {}
 
-    @Post()
-    @UseGuards(PermissionsGuard)
-    @SetPermissions('branch.create')
-    @ApiOperation({ summary: 'Create new branch' })
-    @ApiResponse({ status: 201, description: 'Branch created successfully' })
-    @ApiResponse({ status: 400, description: 'Validation failed' })
-    async create(
-        @CurrentAdmin() admin: AdminPayload,
-        @Body() dto: CreateBranchDto,
-    ) {
-        const adminId = admin.id;
-        return this.service.create(dto, adminId);
-    }
+  @Post()
+  @UseGuards(PermissionsGuard)
+  @SetPermissions('branch.create')
+  @ApiOperation({ summary: 'Create new branch' })
+  @ApiResponse({ status: 201, description: 'Branch created successfully' })
+  @ApiResponse({ status: 400, description: 'Validation failed' })
+  async create(@CurrentAdmin() admin: AdminPayload, @Body() dto: CreateBranchDto) {
+    const adminId = admin.id;
+    return this.service.create(dto, adminId);
+  }
 
-    @Get()
-    @UseGuards(PermissionsGuard)
-    @SetPermissions('branch.view')
-    @ApiOperation({ summary: 'Get list of active branches (paginated)' })
-    @ApiQuery({ name: 'offset', required: false, example: 0 })
-    @ApiQuery({ name: 'limit', required: false, example: 10 })
-    @ApiQuery({ name: 'search', required: false, example: 'main' })
-    @ApiResponse({ status: 200, description: 'List of branches returned' })
-    async findAll(@Query() query: PaginationQueryDto) {
-        const { offset, limit, search } = query;
-        return this.service.findAll(offset, limit, search);
-    }
+  @Get()
+  @UseGuards(PermissionsGuard)
+  @SetPermissions('branch.view')
+  @ApiOperation({ summary: 'Get list of active branches (paginated)' })
+  @ApiQuery({ name: 'offset', required: false, example: 0 })
+  @ApiQuery({ name: 'limit', required: false, example: 10 })
+  @ApiQuery({ name: 'search', required: false, example: 'main' })
+  @ApiResponse({ status: 200, description: 'List of branches returned' })
+  async findAll(@Query() query: PaginationQueryDto) {
+    const { offset, limit, search } = query;
+    return this.service.findAll(offset, limit, search);
+  }
 
-    @Get('viewable')
-    @ApiOperation({ summary: 'Get branches assigned to current admin' })
-    @ApiResponse({ status: 200, description: 'List of assigned branches returned' })
-    async findMyBranches(@CurrentAdmin() admin: AdminPayload,) {
-        return this.service.findByAdminId(admin.id);
-    }
+  @Get('viewable')
+  @ApiOperation({ summary: 'Get branches assigned to current admin' })
+  @ApiResponse({ status: 200, description: 'List of assigned branches returned' })
+  async findMyBranches(@CurrentAdmin() admin: AdminPayload) {
+    return this.service.findByAdminId(admin.id);
+  }
 
-    @Get(':id')
-    @UseGuards(PermissionsGuard)
-    @SetPermissions('branch.view')
-    @ApiOperation({ summary: 'Get branch by ID' })
-    @ApiParam({ name: 'id', description: 'Branch ID (UUID)' })
-    @ApiResponse({ status: 200, description: 'Branch returned successfully' })
-    @ApiResponse({ status: 404, description: 'Branch not found' })
-    async findOne(@Param('id', ParseUUIDPipe) id: string) {
-        return this.service.findOne(id);
-    }
+  @Get('/:id')
+  @UseGuards(PermissionsGuard)
+  @SetPermissions('branch.view')
+  @ApiOperation({ summary: 'Get branch by ID' })
+  @ApiParam({ name: 'id', description: 'Branch ID (UUID)' })
+  @ApiResponse({ status: 200, description: 'Branch returned successfully' })
+  @ApiResponse({ status: 404, description: 'Branch not found' })
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.findOne(id);
+  }
 
-    @Patch(':id/sort')
-    @UseGuards(PermissionsGuard, BranchExistGuard)
-    @SetPermissions('branch.update')
-    @ApiOperation({ summary: 'Update branch sort order' })
-    @ApiParam({ name: 'id', description: 'Branch ID' })
-    @ApiResponse({ status: 200, description: 'Sort updated' })
-    @ApiResponse({ status: 404, description: 'Branch not found' })
-    async updateSort(
-        @Req() req,
-        @Body() dto: UpdateBranchSortDto,
-    ) {
-        return this.service.updateSort(req.branch, dto.sort);
-    }
+  @Patch(':id/sort')
+  @UseGuards(PermissionsGuard, BranchExistGuard)
+  @SetPermissions('branch.update')
+  @ApiOperation({ summary: 'Update branch sort order' })
+  @ApiParam({ name: 'id', description: 'Branch ID' })
+  @ApiResponse({ status: 200, description: 'Sort updated' })
+  @ApiResponse({ status: 404, description: 'Branch not found' })
+  async updateSort(@Req() req, @Body() dto: UpdateBranchSortDto) {
+    return this.service.updateSort(req.branch, dto.sort);
+  }
 
-    @Patch(':id')
-    @UseGuards(PermissionsGuard, BranchExistGuard)
-    @SetPermissions('branch.update')
-    @ApiOperation({ summary: 'Update branch by ID' })
-    @ApiParam({ name: 'id', description: 'Branch ID (UUID)' })
-    @ApiResponse({ status: 200, description: 'Branch updated successfully' })
-    @ApiResponse({ status: 404, description: 'Branch not found' })
-    async update(
-        @Req() req,
-        @Body() dto: UpdateBranchDto,
-    ) {
-        return this.service.update(req.branch, dto);
-    }
+  @Patch(':id')
+  @UseGuards(PermissionsGuard, BranchExistGuard)
+  @SetPermissions('branch.update')
+  @ApiOperation({ summary: 'Update branch by ID' })
+  @ApiParam({ name: 'id', description: 'Branch ID (UUID)' })
+  @ApiResponse({ status: 200, description: 'Branch updated successfully' })
+  @ApiResponse({ status: 404, description: 'Branch not found' })
+  async update(@Req() req, @Body() dto: UpdateBranchDto) {
+    return this.service.update(req.branch, dto);
+  }
 
-    @Delete(':id')
-    @UseGuards(PermissionsGuard, BranchExistGuard)
-    @SetPermissions('branch.delete')
-    @ApiOperation({ summary: 'Delete branch by ID (soft delete)' })
-    @ApiParam({ name: 'id', description: 'Branch ID (UUID)' })
-    async delete(@Req() req,) {
-        return this.service.delete(req.branch);
-    }
+  @Delete(':id')
+  @UseGuards(PermissionsGuard, BranchExistGuard)
+  @SetPermissions('branch.delete')
+  @ApiOperation({ summary: 'Delete branch by ID (soft delete)' })
+  @ApiParam({ name: 'id', description: 'Branch ID (UUID)' })
+  async delete(@Req() req) {
+    return this.service.delete(req.branch);
+  }
 }

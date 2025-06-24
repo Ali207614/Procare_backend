@@ -35,9 +35,7 @@ async function bootstrap() {
   });
 
   const reflector = app.get(Reflector);
-  app.useGlobalInterceptors(
-    new ClassSerializerInterceptor(reflector),
-  );
+  app.useGlobalInterceptors(new ClassSerializerInterceptor(reflector));
 
   app.useGlobalPipes(
     ...[
@@ -60,27 +58,35 @@ async function bootstrap() {
           });
         },
       }),
-    ]
+    ],
   );
 
   app.setGlobalPrefix(globalPrefix);
 
-  app.use(['/admin/queues'], basicAuth({
-    users: { [process.env.QUEUE_USER]: process.env.QUEUE_PASS },
-    challenge: true,
-  }));
+  app.use(
+    ['/admin/queues'],
+    basicAuth({
+      users: { [process.env.QUEUE_USER]: process.env.QUEUE_PASS },
+      challenge: true,
+    }),
+  );
 
-  app.use([`/${globalPrefix}/docs`, '/api-json'], basicAuth({
-    users: { [process.env.SWAGGER_USER]: process.env.SWAGGER_PASS },
-    challenge: true,
-  }));
+  app.use(
+    [`/api/v1/docs`],
+    basicAuth({
+      users: { [process.env.SWAGGER_USER]: process.env.SWAGGER_PASS },
+      challenge: true,
+    }),
+  );
 
   const config = new DocumentBuilder()
     .setTitle('📱 Procare Admin API')
-    .setDescription(`
+    .setDescription(
+      `
     <b>Procare</b> is an online phone repair management platform.<br />
     This <b>Admin API</b> allows you to manage branches, repair orders, users, and related technical operations.
-  `.trim())
+  `.trim(),
+    )
     .setVersion('1.0.0')
     .addBearerAuth(
       {
@@ -99,7 +105,6 @@ async function bootstrap() {
   SwaggerModule.setup('api/v1/docs', app, document);
 
   app.setGlobalPrefix(globalPrefix);
-  SwaggerModule.setup(`${globalPrefix}/docs`, app, document);
 
   const sapQueue = app.get<Queue>(getQueueToken('sap'));
   const serverAdapter = new ExpressAdapter();

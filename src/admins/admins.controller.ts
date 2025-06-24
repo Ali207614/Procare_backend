@@ -1,4 +1,16 @@
-import { Body, Controller, Delete, forwardRef, Get, Inject, Param, Patch, Post, Query, Req, UseGuards, UseInterceptors } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { JwtAdminAuthGuard } from '../common/guards/jwt-admin.guard';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -20,56 +32,54 @@ import { FindAllAdminsDto } from './dto/find-all-admins.dto';
 @ApiTags('Admins')
 @Controller('admins')
 export class AdminsController {
-    constructor(
-        private readonly adminsService: AdminsService) { }
+  constructor(private readonly adminsService: AdminsService) {}
 
-    @UseInterceptors(ClassSerializerInterceptor)
-    @Get('me')
-    getProfile(@CurrentAdmin() admin: AdminPayload) {
-        const adminData = this.adminsService.findById(admin.id);
-        return plainToInstance(AdminProfileDto, adminData);
+  @UseInterceptors(ClassSerializerInterceptor)
+  @Get('me')
+  getProfile(@CurrentAdmin() admin: AdminPayload) {
+    const adminData = this.adminsService.findById(admin.id);
+    return plainToInstance(AdminProfileDto, adminData);
+  }
 
-    }
+  @Post('change-password')
+  changePassword(@CurrentAdmin() admin: AdminPayload, @Body() dto: ChangePasswordDto) {
+    return this.adminsService.changePassword(admin, dto);
+  }
 
-    @Post('change-password')
-    changePassword(@CurrentAdmin() admin: AdminPayload, @Body() dto: ChangePasswordDto) {
-        return this.adminsService.changePassword(admin, dto);
-    }
+  @Post()
+  @UseGuards(PermissionsGuard)
+  @SetPermissions('admin.manage.create')
+  @ApiOperation({ summary: 'Create new admin (without password)' })
+  async create(@CurrentAdmin() admin: AdminPayload, @Body() dto: CreateAdminDto) {
+    return this.adminsService.create(admin.id, dto);
+  }
 
-    @Post()
-    @UseGuards(PermissionsGuard)
-    @SetPermissions('admin.manage.create')
-    @ApiOperation({ summary: 'Create new admin (without password)' })
-    async create(@CurrentAdmin() admin: AdminPayload, @Body() dto: CreateAdminDto) {
-        return this.adminsService.create(admin.id, dto);
-    }
+  @Patch(':id')
+  @UseGuards(PermissionsGuard)
+  @SetPermissions('admin.manage.edit', 'admin.profile.edit.basic', 'admin.profile.edit.sensitive')
+  @ApiParam({ name: 'id', description: 'Admin ID' })
+  @ApiOperation({ summary: 'Update admin data' })
+  async update(@Req() req, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateAdminDto) {
+    return this.adminsService.update(req.admin, id, dto);
+  }
 
-    @Patch(':id')
-    @UseGuards(PermissionsGuard)
-    @SetPermissions('admin.manage.edit', 'admin.profile.edit.basic', 'admin.profile.edit.sensitive')
-    @ApiParam({ name: 'id', description: 'Admin ID' })
-    @ApiOperation({ summary: 'Update admin data' })
-    async update(@Req() req, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateAdminDto) {
-        return this.adminsService.update(req.admin, id, dto);
-    }
+  @Delete(':id')
+  @UseGuards(PermissionsGuard)
+  @SetAllPermissions('admin.manage.delete')
+  @ApiParam({ name: 'id', description: 'Admin ID (UUID)' })
+  @ApiOperation({ summary: 'Delete admin by ID (soft delete)' })
+  async delete(@Req() req, @Param('id', ParseUUIDPipe) id: string) {
+    return this.adminsService.delete(req.admin, id);
+  }
 
-    @Delete(':id')
-    @UseGuards(PermissionsGuard)
-    @SetAllPermissions('admin.manage.delete')
-    @ApiParam({ name: 'id', description: 'Admin ID (UUID)' })
-    @ApiOperation({ summary: 'Delete admin by ID (soft delete)' })
-    async delete(@Req() req, @Param('id', ParseUUIDPipe) id: string) {
-        return this.adminsService.delete(req.admin, id);
-    }
+  @Get()
+  @UseInterceptors(ClassSerializerInterceptor)
+  @UseGuards(PermissionsGuard)
+  @SetAllPermissions('admin.manage.view')
+  @ApiOperation({ summary: 'Get all admins with filters and pagination' })
+  async findAll(@Query() query: FindAllAdminsDto) {
+    const result = await this.adminsService.findAll(query);
 
-    @Get()
-    @UseInterceptors(ClassSerializerInterceptor)
-    @UseGuards(PermissionsGuard)
-    @SetAllPermissions('admin.manage.view')
-    @ApiOperation({ summary: 'Get all admins with filters and pagination' })
-    async findAll(@Query() query: FindAllAdminsDto) {
-        const result = await this.adminsService.findAll(query);
-
-        return result.map((admin) => plainToInstance(AdminProfileDto, admin));
-    }
+    return result.map((admin) => plainToInstance(AdminProfileDto, admin));
+  }
 }

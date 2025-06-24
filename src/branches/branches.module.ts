@@ -5,10 +5,8 @@ import { RedisModule } from 'src/common/redis/redis.module';
 import { PermissionsModule } from 'src/permissions/permissions.module';
 
 @Module({
-    imports: [RedisModule, PermissionsModule],
-    controllers: [
-        BranchesController,],
-    providers: [
-        BranchesService,],
+  imports: [RedisModule, PermissionsModule],
+  controllers: [BranchesController],
+  providers: [BranchesService],
 })
-export class BranchesModule { }
+export class BranchesModule {}

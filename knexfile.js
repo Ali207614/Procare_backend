@@ -7,29 +7,29 @@ const dotenv = require('dotenv');
 const envFile = process.env.ENV_FILE || '.env.local';
 
 if (fs.existsSync(envFile)) {
-    dotenv.config({ path: envFile });
+  dotenv.config({ path: envFile });
 } else {
-    console.warn(`⚠️ ${envFile} topilmadi. Fallback: .env`);
-    dotenv.config();
+  console.warn(`⚠️ ${envFile} topilmadi. Fallback: .env`);
+  dotenv.config();
 }
 
 module.exports = {
-    development: {
-        client: 'pg',
-        connection: {
-            host: process.env.DB_HOST,
-            port: process.env.DB_PORT,
-            user: process.env.DB_USER,
-            password: process.env.DB_PASS,
-            database: process.env.DB_NAME,
-        },
-        migrations: {
-            directory: './migrations',
-        },
-        seeds: {
-            directory: './seeds',
-        },
+  development: {
+    client: 'pg',
+    connection: {
+      host: process.env.DB_HOST,
+      port: process.env.DB_PORT,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASS,
+      database: process.env.DB_NAME,
     },
+    migrations: {
+      directory: './migrations',
+    },
+    seeds: {
+      directory: './seeds',
+    },
+  },
 };
 
 // Hammasini o'chirish
@@ -40,8 +40,6 @@ module.exports = {
 
 // npx knex migrate:latest
 
-
 // flushall - redis full delete
 
 // npx knex seed:run
-
