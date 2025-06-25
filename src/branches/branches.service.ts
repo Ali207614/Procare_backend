@@ -1,13 +1,11 @@
 import {
   Injectable,
-  Inject,
   NotFoundException,
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
 import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
-import { RedisClientType } from 'redis';
 import { RedisService } from 'src/common/redis/redis.service';
 import { getNextSortValue } from 'src/common/utils/sort.util';
 import { CreateBranchDto } from './dto/create-branch.dto';
@@ -116,7 +114,11 @@ export class BranchesService {
     const query = this.knex('branches').where({ status: 'Open' });
 
     if (isSearch) {
-      query.andWhereILike('name', `%${search}%`);
+      query.andWhere((qb) => {
+        qb.whereILike('name_uz', `%${search}%`)
+          .orWhereILike('name_ru', `%${search}%`)
+          .orWhereILike('name_en', `%${search}%`);
+      });
     }
 
     const branches = await query.orderBy('sort', 'asc').offset(offset).limit(limit);

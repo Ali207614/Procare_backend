@@ -66,19 +66,25 @@ export class RolesService {
   }
 
   async findOne(id: string) {
-    const role = await this.knex('roles')
-      .where({
-        id,
-        status: 'Open',
-      })
-      .first();
+    const role = await this.knex('roles').where({ id, status: 'Open' }).first();
+
     if (!role) {
       throw new NotFoundException({
         message: 'Role not found',
         location: 'role_not_found',
       });
     }
-    return role;
+
+    const permissions = await this.knex('role_permissions as rp')
+      .join('permissions as p', 'rp.permission_id', 'p.id')
+      .select('p.id', 'p.name')
+      .where('rp.role_id', id)
+      .andWhere('p.status', 'Open');
+
+    return {
+      ...role,
+      permissions,
+    };
   }
 
   async update(id: string, dto: UpdateRoleDto) {
@@ -111,7 +117,7 @@ export class RolesService {
         }
       }
 
-      if (Array.isArray(dto.permission_ids) && dto.permission_ids.length > 0) {
+      if (Array.isArray(dto.permission_ids)) {
         const foundPermissions = await trx('permissions')
           .whereIn('id', dto.permission_ids)
           .andWhere({ is_active: true, status: 'Open' });
@@ -130,7 +136,9 @@ export class RolesService {
           permission_id,
         }));
 
-        await trx('role_permissions').insert(mappings);
+        if (mappings.length) {
+          await trx('role_permissions').insert(mappings);
+        }
       }
 
       await trx('roles')

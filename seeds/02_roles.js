@@ -5,7 +5,7 @@ exports.seed = async function (knex) {
   // 1️⃣ Super Admin role yaratamiz
   const roles = [
     {
-      id: '00000000-0000-0000-0000-999999999999',
+      id: '00000000-0000-0000-0000-000000000000',
       name: 'Super Admin',
       is_active: true,
       is_protected: true,
@@ -14,7 +14,7 @@ exports.seed = async function (knex) {
       updated_at: knex.fn.now(),
     },
     {
-      id: '00000000-0000-0000-0000-999999999997',
+      id: '00000000-0000-4000-8000-000000000000',
       name: 'Courier',
       is_active: true,
       is_protected: true,

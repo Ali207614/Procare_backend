@@ -30,6 +30,7 @@ import { UpdateBranchSortDto } from './dto/update-branch-sort.dto';
 import { BranchExistGuard } from 'src/common/guards/branch-exist.guard';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
+
 @ApiTags('Branches')
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)

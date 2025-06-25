@@ -9,10 +9,18 @@ export const RateLimitedAdminRoutes = [
   { path: 'repair-order-statuses/:id', method: RequestMethod.PATCH },
 
   { path: 'branches/', method: RequestMethod.POST },
-  { path: 'branches/', method: RequestMethod.GET },
+  { path: 'branches', method: RequestMethod.GET },
   { path: 'branches/:id', method: RequestMethod.GET },
   { path: 'branches/:id', method: RequestMethod.PATCH },
   { path: 'branches/:id', method: RequestMethod.DELETE },
+  { path: 'branches/:id/sort', method: RequestMethod.PATCH },
+  { path: 'branches/viewable', method: RequestMethod.GET },
+
+  { path: 'roles/', method: RequestMethod.POST },
+  { path: 'roles', method: RequestMethod.GET },
+  { path: 'roles/:id', method: RequestMethod.GET },
+  { path: 'roles/:id', method: RequestMethod.PATCH },
+  { path: 'roles/:id', method: RequestMethod.DELETE },
   { path: 'branches/:id/sort', method: RequestMethod.PATCH },
   { path: 'branches/viewable', method: RequestMethod.GET },
 
@@ -27,4 +35,7 @@ export const RateLimitedAdminRoutes = [
   { path: 'features/:key', method: RequestMethod.GET },
 
   { path: 'users/', method: RequestMethod.GET },
+  { path: 'users/', method: RequestMethod.POST },
+  { path: 'users/:id', method: RequestMethod.PATCH },
+  { path: 'users/:id', method: RequestMethod.DELETE },
 ];

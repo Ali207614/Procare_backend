@@ -24,7 +24,7 @@ exports.seed = async function (knex) {
 
   await knex('admins').insert(superAdmin);
 
-  const superAdminRoleId = '00000000-0000-0000-0000-999999999999';
+  const superAdminRoleId = '00000000-0000-0000-0000-000000000000';
 
   await knex('admin_roles').insert({
     admin_id: superAdmin.id,

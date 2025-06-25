@@ -245,7 +245,6 @@ exports.seed = async function (knex) {
       name: 'repair_order_status_permissions.manage',
       description: 'Branch Status Permssions manage',
     },
-
     {
       id: '00000000-0000-0000-0000-000000000053',
       name: 'user.manage.create',
