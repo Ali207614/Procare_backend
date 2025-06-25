@@ -118,6 +118,7 @@ import { SapService } from './sap/sap.service';
   ],
 })
 export class AppModule implements NestModule {
+
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(MaintenanceMiddleware).forRoutes('*');
 

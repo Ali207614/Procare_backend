@@ -29,7 +29,7 @@ export class SapService {
     const loginPayload = {
       UserName: process.env.SAP_USER,
       Password: process.env.SAP_PASSWORD,
-      CompanyDB: process.env.SAP_COMPANY_DB,
+      CompanyDB: process.env.SAP_SCHEMA,
     };
 
     try {
@@ -59,6 +59,7 @@ export class SapService {
     return {
       Cookie: session?.Cookie?.join('') || '',
       SessionId: session?.SessionId || '',
+      'Content-Type': 'application/json',
     };
   }
 
@@ -76,7 +77,10 @@ export class SapService {
   }
 
   async createBusinessPartner(cardName: string, phone: string): Promise<string> {
+    const cardCode = `C${Date.now()}`;
+
     const body = {
+      CardCode: cardCode,
       CardName: cardName,
       Phone1: phone,
       CardType: 'C',
