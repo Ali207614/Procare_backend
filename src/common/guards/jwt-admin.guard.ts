@@ -1,7 +1,6 @@
 import { Injectable, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { RedisService } from 'src/common/redis/redis.service';
-import { Reflector } from '@nestjs/core';
 
 @Injectable()
 export class JwtAdminAuthGuard extends AuthGuard('jwt-admin') {
@@ -10,33 +9,47 @@ export class JwtAdminAuthGuard extends AuthGuard('jwt-admin') {
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const activated = await super.canActivate(context);
-    if (!activated) {
-      return false;
-    }
+    try {
+      const activated = await super.canActivate(context);
+      if (!activated) {
+        return false;
+      }
 
-    const request = context.switchToHttp().getRequest();
-    const admin = request.user;
-    const authHeader = request.headers['authorization'] as string;
-    if (!authHeader?.startsWith('Bearer ')) {
+      const request = context.switchToHttp().getRequest();
+      const admin = request.user;
+      const authHeader = request.headers['authorization'] as string;
+      if (!authHeader?.startsWith('Bearer ')) {
+        throw new UnauthorizedException({
+          message: 'Authorization header missing or invalid',
+          location: 'missing_authorization',
+        });
+      }
+
+      const token = authHeader.split(' ')[1];
+
+      const exists = await this.redisService.get(`session:admin:${admin.id}`);
+
+      if (!exists || exists !== token) {
+        throw new UnauthorizedException({
+          message: 'Session invalid or expired',
+          location: 'invalid_session',
+        });
+      }
+
+      request.admin = admin;
+      return true;
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw new UnauthorizedException({
+          message: 'Authorization header missing or invalid',
+          location: 'missing_authorization',
+        });
+      }
+
       throw new UnauthorizedException({
-        message: 'Authorization header missing or invalid',
-        location: 'missing_authorization',
+        message: 'Authentication failed due to an internal error',
+        location: 'jwt_admin_auth_guard_internal',
       });
     }
-
-    const token = authHeader.split(' ')[1];
-
-    const exists = await this.redisService.get(`session:admin:${admin.id}`);
-
-    if (!exists || exists !== token) {
-      throw new UnauthorizedException({
-        message: 'Session invalid or expired',
-        location: 'invalid_session',
-      });
-    }
-
-    request.admin = admin;
-    return true;
   }
 }

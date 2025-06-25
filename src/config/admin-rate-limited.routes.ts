@@ -25,4 +25,6 @@ export const RateLimitedAdminRoutes = [
   { path: 'features', method: RequestMethod.PATCH },
   { path: 'features', method: RequestMethod.GET },
   { path: 'features/:key', method: RequestMethod.GET },
+
+  { path: 'users/', method: RequestMethod.GET },
 ];

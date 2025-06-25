@@ -1,5 +1,5 @@
 import { Process, Processor } from '@nestjs/bull';
-import { Job } from 'bull'; // faqat shu kerak
+import { Job } from 'bull';
 import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
 import { SapService } from './sap.service';

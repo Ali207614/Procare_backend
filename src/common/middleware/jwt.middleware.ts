@@ -19,6 +19,8 @@ export class JwtMiddleware implements NestMiddleware {
             iat: decoded.iat,
             exp: decoded.exp,
           };
+        } else {
+          req.user = undefined;
         }
       } catch {
         req.user = undefined;

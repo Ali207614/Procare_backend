@@ -359,7 +359,6 @@ export class AdminsService {
         }
         await trx.commit();
       } catch (error) {
-        console.log(error);
         await trx.rollback();
         throw new InternalServerErrorException({
           message: 'Failed to update admin roles or branches',
