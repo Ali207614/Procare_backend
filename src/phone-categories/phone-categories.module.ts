@@ -6,8 +6,8 @@ import { PhoneOsTypesModule } from 'src/phone-os-types/phone-os-types.module';
 import { RedisModule } from 'src/common/redis/redis.module';
 
 @Module({
-    imports: [PermissionsModule, PhoneOsTypesModule, RedisModule],
-    controllers: [PhoneCategoriesController],
-    providers: [PhoneCategoriesService],
+  imports: [PermissionsModule, PhoneOsTypesModule, RedisModule],
+  controllers: [PhoneCategoriesController],
+  providers: [PhoneCategoriesService],
 })
-export class PhoneCategoriesModule { }
+export class PhoneCategoriesModule {}
