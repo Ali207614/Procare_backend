@@ -82,26 +82,41 @@ export class PhoneCategoriesService {
 
   async findOne(id: string) {
     const category = await this.knex('phone_categories as pc')
-      .where('pc.id', id)
+      .where('pc.parent_id', id)
       .andWhere('pc.is_active', true)
       .andWhere('pc.status', 'Open')
       .select(
         'pc.*',
-        this.knex.raw(`(
-        SELECT COALESCE(JSON_AGG(row_to_json(c.*) ORDER BY c.sort), '[]')
-        FROM phone_categories c
+
+        this.knex.raw(`EXISTS (
+        SELECT 1 FROM phone_categories c
         WHERE c.parent_id = pc.id AND c.is_active = true AND c.status = 'Open'
-      ) as children`),
-        this.knex.raw(`(
-        SELECT COALESCE(JSON_AGG(row_to_json(p.*) ORDER BY p.sort), '[]')
-        FROM phone_problem_mappings ppm
+      ) as has_children`),
+
+        this.knex.raw(`EXISTS (
+        SELECT 1 FROM phone_problem_mappings ppm
         JOIN problem_categories p ON p.id = ppm.problem_category_id
         WHERE ppm.phone_category_id = pc.id
-      ) as problems`),
-      )
-      .first();
+      ) as has_problems`),
 
-    if (!category) {
+        this.knex.raw(`(
+        WITH RECURSIVE breadcrumb AS (
+          SELECT id, name_uz, name_ru, name_en, parent_id, sort
+          FROM phone_categories
+          WHERE id = pc.parent_id
+
+          UNION ALL
+
+          SELECT c.id, c.name_uz, c.name_ru, c.name_en, c.parent_id, c.sort
+          FROM phone_categories c
+          JOIN breadcrumb b ON b.parent_id = c.id
+          WHERE c.is_active = true AND c.status = 'Open'
+        )
+        SELECT COALESCE(JSON_AGG(breadcrumb ORDER BY sort), '[]') FROM breadcrumb
+      ) as breadcrumb`),
+      );
+
+    if (!category.length) {
       throw new NotFoundException({
         message: 'Phone category not found or inactive',
         location: 'id',
@@ -119,17 +134,19 @@ export class PhoneCategoriesService {
       .andWhere('pc.status', 'Open')
       .select(
         'pc.*',
-        this.knex.raw(`(
-              SELECT COALESCE(JSON_AGG(row_to_json(c.*) ORDER BY c.sort), '[]')
-              FROM phone_categories c
-              WHERE c.parent_id = pc.id AND c.is_active = true AND c.status = 'Open'
-            ) as children`),
-        this.knex.raw(`(
-              SELECT COALESCE(JSON_AGG(row_to_json(p.*) ORDER BY p.sort), '[]')
-              FROM phone_problem_mappings ppm
-              JOIN problem_categories p ON p.id = ppm.problem_category_id
-              WHERE ppm.phone_category_id = pc.id 
-            ) as problems`),
+
+        this.knex.raw(`EXISTS (
+        SELECT 1 FROM phone_categories c
+        WHERE c.parent_id = pc.id AND c.is_active = true AND c.status = 'Open'
+      ) as has_children`),
+
+        this.knex.raw(`EXISTS (
+        SELECT 1 FROM phone_problem_mappings ppm
+        JOIN problem_categories p ON p.id = ppm.problem_category_id
+        WHERE ppm.phone_category_id = pc.id
+      ) as has_problems`),
+
+        this.knex.raw(`'[]'::jsonb as breadcrumb`),
       );
 
     if (phone_os_type_id) {
