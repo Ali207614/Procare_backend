@@ -1,15 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-  Req,
-  UseGuards,
-  Query,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Delete, Req, UseGuards, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { RepairOrderStatusesService } from './repair-order-statuses.service';
 import { CreateRepairOrderStatusDto } from './dto/create-repair-order-status.dto';
@@ -32,7 +21,7 @@ export class RepairOrderStatusesController {
   @UseGuards(PermissionsGuard)
   @SetPermissions('repair_order_status.create')
   @ApiOperation({ summary: 'Create a new repair order status' })
-  async create(@Req() req, @Body() dto: CreateRepairOrderStatusDto) {
+  async create(@Req() req: any, @Body() dto: CreateRepairOrderStatusDto) {
     return this.service.create(dto, req.admin.id);
   }
 
@@ -40,7 +29,7 @@ export class RepairOrderStatusesController {
   @UseGuards(PermissionsGuard)
   @ApiOperation({ summary: 'Get viewable statuses for current admin' })
   @ApiQuery({ name: 'branch_id', required: true })
-  async getViewable(@Req() req, @Query('branch_id', ParseUUIDPipe) branchId: string) {
+  async getViewable(@Req() req: any, @Query('branch_id', ParseUUIDPipe) branchId: string) {
     return this.service.findViewable(req.admin.id, branchId);
   }
 

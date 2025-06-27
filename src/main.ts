@@ -17,107 +17,108 @@ import { Queue } from 'bull';
 import basicAuth from 'express-basic-auth';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  const logger = new LoggerService();
-  const globalPrefix = 'api/v1';
+  try {
+    const app = await NestFactory.create(AppModule);
+    const logger = new LoggerService();
+    const globalPrefix = 'api/v1';
 
-  app.use(helmet());
+    app.enableCors({
+      origin: '*',
+      credentials: true,
+    });
 
-  app.use(compression({ threshold: 1024 }));
+    app.use(helmet());
+    app.use(compression({ threshold: 1024 }));
 
-  app.enableCors({ origin: '*', credentials: true });
+    app.useGlobalFilters(new HttpExceptionFilter(logger));
 
-  app.useGlobalFilters(new HttpExceptionFilter(logger));
+    const reflector = app.get(Reflector);
+    app.useGlobalInterceptors(new ClassSerializerInterceptor(reflector));
 
-  app.enableCors({
-    origin: '*',
-    credentials: true,
-  });
+    app.useGlobalPipes(
+      ...[
+        new SanitizationPipe(),
+        new ValidationPipe({
+          whitelist: true,
+          forbidNonWhitelisted: true,
+          transform: true,
+          transformOptions: {
+            enableImplicitConversion: true,
+          },
+          exceptionFactory: (errors) => {
+            const { message, location } = extractError(errors);
+            return new BadRequestException({
+              message,
+              error: 'ValidationError',
+              location,
+              timestamp: new Date().toISOString(),
+              statusCode: 400,
+            });
+          },
+        }),
+      ],
+    );
 
-  const reflector = app.get(Reflector);
-  app.useGlobalInterceptors(new ClassSerializerInterceptor(reflector));
+    app.setGlobalPrefix(globalPrefix);
 
-  app.useGlobalPipes(
-    ...[
-      new SanitizationPipe(),
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-        transformOptions: {
-          enableImplicitConversion: true,
-        },
-        exceptionFactory: (errors) => {
-          const { message, location } = extractError(errors);
-          return new BadRequestException({
-            message,
-            error: 'ValidationError',
-            location,
-            timestamp: new Date().toISOString(),
-            statusCode: 400,
-          });
-        },
+    app.use(
+      ['/admin/queues'],
+      basicAuth({
+        users: { [process.env.QUEUE_USER ?? '']: process.env.QUEUE_PASS ?? '' },
+        challenge: true,
       }),
-    ],
-  );
+    );
 
-  app.setGlobalPrefix(globalPrefix);
+    app.use(
+      [`/api/v1/docs`],
+      basicAuth({
+        users: { [process.env.SWAGGER_USER]: process.env.SWAGGER_PASS },
+        challenge: true,
+      }),
+    );
 
-  app.use(
-    ['/admin/queues'],
-    basicAuth({
-      users: { [process.env.QUEUE_USER]: process.env.QUEUE_PASS },
-      challenge: true,
-    }),
-  );
-
-  app.use(
-    [`/api/v1/docs`],
-    basicAuth({
-      users: { [process.env.SWAGGER_USER]: process.env.SWAGGER_PASS },
-      challenge: true,
-    }),
-  );
-
-  const config = new DocumentBuilder()
-    .setTitle('📱 Procare Admin API')
-    .setDescription(
-      `
+    const config = new DocumentBuilder()
+      .setTitle('📱 Procare Admin API')
+      .setDescription(
+        `
     <b>Procare</b> is an online phone repair management platform.<br />
     This <b>Admin API</b> allows you to manage branches, repair orders, users, and related technical operations.
   `.trim(),
-    )
-    .setVersion('1.0.0')
-    .addBearerAuth({
-      type: 'http',
-      scheme: 'bearer',
-      bearerFormat: 'JWT',
-      name: 'Authorization',
-      in: 'header',
-      description: 'Enter your JWT token in the format: <code>Bearer &lt;token&gt;</code>',
-    })
-    .build();
+      )
+      .setVersion('1.0.0')
+      .addBearerAuth({
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'Authorization',
+        in: 'header',
+        description: 'Enter your JWT token in the format: <code>Bearer &lt;token&gt;</code>',
+      })
+      .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/v1/docs', app, document);
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/v1/docs', app, document);
 
-  app.setGlobalPrefix(globalPrefix);
+    app.setGlobalPrefix(globalPrefix);
 
-  const sapQueue = app.get<Queue>(getQueueToken('sap'));
-  const serverAdapter = new ExpressAdapter();
-  serverAdapter.setBasePath('/admin/queues');
+    const sapQueue = app.get<Queue>(getQueueToken('sap'));
+    const serverAdapter = new ExpressAdapter();
+    serverAdapter.setBasePath('/admin/queues');
 
-  createBullBoard({
-    queues: [new BullAdapter(sapQueue)],
-    serverAdapter,
-  });
+    createBullBoard({
+      queues: [new BullAdapter(sapQueue)],
+      serverAdapter,
+    });
 
-  app.use('/admin/queues', serverAdapter.getRouter());
+    app.use('/admin/queues', serverAdapter.getRouter());
 
-  await app.listen(process.env.PORT);
-  logger.log(`http://localhost:${process.env.PORT}/${globalPrefix}`);
-  logger.log(`Swagger: http://localhost:${process.env.PORT}/${globalPrefix}/docs`);
-  logger.log(`Queues: http://localhost:${process.env.PORT}/admin/queues`);
+    await app.listen(process.env.PORT);
+    logger.log(`http://localhost:${process.env.PORT}/${globalPrefix}`);
+    logger.log(`Swagger: http://localhost:${process.env.PORT}/${globalPrefix}/docs`);
+    logger.log(`Queues: http://localhost:${process.env.PORT}/admin/queues`);
+  } catch (error) {
+    process.exit(1);
+  }
 }
 
 bootstrap();

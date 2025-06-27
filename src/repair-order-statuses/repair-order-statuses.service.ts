@@ -23,7 +23,7 @@ export class RepairOrderStatusesService {
 
   async create(dto: CreateRepairOrderStatusDto, adminId: string) {
     let branchId = dto.branch_id;
-    let branch;
+    let branch = null;
 
     if (branchId) {
       const redisKey = `branches:by_id:${branchId}`;

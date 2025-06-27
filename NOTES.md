@@ -15,7 +15,6 @@ ilovasiga sms borishi kerak
 
 # Move bo'lganda socket ishlashi kerak
 
-
 Repair Orderga oddiy inc bo'ladigan ID qo'shish kerak 
 
 keyin Repair_order_intitila v final Problemlarni Teleofnlar
