@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,14 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiParam,
-  ApiQuery,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ProblemCategoriesService } from './problem-categories.service';
 import { CreateProblemCategoryDto } from './dto/create-problem-category.dto';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
@@ -27,6 +21,7 @@ import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { UpdateProblemCategorySortDto } from './dto/update-problem-category-sort.dto';
 import { UpdateProblemCategoryDto } from './dto/update-problem-category.dto';
+import { ParseOptionalUUIDPipe } from 'src/common/pipe/parse-optional-uuid.pipe';
 
 @ApiTags('Problem Categories')
 @ApiBearerAuth()
@@ -46,20 +41,27 @@ export class ProblemCategoriesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get root-level problems by phone_category_id' })
-  @ApiQuery({ name: 'phone_category_id', required: true, description: 'Phone category ID (UUID)' })
-  @ApiResponse({ status: 200, description: 'List of root-level problems' })
-  findAll(@Query('phone_category_id', new ParseUUIDPipe()) phoneCategoryId: string) {
-    return this.service.findAll(phoneCategoryId);
-  }
+  @ApiOperation({ summary: 'Get root-level or child problems with breadcrumb' })
+  @ApiQuery({ name: 'phone_category_id', required: true })
+  @ApiQuery({ name: 'parent_id', required: false })
+  @ApiResponse({ status: 200, description: 'Problem list' })
+  @ApiResponse({ status: 400, description: 'Invalid query' })
+  async find(
+    @Query('phone_category_id', ParseUUIDPipe) phoneCategoryId?: string,
+    @Query('parent_id', ParseOptionalUUIDPipe) parentId?: string,
+  ) {
+    if (parentId) {
+      return this.service.findChildrenWithBreadcrumb(parentId);
+    }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get problem by ID with breadcrumb and children' })
-  @ApiParam({ name: 'id', description: 'Problem category ID (UUID)' })
-  @ApiResponse({ status: 200, description: 'Problem with breadcrumb and children' })
-  @ApiResponse({ status: 404, description: 'Problem not found' })
-  findOne(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.service.findOne(id);
+    if (phoneCategoryId) {
+      return this.service.findRootProblems(phoneCategoryId);
+    }
+
+    throw new BadRequestException({
+      message: 'Either phone_category_id or parent_id is required',
+      location: 'query',
+    });
   }
 
   @Patch(':id')

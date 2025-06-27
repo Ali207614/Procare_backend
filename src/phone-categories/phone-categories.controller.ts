@@ -9,7 +9,14 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { PhoneCategoriesService } from './phone-categories.service';
 import { CreatePhoneCategoryDto } from './dto/create-phone-category.dto';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
@@ -40,20 +47,14 @@ export class PhoneCategoriesController {
   }
 
   @Get()
-  @UseGuards(PermissionsGuard)
-  @SetPermissions('phone-category.view')
-  @ApiOperation({ summary: 'List phone categories by OS and optionally by parent_id' })
+  @ApiQuery({ name: 'phone_os_type_id', required: false })
+  @ApiQuery({ name: 'parent_id', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'offset', required: false })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiOperation({ summary: 'Get phone categories (root or children)' })
   async findAll(@Query() query: FindAllPhoneCategoriesDto) {
-    return this.service.findAll(query);
-  }
-
-  @Get(':id')
-  @UseGuards(PermissionsGuard)
-  @SetPermissions('phone-category.view')
-  @ApiOperation({ summary: 'Get one phone categories by id' })
-  @ApiParam({ name: 'id', description: 'phone-category ID' })
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.findOne(id);
+    return this.service.findWithParentOrRoot(query);
   }
 
   @Patch(':id/sort')

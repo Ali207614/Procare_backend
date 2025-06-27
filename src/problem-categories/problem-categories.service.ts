@@ -64,7 +64,7 @@ export class ProblemCategoriesService {
 
     if (!parent_id && phone_category_id) {
       const isParent = await this.knex('phone_categories')
-        .where({ parent_id: phone_category_id, is_active: true, status: 'Open' })
+        .where({ parent_id: phone_category_id, status: 'Open' })
         .first();
 
       if (isParent) {
@@ -134,51 +134,10 @@ export class ProblemCategoriesService {
     return problem;
   }
 
-  async findOne(id: string) {
-    const category = await this.knex('problem_categories as p')
-      .select(
-        'p.*',
-        this.knex.raw(`EXISTS (
-        SELECT 1 FROM problem_categories c
-        WHERE c.parent_id = p.id AND c.status = 'Open' AND c.is_active = true
-      ) as has_children`),
-        this.knex.raw(`(
-        WITH RECURSIVE breadcrumb AS (
-          SELECT id, name_uz, name_ru, name_en, parent_id, sort
-          FROM problem_categories
-          WHERE id = p.parent_id
+  // problem-categories.service.ts
 
-          UNION ALL
-
-          SELECT c.id, c.name_uz, c.name_ru, c.name_en, c.parent_id, c.sort
-          FROM problem_categories c
-          JOIN breadcrumb b ON b.parent_id = c.id
-          WHERE c.status = 'Open' AND c.is_active = true
-        )
-        SELECT COALESCE(JSON_AGG(breadcrumb ORDER BY sort), '[]') FROM breadcrumb
-      ) as breadcrumb`),
-      )
-      .where({ 'p.parent_id': id, 'p.status': 'Open', 'p.is_active': true });
-
-    if (!category?.length) {
-      throw new NotFoundException({
-        message: 'Problem category not found',
-        location: 'id',
-      });
-    }
-
-    return category;
-  }
-
-  async findAll(phone_category_id: string) {
-    if (!phone_category_id) {
-      throw new BadRequestException({
-        message: 'phone_category_id is required',
-        location: 'phone_category_id',
-      });
-    }
-
-    const problems: any[] = await this.knex('problem_categories as p')
+  async findRootProblems(phone_category_id: string) {
+    const problems = await this.knex('problem_categories as p')
       .select(
         'p.*',
         this.knex.raw(`EXISTS (
@@ -195,6 +154,46 @@ export class ProblemCategoriesService {
         'p.is_active': true,
       })
       .orderBy('p.sort', 'asc');
+
+    return problems;
+  }
+
+  async findChildrenWithBreadcrumb(parent_id: string) {
+    const problems = await this.knex('problem_categories as p')
+      .select(
+        'p.*',
+        this.knex.raw(`EXISTS (
+        SELECT 1 FROM problem_categories c
+        WHERE c.parent_id = p.id AND c.status = 'Open' AND c.is_active = true
+      ) as has_children`),
+        this.knex.raw(
+          `(
+        WITH RECURSIVE breadcrumb AS (
+          SELECT id, name_uz, name_ru, name_en, parent_id, sort
+          FROM problem_categories
+          WHERE id = ?
+
+          UNION ALL
+
+          SELECT c.id, c.name_uz, c.name_ru, c.name_en, c.parent_id, c.sort
+          FROM problem_categories c
+          JOIN breadcrumb b ON b.parent_id = c.id
+          WHERE c.status = 'Open' AND c.is_active = true
+        )
+        SELECT COALESCE(JSON_AGG(breadcrumb ORDER BY sort), '[]') FROM breadcrumb
+      ) as breadcrumb`,
+          [parent_id],
+        ),
+      )
+      .where({ 'p.parent_id': parent_id, 'p.status': 'Open', 'p.is_active': true })
+      .orderBy('p.sort', 'asc');
+
+    if (!problems.length) {
+      throw new NotFoundException({
+        message: 'Problem category not found or has no children',
+        location: 'parent_id',
+      });
+    }
 
     return problems;
   }

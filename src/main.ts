@@ -5,7 +5,6 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ValidationPipe, ClassSerializerInterceptor, BadRequestException } from '@nestjs/common';
 import { SanitizationPipe } from './common/pipe/sanitization.pipe';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
-import { LoggerService } from './common/logger/logger.service';
 import { extractError } from './common/utils/validation.util';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -15,6 +14,7 @@ import { ExpressAdapter } from '@bull-board/express';
 import { getQueueToken } from '@nestjs/bull';
 import { Queue } from 'bull';
 import basicAuth from 'express-basic-auth';
+import { LoggerService } from 'src/common/logger/logger.service';
 
 async function bootstrap() {
   try {

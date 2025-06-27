@@ -37,7 +37,6 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { KnexModule } from 'nestjs-knex';
 import knexConfig from './config/knex.config';
 import { RedisModule } from './common/redis/redis.module';
-import { LoggerModule } from './common/logger/logger.module';
 import { AuthModule } from './auth/auth.module';
 import { LoggingMiddleware } from './common/middleware/logging.middleware';
 import { RateLimitedAdminRoutes } from './config/admin-rate-limited.routes';
@@ -55,6 +54,7 @@ import { PermissionsService } from './permissions/permissions.service';
 import { PermissionsController } from './permissions/permissions.controller';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SapService } from './sap/sap.service';
+import { LoggerModule } from 'src/common/logger/logger.module';
 
 @Module({
   imports: [

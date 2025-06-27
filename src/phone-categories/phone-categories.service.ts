@@ -1,6 +1,6 @@
 import { InjectKnex } from 'nestjs-knex';
 import { Knex } from 'knex';
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreatePhoneCategoryDto } from './dto/create-phone-category.dto';
 import { getNextSortValue } from 'src/common/utils/sort.util';
 import { UpdatePhoneCategoryDto } from './dto/update-phone-category.dto';
@@ -80,30 +80,83 @@ export class PhoneCategoriesService {
     return category;
   }
 
-  async findOne(id: string) {
-    const category = await this.knex('phone_categories as pc')
-      .where('pc.parent_id', id)
+  async findWithParentOrRoot(query: FindAllPhoneCategoriesDto) {
+    const { parent_id, ...rest } = query;
+
+    if (parent_id) {
+      return this.findChildrenWithBreadcrumb(parent_id, rest);
+    }
+
+    return this.findRootCategories(rest);
+  }
+
+  async findRootCategories(query: Omit<FindAllPhoneCategoriesDto, 'parent_id'>) {
+    const { phone_os_type_id, limit, offset, search } = query;
+
+    const q = this.knex('phone_categories as pc')
+      .whereNull('pc.parent_id')
       .andWhere('pc.is_active', true)
       .andWhere('pc.status', 'Open')
       .select(
         'pc.*',
-
         this.knex.raw(`EXISTS (
         SELECT 1 FROM phone_categories c
         WHERE c.parent_id = pc.id AND c.is_active = true AND c.status = 'Open'
       ) as has_children`),
-
         this.knex.raw(`EXISTS (
         SELECT 1 FROM phone_problem_mappings ppm
         JOIN problem_categories p ON p.id = ppm.problem_category_id
         WHERE ppm.phone_category_id = pc.id
       ) as has_problems`),
+        this.knex.raw(`'[]'::jsonb as breadcrumb`),
+      );
 
-        this.knex.raw(`(
+    if (phone_os_type_id) {
+      q.andWhere('pc.phone_os_type_id', phone_os_type_id);
+    }
+
+    if (search) {
+      q.andWhere((builder) =>
+        builder
+          .whereILike('pc.name_uz', `%${search}%`)
+          .orWhereILike('pc.name_ru', `%${search}%`)
+          .orWhereILike('pc.name_en', `%${search}%`),
+      );
+    }
+
+    return q
+      .orderBy('pc.sort', 'asc')
+      .offset(offset || 0)
+      .limit(limit || 20);
+  }
+
+  async findChildrenWithBreadcrumb(
+    parent_id: string,
+    query: Omit<FindAllPhoneCategoriesDto, 'parent_id'>,
+  ) {
+    const { phone_os_type_id, limit, offset, search } = query;
+
+    const q = this.knex('phone_categories as pc')
+      .where('pc.parent_id', parent_id)
+      .andWhere('pc.is_active', true)
+      .andWhere('pc.status', 'Open')
+      .select(
+        'pc.*',
+        this.knex.raw(`EXISTS (
+        SELECT 1 FROM phone_categories c
+        WHERE c.parent_id = pc.id AND c.is_active = true AND c.status = 'Open'
+      ) as has_children`),
+        this.knex.raw(`EXISTS (
+        SELECT 1 FROM phone_problem_mappings ppm
+        JOIN problem_categories p ON p.id = ppm.problem_category_id
+        WHERE ppm.phone_category_id = pc.id
+      ) as has_problems`),
+        this.knex.raw(
+          `(
         WITH RECURSIVE breadcrumb AS (
           SELECT id, name_uz, name_ru, name_en, parent_id, sort
           FROM phone_categories
-          WHERE id = pc.parent_id
+          WHERE id = ?
 
           UNION ALL
 
@@ -113,51 +166,13 @@ export class PhoneCategoriesService {
           WHERE c.is_active = true AND c.status = 'Open'
         )
         SELECT COALESCE(JSON_AGG(breadcrumb ORDER BY sort), '[]') FROM breadcrumb
-      ) as breadcrumb`),
-      );
-
-    if (!category.length) {
-      throw new NotFoundException({
-        message: 'Phone category not found or inactive',
-        location: 'id',
-      });
-    }
-
-    return category;
-  }
-
-
-  async findAll(query: FindAllPhoneCategoriesDto) {
-    const { phone_os_type_id, parent_id, limit, offset, search } = query;
-
-    const q = this.knex('phone_categories as pc')
-      .where('pc.is_active', true)
-      .andWhere('pc.status', 'Open')
-      .select(
-        'pc.*',
-
-        this.knex.raw(`EXISTS (
-        SELECT 1 FROM phone_categories c
-        WHERE c.parent_id = pc.id AND c.is_active = true AND c.status = 'Open'
-      ) as has_children`),
-
-        this.knex.raw(`EXISTS (
-        SELECT 1 FROM phone_problem_mappings ppm
-        JOIN problem_categories p ON p.id = ppm.problem_category_id
-        WHERE ppm.phone_category_id = pc.id
-      ) as has_problems`),
-
-        this.knex.raw(`'[]'::jsonb as breadcrumb`),
+      ) as breadcrumb`,
+          [parent_id],
+        ),
       );
 
     if (phone_os_type_id) {
       q.andWhere('pc.phone_os_type_id', phone_os_type_id);
-    }
-
-    if (parent_id) {
-      q.andWhere('pc.parent_id', parent_id);
-    } else {
-      q.whereNull('pc.parent_id');
     }
 
     if (search) {
