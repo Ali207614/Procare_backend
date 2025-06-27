@@ -9,7 +9,14 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { ProblemCategoriesService } from './problem-categories.service';
 import { CreateProblemCategoryDto } from './dto/create-problem-category.dto';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
@@ -17,9 +24,9 @@ import { PermissionsGuard } from 'src/common/guards/permission.guard';
 import { SetPermissions } from 'src/common/decorators/permission-decorator';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
-import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { UpdateProblemCategorySortDto } from './dto/update-problem-category-sort.dto';
+import { UpdateProblemCategoryDto } from './dto/update-problem-category.dto';
 
 @ApiTags('Problem Categories')
 @ApiBearerAuth()
@@ -39,23 +46,26 @@ export class ProblemCategoriesController {
   }
 
   @Get()
-  @UseGuards(PermissionsGuard)
-  @SetPermissions('problem-category.view')
-  @ApiOperation({ summary: 'List all problem categories' })
-  async findAll(
-    @Query('parent_id', ParseUUIDPipe) parent_id?: string,
-    @Query() query?: PaginationQueryDto,
-  ) {
-    return this.service.findAll(parent_id, query);
+  @ApiOperation({ summary: 'Get root-level problems by phone_category_id' })
+  @ApiQuery({ name: 'phone_category_id', required: true, description: 'Phone category ID (UUID)' })
+  @ApiResponse({ status: 200, description: 'List of root-level problems' })
+  findAll(@Query('phone_category_id', new ParseUUIDPipe()) phoneCategoryId: string) {
+    return this.service.findAll(phoneCategoryId);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get problem by ID with breadcrumb and children' })
+  @ApiParam({ name: 'id', description: 'Problem category ID (UUID)' })
+  @ApiResponse({ status: 200, description: 'Problem with breadcrumb and children' })
+  @ApiResponse({ status: 404, description: 'Problem not found' })
+  findOne(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.service.findOne(id);
   }
 
   @Patch(':id')
   @UseGuards(PermissionsGuard)
   @SetPermissions('problem-category.update')
-  async update(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: Partial<CreateProblemCategoryDto>,
-  ) {
+  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateProblemCategoryDto) {
     return this.service.update(id, dto);
   }
 

@@ -20,9 +20,6 @@ import { RepairOrderStatusesService } from './repair-order-statuses/repair-order
 import { RepairOrderStatusesController } from './repair-order-statuses/repair-order-statuses.controller';
 import { PhoneOsTypesModule } from './phone-os-types/phone-os-types.module';
 import { PhoneOsTypesService } from './phone-os-types/phone-os-types.service';
-import { PhoneProblemMappingsModule } from './phone-problem-mappings/phone-problem-mappings.module';
-import { PhoneProblemMappingsService } from './phone-problem-mappings/phone-problem-mappings.service';
-import { PhoneProblemMappingsController } from './phone-problem-mappings/phone-problem-mappings.controller';
 import { ProblemCategoriesModule } from './problem-categories/problem-categories.module';
 import { ProblemCategoriesService } from './problem-categories/problem-categories.service';
 import { ProblemCategoriesController } from './problem-categories/problem-categories.controller';
@@ -72,7 +69,6 @@ import { SapService } from './sap/sap.service';
     RepairOrderStatusTransitionsModule,
     RepairOrderStatusesModule,
     PhoneOsTypesModule,
-    PhoneProblemMappingsModule,
     ProblemCategoriesModule,
     PhoneCategoriesModule,
     PermissionsModule,
@@ -90,7 +86,6 @@ import { SapService } from './sap/sap.service';
     RentalPhoneDevicesController,
     UsersController,
     RepairOrderStatusPermissionsController,
-    PhoneProblemMappingsController,
     ProblemCategoriesController,
     PhoneCategoriesController,
     RolesController,
@@ -108,7 +103,6 @@ import { SapService } from './sap/sap.service';
     RepairOrderStatusTransitionsService,
     RepairOrderStatusesService,
     PhoneOsTypesService,
-    PhoneProblemMappingsService,
     ProblemCategoriesService,
     PhoneCategoriesService,
     RolesService,
@@ -118,7 +112,6 @@ import { SapService } from './sap/sap.service';
   ],
 })
 export class AppModule implements NestModule {
-
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(MaintenanceMiddleware).forRoutes('*');
 

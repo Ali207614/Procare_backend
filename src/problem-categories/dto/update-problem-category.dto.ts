@@ -1,8 +1,7 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsOptional,
   IsString,
-  IsNotEmpty,
   MinLength,
   MaxLength,
   IsNumber,
@@ -13,57 +12,59 @@ import {
   IsEnum,
 } from 'class-validator';
 
-export class CreateProblemCategoryDto {
-  @ApiProperty({ example: 'Oyna', description: 'Problem name in Uzbek' })
+export class UpdateProblemCategoryDto {
+  @ApiPropertyOptional({ example: 'Yangi oyna', description: 'Problem name in Uzbek' })
+  @IsOptional()
   @IsString({ context: { location: 'name_uz' } })
-  @IsNotEmpty({ context: { location: 'name_uz' } })
   @MinLength(1, { context: { location: 'name_uz' } })
   @MaxLength(100, { context: { location: 'name_uz' } })
-  name_uz: string;
+  name_uz?: string;
 
-  @ApiProperty({ example: 'Стекло', description: 'Problem name in Russian' })
+  @ApiPropertyOptional({ example: 'Новое стекло', description: 'Problem name in Russian' })
+  @IsOptional()
   @IsString({ context: { location: 'name_ru' } })
-  @IsNotEmpty({ context: { location: 'name_ru' } })
   @MinLength(1, { context: { location: 'name_ru' } })
   @MaxLength(100, { context: { location: 'name_ru' } })
-  name_ru: string;
+  name_ru?: string;
 
-  @ApiProperty({ example: 'Glass', description: 'Problem name in English' })
+  @ApiPropertyOptional({ example: 'New Glass', description: 'Problem name in English' })
+  @IsOptional()
   @IsString({ context: { location: 'name_en' } })
-  @IsNotEmpty({ context: { location: 'name_en' } })
   @MinLength(1, { context: { location: 'name_en' } })
   @MaxLength(100, { context: { location: 'name_en' } })
-  name_en: string;
+  name_en?: string;
 
   @ApiPropertyOptional({
-    example: '41b7e2a5-1234-4cde-9876-aabbccddeeff',
-    description: 'Parent problem category ID. Required if this is a subproblem',
+    example: 'b1c9f670-1234-4def-9876-1122aabbccdd',
+    description: 'Parent problem category ID',
   })
   @IsOptional()
   @IsUUID('4', { context: { location: 'parent_id' } })
   parent_id?: string;
 
-  @ApiProperty({
-    example: 110000,
-    description: 'Estimated price for this problem fix in UZS',
+  @ApiPropertyOptional({
+    example: 120000,
+    description: 'Updated price for the problem fix',
   })
   @IsOptional()
   @IsNumber({}, { context: { location: 'price' } })
+  @Min(0, { context: { location: 'price' } })
   @Max(1e16, { context: { location: 'price' } })
-  price: number;
+  price?: number;
 
-  @ApiProperty({
-    example: 30,
-    description: 'Estimated repair time in minutes',
+  @ApiPropertyOptional({
+    example: 40,
+    description: 'Updated estimated time in minutes',
   })
   @IsOptional()
   @IsNumber({}, { context: { location: 'estimated_minutes' } })
-  @Max(1440, { context: { location: 'estimated_minutes' } }) // 1 kun max
-  estimated_minutes: number;
+  @Min(1, { context: { location: 'estimated_minutes' } })
+  @Max(1440, { context: { location: 'estimated_minutes' } }) // 1 day max
+  estimated_minutes?: number;
 
   @ApiPropertyOptional({
     example: true,
-    description: 'Whether the category is active or not. Defaults to true.',
+    description: 'Whether this category is active or not',
   })
   @IsOptional()
   @IsBoolean({ context: { location: 'is_active' } })
@@ -72,15 +73,15 @@ export class CreateProblemCategoryDto {
   @ApiPropertyOptional({
     example: 'Open',
     enum: ['Open', 'Deleted'],
-    description: 'Status of the problem category',
+    description: 'Current status of the problem category',
   })
   @IsOptional()
   @IsEnum(['Open', 'Deleted'], { context: { location: 'status' } })
   status?: 'Open' | 'Deleted';
 
   @ApiPropertyOptional({
-    example: 'd2f4a941-7c2f-4b7e-85b3-57f679514bbb',
-    description: 'Phone category ID (only required when creating a root-level problem)',
+    example: 'c2d3e4f5-6789-4abc-bcde-1234567890aa',
+    description: 'Phone category ID (only used for root-level problems)',
   })
   @IsOptional()
   @IsUUID('4', { context: { location: 'phone_category_id' } })

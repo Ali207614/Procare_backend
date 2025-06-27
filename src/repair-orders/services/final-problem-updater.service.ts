@@ -9,7 +9,7 @@ export class FinalProblemUpdaterService {
     private readonly changeLogger: RepairOrderChangeLoggerService,
   ) {}
 
-  async update(trx, orderId, problems, adminId, statusId, phoneCategoryId: string) {
+  async update(trx, orderId, problems, adminId, statusId) {
     if (!problems?.length) return;
 
     await this.permissionService.validatePermissionOrThrow(
@@ -19,15 +19,44 @@ export class FinalProblemUpdaterService {
       'final_problems',
     );
 
+    const order = await trx('repair_orders')
+      .select('phone_category_id')
+      .where({ id: orderId })
+      .first();
+
+    if (!order) {
+      throw new BadRequestException({
+        message: 'Repair order not found',
+        location: 'order_id',
+      });
+    }
+
+    const phoneCategoryId = order.phone_category_id;
     const problemIds = problems.map((p) => p.problem_category_id);
+
+    const rootRows = await trx
+      .withRecursive('problem_path', (qb) => {
+        qb.select('id', 'parent_id')
+          .from('problem_categories')
+          .whereIn('id', problemIds)
+          .unionAll(function () {
+            this.select('p.id', 'p.parent_id')
+              .from('problem_categories as p')
+              .join('problem_path as pp', 'pp.parent_id', 'p.id');
+          });
+      })
+      .select('id')
+      .from('problem_path')
+      .whereNull('parent_id');
+
+    const rootProblemIds = rootRows.map((r) => r.id);
 
     const allowed = await trx('phone_problem_mappings')
       .where({ phone_category_id: phoneCategoryId })
-      .whereIn('problem_category_id', problemIds)
+      .whereIn('problem_category_id', rootProblemIds)
       .pluck('problem_category_id');
 
-    const invalid = problemIds.filter((id) => !allowed.includes(id));
-
+    const invalid = rootProblemIds.filter((id) => !allowed.includes(id));
     if (invalid.length) {
       throw new BadRequestException({
         message: 'Some final problems are not allowed for this phone category',

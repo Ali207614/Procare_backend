@@ -47,8 +47,6 @@ export class RepairOrdersService {
         });
       }
 
-
-
       const phone = await this.knex('phone_categories')
         .where({ id: dto.phone_category_id, is_active: true, status: 'Open' })
         .first();
@@ -175,16 +173,8 @@ export class RepairOrdersService {
         dto.initial_problems,
         adminId,
         statusId,
-        dto.phone_category_id,
       );
-      await this.finalProblemUpdater.update(
-        trx,
-        orderId,
-        dto.final_problems,
-        adminId,
-        statusId,
-        dto.phone_category_id,
-      );
+      await this.finalProblemUpdater.update(trx, orderId, dto.final_problems, adminId, statusId);
 
       await trx.commit();
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
@@ -480,18 +470,15 @@ export class RepairOrdersService {
           .update({ sort: this.knex.raw('sort - 1') });
       }
 
-      // Update current order
       await trx('repair_orders').where({ id: orderId }).update({
         sort: newSort,
         updated_at: new Date(),
       });
 
-      // Log
       await this.changeLogger.logIfChanged(trx, orderId, 'sort', currentSort, newSort, adminId);
 
       await trx.commit();
 
-      // Clear redis cache
       await this.redisService.flushByPrefix(`${this.table}:${branchId}`);
 
       return { message: 'Repair order sort updated successfully' };

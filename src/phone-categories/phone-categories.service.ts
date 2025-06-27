@@ -126,6 +126,7 @@ export class PhoneCategoriesService {
     return category;
   }
 
+
   async findAll(query: FindAllPhoneCategoriesDto) {
     const { phone_os_type_id, parent_id, limit, offset, search } = query;
 

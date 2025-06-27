@@ -14,3 +14,12 @@ ilovasiga sms borishi kerak
 # Rasmlarni qilish kerak
 
 # Move bo'lganda socket ishlashi kerak
+
+
+Repair Orderga oddiy inc bo'ladigan ID qo'shish kerak 
+
+keyin Repair_order_intitila v final Problemlarni Teleofnlar
+agar ne active bo'lsa ham qolaverishi kerak ozgarmasligi kerak
+
+Repair_order Produc_id o'zgarsa final va initlialar ham o'zgarishi kerak 
+
