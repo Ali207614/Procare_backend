@@ -26,6 +26,10 @@ exports.up = async function (knex) {
 
     table.timestamp('created_at').defaultTo(knex.fn.now());
     table.timestamp('updated_at').defaultTo(knex.fn.now());
+
+    table.unique(['name_uz', 'branch_id']);
+    table.unique(['name_ru', 'branch_id']);
+    table.unique(['name_en', 'branch_id']);
   });
 };
 exports.down = async function (knex) {

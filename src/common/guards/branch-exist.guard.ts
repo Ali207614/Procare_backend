@@ -1,9 +1,9 @@
 import {
+  BadRequestException,
   CanActivate,
   ExecutionContext,
   Injectable,
   NotFoundException,
-  BadRequestException,
 } from '@nestjs/common';
 import { InjectKnex } from 'nestjs-knex';
 import { Knex } from 'knex';
@@ -21,20 +21,28 @@ export class BranchExistGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    let branchId = request?.body?.branch_id || request?.query?.branch_id || request.params.id;
+    let branchId =
+      request?.body?.branch_id ||
+      request?.query?.branch_id ||
+      request.params?.branch_id ||
+      request.params?.id;
 
     try {
       const parser = new ParseUUIDPipe();
       branchId = parser.transform(branchId);
     } catch (err) {
-      throw err;
+      throw new BadRequestException({
+        message: 'Invalid branch ID format. Must be a valid UUID.',
+        location: 'branch_id_format',
+      });
     }
 
     const redisKey = `${this.redisKeyPrefix}${branchId}`;
     let branch = await this.redisService.get(redisKey);
-
     if (!branch) {
-      branch = await this.knex('branches').where({ id: branchId, status: 'Open' }).first();
+      branch = await this.knex('branches')
+        .where({ id: branchId, is_active: true, status: 'Open' })
+        .first();
 
       if (!branch) {
         throw new NotFoundException({

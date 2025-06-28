@@ -7,6 +7,7 @@ import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { PermissionsGuard } from 'src/common/guards/permission.guard';
 import { SetPermissions } from 'src/common/decorators/permission-decorator';
 import { BranchExistGuard } from 'src/common/guards/branch-exist.guard';
+import { RepairOrderStatusExistGuard } from 'src/common/guards/repair-order-status-exist.guard';
 
 @ApiTags('Repair Order Status Permissions')
 @ApiBearerAuth()
@@ -30,24 +31,26 @@ export class RepairOrderStatusPermissionsController {
     return this.service.findByStatusId(id);
   }
 
-  @Get('by-admin/:adminId/status/:statusId')
+  @Get('by-admin/:admin_id/status/:status_id')
+  @UseGuards(RepairOrderStatusExistGuard)
   @ApiOperation({ summary: 'Get permission for a specific admin and status (from Redis)' })
-  @ApiParam({ name: 'adminId', description: 'Admin ID' })
-  @ApiParam({ name: 'statusId', description: 'Status ID' })
+  @ApiParam({ name: 'admin_id', description: 'Admin ID' })
+  @ApiParam({ name: 'status_id', description: 'Status ID' })
   async getByAdminStatus(
-    @Param('adminId', ParseUUIDPipe) adminId: string,
-    @Param('statusId', ParseUUIDPipe) statusId: string,
+    @Param('admin_id', ParseUUIDPipe) adminId: string,
+    @Param('status_id', ParseUUIDPipe) statusId: string,
   ) {
     return this.service.findByAdminStatus(adminId, statusId);
   }
 
-  @Get('by-admin/:adminId/branch/:branchId')
+  @Get('by-admin/:admin_id/branch/:branch_id')
+  @UseGuards(BranchExistGuard)
   @ApiOperation({ summary: 'Get permission for a specific admin and status (from Redis)' })
-  @ApiParam({ name: 'adminId', description: 'Admin ID' })
-  @ApiParam({ name: 'branchId', description: 'Branch ID' })
+  @ApiParam({ name: 'admin_id', description: 'Admin ID' })
+  @ApiParam({ name: 'branch_id', description: 'Branch ID' })
   async getByAdminBranch(
-    @Param('adminId', ParseUUIDPipe) adminId: string,
-    @Param('branchId', ParseUUIDPipe) branchId: string,
+    @Param('admin_id', ParseUUIDPipe) adminId: string,
+    @Param('branch_id', ParseUUIDPipe) branchId: string,
   ) {
     return this.service.findByAdminBranch(adminId, branchId);
   }

@@ -199,7 +199,14 @@ export class BranchesService {
     }
   }
 
-  async update(branch: any, dto: UpdateBranchDto) {
+  async update(branchId: any, dto: UpdateBranchDto) {
+    const branch = await this.knex('branches').where({ id: branchId, status: 'Open' }).first();
+    if (!branch)
+      throw new NotFoundException({
+        message: 'Branch not found',
+        location: 'branch_not_found',
+      });
+
     if (dto?.is_active === false && branch?.is_protected) {
       throw new ForbiddenException({
         message: 'This branch is system-protected and cannot be deleted or deactivated.',
@@ -237,10 +244,7 @@ export class BranchesService {
     await this.redisService.set(`${this.redisKeyById}:${branch.id}`, updated, 3600);
     await this.redisService.flushByPrefix(`${this.redisKey}`);
 
-    return {
-      message: 'Branch updated successfully',
-      data: updated,
-    };
+    return updated;
   }
 
   async delete(branch: any) {

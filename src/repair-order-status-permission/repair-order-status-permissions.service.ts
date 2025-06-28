@@ -69,13 +69,13 @@ export class RepairOrderStatusPermissionsService {
     const key = `${this.redisKeyByAdminStatus}:${adminId}:${statusId}`;
     const cached = await this.redisService.get(key);
 
-    if (cached !== null) return cached;
+    if (cached !== null) return cached ?? [];
 
     const permission = await this.knex('repair_order_status_permissions')
       .where({ admin_id: adminId, status_id: statusId })
       .first();
 
-    await this.redisService.set(key, permission, 3600);
+    await this.redisService.set(key, permission ?? [], 3600);
     return permission;
   }
 
@@ -83,14 +83,17 @@ export class RepairOrderStatusPermissionsService {
     const key = `${this.redisKeyByAdminBranch}:${adminId}:${branchId}`;
     const cached = await this.redisService.get(key);
 
-    if (cached !== null) return cached;
+    if (cached !== null) return cached ?? [];
 
     const permissions = await this.knex('repair_order_status_permissions').where({
       admin_id: adminId,
       branch_id: branchId,
     });
 
-    await this.redisService.set(key, permissions, 3600);
+    if (!permissions.length) {
+      await this.redisService.set(key, [], 3600);
+      return [];
+    }
     return permissions;
   }
 

@@ -9,6 +9,7 @@ import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { UpdateRepairOrderStatusDto } from './dto/update-repair-order-status.dto';
 import { UpdateRepairOrderStatusSortDto } from './dto/update-repair-order-status-sort.dto';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
+import { BranchExistGuard } from 'src/common/guards/branch-exist.guard';
 
 @ApiTags('Repair Order Statuses')
 @ApiBearerAuth()
@@ -26,7 +27,7 @@ export class RepairOrderStatusesController {
   }
 
   @Get('viewable')
-  @UseGuards(PermissionsGuard)
+  @UseGuards(PermissionsGuard, BranchExistGuard)
   @ApiOperation({ summary: 'Get viewable statuses for current admin' })
   @ApiQuery({ name: 'branch_id', required: true })
   async getViewable(@Req() req: any, @Query('branch_id', ParseUUIDPipe) branchId: string) {
@@ -34,7 +35,7 @@ export class RepairOrderStatusesController {
   }
 
   @Get('all')
-  @UseGuards(PermissionsGuard)
+  @UseGuards(PermissionsGuard, BranchExistGuard)
   @SetPermissions('repair_order_status.view')
   @ApiOperation({ summary: 'Get all statuses for admin panel' })
   @ApiQuery({ name: 'branch_id', required: true })

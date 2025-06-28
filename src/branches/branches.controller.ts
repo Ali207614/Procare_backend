@@ -92,14 +92,14 @@ export class BranchesController {
   }
 
   @Patch(':id')
-  @UseGuards(PermissionsGuard, BranchExistGuard)
+  @UseGuards(PermissionsGuard)
   @SetPermissions('branch.update')
   @ApiOperation({ summary: 'Update branch by ID' })
   @ApiParam({ name: 'id', description: 'Branch ID (UUID)' })
   @ApiResponse({ status: 200, description: 'Branch updated successfully' })
   @ApiResponse({ status: 404, description: 'Branch not found' })
-  async update(@Req() req, @Body() dto: UpdateBranchDto) {
-    return this.service.update(req.branch, dto);
+  async update(@Param('id', ParseUUIDPipe) branchId: string, @Body() dto: UpdateBranchDto) {
+    return this.service.update(branchId, dto);
   }
 
   @Delete(':id')

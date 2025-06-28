@@ -126,6 +126,12 @@ export class RepairOrdersService {
       }
 
       if (dto.user_id) {
+        await this.permissionService.validatePermissionOrThrow(
+          adminId,
+          statusId,
+          'can_user_manage',
+          'repair_order_permission',
+        );
         const user = await this.knex('users').where({ id: dto.user_id, status: 'Open' }).first();
         if (!user) {
           throw new BadRequestException({

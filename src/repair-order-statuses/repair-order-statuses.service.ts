@@ -2,7 +2,6 @@ import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/com
 import { InjectKnex } from 'nestjs-knex';
 import { Knex } from 'knex';
 import { getNextSortValue } from 'src/common/utils/sort.util';
-import { defaultRepairOrderStatusPermissions } from 'src/common/utils/repair-status-permissions.util';
 import { CreateRepairOrderStatusDto } from './dto/create-repair-order-status.dto';
 import { UpdateRepairOrderStatusDto } from './dto/update-repair-order-status.dto';
 import { RedisService } from 'src/common/redis/redis.service';
@@ -78,21 +77,6 @@ export class RepairOrderStatusesService {
         created_by: adminId,
       })
       .returning('*');
-
-    const admins = await this.knex('admin_branches')
-      .select('admin_id')
-      .where({ branch_id: branchId });
-
-    const rows = admins.map(({ admin_id }) => ({
-      branch_id: branchId,
-      status_id: created.id,
-      admin_id,
-      ...defaultRepairOrderStatusPermissions,
-    }));
-
-    if (rows.length) {
-      await this.knex('repair_order_status_permissions').insert(rows);
-    }
 
     await this.redisService.flushByPrefix(`${this.redisKeyView}${branchId}:`);
     await this.redisService.flushByPrefix(`${this.redisKeyAll}${branchId}`);
@@ -239,10 +223,7 @@ export class RepairOrderStatusesService {
     await this.redisService.flushByPrefix(`${this.redisKeyView}${status.branch_id}:`);
     await this.redisService.flushByPrefix(`${this.redisKeyAll}${status.branch_id}`);
 
-    return {
-      message: 'Status updated successfully',
-      data: updated,
-    };
+    return updated;
   }
 
   async delete(status: any) {
