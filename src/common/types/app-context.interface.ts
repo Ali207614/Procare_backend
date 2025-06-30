@@ -1,6 +1,6 @@
 export interface AppContext {
-    userId: string;
-    role: string;
-    branchId?: string;
-    locale?: string;
+  userId: string;
+  role: string;
+  branch_id?: string;
+  locale?: string;
 }

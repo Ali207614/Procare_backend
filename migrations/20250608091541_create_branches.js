@@ -11,6 +11,7 @@ exports.up = async function (knex) {
     table.string('address_en');
 
     table.boolean('is_protected').defaultTo(false);
+    table.boolean('can_user_view').defaultTo(true);
 
     table.decimal('lat', 10, 7);
     table.decimal('long', 10, 7);

@@ -4,7 +4,6 @@ import {
   IsString,
   IsNotEmpty,
   IsBoolean,
-  IsEnum,
   IsNumber,
   MinLength,
   MaxLength,
@@ -58,15 +57,15 @@ export class CreateBranchDto {
   @ApiProperty({ example: 41.2995, description: 'Latitude coordinate of the branch' })
   @IsOptional()
   @IsNumber()
-  @Min(-90)
-  @Max(90)
+  @Min(-9000000)
+  @Max(90000000)
   lat?: number;
 
   @ApiProperty({ example: 69.2401, description: 'Longitude coordinate of the branch' })
   @IsOptional()
   @IsNumber()
-  @Min(-180)
-  @Max(180)
+  @Min(-1800000000)
+  @Max(18000000000)
   long?: number;
 
   @ApiProperty({ example: '+998901234567', description: 'Support phone number' })
@@ -108,4 +107,9 @@ export class CreateBranchDto {
   @IsOptional()
   @IsBoolean()
   is_active?: boolean;
+
+  @ApiProperty({ example: true, description: 'Can user view' })
+  @IsOptional()
+  @IsBoolean()
+  can_user_view?: boolean;
 }

@@ -50,8 +50,8 @@ export class RepairOrdersController {
   @UseGuards(BranchExistGuard)
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
-  @ApiQuery({ name: 'sortBy', enum: ['sort', 'priority', 'created_at'], required: false })
-  @ApiQuery({ name: 'sortOrder', enum: ['asc', 'desc'], required: false })
+  @ApiQuery({ name: 'sort_by', enum: ['sort', 'priority', 'created_at'], required: false })
+  @ApiQuery({ name: 'sort_order', enum: ['asc', 'desc'], required: false })
   @ApiOperation({ summary: 'Get all repair orders by branchId (can_view only)' })
   @ApiQuery({ name: 'branch_id', description: 'Branch ID', required: true })
   findAllByBranch(@Req() req, @Query() query: PaginationQuery) {

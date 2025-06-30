@@ -217,7 +217,7 @@ export class RepairOrdersService {
   }
 
   async findAllByAdminBranch(adminId: string, branchId: string, query: PaginationQuery) {
-    const { page = 1, limit = 20, sortBy = 'sort', sortOrder = 'asc' } = query;
+    const { page = 1, limit = 20, sort_by = 'sort', sort_order = 'asc' } = query;
     const offset = (page - 1) * limit;
 
     const permissions = await this.permissionService.findByAdminBranch(adminId, branchId);
@@ -226,7 +226,7 @@ export class RepairOrdersService {
 
     const allCacheKeys = statusIds.map(
       (statusId) =>
-        `${this.table}:${branchId}:${adminId}:${statusId}:${sortBy}:${sortOrder}:${page}:${limit}`,
+        `${this.table}:${branchId}:${adminId}:${statusId}:${sort_by}:${sort_order}:${page}:${limit}`,
     );
 
     const cachedResults = await this.redisService.mget(...allCacheKeys);
@@ -263,13 +263,13 @@ export class RepairOrdersService {
         .whereIn('ro.status_id', missingStatusIds)
         .andWhere('ro.status', '!=', 'Deleted')
         .orderBy('ro.status_id')
-        .orderBy(`ro.${sortBy}`, sortOrder);
+        .orderBy(`ro.${sort_by}`, sort_order);
 
       for (const statusId of missingStatusIds) {
         const filtered = freshOrders.filter((o) => o.status_id === statusId);
         const paginated = filtered.slice(offset, offset + limit);
 
-        const cacheKey = `${this.table}:${branchId}:${adminId}:${statusId}:${sortBy}:${sortOrder}:${page}:${limit}`;
+        const cacheKey = `${this.table}:${branchId}:${adminId}:${statusId}:${sort_by}:${sort_order}:${page}:${limit}`;
         await this.redisService.set(cacheKey, paginated, 300);
 
         result[statusId] = paginated;
@@ -285,7 +285,7 @@ export class RepairOrdersService {
     try {
       const order = await trx(this.table).where({ id: orderId, status: 'Open' }).first();
 
-      if (!order || order.status === 'Deleted') {
+      if (!order) {
         throw new NotFoundException({
           message: 'Repair order not found or already deleted',
           location: 'repair_order_id',

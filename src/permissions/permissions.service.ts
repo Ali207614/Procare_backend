@@ -56,10 +56,10 @@ export class PermissionsService {
     search?: string;
     limit?: number;
     offset?: number;
-    sortBy?: string;
-    sortOrder?: 'asc' | 'desc';
+    sort_by?: string;
+    sort_order?: 'asc' | 'desc';
   }) {
-    const { search, limit = 20, offset = 0, sortBy = 'created_at', sortOrder = 'desc' } = query;
+    const { search, limit = 20, offset = 0, sort_by = 'created_at', sort_order = 'desc' } = query;
 
     const qb = this.knex('permissions').where('is_active', true).andWhere('status', 'Open');
 
@@ -70,7 +70,7 @@ export class PermissionsService {
     }
 
     return qb
-      .orderBy(sortBy, sortOrder)
+      .orderBy(sort_by, sort_order)
       .limit(limit)
       .offset(offset)
       .select('id', 'name', 'description', 'created_at');

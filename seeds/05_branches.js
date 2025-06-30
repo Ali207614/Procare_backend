@@ -27,6 +27,7 @@ exports.seed = async function (knex) {
     status: 'Open',
     is_active: true,
     is_protected: true,
+    can_user_view: false,
     sort: 1,
 
     created_by: superAdminId,

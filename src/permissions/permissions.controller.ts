@@ -14,21 +14,21 @@ export class PermissionsController {
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'offset', required: false, type: Number })
-  @ApiQuery({ name: 'sortBy', required: false, enum: ['name', 'description', 'created_at'] })
-  @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'] })
+  @ApiQuery({ name: 'sort_by', required: false, enum: ['name', 'description', 'created_at'] })
+  @ApiQuery({ name: 'sort_order', required: false, enum: ['asc', 'desc'] })
   async findAll(
     @Query('search') search?: string,
     @Query('limit') limit = 20,
     @Query('offset') offset = 0,
-    @Query('sortBy') sortBy = 'name',
-    @Query('sortOrder') sortOrder: 'asc' | 'desc' = 'desc',
+    @Query('sort_by') sort_by = 'name',
+    @Query('sort_order') sort_order: 'asc' | 'desc' = 'desc',
   ) {
     return this.permissionsService.findAll({
       search,
       limit,
       offset,
-      sortBy,
-      sortOrder,
+      sort_by,
+      sort_order,
     });
   }
 }

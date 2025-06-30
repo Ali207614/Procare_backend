@@ -7,7 +7,7 @@ export class RentalPhoneDevicesService {
   constructor(@InjectKnex() private readonly knex: Knex) {}
 
   async findAll(dto: FindRentalPhoneDevicesDto) {
-    const { page = 1, limit = 20, search, sortBy = 'created_at', sortOrder = 'desc' } = dto;
+    const { page = 1, limit = 20, search, sort_by = 'created_at', sort_order = 'desc' } = dto;
 
     const offset = (page - 1) * limit;
 
@@ -22,7 +22,7 @@ export class RentalPhoneDevicesService {
     const data = await baseQuery
       .clone()
       .select('id', 'code', 'name', 'is_free', 'price', 'currency', 'is_available', 'created_at')
-      .orderBy(sortBy, sortOrder)
+      .orderBy(sort_by, sort_order)
       .limit(limit)
       .offset(offset);
 
