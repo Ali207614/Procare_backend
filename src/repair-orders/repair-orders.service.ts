@@ -39,7 +39,10 @@ export class RepairOrdersService {
         'repair_order_permission',
       );
 
-      const user = await this.knex('users').where({ id: dto.user_id, status: 'Open' }).first();
+      const user = await this.knex('users')
+        .where({ id: dto.user_id })
+        .whereNot({ status: 'Deleted' })
+        .first();
       if (!user) {
         throw new BadRequestException({
           message: 'User not found or inactive',
@@ -47,12 +50,27 @@ export class RepairOrdersService {
         });
       }
 
-      const phone = await this.knex('phone_categories')
-        .where({ id: dto.phone_category_id, is_active: true, status: 'Open' })
+      const result = await this.knex('phone_categories as pc')
+        .select(
+          'pc.*',
+          this.knex.raw(`EXISTS (
+      SELECT 1 FROM phone_categories c
+      WHERE c.parent_id = pc.id AND c.status = 'Open'
+    ) as has_children`),
+        )
+        .where({ 'pc.id': dto.phone_category_id, 'pc.is_active': true, 'pc.status': 'Open' })
         .first();
-      if (!phone) {
+
+      if (!result) {
         throw new BadRequestException({
           message: 'Phone category not found or inactive',
+          location: 'phone_category_id',
+        });
+      }
+
+      if (result?.has_children) {
+        throw new BadRequestException({
+          message: 'You must select the last phone category (no more children)',
           location: 'phone_category_id',
         });
       }
@@ -88,7 +106,7 @@ export class RepairOrdersService {
       await trx.commit();
       await this.redisService.flushByPrefix(`${this.table}:${branchId}`);
 
-      return { message: 'Repair order created successfully', data: order };
+      return order;
     } catch (err) {
       await trx.rollback();
       throw err;
@@ -118,7 +136,7 @@ export class RepairOrdersService {
       const logFields = [];
       const updatedFields: Partial<typeof order> = {};
 
-      for (const field of ['user_id', 'status_id', 'priority', 'phone_category_id', 'branch_id']) {
+      for (const field of ['user_id', 'status_id', 'priority', 'phone_category_id']) {
         if (dto[field] !== undefined && dto[field] !== order[field]) {
           updatedFields[field] = dto[field];
           logFields.push({ key: field, oldVal: order[field], newVal: dto[field] });
@@ -132,7 +150,10 @@ export class RepairOrdersService {
           'can_user_manage',
           'repair_order_permission',
         );
-        const user = await this.knex('users').where({ id: dto.user_id, status: 'Open' }).first();
+        const user = await this.knex('users')
+          .where({ id: dto.user_id })
+          .whereNot({ status: 'Deleted' })
+          .first();
         if (!user) {
           throw new BadRequestException({
             message: 'User not found or inactive',
@@ -142,25 +163,28 @@ export class RepairOrdersService {
       }
 
       if (dto.phone_category_id) {
-        const phone = await this.knex('phone_categories')
-          .where({ id: dto.phone_category_id, is_active: true, status: 'Open' })
+        const result = await this.knex('phone_categories as pc')
+          .select(
+            'pc.*',
+            this.knex.raw(`EXISTS (
+      SELECT 1 FROM phone_categories c
+      WHERE c.parent_id = pc.id AND c.status = 'Open'
+    ) as has_children`),
+          )
+          .where({ 'pc.id': dto.phone_category_id, 'pc.is_active': true, 'pc.status': 'Open' })
           .first();
-        if (!phone) {
+
+        if (!result) {
           throw new BadRequestException({
             message: 'Phone category not found or inactive',
             location: 'phone_category_id',
           });
         }
-      }
 
-      if (dto.branch_id) {
-        const branch = await this.knex('branches')
-          .where({ id: dto.branch_id, is_active: true, status: 'Open' })
-          .first();
-        if (!branch) {
+        if (result?.has_children) {
           throw new BadRequestException({
-            message: 'Branch not found or inactive',
-            location: 'branch_id',
+            message: 'You must select the last phone category (no more children)',
+            location: 'phone_category_id',
           });
         }
       }

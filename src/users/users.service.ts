@@ -64,10 +64,7 @@ export class UsersService {
       },
     );
 
-    return {
-      message: 'User created successfully',
-      data: user,
-    };
+    return user;
   }
 
   async findAll(query: FindAllUsersDto) {

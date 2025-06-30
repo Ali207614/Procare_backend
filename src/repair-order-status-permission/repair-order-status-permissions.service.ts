@@ -70,7 +70,6 @@ export class RepairOrderStatusPermissionsService {
     const cached = await this.redisService.get(key);
 
     if (cached !== null) return cached ?? [];
-
     const permission = await this.knex('repair_order_status_permissions')
       .where({ admin_id: adminId, status_id: statusId })
       .first();
@@ -114,6 +113,15 @@ export class RepairOrderStatusPermissionsService {
       this.redisService.set(keyByStatus, statusPermission, 3600),
       this.redisService.set(keyByBranch, branchPermissions, 3600),
     ]);
+  }
+
+  async flushPermissionCacheOnly(permission: any) {
+    const { admin_id, status_id, branch_id } = permission;
+
+    const keyByStatus = `${this.redisKeyByAdminStatus}:${admin_id}:${status_id}`;
+    const keyByBranch = `${this.redisKeyByAdminBranch}:${admin_id}:${branch_id}`;
+
+    await Promise.all([this.redisService.del(keyByStatus), this.redisService.del(keyByBranch)]);
   }
 
   async validatePermissionOrThrow(

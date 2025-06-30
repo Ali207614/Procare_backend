@@ -10,12 +10,14 @@ import { RedisService } from 'src/common/redis/redis.service';
 import { getNextSortValue } from 'src/common/utils/sort.util';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
+import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 
 @Injectable()
 export class BranchesService {
   constructor(
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,
+    private readonly repairOrderStatusPermissionsService: RepairOrderStatusPermissionsService,
   ) {}
 
   private readonly redisKey = 'branches:all';
@@ -262,6 +264,18 @@ export class BranchesService {
       status: 'Deleted',
       updated_at: new Date(),
     });
+
+    const permissions = await this.knex('repair_order_status_permissions').where({
+      branch_id: branchId,
+    });
+
+    if (permissions.length > 0) {
+      await this.knex('repair_order_status_permissions').where({ branch_id: branchId }).del();
+
+      for (const permission of permissions) {
+        await this.repairOrderStatusPermissionsService.flushPermissionCacheOnly(permission);
+      }
+    }
 
     await this.redisService.del(`${this.redisKeyById}:${branchId}`);
     await this.redisService.flushByPrefix(`${this.redisKey}`);

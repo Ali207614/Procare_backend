@@ -32,10 +32,10 @@ export class RepairOrdersController {
   constructor(private readonly service: RepairOrdersService) {}
 
   @Post()
-  @UseGuards(BranchExistGuard, RepairOrderStatusExistGuard)
+  @UseGuards(RepairOrderStatusExistGuard)
   @ApiOperation({ summary: 'Create repair order' })
   create(@Req() req, @Body() dto: CreateRepairOrderDto) {
-    return this.service.create(req.admin.id, req.branch.id, req.status.id, dto);
+    return this.service.create(req.admin.id, req.status.branch_id, req.status.id, dto);
   }
 
   @Patch(':id')

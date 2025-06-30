@@ -120,10 +120,6 @@ export class CreateRepairOrderDto {
   phone_category_id: string;
 
   @ApiProperty()
-  @IsUUID('all', { context: { location: 'branch_id' } })
-  branch_id: string;
-
-  @ApiProperty()
   @IsUUID('all', { context: { location: 'status_id' } })
   status_id: string;
 
@@ -133,6 +129,7 @@ export class CreateRepairOrderDto {
   priority?: 'Low' | 'Medium' | 'High' | 'Highest';
 
   @ApiProperty({ type: [String] })
+  @IsOptional()
   @IsArray({ context: { location: 'admin_ids' } })
   @ArrayNotEmpty({ context: { location: 'admin_ids' } })
   @ArrayUnique({ context: { location: 'admin_ids' } })

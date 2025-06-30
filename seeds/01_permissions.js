@@ -260,8 +260,6 @@ exports.seed = async function (knex) {
       name: 'user.manage.delete',
       description: 'User update',
     },
-
-
   ];
 
   for (const perm of permissions) {

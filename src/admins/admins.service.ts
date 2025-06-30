@@ -19,6 +19,7 @@ import { extractDefinedFields } from 'src/common/utils/extract-defined-fields.ut
 import { FindAllAdminsDto } from './dto/find-all-admins.dto';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
 import { ParseUUIDPipe } from '../common/pipe/parse-uuid.pipe';
+import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 
 @Injectable()
 export class AdminsService {
@@ -26,6 +27,7 @@ export class AdminsService {
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,
     private readonly permissionsService: PermissionsService,
+    private readonly repairOrderStatusPermissions: RepairOrderStatusPermissionsService,
   ) {}
 
   private readonly table = 'admins';
@@ -411,6 +413,18 @@ export class AdminsService {
       status: 'Deleted',
       updated_at: new Date(),
     });
+
+    const permissions = await this.knex('repair_order_status_permissions').where({
+      admin_id: targetAdminId,
+    });
+
+    if (permissions.length > 0) {
+      await this.knex('repair_order_status_permissions').where({ admin_id: targetAdminId }).del();
+
+      for (const permission of permissions) {
+        await this.repairOrderStatusPermissions.flushPermissionCacheOnly(permission);
+      }
+    }
 
     await this.permissionsService.clearPermissionCache(targetAdminId);
 

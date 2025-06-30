@@ -5,6 +5,7 @@ import type { Knex } from 'knex';
 import { NotificationService } from 'src/notification/notification.service';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { CreateRepairOrderDto } from '../dto/create-repair-order.dto';
+import { validateAndInsertProblems } from 'src/common/utils/problem.util';
 
 @Injectable()
 export class RepairOrderCreateHelperService {
@@ -156,44 +157,18 @@ export class RepairOrderCreateHelperService {
     statusId: string,
     orderId: string,
   ) {
-    if (!dto.initial_problems?.length) return;
-
-    await this.permissionService.validatePermissionOrThrow(
+    await validateAndInsertProblems(
+      trx,
+      dto.initial_problems,
+      dto.phone_category_id,
       adminId,
       statusId,
+      orderId,
       'can_change_initial_problems',
       'initial_problems',
+      'repair_order_initial_problems',
+      this.permissionService.validatePermissionOrThrow.bind(this.permissionService),
     );
-
-    const phoneCategoryId = dto.phone_category_id;
-    const problemIds = dto.initial_problems.map((p) => p.problem_category_id);
-
-    const mappings = await trx('phone_problem_mappings')
-      .where({ phone_category_id: phoneCategoryId })
-      .whereIn('problem_category_id', problemIds)
-      .pluck('problem_category_id');
-
-    const invalidProblems = problemIds.filter((id) => !mappings.includes(id));
-
-    if (invalidProblems.length) {
-      throw new BadRequestException({
-        message: 'Some problems are not allowed for this phone category',
-        location: 'initial_problems',
-        invalid_problem_ids: invalidProblems,
-      });
-    }
-
-    const rows = dto.initial_problems.map((p) => ({
-      repair_order_id: orderId,
-      problem_category_id: p.problem_category_id,
-      price: p.price,
-      estimated_minutes: p.estimated_minutes,
-      created_by: adminId,
-      created_at: new Date(),
-      updated_at: new Date(),
-    }));
-
-    await trx('repair_order_initial_problems').insert(rows);
   }
 
   async insertFinalProblems(
@@ -203,44 +178,18 @@ export class RepairOrderCreateHelperService {
     statusId: string,
     orderId: string,
   ) {
-    if (!dto.final_problems?.length) return;
-
-    await this.permissionService.validatePermissionOrThrow(
+    await validateAndInsertProblems(
+      trx,
+      dto.final_problems,
+      dto.phone_category_id,
       adminId,
       statusId,
+      orderId,
       'can_change_final_problems',
       'final_problems',
+      'repair_order_final_problems',
+      this.permissionService.validatePermissionOrThrow.bind(this.permissionService),
     );
-
-    const phoneCategoryId = dto.phone_category_id;
-    const problemIds = dto.final_problems.map((p) => p.problem_category_id);
-
-    const mappings = await trx('phone_problem_mappings')
-      .where({ phone_category_id: phoneCategoryId })
-      .whereIn('problem_category_id', problemIds)
-      .pluck('problem_category_id');
-
-    const invalidProblems = problemIds.filter((id) => !mappings.includes(id));
-
-    if (invalidProblems.length) {
-      throw new BadRequestException({
-        message: 'Some final problems are not allowed for this phone category',
-        location: 'final_problems',
-        invalid_problem_ids: invalidProblems,
-      });
-    }
-
-    const rows = dto.final_problems.map((p) => ({
-      repair_order_id: orderId,
-      problem_category_id: p.problem_category_id,
-      price: p.price,
-      estimated_minutes: p.estimated_minutes,
-      created_by: adminId,
-      created_at: new Date(),
-      updated_at: new Date(),
-    }));
-
-    await trx('repair_order_final_problems').insert(rows);
   }
 
   async insertComments(

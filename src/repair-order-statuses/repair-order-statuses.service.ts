@@ -14,6 +14,10 @@ export class RepairOrderStatusesService {
   private readonly redisKeyAll = 'repair_order_statuses:all:';
   private readonly redisKeyById = 'repair_order_statuses:id';
 
+  private readonly redisKeyByAdminStatus = 'repair_order_status_permissions:by_admin_status';
+  private readonly redisKeyByAdminBranch = 'repair_order_status_permissions:by_admin_branch';
+
+
   constructor(
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,
@@ -190,7 +194,7 @@ export class RepairOrderStatusesService {
       const redisKey = `branches:by_id:${branchId}`;
       branch = await this.redisService.get(redisKey);
 
-      if (!branch) {
+      if (branch !== null) {
         branch = await this.knex('branches').where({ id: branchId, status: 'Open' }).first();
 
         if (!branch) {
@@ -233,9 +237,22 @@ export class RepairOrderStatusesService {
         location: 'status_protected',
       });
     }
+
     await this.knex('repair_order_statuses')
       .where({ id: status.id })
       .update({ status: 'Deleted', updated_at: new Date() });
+
+    const permissions = await this.knex('repair_order_status_permissions').where({
+      status_id: status.id,
+    });
+
+    if (permissions.length > 0) {
+      await this.knex('repair_order_status_permissions').where({ status_id: status.id }).del();
+
+      for (const permission of permissions) {
+        await this.repairOrderStatusPermissions.flushPermissionCacheOnly(permission);
+      }
+    }
 
     await this.redisService.del(`${this.redisKeyById}:${status.id}`);
     await this.redisService.flushByPrefix(`${this.redisKeyView}${status.branch_id}:`);
