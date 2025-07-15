@@ -13,7 +13,7 @@ export class LoginDto {
   @IsPhoneNumber('UZ', {
     context: { location: 'invalid_phone' },
   })
-  phone_number: string;
+  phone_number!: string;
 
   @ApiProperty({ example: '111', description: 'Password' })
   @IsString({
@@ -25,5 +25,5 @@ export class LoginDto {
   @MaxLength(20, {
     context: { location: 'invalid_password_length_max' },
   })
-  password: string;
+  password!: string;
 }

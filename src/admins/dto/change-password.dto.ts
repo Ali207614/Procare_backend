@@ -12,7 +12,7 @@ export class ChangePasswordDto {
   @MaxLength(20, {
     context: { location: 'invalid_password_length_max' },
   })
-  current_password: string;
+  current_password!: string;
 
   @ApiProperty({ example: '111', description: 'Password' })
   @IsString({
@@ -24,5 +24,5 @@ export class ChangePasswordDto {
   @MaxLength(20, {
     context: { location: 'invalid_password_length_max' },
   })
-  new_password: string;
+  new_password!: string;
 }

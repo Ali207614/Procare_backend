@@ -11,6 +11,7 @@ import { getNextSortValue } from 'src/common/utils/sort.util';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
+import { Branch } from 'src/common/types/branch.interface';
 
 @Injectable()
 export class BranchesService {
@@ -27,9 +28,9 @@ export class BranchesService {
     return `admin:${adminId}:branches`;
   }
 
-  async create(dto: CreateBranchDto, adminId: string) {
+  async create(dto: CreateBranchDto, adminId: string): Promise<Branch> {
     return await this.knex.transaction(async (trx) => {
-      const existing = await trx('branches')
+      const existing: Branch | undefined = await trx('branches')
         .whereRaw('LOWER(name_uz) = LOWER(?)', [dto.name_uz])
         .orWhereRaw('LOWER(name_ru) = LOWER(?)', [dto.name_ru])
         .orWhereRaw('LOWER(name_en) = LOWER(?)', [dto.name_en])
@@ -45,13 +46,15 @@ export class BranchesService {
 
       const nextSort = await getNextSortValue(this.knex, 'branches');
 
-      const [branch] = await trx('branches')
-        .insert({
-          ...dto,
-          sort: nextSort,
-          created_by: adminId,
-        })
-        .returning('*');
+      const insertData = {
+        ...dto,
+        sort: nextSort,
+        created_by: adminId,
+      };
+
+      const inserted: Branch[] = await trx('branches').insert(insertData).returning('*');
+
+      const branch = inserted[0];
 
       const now = new Date();
 
@@ -104,26 +107,27 @@ export class BranchesService {
     });
   }
 
-  async findAll(offset = 0, limit = 10, search?: string) {
+  async findAll(offset = 0, limit = 10, search?: string): Promise<Branch[]> {
     const isSearch = Boolean(search);
     const redisKey = isSearch ? null : `${this.redisKey}:${offset}:${limit}`;
 
     if (redisKey) {
-      const cached = await this.redisService.get(redisKey);
-      if (cached) return cached;
+      const cached: Branch[] | null = await this.redisService.get(redisKey);
+      if (cached !== null) return cached;
     }
 
     const query = this.knex('branches').where({ status: 'Open' });
 
-    if (isSearch) {
-      query.andWhere((qb) => {
-        qb.whereILike('name_uz', `%${search}%`)
+    if (isSearch && search?.trim()) {
+      void query.andWhere((qb: Knex.QueryBuilder) => {
+        void qb
+          .whereILike('name_uz', `%${search}%`)
           .orWhereILike('name_ru', `%${search}%`)
           .orWhereILike('name_en', `%${search}%`);
       });
     }
 
-    const branches = await query.orderBy('sort', 'asc').offset(offset).limit(limit);
+    const branches: Branch[] = await query.orderBy('sort', 'asc').offset(offset).limit(limit);
 
     if (redisKey) {
       await this.redisService.set(redisKey, branches, 3600);
@@ -132,15 +136,15 @@ export class BranchesService {
     return branches;
   }
 
-  async findByAdminId(adminId: string): Promise<any[]> {
+  async findByAdminId(adminId: string): Promise<Branch[]> {
     const redisKey = this.getAdminBranchesKey(adminId);
 
-    const cached = await this.redisService.get(redisKey);
+    const cached: [] | null = await this.redisService.get(redisKey);
     if (cached) {
       return cached;
     }
 
-    const branches = await this.knex('branches as b')
+    const branches: Branch[] = await this.knex('branches as b')
       .join('admin_branches as ab', 'ab.branch_id', 'b.id')
       .where('ab.admin_id', adminId)
       .andWhere('b.status', 'Open')
@@ -153,8 +157,10 @@ export class BranchesService {
     return branches;
   }
 
-  async findOne(id: string) {
-    const branch = await this.knex('branches').where({ id, status: 'Open' }).first();
+  async findOne(id: string): Promise<Branch> {
+    const branch: Branch | undefined = await this.knex('branches')
+      .where({ id, status: 'Open' })
+      .first();
     if (!branch)
       throw new NotFoundException({
         message: 'Branch not found',
@@ -163,7 +169,7 @@ export class BranchesService {
     return branch;
   }
 
-  async updateSort(branch: any, newSort: number) {
+  async updateSort(branch: Branch, newSort: number): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
 
     try {
@@ -201,14 +207,7 @@ export class BranchesService {
     }
   }
 
-  async update(branchId: any, dto: UpdateBranchDto) {
-    const branch = await this.knex('branches').where({ id: branchId, status: 'Open' }).first();
-    if (!branch)
-      throw new NotFoundException({
-        message: 'Branch not found',
-        location: 'branch_not_found',
-      });
-
+  async update(branch: Branch, dto: UpdateBranchDto): Promise<{ message: string }> {
     if (dto?.is_active === false && branch?.is_protected) {
       throw new ForbiddenException({
         message: 'This branch is system-protected and cannot be deleted or deactivated.',
@@ -220,9 +219,9 @@ export class BranchesService {
       const conflict = await this.knex('branches')
         .whereNot('id', branch.id)
         .andWhere((qb) => {
-          if (dto.name_uz) qb.orWhereRaw('LOWER(name_uz) = LOWER(?)', [dto.name_uz]);
-          if (dto.name_ru) qb.orWhereRaw('LOWER(name_ru) = LOWER(?)', [dto.name_ru]);
-          if (dto.name_en) qb.orWhereRaw('LOWER(name_en) = LOWER(?)', [dto.name_en]);
+          if (dto.name_uz) void qb.orWhereRaw('LOWER(name_uz) = LOWER(?)', [dto.name_uz]);
+          if (dto.name_ru) void qb.orWhereRaw('LOWER(name_ru) = LOWER(?)', [dto.name_ru]);
+          if (dto.name_en) void qb.orWhereRaw('LOWER(name_en) = LOWER(?)', [dto.name_en]);
         })
         .first();
 
@@ -241,15 +240,17 @@ export class BranchesService {
         updated_at: new Date(),
       });
 
-    const updated = await this.knex('branches').where({ id: branch.id }).first();
+    const updated: Branch | undefined = await this.knex('branches')
+      .where({ id: branch.id })
+      .first();
 
     await this.redisService.set(`${this.redisKeyById}:${branch.id}`, updated, 3600);
     await this.redisService.flushByPrefix(`${this.redisKey}`);
 
-    return updated;
+    return { message: 'Branches updated successfully' };
   }
 
-  async delete(branch: any) {
+  async delete(branch: Branch): Promise<{ message: string }> {
     const branchId = branch.id;
 
     if (branch?.is_protected) {

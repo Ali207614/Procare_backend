@@ -16,7 +16,7 @@ import { Queue } from 'bull';
 import basicAuth from 'express-basic-auth';
 import { LoggerService } from 'src/common/logger/logger.service';
 
-async function bootstrap() {
+async function bootstrap(): Promise<void> {
   try {
     const app = await NestFactory.create(AppModule);
     const logger = new LoggerService();
@@ -45,7 +45,7 @@ async function bootstrap() {
           transformOptions: {
             enableImplicitConversion: true,
           },
-          exceptionFactory: (errors) => {
+          exceptionFactory: (errors): BadRequestException => {
             const { message, location } = extractError(errors);
             return new BadRequestException({
               message,
@@ -72,7 +72,7 @@ async function bootstrap() {
     app.use(
       [`/api/v1/docs`],
       basicAuth({
-        users: { [process.env.SWAGGER_USER]: process.env.SWAGGER_PASS },
+        users: { [process.env.SWAGGER_USER || 'Admin']: process.env.SWAGGER_PASS || '1234' },
         challenge: true,
       }),
     );
@@ -112,7 +112,7 @@ async function bootstrap() {
 
     app.use('/admin/queues', serverAdapter.getRouter());
 
-    await app.listen(process.env.PORT);
+    await app.listen(process.env.PORT || 3000);
     logger.log(`http://localhost:${process.env.PORT}/${globalPrefix}`);
     logger.log(`Swagger: http://localhost:${process.env.PORT}/${globalPrefix}/docs`);
     logger.log(`Queues: http://localhost:${process.env.PORT}/admin/queues`);
@@ -121,4 +121,7 @@ async function bootstrap() {
   }
 }
 
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('❌ Bootstrap error:', err);
+  process.exit(1);
+});

@@ -30,6 +30,8 @@ import { UpdateBranchSortDto } from './dto/update-branch-sort.dto';
 import { BranchExistGuard } from 'src/common/guards/branch-exist.guard';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
+import { Branch } from 'src/common/types/branch.interface';
+import { AuthenticatedRequest } from 'src/common/types/authenticated-request.type';
 
 @ApiTags('Branches')
 @ApiBearerAuth()
@@ -44,7 +46,7 @@ export class BranchesController {
   @ApiOperation({ summary: 'Create new branch' })
   @ApiResponse({ status: 201, description: 'Branch created successfully' })
   @ApiResponse({ status: 400, description: 'Validation failed' })
-  async create(@CurrentAdmin() admin: AdminPayload, @Body() dto: CreateBranchDto) {
+  async create(@CurrentAdmin() admin: AdminPayload, @Body() dto: CreateBranchDto): Promise<Branch> {
     const adminId = admin.id;
     return this.service.create(dto, adminId);
   }
@@ -57,7 +59,7 @@ export class BranchesController {
   @ApiQuery({ name: 'limit', required: false, example: 10 })
   @ApiQuery({ name: 'search', required: false, example: 'main' })
   @ApiResponse({ status: 200, description: 'List of branches returned' })
-  async findAll(@Query() query: PaginationQueryDto) {
+  async findAll(@Query() query: PaginationQueryDto): Promise<Branch[]> {
     const { offset, limit, search } = query;
     return this.service.findAll(offset, limit, search);
   }
@@ -65,49 +67,55 @@ export class BranchesController {
   @Get('viewable')
   @ApiOperation({ summary: 'Get branches assigned to current admin' })
   @ApiResponse({ status: 200, description: 'List of assigned branches returned' })
-  async findMyBranches(@CurrentAdmin() admin: AdminPayload) {
+  async findMyBranches(@CurrentAdmin() admin: AdminPayload): Promise<Branch[]> {
     return this.service.findByAdminId(admin.id);
   }
 
-  @Get('/:id')
+  @Get('/:branch_id')
   @UseGuards(PermissionsGuard)
   @SetPermissions('branch.view')
   @ApiOperation({ summary: 'Get branch by ID' })
-  @ApiParam({ name: 'id', description: 'Branch ID (UUID)' })
+  @ApiParam({ name: 'branch_id', description: 'Branch ID (UUID)' })
   @ApiResponse({ status: 200, description: 'Branch returned successfully' })
   @ApiResponse({ status: 404, description: 'Branch not found' })
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.findOne(id);
+  async findOne(@Param('branch_id', ParseUUIDPipe) branchId: string): Promise<Branch> {
+    return this.service.findOne(branchId);
   }
 
-  @Patch(':id/sort')
+  @Patch(':branch_id/sort')
   @UseGuards(PermissionsGuard, BranchExistGuard)
   @SetPermissions('branch.update')
   @ApiOperation({ summary: 'Update branch sort order' })
-  @ApiParam({ name: 'id', description: 'Branch ID' })
+  @ApiParam({ name: 'branch_id', description: 'Branch ID' })
   @ApiResponse({ status: 200, description: 'Sort updated' })
   @ApiResponse({ status: 404, description: 'Branch not found' })
-  async updateSort(@Req() req, @Body() dto: UpdateBranchSortDto) {
+  async updateSort(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: UpdateBranchSortDto,
+  ): Promise<{ message: string }> {
     return this.service.updateSort(req.branch, dto.sort);
   }
 
-  @Patch(':id')
+  @Patch(':branch_id')
   @UseGuards(PermissionsGuard)
   @SetPermissions('branch.update')
   @ApiOperation({ summary: 'Update branch by ID' })
-  @ApiParam({ name: 'id', description: 'Branch ID (UUID)' })
+  @ApiParam({ name: 'branch_id', description: 'Branch ID (UUID)' })
   @ApiResponse({ status: 200, description: 'Branch updated successfully' })
   @ApiResponse({ status: 404, description: 'Branch not found' })
-  async update(@Param('id', ParseUUIDPipe) branchId: string, @Body() dto: UpdateBranchDto) {
-    return this.service.update(branchId, dto);
+  async update(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: UpdateBranchDto,
+  ): Promise<{ message: string }> {
+    return this.service.update(req.branch, dto);
   }
 
-  @Delete(':id')
+  @Delete(':branch_id')
   @UseGuards(PermissionsGuard, BranchExistGuard)
   @SetPermissions('branch.delete')
   @ApiOperation({ summary: 'Delete branch by ID (soft delete)' })
   @ApiParam({ name: 'id', description: 'Branch ID (UUID)' })
-  async delete(@Req() req) {
+  async delete(@Req() req: AuthenticatedRequest): Promise<{ message: string }> {
     return this.service.delete(req.branch);
   }
 }

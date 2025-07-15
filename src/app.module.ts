@@ -112,7 +112,7 @@ import { LoggerModule } from 'src/common/logger/logger.module';
   ],
 })
 export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
+  configure(consumer: MiddlewareConsumer): void {
     consumer.apply(MaintenanceMiddleware).forRoutes('*');
 
     consumer.apply(RateLimiterByIpMiddleware).forRoutes(...PublicRoutes);

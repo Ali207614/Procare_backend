@@ -61,7 +61,7 @@ export class CreateRepairOrderStatusDto {
   @IsUUID()
   branch_id?: string;
 
-  @ApiProperty({ example: true, description: 'Whether the branch is active' })
+  @ApiProperty({ example: true, description: 'Whether the status is active' })
   @IsOptional()
   @IsBoolean()
   is_active?: boolean;

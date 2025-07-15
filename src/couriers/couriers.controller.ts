@@ -20,7 +20,7 @@ export class CouriersController {
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'offset', required: false, type: Number })
   @ApiOperation({ summary: 'Get list of couriers' })
-  async findCouriers(@Query() query: CourierQueryDto) {
+  async findCouriers(@Query() query: CourierQueryDto): Promise<Courier> {
     return this.service.findAll(query);
   }
 }

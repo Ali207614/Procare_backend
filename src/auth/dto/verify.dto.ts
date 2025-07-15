@@ -7,7 +7,7 @@ export class VerifyDto {
     message: 'phone_number must be a valid phone number',
     context: { location: 'invalid_phone' },
   })
-  phone_number: string;
+  phone_number!: string;
 
   @ApiProperty({ example: '789034', description: 'Code' })
   @IsString({
@@ -20,5 +20,5 @@ export class VerifyDto {
   @MaxLength(20, {
     context: { location: 'invalid_code_length_max' },
   })
-  code: string;
+  code!: string;
 }

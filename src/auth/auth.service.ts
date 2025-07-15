@@ -15,12 +15,12 @@ import { LoginDto } from './dto/login.dto';
 import { VerifyDto } from './dto/verify.dto';
 import { SmsDto } from './dto/sms.dto';
 import { RedisService } from 'src/common/redis/redis.service';
-import { FeatureService } from 'src/feature/feature.service';
 import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { AdminsService } from 'src/admins/admins.service';
+import { Admin } from 'src/common/types/admin.interface';
 
 @Injectable()
 export class AuthService {
@@ -30,13 +30,14 @@ export class AuthService {
     private readonly adminsService: AdminsService,
     private readonly jwtService: JwtService,
     private readonly redisService: RedisService,
-    private readonly featureService: FeatureService,
   ) {}
 
   private readonly RESET_PREFIX = 'reset-code:';
 
-  async sendVerificationCode(dto: SmsDto) {
-    const existingAdmin = await this.adminsService.findByPhoneNumber(dto.phone_number);
+  async sendVerificationCode(dto: SmsDto): Promise<{ message: string }> {
+    const existingAdmin: Admin | undefined = await this.adminsService.findByPhoneNumber(
+      dto.phone_number,
+    );
 
     if (!existingAdmin) {
       throw new NotFoundException({
@@ -45,7 +46,7 @@ export class AuthService {
       });
     }
 
-    if (existingAdmin.status !== 'pending') {
+    if (existingAdmin.status !== 'Pending') {
       throw new ConflictException({
         message: 'Admin already registered or not allowed to verify.',
         location: 'invalid_status',
@@ -62,8 +63,8 @@ export class AuthService {
     return { message: 'Verification code sent successfully' };
   }
 
-  async verifyCode(dto: VerifyDto) {
-    const storedCode = await this.redisService.get(`verify:${dto.phone_number}`);
+  async verifyCode(dto: VerifyDto): Promise<{ message: string }> {
+    const storedCode: string | null = await this.redisService.get(`verify:${dto.phone_number}`);
 
     if (!storedCode || storedCode !== dto.code) {
       throw new BadRequestException({
@@ -78,8 +79,8 @@ export class AuthService {
     return { message: 'Phone number verified successfully' };
   }
 
-  async completeRegistration(dto: RegisterDto) {
-    const admin = await this.adminsService.findByPhoneNumber(dto.phone_number);
+  async completeRegistration(dto: RegisterDto): Promise<{ access_token: string }> {
+    const admin: Admin | undefined = await this.adminsService.findByPhoneNumber(dto.phone_number);
 
     if (dto.password !== dto.confirm_password) {
       throw new BadRequestException({
@@ -95,7 +96,7 @@ export class AuthService {
       });
     }
 
-    if (admin.status !== 'pending') {
+    if (admin.status !== 'Pending') {
       throw new ConflictException({
         message: 'Admin already completed registration',
         location: 'already_registered',
@@ -126,10 +127,12 @@ export class AuthService {
     };
   }
 
-  async login(loginDto: LoginDto) {
-    const admin = await this.adminsService.findByPhoneNumber(loginDto.phone_number);
+  async login(loginDto: LoginDto): Promise<{ access_token: string }> {
+    const admin: Admin | undefined = await this.adminsService.findByPhoneNumber(
+      loginDto.phone_number,
+    );
 
-    if (admin && admin?.status === 'pending') {
+    if (admin && admin?.status === 'Pending') {
       throw new ForbiddenException({
         message: 'Registration incomplete. Please finish registration.',
         location: 'incomplete_registration',
@@ -138,7 +141,8 @@ export class AuthService {
 
     this.adminsService.checkAdminAccessControl(admin, { requireVerified: true });
 
-    const isPasswordValid = admin && (await bcrypt.compare(loginDto.password, admin.password));
+    const isPasswordValid =
+      admin && (await bcrypt.compare(loginDto.password, admin?.password || ''));
     if (!admin || !isPasswordValid) {
       throw new UnauthorizedException({
         message: 'Invalid credentials',
@@ -156,10 +160,10 @@ export class AuthService {
     };
   }
 
-  async logout(adminId: string) {
+  async logout(adminId: string): Promise<{ message: string }> {
     const sessionKey = `session:admin:${adminId}`;
 
-    const exists = await this.redisService.get(sessionKey);
+    const exists: string | null = await this.redisService.get(sessionKey);
 
     if (!exists) {
       throw new UnauthorizedException({
@@ -173,8 +177,8 @@ export class AuthService {
     return { message: 'Logged out successfully' };
   }
 
-  async forgotPassword(dto: ForgotPasswordDto) {
-    const admin = await this.adminsService.findByPhoneNumber(dto.phone_number);
+  async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string }> {
+    const admin: Admin | undefined = await this.adminsService.findByPhoneNumber(dto.phone_number);
 
     this.adminsService.checkAdminAccessControl(admin, { requireVerified: true });
 
@@ -187,9 +191,9 @@ export class AuthService {
     return { message: 'Reset code sent successfully' };
   }
 
-  async resetPassword(dto: ResetPasswordDto) {
+  async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
     const redisKey = `${this.RESET_PREFIX}${dto.phone_number}`;
-    const code = await this.redisService.get(redisKey);
+    const code: string | null = await this.redisService.get(redisKey);
 
     if (!code || code !== dto.code) {
       throw new BadRequestException({
@@ -215,7 +219,7 @@ export class AuthService {
     return { message: '✅ Password reset successfully' };
   }
 
-  private async setAdminSession(adminId: string, token: string) {
+  private async setAdminSession(adminId: string, token: string): Promise<void> {
     await this.redisService.set(`session:admin:${adminId}`, token, 60 * 60 * 24 * 7);
   }
 }

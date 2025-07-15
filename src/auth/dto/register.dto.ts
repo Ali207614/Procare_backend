@@ -1,13 +1,12 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsPhoneNumber, MinLength, MaxLength, IsOptional, IsEnum } from 'class-validator';
-import { RegionEnum } from 'src/common/types/region.enum';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsPhoneNumber, MinLength, MaxLength } from 'class-validator';
 
 export class RegisterDto {
   @ApiProperty({ example: '+998901234567', description: 'Phone number' })
   @IsPhoneNumber('UZ', {
     context: { location: 'invalid_phone' },
   })
-  phone_number: string;
+  phone_number!: string;
 
   @ApiProperty({ example: '111', description: 'Password' })
   @IsString({
@@ -19,7 +18,7 @@ export class RegisterDto {
   @MaxLength(20, {
     context: { location: 'invalid_password_length_max' },
   })
-  password: string;
+  password!: string;
 
   @ApiProperty({ example: '111', description: 'Password' })
   @IsString({
@@ -31,5 +30,5 @@ export class RegisterDto {
   @MaxLength(20, {
     context: { location: 'invalid_password_length_max' },
   })
-  confirm_password: string;
+  confirm_password!: string;
 }

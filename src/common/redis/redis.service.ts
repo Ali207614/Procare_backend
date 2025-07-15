@@ -12,21 +12,20 @@ export class RedisService {
     return `${this.prefix}:${key}`;
   }
 
-  async set(key: string, value: any, ttlSeconds = 3600): Promise<void> {
+  async set(key: string, value: unknown, ttlSeconds = 3600): Promise<void> {
     try {
       await this.client.set(this.buildKey(key), JSON.stringify(value), { EX: ttlSeconds });
-    } catch (error) {
-      this.logger.error(`Redis SET error for key=${key}: ${error.message}`);
+    } catch (error: unknown) {
+      this.handleError(error, `Redis SET error for key=${key}`);
     }
   }
 
-  async get<T = any>(key: string): Promise<T | null> {
+  async get<T = unknown>(key: string): Promise<T | null> {
     try {
       const data = await this.client.get(this.buildKey(key));
-      return typeof data === 'string' ? JSON.parse(data) : null;
-    } catch (error) {
-      console.log(error ,' buurda');
-      this.logger.error(`Redis GET error for key=${key}: ${error.message}`);
+      return typeof data === 'string' ? (JSON.parse(data) as T) : null;
+    } catch (error: unknown) {
+      this.handleError(error, `Redis GET error for key=${key}`);
       return null;
     }
   }
@@ -34,8 +33,8 @@ export class RedisService {
   async del(key: string): Promise<void> {
     try {
       await this.client.del(this.buildKey(key));
-    } catch (error) {
-      this.logger.error(`Redis DEL error for key=${key}: ${error.message}`);
+    } catch (error: unknown) {
+      this.handleError(error, `Redis DEL error for key=${key}`);
     }
   }
 
@@ -43,28 +42,30 @@ export class RedisService {
     try {
       const fullPattern = this.buildKey(`${pattern}*`);
       const keys = await this.client.keys(fullPattern);
-
       if (keys.length > 0) {
         await Promise.all(keys.map((key) => this.client.del(key)));
       }
-    } catch (error) {
-      this.logger.error(`Redis FLUSH error for pattern=${pattern}: ${error.message}`);
+    } catch (error: unknown) {
+      this.handleError(error, `Redis FLUSH error for pattern=${pattern}`);
     }
   }
 
-  getClient(): RedisClientType {
-    return this.client;
-  }
-
-  async mget<T = any>(...keys: string[]): Promise<(T | null)[]> {
+  async mget<T = unknown>(...keys: string[]): Promise<(T | null)[]> {
     try {
       const redisKeys = keys.map((k) => this.buildKey(k));
       const results = await this.client.mGet(redisKeys);
+      return results.map((item) => (item ? (JSON.parse(item) as T) : null));
+    } catch (error: unknown) {
+      this.handleError(error, 'Redis MGET error');
+      return keys.map(() => null);
+    }
+  }
 
-      return results.map((item: any) => (item ? JSON.parse(item) : null));
-    } catch (error) {
-      this.logger.error(`Redis MGET error: ${error.message}`);
-      return keys.map(() => null); // Har bir key uchun null qaytaradi
+  private handleError(error: unknown, context: string): void {
+    if (error instanceof Error) {
+      this.logger.error(`${context}: ${error.message}`);
+    } else {
+      this.logger.error(`${context}: ${String(error)}`);
     }
   }
 }

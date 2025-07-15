@@ -6,4 +6,4 @@ import { NotificationService } from './notification.service';
   providers: [NotificationGateway, NotificationService],
   exports: [NotificationService, NotificationGateway],
 })
-export class NotificationModule { }
+export class NotificationModule {}

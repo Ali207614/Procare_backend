@@ -9,28 +9,25 @@ import { loadSQL } from 'src/common/utils/sql-loader.util';
 
 @Injectable()
 export class CouriersService {
-    constructor(
-        @InjectKnex() private readonly knex: Knex,
-    ) { }
+  constructor(@InjectKnex() private readonly knex: Knex) {}
 
-    async findAll({
-        search,
-        limit = 20,
-        offset = 0,
-    }: {
-        search?: string;
-        limit?: number;
-        offset?: number;
-    }) {
-        const sql = loadSQL('couriers/queries/find-all.sql');
+  async findAll({
+    search,
+    limit = 20,
+    offset = 0,
+  }: {
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Courier> {
+    const sql = loadSQL('couriers/queries/find-all.sql');
 
-        const result = await this.knex.raw(sql, {
-            search: search ?? null,
-            limit,
-            offset,
-        });
+    const result: { rows: Courier } = await this.knex.raw(sql, {
+      search: search ?? null,
+      limit,
+      offset,
+    });
 
-        return result.rows;
-    }
-
+    return result.rows;
+  }
 }

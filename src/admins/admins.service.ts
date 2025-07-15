@@ -1,16 +1,17 @@
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
+import { Knex } from 'knex';
 import { RedisService } from 'src/common/redis/redis.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import * as bcrypt from 'bcrypt';
+import bcrypt from 'bcrypt';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { PermissionsService } from 'src/permissions/permissions.service';
@@ -20,6 +21,8 @@ import { FindAllAdminsDto } from './dto/find-all-admins.dto';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
 import { ParseUUIDPipe } from '../common/pipe/parse-uuid.pipe';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
+import { Admin } from 'src/common/types/admin.interface';
+import { Branch } from 'src/common/types/branch.interface';
 
 @Injectable()
 export class AdminsService {
@@ -32,16 +35,16 @@ export class AdminsService {
 
   private readonly table = 'admins';
 
-  async findByPhoneNumber(phone: string) {
+  async findByPhoneNumber(phone: string): Promise<Admin | undefined> {
     return this.knex(this.table).where({ phone_number: phone }).first();
   }
 
-  async findById(id: string) {
-    const sql = loadSQL('admins/queries/find-one.sql');
+  async findById(id: string): Promise<Admin> {
+    const sql: string = loadSQL('admins/queries/find-one.sql');
 
     const result = await this.knex.raw(sql, { admin_id: id });
 
-    const admin = result.rows[0];
+    const admin: Admin = result.rows[0];
 
     if (!admin) {
       throw new NotFoundException({
@@ -53,10 +56,10 @@ export class AdminsService {
     return admin;
   }
 
-  async findAll(query: FindAllAdminsDto) {
+  async findAll(query: FindAllAdminsDto): Promise<Admin[]> {
     const sql = loadSQL('admins/queries/find-all.sql');
 
-    const data = await this.knex.raw(sql, {
+    const data: { rows: Admin[] } = await this.knex.raw(sql, {
       search: query.search ?? null,
       status: query.status?.length ? query.status : null,
       branch_ids: query.branch_ids?.length ? query.branch_ids : null,
@@ -68,7 +71,7 @@ export class AdminsService {
     return data.rows;
   }
 
-  async markPhoneVerified(phone: string) {
+  async markPhoneVerified(phone: string): Promise<void> {
     await this.knex(this.table).where({ phone_number: phone }).update({
       phone_verified: true,
       verification_code: null,
@@ -77,16 +80,25 @@ export class AdminsService {
     });
   }
 
-  async updateAdminByPhone(phone: string, data: any) {
-    await this.knex(this.table)
-      .where({ phone_number: phone })
-      .update({ ...data, updated_at: new Date() });
+  async updateAdminByPhone(
+    phone: string,
+    data: Partial<Pick<Admin, 'password' | 'status'>>,
+  ): Promise<void> {
+    const updateData: Partial<Admin> = {
+      updated_at: new Date(),
+    };
+
+    if (data.password) {
+      updateData.password = data.password;
+    }
+
+    await this.knex(this.table).where({ phone_number: phone }).update(updateData);
   }
 
   checkAdminAccessControl(
-    admin: any,
+    admin: Admin | undefined,
     options: { requireVerified?: boolean; blockIfVerified?: boolean } = {},
-  ) {
+  ): void {
     const { requireVerified = false, blockIfVerified = false } = options;
 
     if (!admin) {
@@ -128,10 +140,10 @@ export class AdminsService {
     }
   }
 
-  async changePassword(admin: AdminPayload, dto: ChangePasswordDto) {
-    const dbAdmin = await this.findById(admin.id);
+  async changePassword(admin: AdminPayload, dto: ChangePasswordDto): Promise<{ message: string }> {
+    const dbAdmin: Admin = await this.findById(admin.id);
 
-    const isMatch = await bcrypt.compare(dto.current_password, dbAdmin.password);
+    const isMatch = await bcrypt.compare(dto.current_password, dbAdmin.password || '');
     if (!isMatch) {
       throw new BadRequestException({
         message: '⛔ Current password is incorrect',
@@ -147,8 +159,8 @@ export class AdminsService {
     return { message: '✅ Password changed successfully' };
   }
 
-  async create(adminId: string, dto: CreateAdminDto) {
-    const existing = await this.knex('admins')
+  async create(adminId: string, dto: CreateAdminDto): Promise<Admin> {
+    const existing: Admin | undefined = await this.knex<Admin>('admins')
       .whereRaw('LOWER(phone_number) = ?', dto.phone_number.toLowerCase())
       .andWhereNot({ status: 'Deleted' })
       .first();
@@ -186,13 +198,19 @@ export class AdminsService {
       }
     }
 
-    const [admin] = await this.knex('admins')
-      .insert({
-        ...dto,
-        status: 'Pending',
-        created_by: adminId,
-      })
-      .returning('*');
+    const insertData: Partial<Admin> = {
+      ...dto,
+      birth_date: dto.birth_date ? new Date(dto.birth_date) : null,
+      hire_date: dto.hire_date ? new Date(dto.hire_date) : null,
+      passport_series: dto.passport_series ?? null,
+      id_card_number: dto.id_card_number ?? null,
+      created_by: adminId,
+      status: 'Pending',
+    };
+
+    const inserted: Admin[] = await this.knex<Admin>('admins').insert(insertData).returning('*');
+
+    const admin: Admin = inserted[0];
 
     if (dto?.role_ids?.length) {
       const rolesData = dto.role_ids.map((role_id) => ({
@@ -217,11 +235,11 @@ export class AdminsService {
   }
 
   async update(
-    currentAdmin: any,
+    currentAdmin: AdminPayload,
     targetAdminId: string,
     dto: UpdateAdminDto & { role_ids?: string[]; branch_ids?: string[] },
-  ) {
-    const target = await this.knex('admins')
+  ): Promise<{ message: string }> {
+    const target: Admin | undefined = await this.knex<Admin>('admins')
       .where({ id: targetAdminId })
       .andWhereNot({ status: 'Deleted' })
       .first();
@@ -234,7 +252,7 @@ export class AdminsService {
     }
 
     if (
-      target?.is_protected &&
+      target.is_protected &&
       (dto?.is_active === false || (Array.isArray(dto.role_ids) && dto.role_ids.length > 0))
     ) {
       throw new ForbiddenException({
@@ -258,7 +276,7 @@ export class AdminsService {
     }
 
     if (isSelf && !canEditOthers) {
-      const sensitiveFields = [
+      const sensitiveFields: (keyof typeof dto)[] = [
         'passport_series',
         'birth_date',
         'hire_date',
@@ -268,6 +286,7 @@ export class AdminsService {
         'branch_ids',
         'is_active',
       ];
+
       for (const field of sensitiveFields) {
         if (dto[field] !== undefined && !canEditOwnSensitive) {
           throw new ForbiddenException({
@@ -277,7 +296,7 @@ export class AdminsService {
         }
       }
 
-      const basicFields = ['first_name', 'last_name'];
+      const basicFields: (keyof UpdateAdminDto)[] = ['first_name', 'last_name'];
       if (!canEditOwnBasic) {
         for (const field of basicFields) {
           if (dto[field] !== undefined) {
@@ -290,21 +309,22 @@ export class AdminsService {
       }
     }
 
-    const updateData: Record<string, any> = extractDefinedFields(dto, [
-      'first_name',
-      'last_name',
-      'passport_series',
-      'birth_date',
-      'hire_date',
-      'id_card_number',
-      'language',
-      'is_active',
-    ]);
-
-    updateData.updated_at = new Date();
+    const updateData: Partial<Admin> = {
+      ...extractDefinedFields(dto, [
+        'first_name',
+        'last_name',
+        'passport_series',
+        'id_card_number',
+        'language',
+        'is_active',
+      ]),
+      birth_date: dto.birth_date ? new Date(dto.birth_date) : null,
+      hire_date: dto.hire_date ? new Date(dto.hire_date) : null,
+      updated_at: new Date(),
+    };
 
     if (Object.keys(updateData).length > 1) {
-      await this.knex('admins').where({ id: targetAdminId }).update(updateData);
+      await this.knex<Admin>('admins').where({ id: targetAdminId }).update(updateData);
     }
 
     if (dto.role_ids !== undefined || dto.branch_ids !== undefined) {
@@ -314,7 +334,7 @@ export class AdminsService {
         if (dto.role_ids !== undefined) {
           await trx('admin_roles').where({ admin_id: targetAdminId }).del();
 
-          if (Array.isArray(dto.role_ids) && dto.role_ids.length > 0) {
+          if (dto.role_ids.length > 0) {
             const roleData = dto.role_ids.map((role_id) => ({
               admin_id: targetAdminId,
               role_id,
@@ -322,7 +342,6 @@ export class AdminsService {
             await trx('admin_roles').insert(roleData);
           }
         }
-
         if (dto.branch_ids !== undefined) {
           if (!Array.isArray(dto.branch_ids) || dto.branch_ids.length === 0) {
             throw new BadRequestException({
@@ -337,14 +356,14 @@ export class AdminsService {
 
           try {
             branchIds = dto.branch_ids.map((id) => parser.transform(id));
-          } catch (err) {
+          } catch {
             throw new BadRequestException({
               message: 'One or more branch IDs are not valid UUIDs',
               location: 'branch_ids',
             });
           }
 
-          const foundBranches = await this.knex('branches')
+          const foundBranches: Branch[] = await trx<Branch>('branches')
             .whereIn('id', branchIds)
             .andWhere({ status: 'Open' });
 
@@ -358,10 +377,23 @@ export class AdminsService {
               missing_ids: missingIds,
             });
           }
+
+          await trx('admin_branches').where({ admin_id: targetAdminId }).del();
+          const branchData = branchIds.map((branch_id) => ({
+            admin_id: targetAdminId,
+            branch_id,
+          }));
+          await trx('admin_branches').insert(branchData);
         }
+
         await trx.commit();
       } catch (error) {
         await trx.rollback();
+
+        if (error instanceof HttpException) {
+          throw error;
+        }
+
         throw new InternalServerErrorException({
           message: 'Failed to update admin roles or branches',
           location: 'admin_update_failure',
@@ -376,13 +408,11 @@ export class AdminsService {
     await this.permissionsService.clearPermissionCache(targetAdminId);
     await this.permissionsService.getPermissions(targetAdminId);
 
-    return {
-      message: 'Admin updated successfully',
-    };
+    return { message: 'Admin updated successfully' };
   }
 
-  async delete(requestingAdmin: any, targetAdminId: string) {
-    const target = await this.knex('admins')
+  async delete(requestingAdmin: AdminPayload, targetAdminId: string): Promise<{ message: string }> {
+    const target: Admin | undefined = await this.knex<Admin>('admins')
       .where({ id: targetAdminId })
       .andWhereNot({ status: 'Deleted' })
       .first();
@@ -430,7 +460,6 @@ export class AdminsService {
 
     return {
       message: 'Admin deleted successfully',
-      deleted_admin_id: targetAdminId,
     };
   }
 }

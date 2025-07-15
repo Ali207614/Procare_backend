@@ -26,6 +26,8 @@ import { CreateAdminDto } from './dto/create-admin.dto';
 import { UpdateAdminDto } from './dto/update-admin.dto';
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { FindAllAdminsDto } from './dto/find-all-admins.dto';
+import { Admin } from 'src/common/types/admin.interface';
+import { AuthenticatedRequest } from 'src/common/types/authenticated-request.type';
 
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
@@ -36,13 +38,16 @@ export class AdminsController {
 
   @UseInterceptors(ClassSerializerInterceptor)
   @Get('me')
-  getProfile(@CurrentAdmin() admin: AdminPayload) {
+  getProfile(@CurrentAdmin() admin: AdminPayload): AdminProfileDto {
     const adminData = this.adminsService.findById(admin.id);
     return plainToInstance(AdminProfileDto, adminData);
   }
 
   @Post('change-password')
-  changePassword(@CurrentAdmin() admin: AdminPayload, @Body() dto: ChangePasswordDto) {
+  changePassword(
+    @CurrentAdmin() admin: AdminPayload,
+    @Body() dto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
     return this.adminsService.changePassword(admin, dto);
   }
 
@@ -50,7 +55,7 @@ export class AdminsController {
   @UseGuards(PermissionsGuard)
   @SetPermissions('admin.manage.create')
   @ApiOperation({ summary: 'Create new admin (without password)' })
-  async create(@CurrentAdmin() admin: AdminPayload, @Body() dto: CreateAdminDto) {
+  async create(@CurrentAdmin() admin: AdminPayload, @Body() dto: CreateAdminDto): Promise<Admin> {
     return this.adminsService.create(admin.id, dto);
   }
 
@@ -59,7 +64,11 @@ export class AdminsController {
   @SetPermissions('admin.manage.edit', 'admin.profile.edit.basic', 'admin.profile.edit.sensitive')
   @ApiParam({ name: 'id', description: 'Admin ID' })
   @ApiOperation({ summary: 'Update admin data' })
-  async update(@Req() req, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateAdminDto) {
+  async update(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateAdminDto,
+  ): Promise<{ message: string }> {
     return this.adminsService.update(req.admin, id, dto);
   }
 
@@ -68,7 +77,10 @@ export class AdminsController {
   @SetAllPermissions('admin.manage.delete')
   @ApiParam({ name: 'id', description: 'Admin ID (UUID)' })
   @ApiOperation({ summary: 'Delete admin by ID (soft delete)' })
-  async delete(@Req() req, @Param('id', ParseUUIDPipe) id: string) {
+  async delete(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ message: string }> {
     return this.adminsService.delete(req.admin, id);
   }
 
@@ -77,9 +89,9 @@ export class AdminsController {
   @UseGuards(PermissionsGuard)
   @SetAllPermissions('admin.manage.view')
   @ApiOperation({ summary: 'Get all admins with filters and pagination' })
-  async findAll(@Query() query: FindAllAdminsDto) {
+  async findAll(@Query() query: FindAllAdminsDto): Promise<AdminProfileDto[]> {
     const result = await this.adminsService.findAll(query);
 
-    return result.map((admin) => plainToInstance(AdminProfileDto, admin));
+    return result.map((admin: Admin): AdminProfileDto => plainToInstance(AdminProfileDto, admin));
   }
 }

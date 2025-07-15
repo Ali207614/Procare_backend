@@ -20,7 +20,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Send verification code to phone number' })
   @ApiResponse({ status: 201, description: 'Verification code sent successfully' })
   @ApiResponse({ status: 400, description: 'Bad Request' })
-  sendCode(@Body() dto: SmsDto) {
+  sendCode(@Body() dto: SmsDto): Promise<{ message: string }> {
     return this.authService.sendVerificationCode(dto);
   }
 
@@ -28,14 +28,14 @@ export class AuthController {
   @ApiOperation({ summary: 'Verify the received code' })
   @ApiResponse({ status: 200, description: 'Code verified successfully' })
   @ApiResponse({ status: 400, description: 'Invalid code' })
-  verifyCode(@Body() dto: VerifyDto) {
+  verifyCode(@Body() dto: VerifyDto): Promise<{ message: string }> {
     return this.authService.verifyCode(dto);
   }
 
   @Post('register')
   @ApiOperation({ summary: 'Complete registration' })
   @ApiResponse({ status: 201, description: 'User registered successfully' })
-  completeRegister(@Body() dto: RegisterDto) {
+  completeRegister(@Body() dto: RegisterDto): Promise<{ access_token: string }> {
     return this.authService.completeRegistration(dto);
   }
 
@@ -43,21 +43,21 @@ export class AuthController {
   @ApiOperation({ summary: 'Login and receive access token' })
   @ApiResponse({ status: 200, description: 'Login successful' })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
-  login(@Body() dto: LoginDto) {
+  login(@Body() dto: LoginDto): Promise<{ access_token: string }> {
     return this.authService.login(dto);
   }
 
   @Post('forgot-password')
   @ApiOperation({ summary: 'Request password reset code' })
   @ApiResponse({ status: 200, description: 'Reset code sent' })
-  forgotPassword(@Body() dto: ForgotPasswordDto) {
+  forgotPassword(@Body() dto: ForgotPasswordDto): Promise<{ message: string }> {
     return this.authService.forgotPassword(dto);
   }
 
   @Post('reset-password')
   @ApiOperation({ summary: 'Reset password using reset code' })
   @ApiResponse({ status: 200, description: 'Password reset successful' })
-  resetPassword(@Body() dto: ResetPasswordDto) {
+  resetPassword(@Body() dto: ResetPasswordDto): Promise<{ message: string }> {
     return this.authService.resetPassword(dto);
   }
 
@@ -66,7 +66,7 @@ export class AuthController {
   @UseGuards(JwtAdminAuthGuard)
   @ApiOperation({ summary: 'Logout current admin' })
   @ApiResponse({ status: 200, description: 'Logged out successfully' })
-  logout(@CurrentAdmin() admin: AdminPayload) {
+  logout(@CurrentAdmin() admin: AdminPayload): Promise<{ message: string }> {
     return this.authService.logout(admin.id);
   }
 }

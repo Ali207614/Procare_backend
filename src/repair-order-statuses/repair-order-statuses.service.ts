@@ -28,6 +28,8 @@ export class RepairOrderStatusesService {
     let branchId = dto.branch_id;
     let branch = null;
 
+// status nomlarini tekshrish kerak
+
     if (branchId) {
       const redisKey = `branches:by_id:${branchId}`;
       branch = await this.redisService.get(redisKey);
@@ -180,6 +182,8 @@ export class RepairOrderStatusesService {
   }
 
   async update(status: any, dto: UpdateRepairOrderStatusDto) {
+
+    // bu yerda ham ismini tekshirish kerak
     if (dto?.is_active === false && status?.is_protected) {
       throw new ForbiddenException({
         message: 'This status is system-protected and cannot be deleted or deactivated.',

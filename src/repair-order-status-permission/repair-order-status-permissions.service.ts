@@ -69,12 +69,12 @@ export class RepairOrderStatusPermissionsService {
     const key = `${this.redisKeyByAdminStatus}:${adminId}:${statusId}`;
     const cached = await this.redisService.get(key);
 
-    if (cached !== null) return cached ?? [];
+    if (cached !== null) return cached;
     const permission = await this.knex('repair_order_status_permissions')
       .where({ admin_id: adminId, status_id: statusId })
       .first();
 
-    await this.redisService.set(key, permission ?? [], 3600);
+    await this.redisService.set(key, permission, 3600);
     return permission;
   }
 

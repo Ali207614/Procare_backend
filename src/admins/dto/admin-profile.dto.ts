@@ -3,79 +3,79 @@ import { Exclude, Expose, Type } from 'class-transformer';
 @Exclude()
 class BranchMiniDto {
   @Expose()
-  id: string;
+  id!: string;
 
   @Expose()
-  name_uz: string;
+  name_uz!: string;
 
   @Expose()
-  name_ru: string;
+  name_ru!: string;
 
   @Expose()
-  name_en: string;
+  name_en!: string;
 }
 
 @Exclude()
 class RoleMiniDto {
   @Expose()
-  id: string;
+  id!: string;
 
   @Expose()
-  name: string;
+  name!: string;
 }
 
 @Exclude()
 export class AdminProfileDto {
   @Expose()
-  id: string;
+  id!: string;
 
   @Expose()
-  first_name: string;
+  first_name!: string;
 
   @Expose()
-  last_name: string;
+  last_name!: string;
 
   @Expose()
-  phone_number: string;
+  phone_number!: string;
 
   @Expose()
-  is_active: boolean;
+  is_active!: boolean;
 
   @Expose()
-  phone_verified: boolean;
+  phone_verified!: boolean;
 
   @Expose()
-  passport_series: string;
+  passport_series!: string;
 
   @Expose()
-  birth_date: string;
+  birth_date!: string;
 
   @Expose()
-  hire_date: string;
+  hire_date!: string;
 
   @Expose()
-  id_card_number: string;
+  id_card_number!: string;
 
   @Expose()
-  language: string;
+  language!: string;
 
   @Expose()
-  status: string;
+  status!: string;
 
   @Expose()
-  created_at: Date;
+  created_at!: Date;
 
   @Expose()
-  updated_at: Date;
+  updated_at!: Date;
 
   @Exclude()
-  password: string;
+  password!: string;
 
   @Expose()
   @Type(() => BranchMiniDto)
-  branches: BranchMiniDto[];
+  branches!: BranchMiniDto[];
 
   @Expose()
   @Type(() => RoleMiniDto)
-  roles: RoleMiniDto[];
+  roles!: RoleMiniDto[];
 }
