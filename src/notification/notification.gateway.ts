@@ -5,7 +5,7 @@ import {
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Notification } from '../common/types/notification.interface';
+import { BroadcastMessage } from '../common/types/notification.interface';
 
 @WebSocketGateway({
   cors: {
@@ -34,16 +34,12 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
     }
   }
 
-  sendNotificationTo(adminId: string, payload: Notification): void {
-    const socketId = this.userSockets.get(adminId);
-    if (socketId) {
-      this.server.to(socketId).emit('notification', payload);
-    }
-  }
-
-  broadcastToAdmins(adminIds: string[], payload: Notification): void {
+  broadcastToAdmins<M>(adminIds: string[], payload: BroadcastMessage<M>): void {
     for (const adminId of adminIds) {
-      this.sendNotificationTo(adminId, payload);
+      const socketId = this.userSockets.get(adminId);
+      if (socketId) {
+        this.server.to(socketId).emit('notification', payload);
+      }
     }
   }
 }

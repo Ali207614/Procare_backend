@@ -14,3 +14,15 @@ export interface Notification {
   created_at: Date;
   updated_at: Date;
 }
+
+export interface BroadcastMessage<M = unknown> {
+  title: string;
+  message: string;
+  meta: M | null;
+}
+
+export interface RepairNotificationMeta {
+  orderId: string;
+  phoneModel: string;
+  status: string;
+}

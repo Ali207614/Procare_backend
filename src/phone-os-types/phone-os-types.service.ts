@@ -7,69 +7,64 @@ import { UpdatePhoneOsTypeDto } from './dto/update-phone-os-type.dto';
 
 @Injectable()
 export class PhoneOsTypesService {
-    private readonly redisKey = 'phone_os_types:all';
+  private readonly redisKey = 'phone_os_types:all';
 
-    constructor(
-        @InjectKnex() private readonly knex: Knex,
-        private readonly redisService: RedisService,
-    ) { }
+  constructor(
+    @InjectKnex() private readonly knex: Knex,
+    private readonly redisService: RedisService,
+  ) {}
 
-    async create(dto: CreatePhoneOsTypeDto, adminId: string) {
-        const [inserted] = await this.knex('phone_os_types')
-            .insert({ ...dto, created_by: adminId })
-            .returning('*');
+  async create(dto: CreatePhoneOsTypeDto, adminId: string) {
+    const [inserted] = await this.knex('phone_os_types')
+      .insert({ ...dto, created_by: adminId })
+      .returning('*');
 
-        await this.redisService.del(this.redisKey);
-        return inserted;
+    await this.redisService.del(this.redisKey);
+    return inserted;
+  }
+
+  async findAll() {
+    const cached = await this.redisService.get(this.redisKey);
+    if (cached !== null) return cached;
+
+    const osTypes = await this.knex('phone_os_types')
+      .where({ is_active: true, status: 'Open' })
+      .orderBy('sort', 'asc');
+
+    await this.redisService.set(this.redisKey, osTypes, 3600);
+    return osTypes;
+  }
+
+  async update(id: string, dto: UpdatePhoneOsTypeDto) {
+    const exists = await this.knex('phone_os_types').where({ id, status: 'Open' }).first();
+
+    if (!exists) {
+      throw new NotFoundException({ message: 'OS type not found', location: 'id' });
     }
 
-    async findAll() {
-        const cached = await this.redisService.get(this.redisKey);
-        if (cached !== null) return cached;
+    await this.knex('phone_os_types')
+      .where({ id })
+      .update({ ...dto, updated_at: new Date() });
 
-        const osTypes = await this.knex('phone_os_types')
-            .where({ is_active: true, status: 'Open' })
-            .orderBy('sort', 'asc');
+    await this.redisService.del(this.redisKey);
+    return { message: 'Phone OS type updated successfully' };
+  }
 
-        await this.redisService.set(this.redisKey, osTypes, 3600);
-        return osTypes;
+  async delete(id: string) {
+    const exists = await this.knex('phone_os_types').where({ id, status: 'Open' }).first();
+
+    if (!exists) {
+      throw new NotFoundException({
+        message: 'OS type not found or already deleted',
+        location: 'id',
+      });
     }
 
-    async update(id: string, dto: UpdatePhoneOsTypeDto) {
-        const exists = await this.knex('phone_os_types')
-            .where({ id, status: 'Open' })
-            .first();
+    await this.knex('phone_os_types')
+      .where({ id })
+      .update({ status: 'Deleted', updated_at: new Date() });
 
-        if (!exists) {
-            throw new NotFoundException({ message: 'OS type not found', location: 'id' });
-        }
-
-        await this.knex('phone_os_types')
-            .where({ id })
-            .update({ ...dto, updated_at: new Date() });
-
-        await this.redisService.del(this.redisKey);
-        return { message: 'Phone OS type updated successfully' };
-    }
-
-    async delete(id: string) {
-        const exists = await this.knex('phone_os_types')
-            .where({ id, status: 'Open' })
-            .first();
-
-        if (!exists) {
-            throw new NotFoundException(
-                {
-                    message: 'OS type not found or already deleted',
-                    location: 'id'
-                });
-        }
-
-        await this.knex('phone_os_types')
-            .where({ id })
-            .update({ status: 'Deleted', updated_at: new Date() });
-
-        await this.redisService.del(this.redisKey);
-        return { message: 'Phone OS type deleted (soft)' };
-    }
+    await this.redisService.del(this.redisKey);
+    return { message: 'Phone OS type deleted (soft)' };
+  }
 }

@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { InjectKnex, Knex } from 'nestjs-knex';
+import { InjectKnex } from 'nestjs-knex';
 import { RedisService } from 'src/common/redis/redis.service';
+import { Knex } from 'knex';
+import { Permission } from 'src/common/types/permission.interface';
 
 @Injectable()
 export class PermissionsService {
@@ -17,14 +19,14 @@ export class PermissionsService {
     const start = Date.now();
 
     const cacheKey = this.getCacheKey(adminId);
-    const cached = await this.redisService.get<string[]>(cacheKey);
+    const cached: string[] | null = await this.redisService.get(cacheKey);
     if (cached !== null) {
       const duration = Date.now() - start;
       console.log(`🛠 Permissions: (${duration}ms) redis`);
       return cached;
     }
 
-    const permissions = await this.loadPermissionsFromDB(adminId);
+    const permissions: string[] = await this.loadPermissionsFromDB(adminId);
     await this.redisService.set(cacheKey, permissions, 300); // 5 min cache
     const duration = Date.now() - start;
     console.log(`🛠 Permissions: (${duration}ms) knex`);
@@ -32,7 +34,7 @@ export class PermissionsService {
   }
 
   private async loadPermissionsFromDB(adminId: string): Promise<string[]> {
-    const rows = await this.knex('admin_roles as ar')
+    const rows = await this.knex<Permission>('admin_roles as ar')
       .join('roles as r', 'r.id', 'ar.role_id')
       .join('role_permissions as rp', 'rp.role_id', 'r.id')
       .join('permissions as p', 'p.id', 'rp.permission_id')
@@ -44,7 +46,7 @@ export class PermissionsService {
       .select('p.name')
       .groupBy('p.name');
 
-    return rows.map((row) => row.name);
+    return rows.map((row) => row.name as string);
   }
 
   async clearPermissionCache(adminId: string): Promise<void> {
@@ -58,13 +60,16 @@ export class PermissionsService {
     offset?: number;
     sort_by?: string;
     sort_order?: 'asc' | 'desc';
-  }) {
+  }): Promise<Permission[]> {
     const { search, limit = 20, offset = 0, sort_by = 'created_at', sort_order = 'desc' } = query;
 
-    const qb = this.knex('permissions').where('is_active', true).andWhere('status', 'Open');
+    const qb = this.knex<Permission>('permissions')
+      .where('is_active', true)
+      .andWhere('status', 'Open');
 
     if (search) {
-      qb.andWhere((builder) =>
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises
+      void qb.andWhere((builder: Knex.QueryBuilder) =>
         builder.whereILike('name', `%${search}%`).orWhereILike('description', `%${search}%`),
       );
     }

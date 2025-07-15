@@ -3,7 +3,11 @@ import type { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
 import { FindNotificationsDto } from './dto/find-notification.dto';
 import { NotificationGateway } from './notification.gateway';
-import { Notification } from '../common/types/notification.interface';
+import {
+  BroadcastMessage,
+  Notification,
+  RepairNotificationMeta,
+} from '../common/types/notification.interface';
 
 @Injectable()
 export class NotificationService {
@@ -31,11 +35,13 @@ export class NotificationService {
 
     await trx('notifications').insert(records);
 
-    this.gateway.broadcastToAdmins(adminIds, {
+    const message: BroadcastMessage<RepairNotificationMeta> = {
       title: payload.title,
       message: payload.message,
-      meta: payload.meta,
-    });
+      meta: payload.meta as RepairNotificationMeta,
+    };
+
+    this.gateway.broadcastToAdmins(adminIds, message);
   }
 
   async findAll(adminId: string, query: FindNotificationsDto): Promise<Notification[]> {

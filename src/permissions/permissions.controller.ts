@@ -2,6 +2,7 @@ import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { PermissionsService } from './permissions.service';
+import { Permission } from 'src/common/types/permission.interface';
 
 @ApiTags('Permissions')
 @ApiBearerAuth()
@@ -22,7 +23,7 @@ export class PermissionsController {
     @Query('offset') offset = 0,
     @Query('sort_by') sort_by = 'name',
     @Query('sort_order') sort_order: 'asc' | 'desc' = 'desc',
-  ) {
+  ): Promise<Permission[]> {
     return this.permissionsService.findAll({
       search,
       limit,
