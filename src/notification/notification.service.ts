@@ -3,6 +3,7 @@ import type { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
 import { FindNotificationsDto } from './dto/find-notification.dto';
 import { NotificationGateway } from './notification.gateway';
+import { Notification } from '../common/types/notification.interface';
 
 @Injectable()
 export class NotificationService {
@@ -11,10 +12,14 @@ export class NotificationService {
     private readonly gateway: NotificationGateway,
   ) {}
 
-  async notifyAdmins(trx: Knex.Transaction | Knex, adminIds: string[], payload: any) {
+  async notifyAdmins(
+    trx: Knex.Transaction | Knex,
+    adminIds: string[],
+    payload: Notification,
+  ): Promise<void> {
     const now = new Date();
 
-    const records = adminIds.map((adminId) => ({
+    const records: Partial<Notification>[] = adminIds.map((adminId: string) => ({
       admin_id: adminId,
       title: payload.title,
       message: payload.message,
@@ -33,12 +38,12 @@ export class NotificationService {
     });
   }
 
-  async findAll(adminId: string, query: FindNotificationsDto) {
+  async findAll(adminId: string, query: FindNotificationsDto): Promise<Notification[]> {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
     const offset = (page - 1) * limit;
 
-    const q = this.knex('notifications')
+    const q = this.knex<Notification>('notifications')
       .where({ admin_id: adminId })
       .orderBy('created_at', 'desc')
       .limit(limit)
@@ -50,12 +55,10 @@ export class NotificationService {
       void q.andWhere({ is_read: false });
     }
 
-    const data = await q;
-
-    return data;
+    return (await q) as Notification[];
   }
 
-  async markAsRead(adminId: string, notificationId: string) {
+  async markAsRead(adminId: string, notificationId: string): Promise<{ message: string }> {
     const affected = await this.knex('notifications')
       .update({
         is_read: true,
@@ -74,7 +77,7 @@ export class NotificationService {
     return { message: 'Notification marked as read' };
   }
 
-  async markAllAsRead(adminId: string) {
+  async markAllAsRead(adminId: string): Promise<{ message: string }> {
     await this.knex('notifications')
       .update({
         is_read: true,

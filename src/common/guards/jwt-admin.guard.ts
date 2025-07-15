@@ -27,7 +27,7 @@ export class JwtAdminAuthGuard extends AuthGuard('jwt-admin') {
 
       const token = authHeader.split(' ')[1];
 
-      const exists = await this.redisService.get(`session:admin:${admin.id}`);
+      const exists: string | null = await this.redisService.get(`session:admin:${admin.id}`);
 
       if (!exists || exists !== token) {
         throw new UnauthorizedException({
