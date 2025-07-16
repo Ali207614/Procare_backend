@@ -1,25 +1,19 @@
-import {
-  IsUUID,
-  IsOptional,
-  IsEnum,
-  ValidateNested,
-  IsNumber,
-} from 'class-validator';
+import { IsUUID, IsOptional, IsEnum, ValidateNested, IsNumber } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 class ProblemDto {
   @ApiPropertyOptional()
   @IsUUID('all', { context: { location: 'problem_category_id' } })
-  problem_category_id: string;
+  problem_category_id!: string;
 
   @ApiPropertyOptional()
   @IsNumber({}, { context: { location: 'price' } })
-  price: number;
+  price!: number;
 
   @ApiPropertyOptional()
   @IsNumber({}, { context: { location: 'estimated_minutes' } })
-  estimated_minutes: number;
+  estimated_minutes!: number;
 }
 
 export class UpdateRepairOrderDto {

@@ -10,6 +10,7 @@ import { UpdateRepairOrderStatusDto } from './dto/update-repair-order-status.dto
 import { UpdateRepairOrderStatusSortDto } from './dto/update-repair-order-status-sort.dto';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { BranchExistGuard } from 'src/common/guards/branch-exist.guard';
+import { AuthenticatedRequest } from 'src/common/types/authenticated-request.type';
 
 @ApiTags('Repair Order Statuses')
 @ApiBearerAuth()
@@ -22,7 +23,7 @@ export class RepairOrderStatusesController {
   @UseGuards(PermissionsGuard)
   @SetPermissions('repair_order_status.create')
   @ApiOperation({ summary: 'Create a new repair order status' })
-  async create(@Req() req: any, @Body() dto: CreateRepairOrderStatusDto) {
+  async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateRepairOrderStatusDto) {
     return this.service.create(dto, req.admin.id);
   }
 

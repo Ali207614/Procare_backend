@@ -8,6 +8,7 @@ import { PermissionsGuard } from 'src/common/guards/permission.guard';
 import { SetPermissions } from 'src/common/decorators/permission-decorator';
 import { BranchExistGuard } from 'src/common/guards/branch-exist.guard';
 import { RepairOrderStatusExistGuard } from 'src/common/guards/repair-order-status-exist.guard';
+import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 
 @ApiTags('Repair Order Status Permissions')
 @ApiBearerAuth()
@@ -20,15 +21,20 @@ export class RepairOrderStatusPermissionsController {
   @UseGuards(PermissionsGuard, BranchExistGuard)
   @SetPermissions('repair_order_status_permissions.manage')
   @ApiOperation({ summary: 'Bulk assign or update permissions to multiple admins' })
-  async bulkAssign(@Body() dto: AssignRepairOrderStatusPermissionsDto) {
+  async bulkAssign(
+    @Body() dto: AssignRepairOrderStatusPermissionsDto,
+  ): Promise<{ message: string; count: number }> {
     return this.service.createMany(dto);
   }
 
-  @Get('by-status/:id')
+  @Get('by-status/:status_id')
+  @UseGuards(RepairOrderStatusExistGuard)
   @ApiOperation({ summary: 'Get permissions by status ID (with Redis caching)' })
-  @ApiParam({ name: 'id', description: 'Repair Order Status ID' })
-  async findByStatus(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.findByStatusId(id);
+  @ApiParam({ name: 'status_id', description: 'Repair Order Status ID' })
+  async findByStatus(
+    @Param('status_id', ParseUUIDPipe) statusId: string,
+  ): Promise<RepairOrderStatusPermission[]> {
+    return this.service.findByStatusId(statusId);
   }
 
   @Get('by-admin/:admin_id/status/:status_id')
@@ -39,7 +45,7 @@ export class RepairOrderStatusPermissionsController {
   async getByAdminStatus(
     @Param('admin_id', ParseUUIDPipe) adminId: string,
     @Param('status_id', ParseUUIDPipe) statusId: string,
-  ) {
+  ): Promise<RepairOrderStatusPermission | null> {
     return this.service.findByAdminStatus(adminId, statusId);
   }
 
@@ -51,7 +57,7 @@ export class RepairOrderStatusPermissionsController {
   async getByAdminBranch(
     @Param('admin_id', ParseUUIDPipe) adminId: string,
     @Param('branch_id', ParseUUIDPipe) branchId: string,
-  ) {
+  ): Promise<RepairOrderStatusPermission[]> {
     return this.service.findByAdminBranch(adminId, branchId);
   }
 }

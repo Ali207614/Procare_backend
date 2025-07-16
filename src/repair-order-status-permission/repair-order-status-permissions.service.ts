@@ -3,6 +3,7 @@ import { InjectKnex } from 'nestjs-knex';
 import { Knex } from 'knex';
 import { AssignRepairOrderStatusPermissionsDto } from './dto/create-repair-order-status-permission.dto';
 import { RedisService } from 'src/common/redis/redis.service';
+import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 
 @Injectable()
 export class RepairOrderStatusPermissionsService {
@@ -14,7 +15,9 @@ export class RepairOrderStatusPermissionsService {
   private readonly redisKeyByAdminStatus = 'repair_order_status_permissions:by_admin_status';
   private readonly redisKeyByAdminBranch = 'repair_order_status_permissions:by_admin_branch';
 
-  async createMany(dto: AssignRepairOrderStatusPermissionsDto) {
+  async createMany(
+    dto: AssignRepairOrderStatusPermissionsDto,
+  ): Promise<{ message: string; count: number }> {
     const { branch_id, status_ids, admin_ids, ...permissions } = dto;
 
     const trx = await this.knex.transaction();
@@ -41,11 +44,17 @@ export class RepairOrderStatusPermissionsService {
         }
       }
 
-      const inserted = await trx('repair_order_status_permissions').insert(inserts).returning('*');
+      const inserted: RepairOrderStatusPermission[] = await trx('repair_order_status_permissions')
+        .insert(inserts)
+        .returning('*');
 
       await trx.commit();
 
-      await Promise.all(inserted.map((row) => this.flushAndReloadCache(row)));
+      await Promise.all(
+        inserted.map(
+          (row: RepairOrderStatusPermission): Promise<void> => this.flushAndReloadCache(row),
+        ),
+      );
 
       return {
         message: 'Permissions assigned successfully to selected admins and statuses',
@@ -57,34 +66,41 @@ export class RepairOrderStatusPermissionsService {
     }
   }
 
-  async findByStatusId(statusId: string) {
-    const permissions = await this.knex('repair_order_status_permissions')
+  async findByStatusId(statusId: string): Promise<RepairOrderStatusPermission[]> {
+    return this.knex('repair_order_status_permissions')
       .where({ status_id: statusId })
       .orderBy('created_at', 'desc');
-
-    return permissions;
   }
 
-  async findByAdminStatus(adminId: string, statusId: string) {
+  async findByAdminStatus(
+    adminId: string,
+    statusId: string,
+  ): Promise<RepairOrderStatusPermission | null> {
     const key = `${this.redisKeyByAdminStatus}:${adminId}:${statusId}`;
-    const cached = await this.redisService.get(key);
+    const cached: RepairOrderStatusPermission | null = await this.redisService.get(key);
 
     if (cached !== null) return cached;
-    const permission = await this.knex('repair_order_status_permissions')
-      .where({ admin_id: adminId, status_id: statusId })
-      .first();
+    const permission: RepairOrderStatusPermission | undefined =
+      await this.knex<RepairOrderStatusPermission>('repair_order_status_permissions')
+        .where({ admin_id: adminId, status_id: statusId })
+        .first();
 
     await this.redisService.set(key, permission, 3600);
-    return permission;
+    return permission ?? null;
   }
 
-  async findByAdminBranch(adminId: string, branchId: string) {
+  async findByAdminBranch(
+    adminId: string,
+    branchId: string,
+  ): Promise<RepairOrderStatusPermission[]> {
     const key = `${this.redisKeyByAdminBranch}:${adminId}:${branchId}`;
-    const cached = await this.redisService.get(key);
+    const cached: RepairOrderStatusPermission[] | null = await this.redisService.get(key);
 
     if (cached !== null) return cached ?? [];
 
-    const permissions = await this.knex('repair_order_status_permissions').where({
+    const permissions: RepairOrderStatusPermission[] = await this.knex<RepairOrderStatusPermission>(
+      'repair_order_status_permissions',
+    ).where({
       admin_id: adminId,
       branch_id: branchId,
     });
@@ -96,7 +112,7 @@ export class RepairOrderStatusPermissionsService {
     return permissions;
   }
 
-  private async flushAndReloadCache(permission: any) {
+  private async flushAndReloadCache(permission: RepairOrderStatusPermission): Promise<void> {
     const { admin_id, status_id, branch_id } = permission;
 
     const keyByStatus = `${this.redisKeyByAdminStatus}:${admin_id}:${status_id}`;
@@ -115,7 +131,7 @@ export class RepairOrderStatusPermissionsService {
     ]);
   }
 
-  async flushPermissionCacheOnly(permission: any) {
+  async flushPermissionCacheOnly(permission: RepairOrderStatusPermission): Promise<void> {
     const { admin_id, status_id, branch_id } = permission;
 
     const keyByStatus = `${this.redisKeyByAdminStatus}:${admin_id}:${status_id}`;
@@ -127,10 +143,13 @@ export class RepairOrderStatusPermissionsService {
   async validatePermissionOrThrow(
     adminId: string,
     statusId: string,
-    permissionField: any,
+    permissionField: keyof RepairOrderStatusPermission,
     location: string,
-  ) {
-    const permission = await this.findByAdminStatus(adminId, statusId);
+  ): Promise<void> {
+    const permission: RepairOrderStatusPermission | undefined | null = await this.findByAdminStatus(
+      adminId,
+      statusId,
+    );
 
     if (!permission?.[permissionField]) {
       throw new ForbiddenException({

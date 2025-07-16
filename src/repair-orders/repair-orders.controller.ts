@@ -23,6 +23,7 @@ import { MoveRepairOrderDto } from './dto/move-repair-order.dto';
 import { UpdateRepairOrderSortDto } from './dto/update-repair-order-sort.dto';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
+import { AuthenticatedRequest } from 'src/common/types/authenticated-request.type';
 
 @ApiTags('Repair Orders')
 @ApiBearerAuth()
@@ -34,7 +35,7 @@ export class RepairOrdersController {
   @Post()
   @UseGuards(RepairOrderStatusExistGuard)
   @ApiOperation({ summary: 'Create repair order' })
-  create(@Req() req, @Body() dto: CreateRepairOrderDto) {
+  create(@Req() req: AuthenticatedRequest, @Body() dto: CreateRepairOrderDto) {
     return this.service.create(req.admin.id, req.status.branch_id, req.status.id, dto);
   }
 
@@ -42,7 +43,7 @@ export class RepairOrdersController {
   @UseGuards(BranchExistGuard, RepairOrderStatusExistGuard)
   @ApiOperation({ summary: 'Update repair order' })
   @ApiParam({ name: 'id', description: 'Repair Order ID' })
-  update(@Param('id', ParseUUIDPipe) id: string, @Req() req, @Body() dto: UpdateRepairOrderDto) {
+  update(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest, @Body() dto: UpdateRepairOrderDto) {
     return this.service.update(req.admin.id, id, dto);
   }
 

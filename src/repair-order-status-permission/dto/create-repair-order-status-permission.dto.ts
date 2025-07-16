@@ -11,21 +11,21 @@ import {
 export class AssignRepairOrderStatusPermissionsDto {
   @ApiProperty()
   @IsUUID('all', { context: { location: 'branch_id' } })
-  branch_id: string;
+  branch_id!: string;
 
   @ApiProperty({ type: [String] })
   @IsArray({ context: { location: 'status_ids' } })
   @ArrayNotEmpty({ context: { location: 'status_ids' } })
   @ArrayUnique({ context: { location: 'status_ids' } })
   @IsUUID('all', { each: true, context: { location: 'status_ids' } })
-  status_ids: string[];
+  status_ids!: string[];
 
   @ApiProperty({ type: [String] })
   @IsArray({ context: { location: 'admin_ids' } })
   @ArrayNotEmpty({ context: { location: 'admin_ids' } })
   @ArrayUnique({ context: { location: 'admin_ids' } })
   @IsUUID('all', { each: true, context: { location: 'admin_ids' } })
-  admin_ids: string[];
+  admin_ids!: string[];
 
   @ApiProperty({ required: false }) @IsOptional() @IsBoolean() can_add?: boolean;
   @ApiProperty({ required: false }) @IsOptional() @IsBoolean() can_view?: boolean;

@@ -1,4 +1,3 @@
-
 import { forwardRef, Module } from '@nestjs/common';
 import { RedisModule } from 'src/common/redis/redis.module';
 import { PermissionsModule } from 'src/permissions/permissions.module';
