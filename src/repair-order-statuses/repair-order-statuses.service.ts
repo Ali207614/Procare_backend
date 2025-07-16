@@ -17,7 +17,6 @@ export class RepairOrderStatusesService {
   private readonly redisKeyByAdminStatus = 'repair_order_status_permissions:by_admin_status';
   private readonly redisKeyByAdminBranch = 'repair_order_status_permissions:by_admin_branch';
 
-
   constructor(
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,
@@ -28,7 +27,7 @@ export class RepairOrderStatusesService {
     let branchId = dto.branch_id;
     let branch = null;
 
-// status nomlarini tekshrish kerak
+    // status nomlarini tekshrish kerak
 
     if (branchId) {
       const redisKey = `branches:by_id:${branchId}`;
@@ -182,7 +181,6 @@ export class RepairOrderStatusesService {
   }
 
   async update(status: any, dto: UpdateRepairOrderStatusDto) {
-
     // bu yerda ham ismini tekshirish kerak
     if (dto?.is_active === false && status?.is_protected) {
       throw new ForbiddenException({
