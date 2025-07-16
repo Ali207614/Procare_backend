@@ -16,21 +16,21 @@ export class CreatePhoneCategoryDto {
   @IsNotEmpty()
   @MinLength(1, { context: { location: 'phone_category_name_min' } })
   @MaxLength(100, { context: { location: 'phone_category_name_max' } })
-  name_uz: string;
+  name_uz!: string;
 
   @ApiProperty({ example: 'Айфон', description: 'Category name in Russian' })
   @IsString()
   @IsNotEmpty()
   @MinLength(1, { context: { location: 'phone_category_name_min' } })
   @MaxLength(100, { context: { location: 'phone_category_name_max' } })
-  name_ru: string;
+  name_ru!: string;
 
   @ApiProperty({ example: 'iPhone', description: 'Category name in English' })
   @IsString()
   @IsNotEmpty()
   @MinLength(1, { context: { location: 'phone_category_name_min' } })
   @MaxLength(100, { context: { location: 'phone_category_name_max' } })
-  name_en: string;
+  name_en!: string;
 
   @ApiProperty({ example: '#iphoneSticker', description: 'Telegram sticker for the bot display' })
   @IsOptional()
@@ -42,12 +42,12 @@ export class CreatePhoneCategoryDto {
   @ApiProperty({ example: 'uuid', description: 'Parent category ID' })
   @IsOptional()
   @IsUUID()
-  @Transform(({ value }) => value?.trim() || null)
+  @Transform(({ value }): string | undefined => value?.trim() || null)
   parent_id?: string;
 
   @ApiProperty({ example: 'uuid', description: 'Phone os type ID' })
   @IsUUID()
-  phone_os_type_id: string;
+  phone_os_type_id!: string;
 
   @ApiProperty({ example: true, description: 'Whether the category is active' })
   @IsOptional()

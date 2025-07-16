@@ -1,4 +1,4 @@
-import {  Min, Max, IsNumber } from 'class-validator';
+import { Min, Max, IsNumber } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UpdateProblemCategorySortDto {
@@ -6,5 +6,5 @@ export class UpdateProblemCategorySortDto {
   @IsNumber()
   @Min(0)
   @Max(9999)
-  sort?: number;
+  sort!: number;
 }

@@ -4,12 +4,17 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { CreateProblemCategoryDto } from './dto/create-problem-category.dto';
 import { getNextSortValue } from 'src/common/utils/sort.util';
 import { UpdateProblemCategoryDto } from './dto/update-problem-category.dto';
+import { PhoneCategory } from 'src/common/types/phone-category.interface';
+import {
+  ProblemCategory,
+  ProblemCategoryWithMeta,
+} from 'src/common/types/problem-category.interface';
 
 @Injectable()
 export class ProblemCategoriesService {
   constructor(@InjectKnex() private readonly knex: Knex) {}
 
-  async create(dto: CreateProblemCategoryDto, adminId: string) {
+  async create(dto: CreateProblemCategoryDto, adminId: string): Promise<ProblemCategory> {
     const {
       parent_id,
       name_uz,
@@ -29,7 +34,7 @@ export class ProblemCategoriesService {
     }
 
     if (parent_id) {
-      const parent = await this.knex('problem_categories')
+      const parent: PhoneCategory | undefined = await this.knex('problem_categories')
         .where({ id: parent_id, status: 'Open', is_active: true })
         .first();
 
@@ -40,10 +45,14 @@ export class ProblemCategoriesService {
         });
       }
 
-      const existing = await this.knex('problem_categories')
+      const existing: ProblemCategory | undefined = await this.knex('problem_categories')
         .where({ parent_id })
-        .andWhere((qb) =>
-          qb.where('name_uz', name_uz).orWhere('name_ru', name_ru).orWhere('name_en', name_en),
+        .andWhere(
+          (qb: Knex.QueryBuilder): void =>
+            void qb
+              .where('name_uz', name_uz)
+              .orWhere('name_ru', name_ru)
+              .orWhere('name_en', name_en),
         )
         .first();
 
@@ -63,7 +72,7 @@ export class ProblemCategoriesService {
     }
 
     if (!parent_id && phone_category_id) {
-      const isParent = await this.knex('phone_categories')
+      const isParent: PhoneCategory | undefined = await this.knex<PhoneCategory>('phone_categories')
         .where({ parent_id: phone_category_id, status: 'Open' })
         .first();
 
@@ -75,7 +84,7 @@ export class ProblemCategoriesService {
         });
       }
 
-      const existing = await this.knex('problem_categories as p')
+      const existing: ProblemCategory | undefined = await this.knex('problem_categories as p')
         .join('phone_problem_mappings as ppm', 'ppm.problem_category_id', 'p.id')
         .where({
           'p.parent_id': null,
@@ -83,11 +92,12 @@ export class ProblemCategoriesService {
           'p.is_active': true,
           'p.status': 'Open',
         })
-        .andWhere((qb) =>
-          qb
-            .where('p.name_uz', name_uz)
-            .orWhere('p.name_ru', name_ru)
-            .orWhere('p.name_en', name_en),
+        .andWhere(
+          (qb: Knex.QueryBuilder): void =>
+            void qb
+              .where('p.name_uz', name_uz)
+              .orWhere('p.name_ru', name_ru)
+              .orWhere('p.name_en', name_en),
         )
         .first();
 
@@ -101,20 +111,23 @@ export class ProblemCategoriesService {
 
     const nextSort = await getNextSortValue(this.knex, 'problem_categories');
 
-    const [problem] = await this.knex('problem_categories')
-      .insert({
-        ...rest,
-        name_uz,
-        name_ru,
-        name_en,
-        parent_id: parent_id ?? null,
-        price: price ?? 0,
-        estimated_minutes: estimated_minutes ?? 0,
-        sort: nextSort,
-        created_by: adminId,
-      })
+    const insertData = {
+      ...rest,
+      name_uz,
+      name_ru,
+      name_en,
+      parent_id: parent_id ?? null,
+      price: String(price ?? 0),
+      estimated_minutes: estimated_minutes ?? 0,
+      sort: nextSort,
+      created_by: adminId,
+    };
+
+    const inserted: ProblemCategory[] = await this.knex<ProblemCategory>('problem_categories')
+      .insert(insertData)
       .returning('*');
 
+    const problem: ProblemCategory = inserted[0];
     if (!parent_id && phone_category_id) {
       const existingMapping = await this.knex('phone_problem_mappings')
         .where({
@@ -134,10 +147,8 @@ export class ProblemCategoriesService {
     return problem;
   }
 
-  // problem-categories.service.ts
-
-  async findRootProblems(phone_category_id: string) {
-    const problems = await this.knex('problem_categories as p')
+  async findRootProblems(phone_category_id: string): Promise<ProblemCategoryWithMeta[]> {
+    return this.knex('problem_categories as p')
       .select(
         'p.*',
         this.knex.raw(`EXISTS (
@@ -153,13 +164,11 @@ export class ProblemCategoriesService {
         'p.status': 'Open',
         'p.is_active': true,
       })
-      .orderBy('p.sort', 'asc');
-
-    return problems;
+      .orderBy('p.sort', 'asc') as Promise<ProblemCategoryWithMeta[]>;
   }
 
-  async findChildrenWithBreadcrumb(parent_id: string) {
-    const problems = await this.knex('problem_categories as p')
+  async findChildrenWithBreadcrumb(parent_id: string): Promise<ProblemCategoryWithMeta[]> {
+    const problems: ProblemCategoryWithMeta[] = await this.knex('problem_categories as p')
       .select(
         'p.*',
         this.knex.raw(`EXISTS (
@@ -198,8 +207,10 @@ export class ProblemCategoriesService {
     return problems;
   }
 
-  async update(id: string, dto: UpdateProblemCategoryDto) {
-    const category = await this.knex('problem_categories').where({ id, status: 'Open' }).first();
+  async update(id: string, dto: UpdateProblemCategoryDto): Promise<{ message: string }> {
+    const category: ProblemCategory | undefined = await this.knex('problem_categories')
+      .where({ id, status: 'Open' })
+      .first();
 
     if (!category) {
       throw new BadRequestException({
@@ -230,7 +241,7 @@ export class ProblemCategoriesService {
     }
 
     if (parentId) {
-      const parent = await this.knex('problem_categories')
+      const parent: ProblemCategory | undefined = await this.knex('problem_categories')
         .where({ id: parentId, status: 'Open', is_active: true })
         .first();
 
@@ -250,7 +261,7 @@ export class ProblemCategoriesService {
         });
       }
 
-      const isParent = await this.knex('phone_categories')
+      const isParent: PhoneCategory | undefined = await this.knex('phone_categories')
         .where({ parent_id: phone_category_id, is_active: true })
         .first();
 
@@ -266,15 +277,15 @@ export class ProblemCategoriesService {
       const conflictQuery = this.knex('problem_categories')
         .whereNot({ id })
         .andWhere((qb) => {
-          if (name_uz) qb.orWhere('name_uz', name_uz);
-          if (name_ru) qb.orWhere('name_ru', name_ru);
-          if (name_en) qb.orWhere('name_en', name_en);
+          if (name_uz) void qb.orWhere('name_uz', name_uz);
+          if (name_ru) void qb.orWhere('name_ru', name_ru);
+          if (name_en) void qb.orWhere('name_en', name_en);
         });
 
       if (parentId) {
-        conflictQuery.andWhere({ parent_id: parentId });
+        void conflictQuery.andWhere({ parent_id: parentId });
       } else {
-        conflictQuery
+        void conflictQuery
           .whereNull('parent_id')
           .join('phone_problem_mappings as ppm', 'ppm.problem_category_id', 'problem_categories.id')
           .andWhere({ 'ppm.phone_category_id': phone_category_id });
@@ -290,19 +301,16 @@ export class ProblemCategoriesService {
       }
     }
 
-    const [updated] = await this.knex('problem_categories')
-      .where({ id })
-      .update(
-        {
-          ...rest,
-          ...(name_uz && { name_uz }),
-          ...(name_ru && { name_ru }),
-          ...(name_en && { name_en }),
-          parent_id: parentId,
-          updated_at: new Date(),
-        },
-        '*',
-      );
+    const insertData = {
+      ...rest,
+      ...(name_uz && { name_uz }),
+      ...(name_ru && { name_ru }),
+      ...(name_en && { name_en }),
+      parent_id: parentId,
+      updated_at: new Date(),
+    };
+
+    await this.knex('problem_categories').where({ id }).update(insertData, '*');
 
     if (!parentId && phone_category_id) {
       const mappingExists = await this.knex('phone_problem_mappings')
@@ -320,11 +328,13 @@ export class ProblemCategoriesService {
       }
     }
 
-    return updated;
+    return { message: 'Problem category updated successfully' };
   }
 
-  async updateSort(id: string, newSort: number) {
-    const category = await this.knex('problem_categories').where({ id, status: 'Open' }).first();
+  async updateSort(id: string, newSort: number): Promise<{ message: string }> {
+    const category: ProblemCategory | undefined = await this.knex('problem_categories')
+      .where({ id, status: 'Open' })
+      .first();
 
     if (!category) {
       throw new BadRequestException({
@@ -369,8 +379,10 @@ export class ProblemCategoriesService {
     }
   }
 
-  async delete(id: string) {
-    const category = await this.knex('problem_categories').where({ id, status: 'Open' }).first();
+  async delete(id: string): Promise<{ message: string }> {
+    const category: ProblemCategory | undefined = await this.knex('problem_categories')
+      .where({ id, status: 'Open' })
+      .first();
 
     if (!category) {
       throw new NotFoundException({
@@ -397,7 +409,6 @@ export class ProblemCategoriesService {
 
     return {
       message: 'Problem category deleted successfully',
-      id,
     };
   }
 }

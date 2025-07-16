@@ -6,6 +6,8 @@ import { getNextSortValue } from 'src/common/utils/sort.util';
 import { UpdatePhoneCategoryDto } from './dto/update-phone-category.dto';
 import { PhoneOsTypesService } from 'src/phone-os-types/phone-os-types.service';
 import { FindAllPhoneCategoriesDto } from './dto/find-all-phone-categories.dto';
+import { PhoneOsType } from 'src/common/types/phone-os-type.interface';
+import { PhoneCategory, PhoneCategoryWithMeta } from 'src/common/types/phone-category.interface';
 
 @Injectable()
 export class PhoneCategoriesService {
@@ -14,12 +16,14 @@ export class PhoneCategoriesService {
     private readonly phoneOsTypesService: PhoneOsTypesService,
   ) {}
 
-  async create(dto: CreatePhoneCategoryDto, adminId: string) {
+  async create(dto: CreatePhoneCategoryDto, adminId: string): Promise<PhoneCategory> {
     const { parent_id, name_uz, name_ru, name_en, phone_os_type_id } = dto;
 
     if (phone_os_type_id) {
-      const allOsTypes = await this.phoneOsTypesService.findAll();
-      const found = allOsTypes.find((os) => os.id === phone_os_type_id);
+      const allOsTypes: PhoneOsType[] = await this.phoneOsTypesService.findAll();
+      const found: PhoneOsType | undefined = allOsTypes.find(
+        (os: PhoneOsType): boolean => os.id === phone_os_type_id,
+      );
 
       if (!found) {
         throw new BadRequestException({
@@ -29,7 +33,7 @@ export class PhoneCategoriesService {
       }
     }
 
-    const existing = await this.knex('phone_categories')
+    const existing: PhoneCategory | undefined = await this.knex('phone_categories')
       .whereRaw('LOWER(name_uz) = LOWER(?)', [name_uz])
       .orWhereRaw('LOWER(name_ru) = LOWER(?)', [name_ru])
       .orWhereRaw('LOWER(name_en) = LOWER(?)', [name_en])
@@ -44,7 +48,7 @@ export class PhoneCategoriesService {
     }
 
     if (parent_id) {
-      const parent = await this.knex('phone_categories')
+      const parent: PhoneCategory | undefined = await this.knex('phone_categories')
         .where({ id: parent_id, is_active: true, status: 'Open' })
         .first();
 
@@ -69,32 +73,36 @@ export class PhoneCategoriesService {
 
     const nextSort = await getNextSortValue(this.knex, 'phone_categories');
 
-    const [category] = await this.knex('phone_categories')
-      .insert({
-        ...dto,
-        sort: nextSort,
-        created_by: adminId,
-      })
+    const intsertData = {
+      ...dto,
+      sort: nextSort,
+      created_by: adminId,
+    };
+
+    const inserted: PhoneCategory[] = await this.knex<PhoneCategory>('phone_categories')
+      .insert(intsertData)
       .returning('*');
 
-    return category;
+    return inserted[0];
   }
 
-  async findWithParentOrRoot(query: FindAllPhoneCategoriesDto) {
-    const { parent_id, ...rest } = query;
-
-    if (parent_id) {
-      return this.findChildrenWithBreadcrumb(parent_id, rest);
-    }
-
-    return this.findRootCategories(rest);
+  async findWithParentOrRoot(query: FindAllPhoneCategoriesDto): Promise<PhoneCategoryWithMeta[]> {
+    return await this.findPhoneCategories(query);
   }
 
-  async findRootCategories(query: Omit<FindAllPhoneCategoriesDto, 'parent_id'>) {
-    const { phone_os_type_id, limit, offset, search } = query;
+  async findPhoneCategories(
+    query: Omit<FindAllPhoneCategoriesDto, 'parent_id'> & { parent_id?: string },
+  ): Promise<PhoneCategoryWithMeta[]> {
+    const { phone_os_type_id, limit, offset, search, parent_id } = query;
 
     const q = this.knex('phone_categories as pc')
-      .whereNull('pc.parent_id')
+      .where(function () {
+        if (parent_id) {
+          void this.where('pc.parent_id', parent_id);
+        } else {
+          void this.whereNull('pc.parent_id');
+        }
+      })
       .andWhere('pc.is_active', true)
       .andWhere('pc.status', 'Open')
       .select(
@@ -108,19 +116,39 @@ export class PhoneCategoriesService {
         JOIN problem_categories p ON p.id = ppm.problem_category_id
         WHERE ppm.phone_category_id = pc.id
       ) as has_problems`),
-        this.knex.raw(`'[]'::jsonb as breadcrumb`),
+        parent_id
+          ? this.knex.raw(
+              `(
+              WITH RECURSIVE breadcrumb AS (
+                SELECT id, name_uz, name_ru, name_en, parent_id, sort
+                FROM phone_categories
+                WHERE id = ?
+
+                UNION ALL
+
+                SELECT c.id, c.name_uz, c.name_ru, c.name_en, c.parent_id, c.sort
+                FROM phone_categories c
+                JOIN breadcrumb b ON b.parent_id = c.id
+                WHERE c.is_active = true AND c.status = 'Open'
+              )
+              SELECT COALESCE(JSON_AGG(breadcrumb ORDER BY sort), '[]') FROM breadcrumb
+            ) as breadcrumb`,
+              [parent_id],
+            )
+          : this.knex.raw(`'[]'::jsonb as breadcrumb`),
       );
 
     if (phone_os_type_id) {
-      q.andWhere('pc.phone_os_type_id', phone_os_type_id);
+      void q.andWhere('pc.phone_os_type_id', phone_os_type_id);
     }
 
     if (search) {
-      q.andWhere((builder) =>
-        builder
-          .whereILike('pc.name_uz', `%${search}%`)
-          .orWhereILike('pc.name_ru', `%${search}%`)
-          .orWhereILike('pc.name_en', `%${search}%`),
+      void q.andWhere(
+        (builder) =>
+          void builder
+            .whereILike('pc.name_uz', `%${search}%`)
+            .orWhereILike('pc.name_ru', `%${search}%`)
+            .orWhereILike('pc.name_en', `%${search}%`),
       );
     }
 
@@ -130,68 +158,10 @@ export class PhoneCategoriesService {
       .limit(limit || 20);
   }
 
-  async findChildrenWithBreadcrumb(
-    parent_id: string,
-    query: Omit<FindAllPhoneCategoriesDto, 'parent_id'>,
-  ) {
-    const { phone_os_type_id, limit, offset, search } = query;
-
-    const q = this.knex('phone_categories as pc')
-      .where('pc.parent_id', parent_id)
-      .andWhere('pc.is_active', true)
-      .andWhere('pc.status', 'Open')
-      .select(
-        'pc.*',
-        this.knex.raw(`EXISTS (
-        SELECT 1 FROM phone_categories c
-        WHERE c.parent_id = pc.id AND c.is_active = true AND c.status = 'Open'
-      ) as has_children`),
-        this.knex.raw(`EXISTS (
-        SELECT 1 FROM phone_problem_mappings ppm
-        JOIN problem_categories p ON p.id = ppm.problem_category_id
-        WHERE ppm.phone_category_id = pc.id
-      ) as has_problems`),
-        this.knex.raw(
-          `(
-        WITH RECURSIVE breadcrumb AS (
-          SELECT id, name_uz, name_ru, name_en, parent_id, sort
-          FROM phone_categories
-          WHERE id = ?
-
-          UNION ALL
-
-          SELECT c.id, c.name_uz, c.name_ru, c.name_en, c.parent_id, c.sort
-          FROM phone_categories c
-          JOIN breadcrumb b ON b.parent_id = c.id
-          WHERE c.is_active = true AND c.status = 'Open'
-        )
-        SELECT COALESCE(JSON_AGG(breadcrumb ORDER BY sort), '[]') FROM breadcrumb
-      ) as breadcrumb`,
-          [parent_id],
-        ),
-      );
-
-    if (phone_os_type_id) {
-      q.andWhere('pc.phone_os_type_id', phone_os_type_id);
-    }
-
-    if (search) {
-      q.andWhere((builder) =>
-        builder
-          .whereILike('pc.name_uz', `%${search}%`)
-          .orWhereILike('pc.name_ru', `%${search}%`)
-          .orWhereILike('pc.name_en', `%${search}%`),
-      );
-    }
-
-    return q
-      .orderBy('pc.sort', 'asc')
-      .offset(offset || 0)
-      .limit(limit || 20);
-  }
-
-  async update(id: string, dto: UpdatePhoneCategoryDto) {
-    const category = await this.knex('phone_categories').where({ id, status: 'Open' }).first();
+  async update(id: string, dto: UpdatePhoneCategoryDto): Promise<{ message: string }> {
+    const category: PhoneCategory | undefined = await this.knex('phone_categories')
+      .where({ id, status: 'Open' })
+      .first();
 
     if (!category) {
       throw new BadRequestException({
@@ -200,7 +170,7 @@ export class PhoneCategoriesService {
       });
     }
 
-    let parentId = dto?.parent_id;
+    let parentId: string | undefined | null = dto?.parent_id;
     if (typeof parentId === 'string' && parentId.trim() === '') {
       parentId = null;
     }
@@ -213,7 +183,7 @@ export class PhoneCategoriesService {
     }
 
     if (parentId) {
-      const parent = await this.knex('phone_categories')
+      const parent: PhoneCategory | undefined = await this.knex('phone_categories')
         .where({ id: parentId, is_active: true, status: 'Open' })
         .first();
       if (!parent) {
@@ -236,8 +206,10 @@ export class PhoneCategoriesService {
     }
 
     if (dto?.phone_os_type_id) {
-      const allOsTypes = await this.phoneOsTypesService.findAll();
-      const found = allOsTypes.find((os) => os.id === dto.phone_os_type_id);
+      const allOsTypes: PhoneOsType[] = await this.phoneOsTypesService.findAll();
+      const found: PhoneOsType | undefined = allOsTypes.find(
+        (os: PhoneOsType): boolean => os.id === dto.phone_os_type_id,
+      );
 
       if (!found) {
         throw new BadRequestException({
@@ -254,8 +226,10 @@ export class PhoneCategoriesService {
     return { message: 'Phone category updated successfully' };
   }
 
-  async updateSort(id: string, newSort: number) {
-    const category = await this.knex('phone_categories').where({ id, status: 'Open' }).first();
+  async updateSort(id: string, newSort: number): Promise<{ message: string }> {
+    const category: PhoneCategory | undefined = await this.knex<PhoneCategory>('phone_categories')
+      .where({ id, status: 'Open' })
+      .first();
 
     if (!category) {
       throw new BadRequestException({
@@ -300,8 +274,10 @@ export class PhoneCategoriesService {
     }
   }
 
-  async delete(id: string) {
-    const category = await this.knex('phone_categories').where({ id, status: 'Open' }).first();
+  async delete(id: string): Promise<{ message: string }> {
+    const category: PhoneCategory | undefined = await this.knex('phone_categories')
+      .where({ id, status: 'Open' })
+      .first();
 
     if (!category) {
       throw new BadRequestException({
@@ -310,7 +286,7 @@ export class PhoneCategoriesService {
       });
     }
 
-    const hasChildren = await this.knex('phone_categories')
+    const hasChildren: PhoneCategory | undefined = await this.knex('phone_categories')
       .where({ parent_id: id, status: 'Open' })
       .first();
 

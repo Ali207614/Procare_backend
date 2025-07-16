@@ -3,68 +3,73 @@ import { InjectKnex, Knex } from 'nestjs-knex';
 import { LoggerService } from 'src/common/logger/logger.service';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
 import { executeOnce } from 'src/common/utils/hana.util';
-
-
-
+import {
+  InsertableRentalPhoneDevice,
+  RawSapPhone,
+} from 'src/common/types/rental-phone-device.interface';
 
 @Injectable()
 export class SapRentalPhoneSyncService {
+  constructor(
+    @InjectKnex() private readonly knex: Knex,
+    private readonly loggerService: LoggerService,
+  ) {}
 
-    constructor(@InjectKnex() private readonly knex: Knex, private readonly loggerService: LoggerService) { }
+  async syncFromSap(): Promise<void> {
+    const start = Date.now();
 
-    async syncFromSap(): Promise<void> {
-        const start = Date.now();
+    try {
+      let query = loadSQL('rental-phone-devices/queries/sap-rental-phone-sync.sql');
+      const schema = process.env.SAP_SCHEMA || 'PROBOX_PROD_3';
+      query = query.replace(/{{schema}}/g, schema);
 
-        try {
-            let query = loadSQL('rental-phone-devices/queries/sap-rental-phone-sync.sql');
+      const sapPhones = (await executeOnce(query, [])) as RawSapPhone[];
 
-            const schema = process.env.SAP_SCHEMA || 'PROBOX_PROD_3';
+      const now = new Date();
 
-            query = query.replace(/{{schema}}/g, schema);
-            const sapPhones = await executeOnce(query, []);
+      const rowsToUpsert: InsertableRentalPhoneDevice[] = sapPhones.map((row) => ({
+        code: row.ItemCode,
+        name: row.ItemName,
+        is_free: row.U_IS_FREE === 'YES',
+        price: row.U_PRICE ?? null,
+        currency: 'UZS',
+        is_available: true,
+        is_synced_from_sap: true,
+        updated_at: now,
+        created_at: now,
+      }));
 
-            const now = new Date();
+      const sapCodes = sapPhones.map((row) => row.ItemCode);
 
-            const rowsToUpsert = sapPhones.map(row => ({
-                code: row.ItemCode,
-                name: row.ItemName,
-                is_free: row.U_IS_FREE === 'YES',
-                price: row.U_PRICE ?? null,
-                currency: "UZS",
-                is_available: true,
-                is_synced_from_sap: true,
-                updated_at: now,
-                created_at: now,
-            }));
+      await this.knex('rental_phone_devices')
+        .insert(rowsToUpsert)
+        .onConflict('code')
+        .merge([
+          'name',
+          'is_free',
+          'price',
+          'currency',
+          'is_available',
+          'is_synced_from_sap',
+          'updated_at',
+        ]);
 
-            const sapCodes = sapPhones.map(row => row.ItemCode);
+      await this.knex('rental_phone_devices')
+        .whereNotIn('code', sapCodes)
+        .andWhere('is_synced_from_sap', true)
+        .update({ is_available: false, updated_at: now });
 
-            await this.knex('rental_phone_devices')
-                .insert(rowsToUpsert)
-                .onConflict('code')
-                .merge([
-                    'name',
-                    'is_free',
-                    'price',
-                    'currency',
-                    'is_available',
-                    'is_synced_from_sap',
-                    'updated_at',
-                ]);
-
-            await this.knex('rental_phone_devices')
-                .whereNotIn('code', sapCodes)
-                .andWhere('is_synced_from_sap', true)
-                .update({ is_available: false, updated_at: now });
-
-            const duration = Date.now() - start;
-            this.loggerService.log(`✅ SAP rental phones synced: ${sapPhones.length} items (${duration}ms)`);
-
-        } catch (error) {
-            this.loggerService.error('❌ SAP rental phone sync failed', error?.stack || error?.message);
-            throw error;
-        }
+      const duration = Date.now() - start;
+      this.loggerService.log(
+        `✅ SAP rental phones synced: ${sapPhones.length} items (${duration}ms)`,
+      );
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.loggerService.error('❌ SAP rental phone sync failed', error.stack);
+      } else {
+        this.loggerService.error('❌ SAP rental phone sync failed', String(error));
+      }
+      throw error;
     }
-
-
+  }
 }

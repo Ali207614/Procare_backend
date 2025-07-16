@@ -59,7 +59,7 @@ export class UpdateProblemCategoryDto {
   @IsOptional()
   @IsNumber({}, { context: { location: 'estimated_minutes' } })
   @Min(1, { context: { location: 'estimated_minutes' } })
-  @Max(1440, { context: { location: 'estimated_minutes' } }) // 1 day max
+  @Max(1440, { context: { location: 'estimated_minutes' } })
   estimated_minutes?: number;
 
   @ApiPropertyOptional({

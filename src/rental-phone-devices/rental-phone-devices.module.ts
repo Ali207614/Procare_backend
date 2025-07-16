@@ -17,18 +17,19 @@ export class RentalPhoneDevicesModule implements OnModuleInit {
     private readonly loggerService: LoggerService,
   ) {}
 
-  async onModuleInit() {
+  async onModuleInit(): Promise<void> {
     const start = Date.now();
     try {
       await this.sapSyncService.syncFromSap();
       const duration = Date.now() - start;
 
       this.loggerService.log(`✅ SAP rental phones initial sync completed (${duration}ms)`);
-    } catch (error) {
-      this.loggerService.error(
-        '❌ SAP rental phones initial sync failed',
-        error?.stack || error?.message,
-      );
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.loggerService.error('❌ SAP rental phones initial sync failed', error?.stack);
+      } else {
+        this.loggerService.error('❌ SAP rental phones initial sync failed', String(error));
+      }
     }
   }
 }

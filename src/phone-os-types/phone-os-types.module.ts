@@ -5,10 +5,9 @@ import { PermissionsModule } from 'src/permissions/permissions.module';
 import { PhoneOsTypesService } from './phone-os-types.service';
 
 @Module({
-    imports: [RedisModule, PermissionsModule],
-    controllers: [
-        PhoneOsTypesController,],
-    providers: [PhoneOsTypesService],
-    exports: [PhoneOsTypesService]
+  imports: [RedisModule, PermissionsModule],
+  controllers: [PhoneOsTypesController],
+  providers: [PhoneOsTypesService],
+  exports: [PhoneOsTypesService],
 })
-export class PhoneOsTypesModule { }
+export class PhoneOsTypesModule {}

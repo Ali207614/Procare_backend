@@ -19,21 +19,21 @@ export class CreateProblemCategoryDto {
   @IsNotEmpty({ context: { location: 'name_uz' } })
   @MinLength(1, { context: { location: 'name_uz' } })
   @MaxLength(100, { context: { location: 'name_uz' } })
-  name_uz: string;
+  name_uz!: string;
 
   @ApiProperty({ example: 'Стекло', description: 'Problem name in Russian' })
   @IsString({ context: { location: 'name_ru' } })
   @IsNotEmpty({ context: { location: 'name_ru' } })
   @MinLength(1, { context: { location: 'name_ru' } })
   @MaxLength(100, { context: { location: 'name_ru' } })
-  name_ru: string;
+  name_ru!: string;
 
   @ApiProperty({ example: 'Glass', description: 'Problem name in English' })
   @IsString({ context: { location: 'name_en' } })
   @IsNotEmpty({ context: { location: 'name_en' } })
   @MinLength(1, { context: { location: 'name_en' } })
   @MaxLength(100, { context: { location: 'name_en' } })
-  name_en: string;
+  name_en!: string;
 
   @ApiPropertyOptional({
     example: '41b7e2a5-1234-4cde-9876-aabbccddeeff',
@@ -50,7 +50,7 @@ export class CreateProblemCategoryDto {
   @IsOptional()
   @IsNumber({}, { context: { location: 'price' } })
   @Max(1e16, { context: { location: 'price' } })
-  price: number;
+  price!: number;
 
   @ApiProperty({
     example: 30,
@@ -59,7 +59,7 @@ export class CreateProblemCategoryDto {
   @IsOptional()
   @IsNumber({}, { context: { location: 'estimated_minutes' } })
   @Max(1440, { context: { location: 'estimated_minutes' } }) // 1 kun max
-  estimated_minutes: number;
+  estimated_minutes!: number;
 
   @ApiPropertyOptional({
     example: true,

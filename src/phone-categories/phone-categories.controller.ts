@@ -28,6 +28,7 @@ import { UpdatePhoneCategoryDto } from './dto/update-phone-category.dto';
 import { UpdatePhoneCategorySortDto } from './dto/update-phone-category-sort.dto';
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { FindAllPhoneCategoriesDto } from './dto/find-all-phone-categories.dto';
+import { PhoneCategory, PhoneCategoryWithMeta } from 'src/common/types/phone-category.interface';
 
 @ApiTags('Phone Categories')
 @ApiBearerAuth()
@@ -42,7 +43,10 @@ export class PhoneCategoriesController {
   @ApiOperation({ summary: 'Create new phone category' })
   @ApiResponse({ status: 201, description: 'Phone category created successfully' })
   @ApiResponse({ status: 400, description: 'Validation failed' })
-  async create(@CurrentAdmin() admin: AdminPayload, @Body() dto: CreatePhoneCategoryDto) {
+  async create(
+    @CurrentAdmin() admin: AdminPayload,
+    @Body() dto: CreatePhoneCategoryDto,
+  ): Promise<PhoneCategory> {
     return this.service.create(dto, admin.id);
   }
 
@@ -53,7 +57,7 @@ export class PhoneCategoriesController {
   @ApiQuery({ name: 'offset', required: false })
   @ApiQuery({ name: 'search', required: false })
   @ApiOperation({ summary: 'Get phone categories (root or children)' })
-  async findAll(@Query() query: FindAllPhoneCategoriesDto) {
+  async findAll(@Query() query: FindAllPhoneCategoriesDto): Promise<PhoneCategoryWithMeta[]> {
     return this.service.findWithParentOrRoot(query);
   }
 
@@ -67,7 +71,7 @@ export class PhoneCategoriesController {
   async updateSort(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdatePhoneCategorySortDto,
-  ) {
+  ): Promise<{ message: string }> {
     return this.service.updateSort(id, dto.sort);
   }
 
@@ -78,7 +82,10 @@ export class PhoneCategoriesController {
   @ApiParam({ name: 'id', description: 'phone-category ID (UUID)' })
   @ApiResponse({ status: 200, description: 'phone-category updated successfully' })
   @ApiResponse({ status: 404, description: 'phone-category not found' })
-  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdatePhoneCategoryDto) {
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePhoneCategoryDto,
+  ): Promise<{ message: string }> {
     return this.service.update(id, dto);
   }
 
@@ -87,7 +94,7 @@ export class PhoneCategoriesController {
   @SetPermissions('phone-category.delete')
   @ApiOperation({ summary: 'Delete phone-category by ID (soft delete)' })
   @ApiParam({ name: 'id', description: 'phone-category ID (UUID)' })
-  async delete(@Param('id', ParseUUIDPipe) id: string) {
+  async delete(@Param('id', ParseUUIDPipe) id: string): Promise<{ message: string }> {
     return this.service.delete(id);
   }
 }

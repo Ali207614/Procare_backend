@@ -22,6 +22,8 @@ import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { UpdateProblemCategorySortDto } from './dto/update-problem-category-sort.dto';
 import { UpdateProblemCategoryDto } from './dto/update-problem-category.dto';
 import { ParseOptionalUUIDPipe } from 'src/common/pipe/parse-optional-uuid.pipe';
+import { PhoneCategory } from 'src/common/types/phone-category.interface';
+import { ProblemCategoryWithMeta } from 'src/common/types/problem-category.interface';
 
 @ApiTags('Problem Categories')
 @ApiBearerAuth()
@@ -36,7 +38,10 @@ export class ProblemCategoriesController {
   @ApiOperation({ summary: 'Create new problem category' })
   @ApiResponse({ status: 201, description: 'Problem category created successfully' })
   @ApiResponse({ status: 400, description: 'Validation failed' })
-  async create(@CurrentAdmin() admin: AdminPayload, @Body() dto: CreateProblemCategoryDto) {
+  async create(
+    @CurrentAdmin() admin: AdminPayload,
+    @Body() dto: CreateProblemCategoryDto,
+  ): Promise<PhoneCategory> {
     return this.service.create(dto, admin.id);
   }
 
@@ -49,7 +54,7 @@ export class ProblemCategoriesController {
   async find(
     @Query('phone_category_id', ParseUUIDPipe) phoneCategoryId?: string,
     @Query('parent_id', ParseOptionalUUIDPipe) parentId?: string,
-  ) {
+  ): Promise<ProblemCategoryWithMeta[]> {
     if (parentId) {
       return this.service.findChildrenWithBreadcrumb(parentId);
     }
@@ -67,7 +72,10 @@ export class ProblemCategoriesController {
   @Patch(':id')
   @UseGuards(PermissionsGuard)
   @SetPermissions('problem-category.update')
-  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateProblemCategoryDto) {
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateProblemCategoryDto,
+  ): Promise<{ message: string }> {
     return this.service.update(id, dto);
   }
 
@@ -77,14 +85,14 @@ export class ProblemCategoriesController {
   async updateSort(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProblemCategorySortDto,
-  ) {
+  ): Promise<{ message: string }> {
     return this.service.updateSort(id, dto.sort);
   }
 
   @Delete(':id')
   @UseGuards(PermissionsGuard)
   @SetPermissions('problem-category.delete')
-  async delete(@Param('id', ParseUUIDPipe) id: string) {
+  async delete(@Param('id', ParseUUIDPipe) id: string): Promise<{ message: string }> {
     return this.service.delete(id);
   }
 }

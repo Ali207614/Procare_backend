@@ -4,10 +4,10 @@ import { SapRentalPhoneSyncService } from '../sap-sync/sap-rental-phone-sync.ser
 
 @Injectable()
 export class RentalPhoneSyncTask {
-    constructor(private readonly sapSyncService: SapRentalPhoneSyncService) { }
+  constructor(private readonly sapSyncService: SapRentalPhoneSyncService) {}
 
-    @Cron(CronExpression.EVERY_HOUR)
-    async handleSync() {
-        await this.sapSyncService.syncFromSap();
-    }
+  @Cron(CronExpression.EVERY_HOUR)
+  async handleSync(): Promise<void> {
+    await this.sapSyncService.syncFromSap();
+  }
 }
