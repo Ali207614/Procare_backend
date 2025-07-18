@@ -1,7 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsBoolean,
-  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -16,35 +15,35 @@ export class CreateRepairOrderStatusDto {
   @IsNotEmpty()
   @MinLength(1, { context: { location: 'status_name_min' } })
   @MaxLength(50, { context: { location: 'status_name_max' } })
-  name_uz: string;
+  name_uz!: string;
 
   @ApiProperty({ example: 'Принят', description: 'Name in Russian' })
   @IsString()
   @IsNotEmpty()
   @MinLength(1, { context: { location: 'status_name_min' } })
   @MaxLength(50, { context: { location: 'status_name_max' } })
-  name_ru: string;
+  name_ru!: string;
 
   @ApiProperty({ example: 'Received', description: 'Name in English' })
   @IsString()
   @IsNotEmpty()
   @MinLength(1, { context: { location: 'status_name_min' } })
   @MaxLength(50, { context: { location: 'status_name_max' } })
-  name_en: string;
+  name_en!: string;
 
   @ApiProperty({ example: '#FFFFFF', description: 'Background color' })
   @IsString()
   @IsOptional()
   @MinLength(1, { context: { location: 'status_name_min' } })
   @MaxLength(20, { context: { location: 'status_name_max' } })
-  bg_color: string;
+  bg_color!: string;
 
   @ApiProperty({ example: '#000000', description: 'Text color' })
   @IsString()
   @IsOptional()
   @MinLength(1, { context: { location: 'status_name_min' } })
   @MaxLength(20, { context: { location: 'status_name_max' } })
-  color: string;
+  color!: string;
 
   @ApiProperty({ example: true, description: 'Visible to user?' })
   @IsOptional()

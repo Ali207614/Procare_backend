@@ -4,6 +4,7 @@ import { InjectKnex } from 'nestjs-knex';
 import { NotificationService } from 'src/notification/notification.service';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { RepairOrderChangeLoggerService } from './repair-order-change-logger.service';
+import { RepairOrder } from 'src/common/types/repair-order.interface';
 
 @Injectable()
 export class AssignAdminUpdaterService {
@@ -14,10 +15,10 @@ export class AssignAdminUpdaterService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  async create(orderId: string, adminIds: string[], createdBy: string) {
+  async create(orderId: string, adminIds: string[], createdBy: string): Promise<void> {
     if (!adminIds?.length) return;
 
-    const status = await this.knex('repair_orders')
+    const status: RepairOrder | undefined = await this.knex('repair_orders')
       .select('status_id')
       .where({ id: orderId })
       .first();
@@ -90,8 +91,8 @@ export class AssignAdminUpdaterService {
     }
   }
 
-  async delete(orderId: string, adminId: string, currentAdminId: string) {
-    const status = await this.knex('repair_orders')
+  async delete(orderId: string, adminId: string, currentAdminId: string): Promise<void> {
+    const status: RepairOrder | undefined = await this.knex('repair_orders')
       .select('status_id')
       .where({ id: orderId })
       .first();

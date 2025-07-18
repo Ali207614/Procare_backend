@@ -31,7 +31,7 @@ export function connectToHana(): hanaClient.Connection {
 export async function executeParam(query: string, params: any[] = []): Promise<any[]> {
   const conn = connectToHana();
   return new Promise((resolve, reject) => {
-    conn.exec(query, params, (err: any, rows: any) => {
+    conn.exec(query, params, (err: unknown, rows: any) => {
       if (err) {
         logger.error('❌ SAP HANA exec error:', err);
         reject(err);

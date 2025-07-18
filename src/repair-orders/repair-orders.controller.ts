@@ -24,6 +24,11 @@ import { UpdateRepairOrderSortDto } from './dto/update-repair-order-sort.dto';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { AuthenticatedRequest } from 'src/common/types/authenticated-request.type';
+import {
+  FreshRepairOrder,
+  RepairOrder,
+  RepairOrderDetails,
+} from 'src/common/types/repair-order.interface';
 
 @ApiTags('Repair Orders')
 @ApiBearerAuth()
@@ -35,16 +40,23 @@ export class RepairOrdersController {
   @Post()
   @UseGuards(RepairOrderStatusExistGuard)
   @ApiOperation({ summary: 'Create repair order' })
-  create(@Req() req: AuthenticatedRequest, @Body() dto: CreateRepairOrderDto) {
+  create(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: CreateRepairOrderDto,
+  ): Promise<RepairOrder> {
     return this.service.create(req.admin.id, req.status.branch_id, req.status.id, dto);
   }
 
-  @Patch(':id')
+  @Patch(':repair_order_id')
   @UseGuards(BranchExistGuard, RepairOrderStatusExistGuard)
   @ApiOperation({ summary: 'Update repair order' })
-  @ApiParam({ name: 'id', description: 'Repair Order ID' })
-  update(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthenticatedRequest, @Body() dto: UpdateRepairOrderDto) {
-    return this.service.update(req.admin.id, id, dto);
+  @ApiParam({ name: 'repair_order_id', description: 'Repair Order ID' })
+  update(
+    @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: UpdateRepairOrderDto,
+  ): Promise<{ message: string }> {
+    return this.service.update(req.admin.id, repairOrderId, dto);
   }
 
   @Get()
@@ -55,41 +67,54 @@ export class RepairOrdersController {
   @ApiQuery({ name: 'sort_order', enum: ['asc', 'desc'], required: false })
   @ApiOperation({ summary: 'Get all repair orders by branchId (can_view only)' })
   @ApiQuery({ name: 'branch_id', description: 'Branch ID', required: true })
-  findAllByBranch(@Req() req, @Query() query: PaginationQuery) {
+  findAllByBranch(
+    @Req() req: AuthenticatedRequest,
+    @Query() query: PaginationQuery,
+  ): Promise<Record<string, FreshRepairOrder[]>> {
     return this.service.findAllByAdminBranch(req.admin.id, req.branch.id, query);
   }
 
-  @Get(':id')
+  @Get(':repair_order_id')
   @ApiOperation({ summary: 'Get repair order by ID (with permission)' })
-  @ApiParam({ name: 'id', description: 'Repair Order ID' })
-  findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
+  @ApiParam({ name: 'repair_order_id', description: 'Repair Order ID' })
+  findOne(
+    @Param('repair_order_id', ParseUUIDPipe) id: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<RepairOrderDetails> {
     return this.service.findById(req.admin.id, id);
   }
 
-  @Patch(':id/move')
+  @Patch(':repair_order_id/move')
   @UseGuards(RepairOrderStatusExistGuard)
   @ApiOperation({ summary: 'Move repair order' })
-  @ApiParam({ name: 'id', description: 'Repair Order ID' })
-  move(@Param('id', ParseUUIDPipe) id: string, @Req() req, @Body() dto: MoveRepairOrderDto) {
-    return this.service.move(req.admin.id, id, dto);
+  @ApiParam({ name: 'repair_order_id', description: 'Repair Order ID' })
+  move(
+    @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: MoveRepairOrderDto,
+  ): Promise<{ message: string }> {
+    return this.service.move(req.admin.id, repairOrderId, dto);
   }
 
-  @Patch(':id/sort')
+  @Patch(':repair_order_id/sort')
   @UseGuards(RepairOrderStatusExistGuard)
   @ApiOperation({ summary: 'Update status sort order' })
-  @ApiParam({ name: 'id', description: 'Status ID (UUID)' })
+  @ApiParam({ name: 'repair_order_id', description: 'Status ID (UUID)' })
   async updateSort(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
     @Body() dto: UpdateRepairOrderSortDto,
     @CurrentAdmin() admin: AdminPayload,
-  ) {
-    return this.service.updateSort(id, dto.sort, admin.id);
+  ): Promise<{ message: string }> {
+    return this.service.updateSort(repairOrderId, dto.sort, admin.id);
   }
 
-  @Delete(':id')
+  @Delete(':repair_order_id')
   @ApiOperation({ summary: 'Soft delete a repair order (with permission)' })
-  @ApiParam({ name: 'id', description: 'Repair Order ID' })
-  delete(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
-    return this.service.softDelete(req.admin.id, id);
+  @ApiParam({ name: 'repair_order_id', description: 'Repair Order ID' })
+  delete(
+    @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ message: string }> {
+    return this.service.softDelete(req.admin.id, repairOrderId);
   }
 }

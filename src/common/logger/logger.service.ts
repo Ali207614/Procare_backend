@@ -13,6 +13,7 @@ export class LoggerService implements NestLoggerService {
         return `[${timestamp}] ${level.toUpperCase()}: ${msg}${stack ? `\n${stack}` : ''}`;
       }),
     ),
+
     transports: [
       new transports.Console(),
       new transports.File({ filename: 'logs/app.log', level: 'info' }),

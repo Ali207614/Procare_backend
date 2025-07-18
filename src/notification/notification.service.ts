@@ -5,7 +5,7 @@ import { FindNotificationsDto } from './dto/find-notification.dto';
 import { NotificationGateway } from './notification.gateway';
 import {
   BroadcastMessage,
-  Notification,
+  Notification, NotificationPayload,
   RepairNotificationMeta,
 } from '../common/types/notification.interface';
 
@@ -19,7 +19,7 @@ export class NotificationService {
   async notifyAdmins(
     trx: Knex.Transaction | Knex,
     adminIds: string[],
-    payload: Notification,
+    payload: NotificationPayload,
   ): Promise<void> {
     const now = new Date();
 

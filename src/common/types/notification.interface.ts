@@ -15,6 +15,13 @@ export interface Notification {
   updated_at: Date;
 }
 
+export interface NotificationPayload {
+  title: string;
+  message: string;
+  type?: 'info' | 'success' | 'warning' | 'error' | 'custom';
+  meta?: Record<string, any>;
+}
+
 export interface BroadcastMessage<M = unknown> {
   title: string;
   message: string;

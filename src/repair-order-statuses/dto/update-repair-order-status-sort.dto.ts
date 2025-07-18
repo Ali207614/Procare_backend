@@ -6,5 +6,5 @@ export class UpdateRepairOrderStatusSortDto {
   @IsNumber()
   @Min(0)
   @Max(9999)
-  sort?: number;
+  sort!: number;
 }

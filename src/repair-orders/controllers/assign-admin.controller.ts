@@ -19,7 +19,7 @@ export class AssignAdminController {
     @Param('orderId', ParseUUIDPipe) orderId: string,
     @Body() dto: AssignAdminsDto,
     @CurrentAdmin() admin: AdminPayload,
-  ) {
+  ): Promise<{ message: string }> {
     await this.assignAdminUpdater.create(orderId, dto.admin_ids, admin.id);
     return { message: '✅ Admins assigned successfully' };
   }
@@ -29,7 +29,7 @@ export class AssignAdminController {
     @Param('orderId', ParseUUIDPipe) orderId: string,
     @Param('adminId', ParseUUIDPipe) adminId: string,
     @CurrentAdmin() admin: AdminPayload,
-  ) {
+  ): Promise<{ message: string }> {
     await this.assignAdminUpdater.delete(orderId, adminId, admin.id);
     return { message: '🗑️ Admin removed from order' };
   }

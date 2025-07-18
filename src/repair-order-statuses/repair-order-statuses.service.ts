@@ -5,8 +5,13 @@ import { getNextSortValue } from 'src/common/utils/sort.util';
 import { CreateRepairOrderStatusDto } from './dto/create-repair-order-status.dto';
 import { UpdateRepairOrderStatusDto } from './dto/update-repair-order-status.dto';
 import { RedisService } from 'src/common/redis/redis.service';
-import { extractStatusPermissionFields } from 'src/common/utils/extract-status-permissions.util';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
+import { Branch } from 'src/common/types/branch.interface';
+import {
+  RepairOrderStatus,
+  RepairOrderStatusWithPermissions,
+} from 'src/common/types/repair-order-status.interface';
+import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 
 @Injectable()
 export class RepairOrderStatusesService {
@@ -14,27 +19,24 @@ export class RepairOrderStatusesService {
   private readonly redisKeyAll = 'repair_order_statuses:all:';
   private readonly redisKeyById = 'repair_order_statuses:id';
 
-  private readonly redisKeyByAdminStatus = 'repair_order_status_permissions:by_admin_status';
-  private readonly redisKeyByAdminBranch = 'repair_order_status_permissions:by_admin_branch';
-
   constructor(
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,
     private readonly repairOrderStatusPermissions: RepairOrderStatusPermissionsService,
   ) {}
 
-  async create(dto: CreateRepairOrderStatusDto, adminId: string) {
+  async create(dto: CreateRepairOrderStatusDto, adminId: string): Promise<RepairOrderStatus> {
     let branchId = dto.branch_id;
-    let branch = null;
-
-    // status nomlarini tekshrish kerak
+    let branch: Branch | undefined | null = null;
 
     if (branchId) {
       const redisKey = `branches:by_id:${branchId}`;
       branch = await this.redisService.get(redisKey);
 
       if (!branch) {
-        branch = await this.knex('branches').where({ id: branchId, status: 'Open' }).first();
+        branch = await this.knex<Branch>('branches')
+          .where({ id: branchId, status: 'Open' })
+          .first();
 
         if (!branch) {
           throw new BadRequestException({
@@ -55,7 +57,7 @@ export class RepairOrderStatusesService {
 
       branchId = branch.id;
     } else {
-      const defaultBranch = await this.knex('branches')
+      const defaultBranch: Branch | undefined = await this.knex('branches')
         .select('id')
         .where({ is_protected: true, is_active: true, status: 'Open' })
         .first();
@@ -70,18 +72,39 @@ export class RepairOrderStatusesService {
       branchId = defaultBranch.id;
     }
 
+    const existing = await this.knex<RepairOrderStatus>('repair_order_statuses')
+      .where({ branch_id: branchId })
+      .andWhere((qb): void => {
+        void qb
+          .whereILike('name_uz', dto.name_uz)
+          .orWhereILike('name_ru', dto.name_ru)
+          .orWhereILike('name_en', dto.name_en);
+      })
+      .andWhereNot({ status: 'Deleted' })
+      .first();
+
+    if (existing) {
+      throw new BadRequestException({
+        message: 'Status name already exists in this branch',
+        location: 'name_conflict',
+      });
+    }
+
     const nextSort = await getNextSortValue(this.knex, 'repair_order_statuses', {
       where: { branch_id: branchId },
     });
 
-    const [created] = await this.knex('repair_order_statuses')
-      .insert({
-        ...dto,
-        branch_id: branchId,
-        sort: nextSort,
-        created_by: adminId,
-      })
+    const insertData = {
+      ...dto,
+      branch_id: branchId,
+      sort: nextSort,
+      created_by: adminId,
+    };
+    const inserted: RepairOrderStatus[] = await this.knex('repair_order_statuses')
+      .insert(insertData)
       .returning('*');
+
+    const created = inserted[0];
 
     await this.redisService.flushByPrefix(`${this.redisKeyView}${branchId}:`);
     await this.redisService.flushByPrefix(`${this.redisKeyAll}${branchId}`);
@@ -89,12 +112,14 @@ export class RepairOrderStatusesService {
     return created;
   }
 
-  async findAllStatuses(branchId: string) {
+  async findAllStatuses(branchId: string): Promise<RepairOrderStatus[]> {
     const cacheKey = `${this.redisKeyAll}${branchId}`;
-    const cached = await this.redisService.get(cacheKey);
+    const cached: RepairOrderStatus[] | null = await this.redisService.get(cacheKey);
     if (cached !== null) return cached;
 
-    const statuses = await this.knex('repair_order_statuses')
+    const statuses: RepairOrderStatus[] = await this.knex<RepairOrderStatus>(
+      'repair_order_statuses',
+    )
       .where({ branch_id: branchId, status: 'Open' })
       .orderBy('sort', 'asc');
 
@@ -102,38 +127,41 @@ export class RepairOrderStatusesService {
     return statuses;
   }
 
-  async findViewable(adminId: string, branchId: string) {
+  async findViewable(
+    adminId: string,
+    branchId: string,
+  ): Promise<RepairOrderStatusWithPermissions[]> {
     const cacheKey = `${this.redisKeyView}${branchId}:${adminId}`;
-    const cached = await this.redisService.get(cacheKey);
+    const cached: RepairOrderStatusWithPermissions[] | null = await this.redisService.get(cacheKey);
     if (cached !== null) return cached;
 
-    const permissions = await this.repairOrderStatusPermissions.findByAdminBranch(
-      adminId,
-      branchId,
-    );
+    const permissions: RepairOrderStatusPermission[] =
+      await this.repairOrderStatusPermissions.findByAdminBranch(adminId, branchId);
 
     if (!permissions.length) {
       await this.redisService.set(cacheKey, [], 300);
       return [];
     }
 
-    const viewableIds = permissions.filter((p) => p.can_view).map((p) => p.status_id);
+    const viewableIds: string[] = permissions.filter((p) => p.can_view).map((p) => p.status_id);
 
     if (!viewableIds.length) {
       await this.redisService.set(cacheKey, [], 300);
       return [];
     }
 
-    const statuses = await this.knex('repair_order_statuses')
+    const statuses: RepairOrderStatus[] = await this.knex('repair_order_statuses')
       .whereIn('id', viewableIds)
       .andWhere({ is_active: true, status: 'Open', branch_id: branchId })
       .orderBy('sort', 'asc');
 
-    const merged = statuses.map((status) => {
-      const matched = permissions.find((p) => p.status_id === status.id);
+    const merged: RepairOrderStatusWithPermissions[] = statuses.map((status: RepairOrderStatus) => {
+      const matched: RepairOrderStatusPermission | undefined = permissions.find(
+        (p: RepairOrderStatusPermission): boolean => p.status_id === status.id,
+      );
       return {
         ...status,
-        permissions: matched ? extractStatusPermissionFields(matched) : {},
+        permissions: (matched ?? {}) as RepairOrderStatusPermission,
       };
     });
 
@@ -141,7 +169,7 @@ export class RepairOrderStatusesService {
     return merged;
   }
 
-  async updateSort(status: any, newSort: number) {
+  async updateSort(status: RepairOrderStatus, newSort: number): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
       const currentSort = status.sort;
@@ -180,8 +208,10 @@ export class RepairOrderStatusesService {
     }
   }
 
-  async update(status: any, dto: UpdateRepairOrderStatusDto) {
-    // bu yerda ham ismini tekshirish kerak
+  async update(
+    status: RepairOrderStatus,
+    dto: UpdateRepairOrderStatusDto,
+  ): Promise<{ message: string }> {
     if (dto?.is_active === false && status?.is_protected) {
       throw new ForbiddenException({
         message: 'This status is system-protected and cannot be deleted or deactivated.',
@@ -189,15 +219,17 @@ export class RepairOrderStatusesService {
       });
     }
 
-    let branchId = dto.branch_id;
-    let branch;
+    const branchId: string | undefined = dto.branch_id;
+    let branch: Branch | undefined | null = null;
 
     if (branchId) {
       const redisKey = `branches:by_id:${branchId}`;
       branch = await this.redisService.get(redisKey);
 
       if (branch !== null) {
-        branch = await this.knex('branches').where({ id: branchId, status: 'Open' }).first();
+        branch = await this.knex<Branch>('branches')
+          .where({ id: branchId, status: 'Open' })
+          .first();
 
         if (!branch) {
           throw new BadRequestException({
@@ -215,8 +247,24 @@ export class RepairOrderStatusesService {
 
         await this.redisService.set(redisKey, branch, 3600);
       }
+    }
 
-      branchId = branch.id;
+    if (dto.name_uz || dto.name_ru || dto.name_en) {
+      const conflict = await this.knex('repair_order_statuses')
+        .whereNot('id', status.id)
+        .andWhere((qb) => {
+          if (dto.name_uz) void qb.orWhereRaw('LOWER(name_uz) = LOWER(?)', [dto.name_uz]);
+          if (dto.name_ru) void qb.orWhereRaw('LOWER(name_ru) = LOWER(?)', [dto.name_ru]);
+          if (dto.name_en) void qb.orWhereRaw('LOWER(name_en) = LOWER(?)', [dto.name_en]);
+        })
+        .first();
+
+      if (conflict) {
+        throw new BadRequestException({
+          message: 'Another branch already has one of these names',
+          location: 'branch_name_conflict',
+        });
+      }
     }
 
     await this.knex('repair_order_statuses')
@@ -229,10 +277,10 @@ export class RepairOrderStatusesService {
     await this.redisService.flushByPrefix(`${this.redisKeyView}${status.branch_id}:`);
     await this.redisService.flushByPrefix(`${this.redisKeyAll}${status.branch_id}`);
 
-    return updated;
+    return { message: 'Status updated successfully' };
   }
 
-  async delete(status: any) {
+  async delete(status: RepairOrderStatus): Promise<{ message: string }> {
     if (status?.is_protected) {
       throw new ForbiddenException({
         message: 'This status is system-protected and cannot be deleted or deactivated.',
@@ -244,7 +292,9 @@ export class RepairOrderStatusesService {
       .where({ id: status.id })
       .update({ status: 'Deleted', updated_at: new Date() });
 
-    const permissions = await this.knex('repair_order_status_permissions').where({
+    const permissions: RepairOrderStatusPermission[] = await this.knex(
+      'repair_order_status_permissions',
+    ).where({
       status_id: status.id,
     });
 
@@ -263,11 +313,11 @@ export class RepairOrderStatusesService {
     return { message: 'Status deleted successfully' };
   }
 
-  async getOrLoadStatusById(statusId: string) {
+  async getOrLoadStatusById(statusId: string): Promise<RepairOrderStatus> {
     const redisKey = `${this.redisKeyById}:${statusId}`;
-    let status = await this.redisService.get(redisKey);
+    let status: RepairOrderStatus | null = await this.redisService.get(redisKey);
 
-    if (!status) {
+    if (status === null) {
       status = await this.knex('repair_order_statuses')
         .where({ id: statusId, status: 'Open' })
         .first();

@@ -19,42 +19,42 @@ import { Type } from 'class-transformer';
 class ProblemDto {
   @ApiProperty()
   @IsUUID('all', { context: { location: 'problem_category_id' } })
-  problem_category_id: string;
+  problem_category_id!: string;
 
   @ApiProperty()
   @IsNumber({}, { context: { location: 'price' } })
-  price: number;
+  price!: number;
 
   @ApiProperty()
   @IsNumber({}, { context: { location: 'estimated_minutes' } })
-  estimated_minutes: number;
+  estimated_minutes!: number;
 }
 
 class CommentDto {
   @ApiProperty()
   @IsString({ context: { location: 'text' } })
   @MaxLength(1000, { context: { location: 'text' } })
-  text: string;
+  text!: string;
 }
 
 class LocationDto {
   @ApiProperty()
   @IsNumber({}, { context: { location: 'lat' } })
-  lat: number;
+  lat!: number;
 
   @ApiProperty()
   @IsNumber({}, { context: { location: 'long' } })
-  long: number;
+  long!: number;
 
   @ApiProperty()
   @IsString({ context: { location: 'description' } })
   @MaxLength(1000, { context: { location: 'text' } })
-  description: string;
+  description!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUID('all', { context: { location: 'courier_id' } })
-  courier_id: string;
+  courier_id!: string;
 }
 
 class RentalPhoneDto {
@@ -63,7 +63,7 @@ class RentalPhoneDto {
     description: 'ID of the rental phone device',
   })
   @IsUUID('all', { context: { location: 'rental_phone_device_id' } })
-  rental_phone_device_id: string;
+  rental_phone_device_id!: string;
 
   @ApiPropertyOptional({
     example: true,
@@ -113,15 +113,15 @@ class RentalPhoneDto {
 export class CreateRepairOrderDto {
   @ApiProperty()
   @IsUUID('all', { context: { location: 'user_id' } })
-  user_id: string;
+  user_id!: string;
 
   @ApiProperty()
   @IsUUID('all', { context: { location: 'phone_category_id' } })
-  phone_category_id: string;
+  phone_category_id!: string;
 
   @ApiProperty()
   @IsUUID('all', { context: { location: 'status_id' } })
-  status_id: string;
+  status_id!: string;
 
   @ApiPropertyOptional({ enum: ['Low', 'Medium', 'High', 'Highest'] })
   @IsOptional()
@@ -134,7 +134,7 @@ export class CreateRepairOrderDto {
   @ArrayNotEmpty({ context: { location: 'admin_ids' } })
   @ArrayUnique({ context: { location: 'admin_ids' } })
   @IsUUID('all', { each: true, context: { location: 'admin_ids' } })
-  admin_ids: string[];
+  admin_ids!: string[];
 
   @ApiProperty({ type: [ProblemDto] })
   @IsOptional()

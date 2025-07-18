@@ -13,6 +13,13 @@ import { PaginationQuery } from 'src/common/types/pagination-query.interface';
 import { RedisService } from 'src/common/redis/redis.service';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
 import { MoveRepairOrderDto } from './dto/move-repair-order.dto';
+import {
+  FreshRepairOrder,
+  RepairOrder,
+  RepairOrderDetails,
+} from 'src/common/types/repair-order.interface';
+import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
+import { PhoneCategoryWithMeta } from 'src/common/types/phone-category.interface';
 
 @Injectable()
 export class RepairOrdersService {
@@ -28,7 +35,12 @@ export class RepairOrdersService {
     private readonly redisService: RedisService,
   ) {}
 
-  async create(adminId: string, branchId: string, statusId: string, dto: CreateRepairOrderDto) {
+  async create(
+    adminId: string,
+    branchId: string,
+    statusId: string,
+    dto: CreateRepairOrderDto,
+  ): Promise<RepairOrder> {
     const trx = await this.knex.transaction();
 
     try {
@@ -50,7 +62,9 @@ export class RepairOrdersService {
         });
       }
 
-      const result = await this.knex('phone_categories as pc')
+      const result: PhoneCategoryWithMeta | undefined = await this.knex<PhoneCategoryWithMeta>(
+        'phone_categories as pc',
+      )
         .select(
           'pc.*',
           this.knex.raw(`EXISTS (
@@ -58,7 +72,9 @@ export class RepairOrdersService {
       WHERE c.parent_id = pc.id AND c.status = 'Open'
     ) as has_children`),
         )
-        .where({ 'pc.id': dto.phone_category_id, 'pc.is_active': true, 'pc.status': 'Open' })
+        .where('pc.id', dto.phone_category_id)
+        .andWhere('pc.is_active', true)
+        .andWhere('pc.status', 'Open')
         .first();
 
       if (!result) {
@@ -79,21 +95,23 @@ export class RepairOrdersService {
         where: { branch_id: branchId },
       });
 
-      const [order] = await trx(this.table)
-        .insert({
-          user_id: dto.user_id,
-          branch_id: branchId,
-          phone_category_id: dto.phone_category_id,
-          priority: dto.priority || 'Medium',
-          status_id: statusId,
-          sort,
-          delivery_method: 'Self',
-          pickup_method: 'Self',
-          created_by: adminId,
-          created_at: new Date(),
-          updated_at: new Date(),
-        })
-        .returning('*');
+      const insertdata: Partial<RepairOrder> = {
+        user_id: dto.user_id,
+        branch_id: branchId,
+        phone_category_id: dto.phone_category_id,
+        priority: dto.priority || 'Medium',
+        status_id: statusId,
+        sort,
+        delivery_method: 'Self',
+        pickup_method: 'Self',
+        created_by: adminId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const insertedData: RepairOrder[] = await trx(this.table).insert(insertdata).returning('*');
+
+      const order: RepairOrder = insertedData[0];
 
       await this.helper.insertAssignAdmins(trx, dto, adminId, statusId, order.id);
       await this.helper.insertRentalPhone(trx, dto, adminId, statusId, order.id);
@@ -113,11 +131,17 @@ export class RepairOrdersService {
     }
   }
 
-  async update(adminId: string, orderId: string, dto: UpdateRepairOrderDto) {
+  async update(
+    adminId: string,
+    orderId: string,
+    dto: UpdateRepairOrderDto,
+  ): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
 
     try {
-      const order = await trx(this.table).where({ id: orderId, status: 'Open' }).first();
+      const order: RepairOrder | undefined = await trx(this.table)
+        .where({ id: orderId, status: 'Open' })
+        .first();
       if (!order) {
         throw new NotFoundException({
           message: 'Repair order not found',
@@ -134,12 +158,24 @@ export class RepairOrdersService {
       );
 
       const logFields = [];
-      const updatedFields: Partial<typeof order> = {};
+      const updatedFields: Partial<RepairOrder> = {};
 
-      for (const field of ['user_id', 'status_id', 'priority', 'phone_category_id']) {
-        if (dto[field] !== undefined && dto[field] !== order[field]) {
-          updatedFields[field] = dto[field];
-          logFields.push({ key: field, oldVal: order[field], newVal: dto[field] });
+      const fieldsToCheck: (keyof RepairOrder)[] = [
+        'user_id',
+        'status_id',
+        'priority',
+        'phone_category_id',
+      ];
+
+      for (const field of fieldsToCheck) {
+        const dtoFieldValue = dto[field as keyof UpdateRepairOrderDto];
+        if (dtoFieldValue !== undefined && dtoFieldValue !== order[field]) {
+          updatedFields[field] = dtoFieldValue as any;
+          logFields.push({
+            key: field,
+            oldVal: order[field],
+            newVal: dtoFieldValue,
+          });
         }
       }
 
@@ -163,15 +199,17 @@ export class RepairOrdersService {
       }
 
       if (dto.phone_category_id) {
-        const result = await this.knex('phone_categories as pc')
+        const result: PhoneCategoryWithMeta | undefined = await this.knex('phone_categories as pc')
           .select(
             'pc.*',
             this.knex.raw(`EXISTS (
-      SELECT 1 FROM phone_categories c
-      WHERE c.parent_id = pc.id AND c.status = 'Open'
-    ) as has_children`),
+            SELECT 1 FROM phone_categories c
+            WHERE c.parent_id = pc.id AND c.status = 'Open'
+          ) as has_children`),
           )
-          .where({ 'pc.id': dto.phone_category_id, 'pc.is_active': true, 'pc.status': 'Open' })
+          .where('pc.id', dto.phone_category_id)
+          .andWhere('pc.is_active', true)
+          .andWhere('pc.status', 'Open')
           .first();
 
         if (!result) {
@@ -181,7 +219,7 @@ export class RepairOrdersService {
           });
         }
 
-        if (result?.has_children) {
+        if (result.has_children) {
           throw new BadRequestException({
             message: 'You must select the last phone category (no more children)',
             location: 'phone_category_id',
@@ -191,7 +229,7 @@ export class RepairOrdersService {
 
       if (Object.keys(updatedFields).length) {
         await trx(this.table)
-          .update({ ...updatedFields, updated_at: new Date() })
+          .update({ ...updatedFields, updated_at: new Date().toISOString() })
           .where({ id: orderId });
       }
 
@@ -204,6 +242,7 @@ export class RepairOrdersService {
         adminId,
         statusId,
       );
+
       await this.finalProblemUpdater.update(trx, orderId, dto.final_problems, adminId, statusId);
 
       await trx.commit();
@@ -216,12 +255,17 @@ export class RepairOrdersService {
     }
   }
 
-  async findAllByAdminBranch(adminId: string, branchId: string, query: PaginationQuery) {
+  async findAllByAdminBranch(
+    adminId: string,
+    branchId: string,
+    query: PaginationQuery,
+  ): Promise<Record<string, FreshRepairOrder[]>> {
     const { page = 1, limit = 20, sort_by = 'sort', sort_order = 'asc' } = query;
     const offset = (page - 1) * limit;
 
-    const permissions = await this.permissionService.findByAdminBranch(adminId, branchId);
-    const statusIds = permissions.filter((p) => p.can_view).map((p) => p.status_id);
+    const permissions: RepairOrderStatusPermission[] =
+      await this.permissionService.findByAdminBranch(adminId, branchId);
+    const statusIds: string[] = permissions.filter((p) => p.can_view).map((p) => p.status_id);
     if (!statusIds.length) return {};
 
     const allCacheKeys = statusIds.map(
@@ -231,20 +275,23 @@ export class RepairOrdersService {
 
     const cachedResults = await this.redisService.mget(...allCacheKeys);
 
-    const result: Record<string, any[]> = {};
+    const result: Record<string, FreshRepairOrder[]> = {};
     const missingStatusIds: string[] = [];
 
-    statusIds.forEach((statusId, index) => {
+    statusIds.forEach((statusId: string, index: number): void => {
       const cached = cachedResults[index];
-      if (cached !== null) {
-        result[statusId] = cached;
+
+      if (cached !== null && cached !== undefined) {
+        result[statusId] = cached as FreshRepairOrder[]; // ✅ Type explicitly
       } else {
         missingStatusIds.push(statusId);
       }
     });
 
     if (missingStatusIds.length) {
-      const freshOrders = await this.knex('repair_orders as ro')
+      const freshOrders: FreshRepairOrder[] = await this.knex<FreshRepairOrder>(
+        'repair_orders as ro',
+      )
         .leftJoin('users as u', 'ro.user_id', 'u.id')
         .leftJoin('repair_order_pickups as p', 'ro.id', 'p.repair_order_id')
         .leftJoin('repair_order_deliveries as d', 'ro.id', 'd.repair_order_id')
@@ -266,7 +313,9 @@ export class RepairOrdersService {
         .orderBy(`ro.${sort_by}`, sort_order);
 
       for (const statusId of missingStatusIds) {
-        const filtered = freshOrders.filter((o) => o.status_id === statusId);
+        const filtered: FreshRepairOrder[] = freshOrders.filter(
+          (o: FreshRepairOrder): boolean => o.status_id === statusId,
+        );
         const paginated = filtered.slice(offset, offset + limit);
 
         const cacheKey = `${this.table}:${branchId}:${adminId}:${statusId}:${sort_by}:${sort_order}:${page}:${limit}`;
@@ -279,11 +328,13 @@ export class RepairOrdersService {
     return result;
   }
 
-  async softDelete(adminId: string, orderId: string) {
+  async softDelete(adminId: string, orderId: string): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
 
     try {
-      const order = await trx(this.table).where({ id: orderId, status: 'Open' }).first();
+      const order: RepairOrder | undefined = await trx(this.table)
+        .where({ id: orderId, status: 'Open' })
+        .first();
 
       if (!order) {
         throw new NotFoundException({
@@ -323,11 +374,11 @@ export class RepairOrdersService {
     }
   }
 
-  async findById(adminId: string, orderId: string) {
-    const query = loadSQL('repair-orders/queries/find-by-id.sql');
+  async findById(adminId: string, orderId: string): Promise<RepairOrderDetails> {
+    const query: string = loadSQL('repair-orders/queries/find-by-id.sql');
 
-    const result = await this.knex.raw(query, { orderId });
-    const order = result.rows?.[0];
+    const result: { rows: RepairOrderDetails[] } = await this.knex.raw(query, { orderId });
+    const order = result.rows[0];
 
     if (!order) {
       throw new NotFoundException({
@@ -343,10 +394,7 @@ export class RepairOrdersService {
       'repair_order_permission',
     );
 
-    return {
-      message: 'Repair order retrieved successfully',
-      data: order,
-    };
+    return order;
   }
 
   async sendStatusChangeNotification(
@@ -354,11 +402,15 @@ export class RepairOrdersService {
     orderId: string,
     newStatusId: string,
     changedByAdminId: string,
-  ) {
-    const order = await trx('repair_orders').where({ id: orderId }).first();
+  ): Promise<void> {
+    const order: RepairOrder | undefined = await trx('repair_orders')
+      .where({ id: orderId })
+      .first();
     if (!order) return;
 
-    const permissionedAdmins = await trx('repair_order_status_permissions')
+    const permissionedAdmins: RepairOrderStatusPermission[] = await trx(
+      'repair_order_status_permissions',
+    )
       .select('admin_id')
       .where({
         status_id: newStatusId,
@@ -389,11 +441,17 @@ export class RepairOrdersService {
     await trx('notifications').insert(notifications);
   }
 
-  async move(adminId: string, orderId: string, dto: MoveRepairOrderDto) {
+  async move(
+    adminId: string,
+    orderId: string,
+    dto: MoveRepairOrderDto,
+  ): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
 
     try {
-      const order = await trx(this.table).where({ id: orderId, status: 'Open' }).first();
+      const order: RepairOrder | undefined = await trx(this.table)
+        .where({ id: orderId, status: 'Open' })
+        .first();
       if (!order) {
         throw new NotFoundException({
           message: 'Repair order not found',
@@ -440,7 +498,7 @@ export class RepairOrdersService {
       }
 
       if (Object.keys(updates).length) {
-        updates.updated_at = new Date();
+        updates.updated_at = new Date().toISOString();
         await trx(this.table).update(updates).where({ id: orderId });
       }
 
@@ -456,11 +514,17 @@ export class RepairOrdersService {
     }
   }
 
-  async updateSort(orderId: string, newSort: number, adminId: string) {
+  async updateSort(
+    orderId: string,
+    newSort: number,
+    adminId: string,
+  ): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
 
     try {
-      const order = await trx('repair_orders').where({ id: orderId, status: 'Open' }).first();
+      const order: RepairOrder | undefined = await trx('repair_orders')
+        .where({ id: orderId, status: 'Open' })
+        .first();
 
       if (!order) {
         throw new NotFoundException({

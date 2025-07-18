@@ -12,6 +12,7 @@ import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { Branch } from 'src/common/types/branch.interface';
+import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 
 @Injectable()
 export class BranchesService {
@@ -266,7 +267,9 @@ export class BranchesService {
       updated_at: new Date(),
     });
 
-    const permissions = await this.knex('repair_order_status_permissions').where({
+    const permissions: RepairOrderStatusPermission[] = await this.knex(
+      'repair_order_status_permissions',
+    ).where({
       branch_id: branchId,
     });
 
