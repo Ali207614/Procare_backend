@@ -6,6 +6,7 @@ import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
+import { RepairOrderComment } from 'src/common/types/repair-order-comment.interface';
 
 @ApiTags('Repair Orders Comment')
 @ApiBearerAuth()
@@ -14,29 +15,29 @@ import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 export class CommentController {
   constructor(private readonly commentUpdater: CommentUpdaterService) {}
 
-  @Post('repair-orders/:orderId/comments')
+  @Post('repair-orders/:repair_order_id/comments')
   async create(
-    @Param('orderId', ParseUUIDPipe) orderId: string,
+    @Param('repair_order_id', ParseUUIDPipe) orderId: string,
     @Body() dto: CreateCommentDto,
     @CurrentAdmin() admin: AdminPayload,
-  ) {
+  ): Promise<RepairOrderComment | undefined> {
     return await this.commentUpdater.create(orderId, [dto], admin.id);
   }
 
-  @Patch('comments/:commentId')
+  @Patch('comments/:comment_id')
   async update(
-    @Param('commentId', ParseUUIDPipe) commentId: string,
+    @Param('comment_id', ParseUUIDPipe) commentId: string,
     @Body() dto: CreateCommentDto,
     @CurrentAdmin() admin: AdminPayload,
-  ) {
+  ): Promise<{ message: string }> {
     return this.commentUpdater.update(commentId, dto.text, admin.id);
   }
 
-  @Delete('comments/:commentId')
+  @Delete('comments/:comment_id')
   async delete(
-    @Param('commentId', ParseUUIDPipe) commentId: string,
+    @Param('comment_id', ParseUUIDPipe) commentId: string,
     @CurrentAdmin() admin: AdminPayload,
-  ) {
+  ): Promise<{ message: string }> {
     await this.commentUpdater.delete(commentId, admin.id);
     return { message: '🗑️ Comment deleted' };
   }

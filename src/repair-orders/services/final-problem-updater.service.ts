@@ -1,6 +1,20 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { Knex } from 'knex';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { RepairOrderChangeLoggerService } from './repair-order-change-logger.service';
+import { RepairOrder } from 'src/common/types/repair-order.interface';
+
+interface FinalProblemInput {
+  problem_category_id: string;
+  price: number;
+  estimated_minutes: number;
+}
+
+interface ExistingFinalProblem {
+  problem_category_id: string;
+  price: string; // yoki number, agar `.toNumber()` qilsangiz
+  estimated_minutes: number;
+}
 
 @Injectable()
 export class FinalProblemUpdaterService {
@@ -9,7 +23,13 @@ export class FinalProblemUpdaterService {
     private readonly changeLogger: RepairOrderChangeLoggerService,
   ) {}
 
-  async update(trx, orderId, problems, adminId, statusId) {
+  async update(
+    trx: Knex.Transaction,
+    orderId: string,
+    problems: FinalProblemInput[],
+    adminId: string,
+    statusId: string,
+  ): Promise<void> {
     if (!problems?.length) return;
 
     await this.permissionService.validatePermissionOrThrow(
@@ -19,7 +39,7 @@ export class FinalProblemUpdaterService {
       'final_problems',
     );
 
-    const order = await trx('repair_orders')
+    const order: Pick<RepairOrder, 'phone_category_id'> | undefined = await trx('repair_orders')
       .select('phone_category_id')
       .where({ id: orderId })
       .first();
@@ -34,13 +54,14 @@ export class FinalProblemUpdaterService {
     const phoneCategoryId = order.phone_category_id;
     const problemIds = problems.map((p) => p.problem_category_id);
 
-    const rootRows = await trx
+    const rootRows: Array<{ id: string }> = await trx
       .withRecursive('problem_path', (qb) => {
-        qb.select('id', 'parent_id')
+        void qb
+          .select('id', 'parent_id')
           .from('problem_categories')
           .whereIn('id', problemIds)
           .unionAll(function () {
-            this.select('p.id', 'p.parent_id')
+            void this.select('p.id', 'p.parent_id')
               .from('problem_categories as p')
               .join('problem_path as pp', 'pp.parent_id', 'p.id');
           });
@@ -51,7 +72,7 @@ export class FinalProblemUpdaterService {
 
     const rootProblemIds = rootRows.map((r) => r.id);
 
-    const allowed = await trx('phone_problem_mappings')
+    const allowed: string[] = await trx('phone_problem_mappings')
       .where({ phone_category_id: phoneCategoryId })
       .whereIn('problem_category_id', rootProblemIds)
       .pluck('problem_category_id');
@@ -64,11 +85,13 @@ export class FinalProblemUpdaterService {
       });
     }
 
-    const old = await trx('repair_order_final_problems')
+    const old: ExistingFinalProblem[] = await trx('repair_order_final_problems')
       .where({ repair_order_id: orderId })
       .select('problem_category_id', 'price', 'estimated_minutes');
 
     await trx('repair_order_final_problems').where({ repair_order_id: orderId }).delete();
+
+    const now = new Date();
 
     const rows = problems.map((p) => ({
       repair_order_id: orderId,
@@ -76,8 +99,8 @@ export class FinalProblemUpdaterService {
       price: p.price,
       estimated_minutes: p.estimated_minutes,
       created_by: adminId,
-      created_at: new Date(),
-      updated_at: new Date(),
+      created_at: now,
+      updated_at: now,
     }));
 
     await trx('repair_order_final_problems').insert(rows);

@@ -9,6 +9,12 @@ import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
+import { Role } from 'src/common/types/role.interface';
+import { Permission } from 'src/common/types/permission.interface';
+
+export interface RoleWithPermissions extends Role {
+  permissions: Permission[];
+}
 
 @ApiTags('Roles')
 @ApiBearerAuth()
@@ -21,7 +27,7 @@ export class RolesController {
   @UseGuards(PermissionsGuard)
   @SetPermissions('role.create')
   @ApiOperation({ summary: 'Create new role' })
-  async create(@CurrentAdmin() admin: AdminPayload, @Body() dto: CreateRoleDto) {
+  async create(@CurrentAdmin() admin: AdminPayload, @Body() dto: CreateRoleDto): Promise<Role> {
     return this.service.create(dto, admin.id);
   }
 
@@ -29,7 +35,7 @@ export class RolesController {
   @UseGuards(PermissionsGuard)
   @SetPermissions('role.view')
   @ApiOperation({ summary: 'Get all roles' })
-  async findAll() {
+  async findAll(): Promise<Role[]> {
     return this.service.findAll();
   }
 
@@ -38,7 +44,7 @@ export class RolesController {
   @SetPermissions('role.view')
   @ApiParam({ name: 'id', description: 'Role ID (UUID)' })
   @ApiOperation({ summary: 'Get role by ID' })
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<RoleWithPermissions> {
     return this.service.findOne(id);
   }
 
@@ -46,7 +52,10 @@ export class RolesController {
   @UseGuards(PermissionsGuard)
   @SetPermissions('role.update')
   @ApiOperation({ summary: 'Update role by ID' })
-  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateRoleDto) {
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateRoleDto,
+  ): Promise<{ message: string }> {
     return this.service.update(id, dto);
   }
 
@@ -54,7 +63,7 @@ export class RolesController {
   @UseGuards(PermissionsGuard)
   @SetPermissions('role.delete')
   @ApiOperation({ summary: 'Delete role by ID (soft delete)' })
-  async remove(@Param('id', ParseUUIDPipe) id: string) {
+  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<{ message: string }> {
     return this.service.delete(id);
   }
 }

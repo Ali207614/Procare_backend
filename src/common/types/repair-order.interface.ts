@@ -1,3 +1,5 @@
+import { User } from '../../../migrations/user.interface';
+
 export interface RepairOrder {
   id: string;
   number_id: number;
@@ -156,4 +158,52 @@ export interface RepairOrderDetails {
     created_at: string;
     updated_at: string;
   } | null;
+
+  rental_phone: {
+    id: string;
+    rental_phone_device_id: string;
+    sap_order_id: string | null;
+    is_free: boolean | null;
+    price: string | null;
+    currency: 'UZS' | 'USD' | 'EUR' | null;
+    status: 'Active' | 'Returned' | 'Cancelled';
+    rented_at: string;
+    returned_at: string | null;
+    notes: string | null;
+    created_by: string;
+    created_at: string;
+    updated_at: string;
+  } | null;
 }
+
+
+export interface JoinedRepairOrder {
+  id: string;
+  total: string;
+  imei: string | null;
+  delivery_method: 'Self' | 'Delivery';
+  pickup_method: 'Self' | 'Pickup';
+  priority: 'Low' | 'Medium' | 'High' | 'Highest';
+  status: 'Open' | 'Deleted';
+  created_at: string; // yoki Date
+
+  // Branch info
+  branch_name_uz: string | null;
+  branch_name_ru: string | null;
+  branch_name_en: string | null;
+
+  // Phone category info
+  phone_name_uz: string | null;
+  phone_name_ru: string | null;
+  phone_name_en: string | null;
+
+  // Status info
+  status_name_uz: string | null;
+  status_name_ru: string | null;
+  status_name_en: string | null;
+}
+
+export interface UserWithRepairOrders extends User {
+  repair_orders: JoinedRepairOrder[];
+}
+

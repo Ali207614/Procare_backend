@@ -6,42 +6,38 @@ import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { CreateOrUpdateDeliveryDto } from '../dto/create-or-update-delivery.dto';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { RepairOrderDelivery } from 'src/common/types/delivery-and-pickup.interface';
 
 @ApiTags('Repair Orders Delivery')
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
-@Controller('repair-orders/:orderId/delivery')
+@Controller('repair-orders/:repair_order_id/delivery')
 export class DeliveryController {
   constructor(private readonly deliveryUpdater: DeliveryUpdaterService) {}
 
   @Post()
   async create(
-    @Param('orderId', ParseUUIDPipe) orderId: string,
+    @Param('repair_order_id', ParseUUIDPipe) orderId: string,
     @Body() dto: CreateOrUpdateDeliveryDto,
     @CurrentAdmin() admin: AdminPayload,
-  ) {
-    const result = await this.deliveryUpdater.create(orderId, dto, admin.id);
-    return {
-      message: '✅ Delivery created',
-      delivery: result,
-    };
+  ): Promise<RepairOrderDelivery | undefined> {
+    return this.deliveryUpdater.create(orderId, dto, admin.id);
   }
 
   @Patch()
   async update(
-    @Param('orderId', ParseUUIDPipe) orderId: string,
+    @Param('repair_order_id', ParseUUIDPipe) orderId: string,
     @Body() dto: CreateOrUpdateDeliveryDto,
     @CurrentAdmin() admin: AdminPayload,
-  ) {
-    const result = await this.deliveryUpdater.update(orderId, dto, admin.id);
-    return {
-      message: '✏️ Delivery updated',
-      delivery: result,
-    };
+  ): Promise<{ message: string } | undefined> {
+    return this.deliveryUpdater.update(orderId, dto, admin.id);
   }
 
   @Delete()
-  async delete(@Param('orderId') orderId: string, @CurrentAdmin() admin: AdminPayload) {
+  async delete(
+    @Param('repair_order_id') orderId: string,
+    @CurrentAdmin() admin: AdminPayload,
+  ): Promise<{ message: string } | undefined> {
     return this.deliveryUpdater.delete(orderId, admin.id);
   }
 }

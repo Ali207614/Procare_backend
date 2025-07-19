@@ -1,23 +1,21 @@
-// src/config/multer.config.ts
 import * as multer from 'multer';
-import { BadRequestException } from '@nestjs/common';
+import { Request } from 'express';
+import { FileFilterCallback } from 'multer';
 
-export const multerMemoryStorage = {
-    storage: multer.memoryStorage(),
-    limits: {
-        fileSize: 1 * 1024 * 1024, // 5 MB
-    },
-    fileFilter: (req, file, cb) => {
-        if (file.mimetype.startsWith('image/')) {
-            cb(null, true);
-        } else {
-            cb(
-                new BadRequestException({
-                    message: '❌ Only image files are allowed.',
-                    location: 'invalid_file_type',
-                }),
-                false
-            );
-        }
-    },
+export const multerMemoryStorage: multer.Options = {
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5 MB
+  },
+  fileFilter(
+    req: Request,
+    file: Express.Multer.File,
+    cb: FileFilterCallback, // Tip faqat shu yerda qo‘yiladi
+  ): void {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true); // ✅ Type-safe
+    } else {
+      cb(new Error('❌ Only image files are allowed.')); // ✅ Yagona argumentli chaqirish
+    }
+  },
 };

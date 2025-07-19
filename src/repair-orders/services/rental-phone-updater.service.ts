@@ -5,6 +5,10 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
+import { RepairOrder } from 'src/common/types/repair-order.interface';
+import { RentalPhoneDevice } from 'src/common/types/rental-phone-device.interface';
+import { RepairOrderRentalPhone } from 'src/common/types/repair-order-rental-phone.interface';
+import { CreateOrUpdateRentalPhoneDto } from 'src/repair-orders/dto/create-or-update-rental-phone.dto';
 
 @Injectable()
 export class RentalPhoneUpdaterService {
@@ -15,8 +19,12 @@ export class RentalPhoneUpdaterService {
     @InjectKnex() private readonly knex: Knex,
   ) {}
 
-  async create(orderId: string, rental: any, adminId: string) {
-    const status = await this.knex('repair_orders')
+  async create(
+    orderId: string,
+    rental: CreateOrUpdateRentalPhoneDto,
+    adminId: string,
+  ): Promise<RepairOrderRentalPhone> {
+    const status: RepairOrder | undefined = await this.knex('repair_orders')
       .select('status_id', 'user_id')
       .where({ id: orderId })
       .first();
@@ -48,7 +56,7 @@ export class RentalPhoneUpdaterService {
       });
     }
 
-    const device = await this.knex('rental_phone_devices')
+    const device: RentalPhoneDevice | undefined = await this.knex('rental_phone_devices')
       .where({ id: rental.rental_phone_device_id })
       .first();
 
@@ -61,7 +69,7 @@ export class RentalPhoneUpdaterService {
 
     const now = new Date();
 
-    const [inserted] = await this.knex('repair_order_rental_phones')
+    const [inserted]: RepairOrderRentalPhone[] = await this.knex('repair_order_rental_phones')
       .insert({
         repair_order_id: orderId,
         rental_phone_device_id: rental.rental_phone_device_id,
@@ -94,8 +102,12 @@ export class RentalPhoneUpdaterService {
     return inserted;
   }
 
-  async update(orderId: string, rental: any, adminId: string) {
-    const status = await this.knex('repair_orders')
+  async update(
+    orderId: string,
+    rental: CreateOrUpdateRentalPhoneDto,
+    adminId: string,
+  ): Promise<{ message: string }> {
+    const status: RepairOrder | undefined = await this.knex('repair_orders')
       .select('status_id')
       .where({ id: orderId })
       .first();
@@ -116,7 +128,9 @@ export class RentalPhoneUpdaterService {
       'repair_order_rental_phones',
     );
 
-    const existing = await this.knex('repair_order_rental_phones')
+    const existing: RepairOrderRentalPhone | undefined = await this.knex(
+      'repair_order_rental_phones',
+    )
       .where({ repair_order_id: orderId, status: 'Active' })
       .first();
 
@@ -159,9 +173,8 @@ export class RentalPhoneUpdaterService {
     return { message: 'Rental phone updated' };
   }
 
-  async delete(orderId: string, adminId: string) {
-    const status = await this.knex('repair_orders')
-      .select('status_id')
+  async delete(orderId: string, adminId: string): Promise<void> {
+    const status: RepairOrder | undefined = await this.knex<RepairOrder>('repair_orders')
       .where({ id: orderId })
       .first();
 
@@ -181,11 +194,18 @@ export class RentalPhoneUpdaterService {
       'repair_order_rental_phones',
     );
 
-    const existing = await this.knex('repair_order_rental_phones')
+    const existing: RepairOrderRentalPhone | undefined = await this.knex(
+      'repair_order_rental_phones',
+    )
       .where({ repair_order_id: orderId, status: 'Active' })
       .first();
 
-    if (!existing) return;
+    if (!existing) {
+      throw new BadRequestException({
+        message: 'No active rental phone found for this repair order',
+        location: 'repair_order_id',
+      });
+    }
 
     await this.knex('repair_order_rental_phones')
       .where({ id: existing.id })

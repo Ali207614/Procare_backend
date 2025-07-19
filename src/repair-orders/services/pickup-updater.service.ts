@@ -3,6 +3,9 @@ import { InjectKnex } from 'nestjs-knex';
 import { Knex } from 'knex';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { RepairOrderChangeLoggerService } from './repair-order-change-logger.service';
+import { RepairOrder } from 'src/common/types/repair-order.interface';
+import { RepairOrderPickup } from 'src/common/types/delivery-and-pickup.interface';
+import { CreateOrUpdatePickupDto } from 'src/repair-orders/dto/create-or-update-pickup.dto';
 
 @Injectable()
 export class PickupUpdaterService {
@@ -12,10 +15,14 @@ export class PickupUpdaterService {
     private readonly changeLogger: RepairOrderChangeLoggerService,
   ) {}
 
-  async create(orderId: string, pickup: any, adminId: string) {
+  async create(
+    orderId: string,
+    pickup: CreateOrUpdatePickupDto,
+    adminId: string,
+  ): Promise<RepairOrderPickup | undefined> {
     if (!pickup) return;
 
-    const status = await this.knex('repair_orders')
+    const status: RepairOrder | undefined = await this.knex('repair_orders')
       .select('status_id')
       .where({ id: orderId })
       .first();
@@ -60,16 +67,23 @@ export class PickupUpdaterService {
       updated_at: now,
     };
 
-    await this.knex('repair_order_pickups').insert(row);
-    await this.changeLogger.logIfChanged(this.knex, orderId, 'pickup', null, row, adminId);
+    const [result]: RepairOrderPickup[] = await this.knex('repair_order_pickups')
+      .insert(row)
+      .returning('*');
 
-    return row;
+    await this.changeLogger.logIfChanged(this.knex, orderId, 'pickup', null, result, adminId);
+
+    return result;
   }
 
-  async update(orderId: string, pickup: any, adminId: string) {
+  async update(
+    orderId: string,
+    pickup: any,
+    adminId: string,
+  ): Promise<{ message: string } | undefined> {
     if (!pickup) return;
 
-    const status = await this.knex('repair_orders')
+    const status: RepairOrder | undefined = await this.knex('repair_orders')
       .select('status_id')
       .where({ id: orderId })
       .first();
@@ -103,6 +117,7 @@ export class PickupUpdaterService {
     }
 
     const old = await this.knex('repair_order_pickups').where({ repair_order_id: orderId }).first();
+    if (!old) return;
 
     await this.knex('repair_order_pickups').where({ repair_order_id: orderId }).delete();
 
@@ -120,12 +135,11 @@ export class PickupUpdaterService {
 
     await this.knex('repair_order_pickups').insert(row);
     await this.changeLogger.logIfChanged(this.knex, orderId, 'pickup', old, row, adminId);
-
-    return row;
+    return { message: '✅ Pickup updated' };
   }
 
-  async delete(orderId: string, adminId: string) {
-    const status = await this.knex('repair_orders')
+  async delete(orderId: string, adminId: string): Promise<{ message: string } | undefined> {
+    const status: RepairOrder | undefined = await this.knex('repair_orders')
       .select('status_id')
       .where({ id: orderId })
       .first();

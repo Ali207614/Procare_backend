@@ -17,21 +17,21 @@ export class CreateBranchDto {
   @IsNotEmpty()
   @MinLength(1, { context: { location: 'branch_name_min' } })
   @MaxLength(100, { context: { location: 'branch_name_max' } })
-  name_uz: string;
+  name_uz!: string;
 
   @ApiProperty({ example: 'Main Office', description: 'Name of the branch' })
   @IsString()
   @IsNotEmpty()
   @MinLength(1, { context: { location: 'branch_name_min' } })
   @MaxLength(100, { context: { location: 'branch_name_max' } })
-  name_ru: string;
+  name_ru!: string;
 
   @ApiProperty({ example: 'Main Office', description: 'Name of the branch' })
   @IsString()
   @IsNotEmpty()
   @MinLength(1, { context: { location: 'branch_name_min' } })
   @MaxLength(100, { context: { location: 'branch_name_max' } })
-  name_en: string;
+  name_en!: string;
 
   @ApiProperty({ example: 'Chilonzor 9 kvartal', description: 'Branch address or location' })
   @IsOptional()

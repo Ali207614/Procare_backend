@@ -100,7 +100,29 @@ SELECT
         FROM repair_order_deliveries d
         WHERE d.repair_order_id = ro.id
         LIMIT 1
-    ) AS delivery
+    ) AS delivery,
+
+    (
+        SELECT jsonb_build_object(
+            'id', rp.id,
+            'rental_phone_device_id', rp.rental_phone_device_id,
+            'sap_order_id', rp.sap_order_id,
+            'is_free', rp.is_free,
+            'price', rp.price,
+            'currency', rp.currency,
+            'status', rp.status,
+            'rented_at', rp.rented_at,
+            'returned_at', rp.returned_at,
+            'notes', rp.notes,
+            'created_by', rp.created_by,
+            'created_at', rp.created_at,
+            'updated_at', rp.updated_at
+        )
+        FROM repair_order_rental_phones rp
+        WHERE rp.repair_order_id = ro.id AND rp.status != 'Cancelled'
+        LIMIT 1
+    ) AS rental_phone
+
 
 FROM repair_orders ro
 LEFT JOIN users u ON ro.user_id = u.id

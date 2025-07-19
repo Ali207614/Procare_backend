@@ -12,7 +12,9 @@ export class SapQueueProcessor {
   ) {}
 
   @Process('create-bp')
-  async handleCreateBP(job: Job<{ userId: string; cardName: string; phone: string }>) {
+  async handleCreateBP(
+    job: Job<{ userId: string; cardName: string; phone: string }>,
+  ): Promise<void> {
     const { userId, cardName, phone } = job.data;
 
     const cardCode = await this.sapService.checkOrCreateBusinessPartner({ cardName, phone });
@@ -31,7 +33,7 @@ export class SapQueueProcessor {
       itemCode: string;
       startDate: string;
     }>,
-  ) {
+  ): Promise<void> {
     const { repair_order_rental_phone_id, cardCode, itemCode, startDate } = job.data;
 
     const sapOrderId = await this.sapService.createRentalOrder(cardCode, itemCode, startDate);
@@ -45,7 +47,7 @@ export class SapQueueProcessor {
   }
 
   @Process('cancel-rental-order')
-  async handleCancelRentalOrder(job: Job<{ sap_order_id: string }>) {
+  async handleCancelRentalOrder(job: Job<{ sap_order_id: string }>): Promise<void> {
     const { sap_order_id } = job.data;
 
     await this.sapService.cancelRentalOrder(sap_order_id);

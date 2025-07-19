@@ -18,6 +18,8 @@ import { PermissionsGuard } from 'src/common/guards/permission.guard';
 import { SetPermissions } from 'src/common/decorators/permission-decorator';
 import { FindAllUsersDto } from './dto/find-all-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { User } from '../../migrations/user.interface';
+import { UserWithRepairOrders } from 'src/common/types/repair-order.interface';
 
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
@@ -30,13 +32,13 @@ export class UsersController {
   @UseGuards(PermissionsGuard)
   @SetPermissions('user.manage.create')
   @ApiOperation({ summary: 'Create new user' })
-  async create(@Body() dto: CreateUserDto) {
+  async create(@Body() dto: CreateUserDto): Promise<User> {
     return this.usersService.create(dto);
   }
 
   @Get()
   @ApiOperation({ summary: 'Get all users with search and pagination' })
-  async findAll(@Query() query: FindAllUsersDto) {
+  async findAll(@Query() query: FindAllUsersDto): Promise<User[]> {
     return this.usersService.findAll(query);
   }
 
@@ -44,7 +46,10 @@ export class UsersController {
   @UseGuards(PermissionsGuard)
   @SetPermissions('user.manage.update')
   @ApiOperation({ summary: 'Update user' })
-  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateUserDto) {
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateUserDto,
+  ): Promise<{ message: string }> {
     return this.usersService.update(id, dto);
   }
 
@@ -52,13 +57,13 @@ export class UsersController {
   @UseGuards(PermissionsGuard)
   @SetPermissions('user.manage.delete')
   @ApiOperation({ summary: 'Soft delete user' })
-  async delete(@Param('id', ParseUUIDPipe) id: string) {
+  async delete(@Param('id', ParseUUIDPipe) id: string): Promise<{ message: string }> {
     return this.usersService.delete(id);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Find user with related repair orders' })
-  async findOneWithOrders(@Param('id', ParseUUIDPipe) id: string) {
+  async findOneWithOrders(@Param('id', ParseUUIDPipe) id: string): Promise<UserWithRepairOrders> {
     return this.usersService.findOneWithOrders(id);
   }
 }

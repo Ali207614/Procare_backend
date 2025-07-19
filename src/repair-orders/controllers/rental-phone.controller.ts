@@ -5,38 +5,38 @@ import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { CreateOrUpdateRentalPhoneDto } from '../dto/create-or-update-rental-phone.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
+import { RepairOrderRentalPhone } from 'src/common/types/repair-order-rental-phone.interface';
 
 @ApiTags('Repair Orders Rental Phone')
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
-@Controller('repair-orders/:orderId/rental-phone')
+@Controller('repair-orders/:repair_order_id/rental-phone')
 export class RentalPhoneController {
   constructor(private readonly rentalPhoneUpdater: RentalPhoneUpdaterService) {}
 
   @Post()
   async create(
-    @Param('orderId') orderId: string,
+    @Param('repair_order_id') orderId: string,
     @Body() dto: CreateOrUpdateRentalPhoneDto,
     @CurrentAdmin() admin: AdminPayload,
-  ) {
-    const result = await this.rentalPhoneUpdater.create(orderId, dto, admin.id);
-    return {
-      message: '✅ Rental phone assigned',
-      rental_phone: result,
-    };
+  ): Promise<RepairOrderRentalPhone> {
+    return this.rentalPhoneUpdater.create(orderId, dto, admin.id);
   }
 
   @Patch()
   async update(
-    @Param('orderId') orderId: string,
+    @Param('repair_order_id') orderId: string,
     @Body() dto: CreateOrUpdateRentalPhoneDto,
     @CurrentAdmin() admin: AdminPayload,
-  ) {
+  ): Promise<{ message: string }> {
     return this.rentalPhoneUpdater.update(orderId, dto, admin.id);
   }
 
   @Delete()
-  async delete(@Param('orderId') orderId: string, @CurrentAdmin() admin: AdminPayload) {
+  async delete(
+    @Param('repair_order_id') orderId: string,
+    @CurrentAdmin() admin: AdminPayload,
+  ): Promise<{ message: string }> {
     await this.rentalPhoneUpdater.delete(orderId, admin.id);
     return { message: '🗑️ Rental phone cancelled' };
   }

@@ -7,6 +7,14 @@ import { RedisService } from 'src/common/redis/redis.service';
 import { executeOnce } from 'src/common/utils/hana.util';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
 
+interface BusinessPartnerResult {
+  CardCode: string;
+}
+
+interface RentalOrderResponse {
+  orderId: string;
+}
+
 @Injectable()
 export class SapService {
   private readonly api = process.env.SAP_API_URL;
@@ -67,11 +75,14 @@ export class SapService {
     try {
       const sql = loadSQL('sap/queries/check-business-partner.sql');
       const finalQuery = sql.replace(/{{schema}}/g, this.schema);
-      const result = await executeOnce(finalQuery, [phone]);
+      const result = await executeOnce<BusinessPartnerResult>(finalQuery, [phone]);
 
       return result?.[0]?.CardCode ?? null;
-    } catch (err) {
-      this.logger.error(`❌ SAP SQL checkBusinessPartner error`, err?.message || err);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+
+      this.logger.error('❌ SAP SQL checkBusinessPartner error', message);
+
       throw new ServiceUnavailableException('SAP SQL query failed');
     }
   }
@@ -87,7 +98,7 @@ export class SapService {
     };
 
     const exec = async () =>
-      await this.axiosInstance.post('/BusinessPartners', body, {
+      await this.axiosInstance.post<BusinessPartnerResult>('/BusinessPartners', body, {
         headers: await this.getAuthHeaders(),
       });
 
@@ -126,20 +137,20 @@ export class SapService {
     };
 
     const exec = async () =>
-      await this.axiosInstance.post('/Orders', body, {
+      await this.axiosInstance.post<RentalOrderResponse>('/Orders', body, {
         headers: await this.getAuthHeaders(),
       });
 
     try {
       const { data } = await exec();
-      return data?.orderId;
+      return data.orderId;
     } catch (err) {
       if (get(err, 'response.status') === 401) {
         this.logger.warn('🔁 SAP session expired. Re-authenticating...');
         const login = await this.auth();
         if (login.status) {
           const { data } = await exec();
-          return data?.orderId;
+          return data.orderId;
         }
         throw new ServiceUnavailableException(login.message || 'SAP auth failed');
       }
@@ -149,7 +160,6 @@ export class SapService {
       throw new ServiceUnavailableException(msg);
     }
   }
-
   async cancelRentalOrder(orderId: string): Promise<void> {
     const exec = async () =>
       await this.axiosInstance.post(`/Orders/${orderId}/cancel`, null, {

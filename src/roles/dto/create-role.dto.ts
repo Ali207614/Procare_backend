@@ -16,7 +16,7 @@ export class CreateRoleDto {
   @IsNotEmpty()
   @MinLength(1, { context: { location: 'role_name_min' } })
   @MaxLength(30, { context: { location: 'role_name_max' } })
-  name: string;
+  name!: string;
 
   @ApiProperty({
     example: ['00000000-0000-0000-0000-000000000005'],

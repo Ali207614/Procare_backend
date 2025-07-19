@@ -10,13 +10,13 @@ import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 @ApiTags('Repair Orders Assign Admin')
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
-@Controller('repair-orders/:orderId/assign-admins')
+@Controller('repair-orders/:repair_order_id/assign-admins')
 export class AssignAdminController {
   constructor(private readonly assignAdminUpdater: AssignAdminUpdaterService) {}
 
   @Post()
   async assignAdmins(
-    @Param('orderId', ParseUUIDPipe) orderId: string,
+    @Param('repair_order_id', ParseUUIDPipe) orderId: string,
     @Body() dto: AssignAdminsDto,
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<{ message: string }> {
@@ -24,10 +24,10 @@ export class AssignAdminController {
     return { message: '✅ Admins assigned successfully' };
   }
 
-  @Delete(':adminId')
+  @Delete(':admin_id')
   async removeAdmin(
-    @Param('orderId', ParseUUIDPipe) orderId: string,
-    @Param('adminId', ParseUUIDPipe) adminId: string,
+    @Param('repair_order_id', ParseUUIDPipe) orderId: string,
+    @Param('admin_id', ParseUUIDPipe) adminId: string,
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<{ message: string }> {
     await this.assignAdminUpdater.delete(orderId, adminId, admin.id);

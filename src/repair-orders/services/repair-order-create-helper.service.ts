@@ -6,6 +6,7 @@ import { NotificationService } from 'src/notification/notification.service';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { CreateRepairOrderDto } from '../dto/create-repair-order.dto';
 import { validateAndInsertProblems } from 'src/common/utils/problem.util';
+import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 
 @Injectable()
 export class RepairOrderCreateHelperService {
@@ -21,7 +22,7 @@ export class RepairOrderCreateHelperService {
     adminId: string,
     statusId: string,
     orderId: string,
-  ) {
+  ): Promise<void> {
     if (!dto.rental_phone) return;
 
     await this.permissionService.validatePermissionOrThrow(
@@ -87,7 +88,7 @@ export class RepairOrderCreateHelperService {
     adminId: string,
     statusId: string,
     orderId: string,
-  ) {
+  ): Promise<void> {
     if (!dto.admin_ids?.length) return;
 
     await this.permissionService.validatePermissionOrThrow(
@@ -156,18 +157,18 @@ export class RepairOrderCreateHelperService {
     adminId: string,
     statusId: string,
     orderId: string,
-  ) {
+  ): Promise<void> {
     await validateAndInsertProblems(
       trx,
-      dto.initial_problems,
+      dto?.initial_problems || [],
       dto.phone_category_id,
       adminId,
       statusId,
       orderId,
-      'can_change_initial_problems',
+      'can_change_initial_problems' as keyof RepairOrderStatusPermission,
       'initial_problems',
       'repair_order_initial_problems',
-      this.permissionService.validatePermissionOrThrow.bind(this.permissionService),
+      this.permissionService.validatePermissionOrThrowUnsafe.bind(this.permissionService),
     );
   }
 
@@ -177,10 +178,10 @@ export class RepairOrderCreateHelperService {
     adminId: string,
     statusId: string,
     orderId: string,
-  ) {
+  ): Promise<void> {
     await validateAndInsertProblems(
       trx,
-      dto.final_problems,
+      dto?.final_problems || [],
       dto.phone_category_id,
       adminId,
       statusId,
@@ -188,7 +189,7 @@ export class RepairOrderCreateHelperService {
       'can_change_final_problems',
       'final_problems',
       'repair_order_final_problems',
-      this.permissionService.validatePermissionOrThrow.bind(this.permissionService),
+      this.permissionService.validatePermissionOrThrowUnsafe.bind(this.permissionService),
     );
   }
 
@@ -198,7 +199,7 @@ export class RepairOrderCreateHelperService {
     adminId: string,
     statusId: string,
     orderId: string,
-  ) {
+  ): Promise<void> {
     if (!dto.comments?.length) return;
 
     await this.permissionService.validatePermissionOrThrow(
@@ -227,7 +228,7 @@ export class RepairOrderCreateHelperService {
     adminId: string,
     statusId: string,
     orderId: string,
-  ) {
+  ): Promise<void> {
     if (!dto.pickup) return;
 
     if (dto?.pickup?.courier_id) {
@@ -264,7 +265,7 @@ export class RepairOrderCreateHelperService {
     adminId: string,
     statusId: string,
     orderId: string,
-  ) {
+  ): Promise<void> {
     if (!dto.delivery) return;
 
     if (dto?.delivery?.courier_id) {

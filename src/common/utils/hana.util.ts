@@ -1,7 +1,6 @@
 import * as hanaClient from '@sap/hana-client';
-import * as fs from 'fs';
-import * as path from 'path';
 import { LoggerService } from '../logger/logger.service';
+import { HanaParameterType } from '@sap/hana-client';
 
 const logger = new LoggerService();
 
@@ -11,76 +10,29 @@ const connectionParams = {
   pwd: process.env.PASSWORD,
 };
 
-let globalConnection: hanaClient.Connection | null = null;
+export async function executeOnce<T = Record<string, unknown>>(
+  query: string,
+  params: HanaParameterType[] = [],
+): Promise<T[]> {
+  const tempConn: hanaClient.Connection = hanaClient.createConnection();
 
-export function connectToHana(): hanaClient.Connection {
-  if (!globalConnection) {
-    const connection = hanaClient.createConnection();
-    connection.connect(connectionParams, (err: any) => {
-      if (err) {
-        logger.error('❌ SAP HANA ulanishda xatolik:', err);
-      } else {
-        logger.log('✅ SAP HANA ulanish muvaffaqiyatli amalga oshirildi');
-      }
-    });
-    globalConnection = connection;
-  }
-  return globalConnection;
-}
-
-export async function executeParam(query: string, params: any[] = []): Promise<any[]> {
-  const conn = connectToHana();
-  return new Promise((resolve, reject) => {
-    conn.exec(query, params, (err: unknown, rows: any) => {
-      if (err) {
-        logger.error('❌ SAP HANA exec error:', err);
-        reject(err);
-      } else {
-        resolve(rows);
-      }
-    });
-  });
-}
-
-export async function executeOnce(query: string, params: any[] = []): Promise<any[]> {
-  const tempConn = hanaClient.createConnection();
-  return new Promise((resolve, reject) => {
-    tempConn.connect(connectionParams, (err: any) => {
-      if (err) {
-        logger.error('❌ SAP HANA one-time connection error:', err);
-        return reject(err);
+  return new Promise<T[]>((resolve, reject) => {
+    tempConn.connect(connectionParams, (connectErr: Error | null) => {
+      if (connectErr) {
+        logger.error('❌ SAP HANA one-time connection error:', connectErr.message);
+        return reject(connectErr);
       }
 
-      tempConn.exec(query, params, (err: any, rows: any) => {
+      tempConn.exec(query, params, (execErr: Error | null, rows: T[] | null) => {
         tempConn.disconnect();
 
-        if (err) {
-          logger.error('❌ SAP HANA execOnce error:', err);
-          return reject(err);
+        if (execErr) {
+          logger.error('❌ SAP HANA execOnce error:', execErr.message);
+          return reject(execErr);
         }
 
-        resolve(rows);
+        resolve(rows ?? []);
       });
     });
   });
-}
-
-export async function executeFromSQLFile(fileName: string, params: any[] = []): Promise<any[]> {
-  const filePath = path.join(__dirname, '../../../sql', fileName);
-  const query = fs.readFileSync(filePath, 'utf-8');
-  return executeParam(query, params);
-}
-
-export async function executeOnceFromSQLFile(fileName: string, params: any[] = []): Promise<any[]> {
-  const filePath = path.join(__dirname, '../../../sql', fileName);
-  const query = fs.readFileSync(filePath, 'utf-8');
-  return executeOnce(query, params);
-}
-
-export function closeGlobalConnection(): void {
-  if (globalConnection) {
-    globalConnection.disconnect();
-    logger.log('🔌 SAP HANA global ulanish uzildi');
-    globalConnection = null;
-  }
 }

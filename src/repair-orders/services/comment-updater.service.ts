@@ -3,6 +3,8 @@ import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { RepairOrderChangeLoggerService } from './repair-order-change-logger.service';
+import { RepairOrderComment } from 'src/common/types/repair-order-comment.interface';
+import { RepairOrder } from 'src/common/types/repair-order.interface';
 
 @Injectable()
 export class CommentUpdaterService {
@@ -12,8 +14,8 @@ export class CommentUpdaterService {
     private readonly changeLogger: RepairOrderChangeLoggerService,
   ) {}
 
-  async update(commentId: string, newText: string, adminId: string) {
-    const comment = await this.knex('repair_order_comments')
+  async update(commentId: string, newText: string, adminId: string): Promise<{ message: string }> {
+    const comment: RepairOrderComment | undefined = await this.knex('repair_order_comments')
       .select('repair_order_id', 'status_by', 'created_by', 'status', 'text')
       .where({ id: commentId })
       .first();
@@ -59,10 +61,14 @@ export class CommentUpdaterService {
     return { message: '✅ Comment updated' };
   }
 
-  async create(orderId: string, comments: { text: string }[], adminId: string) {
+  async create(
+    orderId: string,
+    comments: { text: string }[],
+    adminId: string,
+  ): Promise<RepairOrderComment | undefined> {
     if (!comments?.length) return;
 
-    const status = await this.knex('repair_orders')
+    const status: RepairOrder | undefined = await this.knex('repair_orders')
       .select('status_id')
       .where({ id: orderId })
       .first();
@@ -94,7 +100,7 @@ export class CommentUpdaterService {
       updated_at: now,
     }));
 
-    const inserted = await this.knex('repair_order_comments')
+    const inserted: RepairOrderComment[] = await this.knex('repair_order_comments')
       .insert(rows)
       .returning(['id', 'text', 'created_at']);
 
@@ -103,8 +109,8 @@ export class CommentUpdaterService {
     return inserted[0];
   }
 
-  async delete(commentId: string, adminId: string) {
-    const comment = await this.knex('repair_order_comments')
+  async delete(commentId: string, adminId: string): Promise<void> {
+    const comment: RepairOrderComment | undefined = await this.knex('repair_order_comments')
       .select('repair_order_id', 'status_by')
       .where({ id: commentId, status: 'Open' })
       .first();

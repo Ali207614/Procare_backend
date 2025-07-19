@@ -60,7 +60,9 @@ export class AssignAdminUpdaterService {
     }));
     await this.knex('repair_order_assign_admins').insert(rows);
 
-    const order = await this.knex('repair_orders').where({ id: orderId }).first();
+    const order: RepairOrder | undefined = await this.knex('repair_orders')
+      .where({ id: orderId })
+      .first();
 
     if (order) {
       const notifications = uniqueIds.map((adminId) => ({

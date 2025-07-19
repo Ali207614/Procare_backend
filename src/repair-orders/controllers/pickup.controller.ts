@@ -5,42 +5,38 @@ import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { CreateOrUpdatePickupDto } from '../dto/create-or-update-pickup.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
+import { RepairOrderPickup } from 'src/common/types/delivery-and-pickup.interface';
 
 @ApiTags('Repair Orders Pickup')
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
-@Controller('repair-orders/:orderId/pickup')
+@Controller('repair-orders/:repair_order_id/pickup')
 export class PickupController {
   constructor(private readonly pickupUpdater: PickupUpdaterService) {}
 
   @Post()
   async create(
-    @Param('orderId') orderId: string,
+    @Param('repair_order_id') orderId: string,
     @Body() dto: CreateOrUpdatePickupDto,
     @CurrentAdmin() admin: AdminPayload,
-  ) {
-    const result = await this.pickupUpdater.create(orderId, dto, admin.id);
-    return {
-      message: '✅ Pickup created',
-      pickup: result,
-    };
+  ): Promise<RepairOrderPickup | undefined> {
+    return this.pickupUpdater.create(orderId, dto, admin.id);
   }
 
   @Patch()
   async update(
-    @Param('orderId') orderId: string,
+    @Param('repair_order_id') orderId: string,
     @Body() dto: CreateOrUpdatePickupDto,
     @CurrentAdmin() admin: AdminPayload,
-  ) {
-    const result = await this.pickupUpdater.update(orderId, dto, admin.id);
-    return {
-      message: '✏️ Pickup updated',
-      pickup: result,
-    };
+  ): Promise<{ message: string } | undefined> {
+    return this.pickupUpdater.update(orderId, dto, admin.id);
   }
 
   @Delete()
-  async delete(@Param('orderId') orderId: string, @CurrentAdmin() admin: AdminPayload) {
+  async delete(
+    @Param('repair_order_id') orderId: string,
+    @CurrentAdmin() admin: AdminPayload,
+  ): Promise<{ message: string } | undefined> {
     return this.pickupUpdater.delete(orderId, admin.id);
   }
 }

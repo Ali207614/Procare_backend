@@ -16,7 +16,7 @@
     "experimentalDecorators": true,
     "incremental": true,
     "skipLibCheck": true,
-    "typeRoots": ["./node_modules/@types"],
+    "typeRoots": ["./src/types","./node_modules/@types",],
     "baseUrl": "./",
     "paths": {
       "src/*": ["src/*"]

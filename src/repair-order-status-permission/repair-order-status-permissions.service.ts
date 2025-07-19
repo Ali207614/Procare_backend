@@ -158,4 +158,23 @@ export class RepairOrderStatusPermissionsService {
       });
     }
   }
+
+  async validatePermissionOrThrowUnsafe(
+    adminId: string,
+    statusId: string,
+    permission: string,
+    location: string,
+  ): Promise<void> {
+    const perm: RepairOrderStatusPermission | null = await this.findByAdminStatus(
+      adminId,
+      statusId,
+    );
+
+    if (!perm?.[permission as keyof RepairOrderStatusPermission]) {
+      throw new ForbiddenException({
+        message: `You do not have permission: ${permission}`,
+        location,
+      });
+    }
+  }
 }

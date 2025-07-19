@@ -238,12 +238,18 @@ export class RepairOrdersService {
       await this.initialProblemUpdater.update(
         trx,
         orderId,
-        dto.initial_problems,
+        dto.initial_problems || [],
         adminId,
         statusId,
       );
 
-      await this.finalProblemUpdater.update(trx, orderId, dto.final_problems, adminId, statusId);
+      await this.finalProblemUpdater.update(
+        trx,
+        orderId,
+        dto.final_problems || [],
+        adminId,
+        statusId,
+      );
 
       await trx.commit();
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);

@@ -10,6 +10,8 @@ import { InjectKnex } from 'nestjs-knex';
 import { CreateUserDto } from './dto/create-user.dto';
 import { FindAllUsersDto } from './dto/find-all-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { User } from '../../migrations/user.interface';
+import { JoinedRepairOrder, UserWithRepairOrders } from 'src/common/types/repair-order.interface';
 
 @Injectable()
 export class UsersService {
@@ -18,8 +20,8 @@ export class UsersService {
     @InjectQueue('sap') private readonly sapQueue: Queue,
   ) {}
 
-  async create(dto: CreateUserDto) {
-    const exists = await this.knex('users')
+  async create(dto: CreateUserDto): Promise<User> {
+    const exists: User | undefined = await this.knex('users')
       .whereRaw('LOWER(phone_number) = ?', dto.phone_number.toLowerCase())
       .andWhereNot({ status: 'Deleted' })
       .first();
@@ -31,7 +33,7 @@ export class UsersService {
       });
     }
 
-    const [user] = await this.knex('users')
+    const [user]: User[] = await this.knex('users')
       .insert({
         sap_card_code: dto.sap_card_code || null,
         first_name: dto.first_name,
@@ -67,7 +69,7 @@ export class UsersService {
     return user;
   }
 
-  async findAll(query: FindAllUsersDto) {
+  async findAll(query: FindAllUsersDto): Promise<User[]> {
     const offset = Number(query.offset) || 0;
     const limit = Number(query.limit) || 20;
 
@@ -79,7 +81,7 @@ export class UsersService {
 
     if (query.search) {
       const term = `%${query.search.toLowerCase()}%`;
-      q.whereRaw(
+      void q.whereRaw(
         `
             LOWER(first_name) LIKE ?
             OR LOWER(last_name) LIKE ?
@@ -94,7 +96,7 @@ export class UsersService {
     return q;
   }
 
-  async update(userId: string, dto: UpdateUserDto) {
+  async update(userId: string, dto: UpdateUserDto): Promise<{ message: string }> {
     const user = await this.knex('users').where({ id: userId, status: 'Open' }).first();
 
     if (!user) {
@@ -114,8 +116,10 @@ export class UsersService {
     return { message: 'User updated successfully' };
   }
 
-  async delete(userId: string) {
-    const user = await this.knex('users').where({ id: userId, status: 'Open' }).first();
+  async delete(userId: string): Promise<{ message: string }> {
+    const user: User | undefined = await this.knex('users')
+      .where({ id: userId, status: 'Open' })
+      .first();
 
     if (!user) {
       throw new NotFoundException({
@@ -133,8 +137,10 @@ export class UsersService {
     return { message: 'User deleted successfully' };
   }
 
-  async findOneWithOrders(userId: string) {
-    const user = await this.knex('users').where({ id: userId, status: 'Open' }).first();
+  async findOneWithOrders(userId: string): Promise<UserWithRepairOrders> {
+    const user: User | undefined = await this.knex('users')
+      .where({ id: userId, status: 'Open' })
+      .first();
 
     if (!user) {
       throw new NotFoundException({
@@ -143,7 +149,7 @@ export class UsersService {
       });
     }
 
-    const repairOrders = await this.knex('repair_orders as ro')
+    const repairOrders: JoinedRepairOrder[] = await this.knex('repair_orders as ro')
       .leftJoin('users as u', 'ro.user_id', 'u.id')
       .leftJoin('branches as b', 'ro.branch_id', 'b.id')
       .leftJoin('phone_categories as pc', 'ro.phone_category_id', 'pc.id')

@@ -1,7 +1,4 @@
 import { RepairOrderStatusTransitionsController } from './repair-order-status-transitions.controller';
-/*
-https://docs.nestjs.com/modules
-*/
 
 import { Module } from '@nestjs/common';
 import { RedisModule } from 'src/common/redis/redis.module';
@@ -10,9 +7,8 @@ import { RepairOrderStatusesModule } from 'src/repair-order-statuses/repair-orde
 import { RepairOrderStatusTransitionsService } from './repair-order-status-transitions.service';
 
 @Module({
-    imports: [RedisModule, PermissionsModule, RepairOrderStatusesModule],
-    controllers: [
-        RepairOrderStatusTransitionsController,],
-    providers: [RepairOrderStatusTransitionsService],
+  imports: [RedisModule, PermissionsModule, RepairOrderStatusesModule],
+  controllers: [RepairOrderStatusTransitionsController],
+  providers: [RepairOrderStatusTransitionsService],
 })
-export class RepairOrderStatusTransitionsModule { }
+export class RepairOrderStatusTransitionsModule {}

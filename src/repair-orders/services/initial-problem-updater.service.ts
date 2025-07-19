@@ -1,6 +1,19 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { RepairOrderChangeLoggerService } from './repair-order-change-logger.service';
+import { Knex } from 'knex';
+
+interface ProblemInput {
+  problem_category_id: string;
+  price: number;
+  estimated_minutes: number;
+}
+
+interface ExistingProblem {
+  problem_category_id: string;
+  price: string;
+  estimated_minutes: number;
+}
 
 @Injectable()
 export class InitialProblemUpdaterService {
@@ -9,7 +22,13 @@ export class InitialProblemUpdaterService {
     private readonly changeLogger: RepairOrderChangeLoggerService,
   ) {}
 
-  async update(trx, orderId, problems, adminId, statusId) {
+  async update(
+    trx: Knex.Transaction,
+    orderId: string,
+    problems: ProblemInput[],
+    adminId: string,
+    statusId: string,
+  ): Promise<void> {
     if (!problems?.length) return;
 
     await this.permissionService.validatePermissionOrThrow(
@@ -22,7 +41,7 @@ export class InitialProblemUpdaterService {
     const order = await trx('repair_orders')
       .select('phone_category_id')
       .where({ id: orderId })
-      .first();
+      .first<{ phone_category_id: string }>();
 
     if (!order) {
       throw new BadRequestException({
@@ -36,22 +55,23 @@ export class InitialProblemUpdaterService {
 
     const rootRows = await trx
       .withRecursive('problem_path', (qb) => {
-        qb.select('id', 'parent_id')
+        void qb
+          .select('id', 'parent_id')
           .from('problem_categories')
           .whereIn('id', problemIds)
           .unionAll(function () {
-            this.select('p.id', 'p.parent_id')
+            void this.select('p.id', 'p.parent_id')
               .from('problem_categories as p')
               .join('problem_path as pp', 'pp.parent_id', 'p.id');
           });
       })
-      .select('id')
+      .select<{ id: string }[]>('id')
       .from('problem_path')
       .whereNull('parent_id');
 
     const rootProblemIds = rootRows.map((r) => r.id);
 
-    const allowed = await trx('phone_problem_mappings')
+    const allowed: string[] = await trx('phone_problem_mappings')
       .where({ phone_category_id: phoneCategoryId })
       .whereIn('problem_category_id', rootProblemIds)
       .pluck('problem_category_id');
@@ -64,11 +84,13 @@ export class InitialProblemUpdaterService {
       });
     }
 
-    const old = await trx('repair_order_initial_problems')
+    const old: ExistingProblem[] = await trx('repair_order_initial_problems')
       .where({ repair_order_id: orderId })
       .select('problem_category_id', 'price', 'estimated_minutes');
 
     await trx('repair_order_initial_problems').where({ repair_order_id: orderId }).delete();
+
+    const now = new Date();
 
     const rows = problems.map((p) => ({
       repair_order_id: orderId,
@@ -76,8 +98,8 @@ export class InitialProblemUpdaterService {
       price: p.price,
       estimated_minutes: p.estimated_minutes,
       created_by: adminId,
-      created_at: new Date(),
-      updated_at: new Date(),
+      created_at: now,
+      updated_at: now,
     }));
 
     await trx('repair_order_initial_problems').insert(rows);

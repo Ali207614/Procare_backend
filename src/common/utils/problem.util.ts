@@ -17,14 +17,16 @@ export async function validateAndInsertProblems(
     permission: string,
     location: string,
   ) => Promise<void>,
-) {
+): Promise<void> {
   if (!problems?.length) return;
 
   await validatePermission(adminId, statusId, permissionKey, locationKey);
 
-  const [rootProblemId] = await trx('phone_problem_mappings')
+  const row = await trx('phone_problem_mappings')
     .where({ phone_category_id: phoneCategoryId })
-    .pluck('problem_category_id');
+    .first<{ problem_category_id: string }>();
+
+  const rootProblemId = row?.problem_category_id;
 
   if (!rootProblemId) {
     throw new BadRequestException({
@@ -33,13 +35,14 @@ export async function validateAndInsertProblems(
     });
   }
 
-  const rawResult = await trx
+  const rawResult: Array<{ id: string }> = await trx
     .withRecursive('descendants', (qb) => {
-      qb.select('id')
+      void qb
+        .select('id')
         .from('problem_categories')
         .where('id', rootProblemId)
         .unionAll(function () {
-          this.select('c.id')
+          void this.select('c.id')
             .from('problem_categories as c')
             .join('descendants as d', 'c.parent_id', 'd.id')
             .where({ 'c.is_active': true, 'c.status': 'Open' });

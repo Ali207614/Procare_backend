@@ -3,10 +3,18 @@ import { InjectKnex, Knex } from 'nestjs-knex';
 import { LoggerService } from 'src/common/logger/logger.service';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
 import { executeOnce } from 'src/common/utils/hana.util';
-import {
-  InsertableRentalPhoneDevice,
-  RawSapPhone,
-} from 'src/common/types/rental-phone-device.interface';
+
+export interface RentalPhoneDeviceView {
+  Code: string;
+  U_ItemCode: string;
+  U_ItemName: string;
+  ItemCode: string;
+  ItemName: string;
+  OnHand: number;
+  U_IS_FREE: string;
+  U_PRICE: number;
+  U_IS_AVAILABLE: string;
+}
 
 @Injectable()
 export class SapRentalPhoneSyncService {
@@ -23,11 +31,10 @@ export class SapRentalPhoneSyncService {
       const schema = process.env.SAP_SCHEMA || 'PROBOX_PROD_3';
       query = query.replace(/{{schema}}/g, schema);
 
-      const sapPhones = (await executeOnce(query, [])) as RawSapPhone[];
-
+      const sapPhones: RentalPhoneDeviceView[] = await executeOnce(query, []);
       const now = new Date();
 
-      const rowsToUpsert: InsertableRentalPhoneDevice[] = sapPhones.map((row) => ({
+      const rowsToUpsert = sapPhones.map((row) => ({
         code: row.ItemCode,
         name: row.ItemName,
         is_free: row.U_IS_FREE === 'YES',
@@ -39,7 +46,7 @@ export class SapRentalPhoneSyncService {
         created_at: now,
       }));
 
-      const sapCodes = sapPhones.map((row) => row.ItemCode);
+      const sapCodes: string[] = sapPhones.map((row) => row.ItemCode);
 
       await this.knex('rental_phone_devices')
         .insert(rowsToUpsert)

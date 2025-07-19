@@ -8,6 +8,12 @@ import { InjectKnex, Knex } from 'nestjs-knex';
 import { RedisService } from 'src/common/redis/redis.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
+import { Permission } from 'src/common/types/permission.interface';
+import { Role } from 'src/common/types/role.interface';
+
+export interface RoleWithPermissions extends Role {
+  permissions: Permission[];
+}
 
 @Injectable()
 export class RolesService {
@@ -16,7 +22,7 @@ export class RolesService {
     private readonly redisService: RedisService,
   ) {}
 
-  async create(dto: CreateRoleDto, adminId: string) {
+  async create(dto: CreateRoleDto, adminId: string): Promise<Role> {
     const existing = await this.knex('roles')
       .whereRaw('LOWER(name) = ?', dto.name.toLowerCase())
       .andWhere({ status: 'Open' })
@@ -30,7 +36,7 @@ export class RolesService {
     }
 
     if (dto.permission_ids?.length) {
-      const foundPermissions = await this.knex('permissions')
+      const foundPermissions: Permission[] = await this.knex('permissions')
         .whereIn('id', dto.permission_ids)
         .andWhere({ is_active: true, status: 'Open' });
 
@@ -42,7 +48,7 @@ export class RolesService {
       }
     }
 
-    const [role] = await this.knex('roles')
+    const [role]: Role[] = await this.knex('roles')
       .insert({
         name: dto.name,
         created_by: adminId,
@@ -61,12 +67,12 @@ export class RolesService {
     return role;
   }
 
-  async findAll() {
+  async findAll(): Promise<Role[]> {
     return this.knex('roles').where({ status: 'Open' });
   }
 
-  async findOne(id: string) {
-    const role = await this.knex('roles').where({ id, status: 'Open' }).first();
+  async findOne(id: string): Promise<RoleWithPermissions> {
+    const role: Role | undefined = await this.knex('roles').where({ id, status: 'Open' }).first();
 
     if (!role) {
       throw new NotFoundException({
@@ -87,14 +93,14 @@ export class RolesService {
     };
   }
 
-  async update(id: string, dto: UpdateRoleDto) {
-    return await this.knex.transaction(async (trx) => {
+  async update(id: string, dto: UpdateRoleDto): Promise<{ message: string }> {
+    return this.knex.transaction(async (trx) => {
       const role = await this.findOne(id);
 
       if (
-        role?.is_protected &&
+        role.is_protected &&
         ((Array.isArray(dto.permission_ids) && dto.permission_ids.length > 0) ||
-          dto?.is_active === false)
+          dto.is_active === false)
       ) {
         throw new ForbiddenException({
           message: 'This role is system-protected and cannot be deleted or deactivated.',
@@ -129,26 +135,26 @@ export class RolesService {
           });
         }
 
-        await trx('role_permissions').where({ role_id: id }).del();
+        await trx('role_permissions').where({ role_id: id }).delete();
 
         const mappings = dto.permission_ids.map((permission_id) => ({
           role_id: id,
           permission_id,
         }));
 
-        if (mappings.length) {
+        if (mappings.length > 0) {
           await trx('role_permissions').insert(mappings);
         }
       }
 
-      await trx('roles')
-        .where({ id })
-        .update({
-          ...(dto.name && { name: dto.name }),
-          ...(dto.is_active !== undefined && { is_active: dto.is_active }),
-          ...(dto.status && { status: dto.status }),
-          updated_at: new Date(),
-        });
+      const updatePayload = {
+        ...(dto.name && { name: dto.name }),
+        ...(dto.is_active !== undefined && { is_active: dto.is_active }),
+        ...(dto.status && { status: dto.status }),
+        updated_at: new Date(),
+      };
+
+      await trx('roles').where({ id }).update(updatePayload);
 
       const adminIds = await trx('admin_roles').where({ role_id: id }).pluck('admin_id');
 
@@ -160,8 +166,8 @@ export class RolesService {
     });
   }
 
-  async delete(id: string) {
-    const role = await this.findOne(id);
+  async delete(id: string): Promise<{ message: string }> {
+    const role: RoleWithPermissions = await this.findOne(id);
 
     if (role?.is_protected) {
       throw new ForbiddenException({
