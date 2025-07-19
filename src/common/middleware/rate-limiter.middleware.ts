@@ -1,17 +1,17 @@
 import { Injectable, Inject, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
-import RedisStore from 'rate-limit-redis';
-import { RedisClientType } from 'redis';
+import RedisStore, { type RedisReply } from 'rate-limit-redis';
+import Redis from 'ioredis'; // ⬅️ ioredis import
 import { LoggerService } from '../logger/logger.service';
 import { HttpStatus } from '@nestjs/common';
 
 @Injectable()
 export class RateLimiterMiddleware implements NestMiddleware {
-  private limiter;
+  private readonly limiter;
 
   constructor(
-    @Inject('REDIS_CLIENT') private readonly redisClient: RedisClientType,
+    @Inject('REDIS_CLIENT') private readonly redisClient: Redis, // ⬅️ ioredis client
     private readonly logger: LoggerService,
   ) {
     this.limiter = rateLimit({
@@ -21,13 +21,10 @@ export class RateLimiterMiddleware implements NestMiddleware {
         return req.admin?.id ?? req.ip ?? 'unknown';
       },
       handler: (req: Request, res: Response) => {
-        const duration = 0;
-
         const statusCode = 429;
         const statusMessage = HttpStatus[statusCode] || 'Too Many Requests';
-        const logMessage = `[${req.method}] ${req.originalUrl} - ${statusCode} ${statusMessage} (${duration}ms)`;
 
-        this.logger.warn(logMessage);
+        this.logger.warn(`[${req.method}] ${req.originalUrl} - ${statusCode} ${statusMessage}`);
 
         res.status(statusCode).json({
           statusCode,
@@ -39,7 +36,8 @@ export class RateLimiterMiddleware implements NestMiddleware {
         });
       },
       store: new RedisStore({
-        sendCommand: (...args: string[]) => this.redisClient.sendCommand(args.map(String)),
+        sendCommand: (...args: [string, ...string[]]) =>
+          this.redisClient.call(...args) as unknown as Promise<RedisReply>,
       }),
     });
   }

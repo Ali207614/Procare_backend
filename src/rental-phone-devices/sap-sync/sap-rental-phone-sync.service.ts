@@ -28,7 +28,7 @@ export class SapRentalPhoneSyncService {
 
     try {
       let query = loadSQL('rental-phone-devices/queries/sap-rental-phone-sync.sql');
-      const schema = process.env.SAP_SCHEMA || 'PROBOX_PROD_3';
+      const schema = process.env.SAP_SCHEMA || 'PRO_ADDON';
       query = query.replace(/{{schema}}/g, schema);
 
       const sapPhones: RentalPhoneDeviceView[] = await executeOnce(query, []);

@@ -15,7 +15,7 @@ export class FeatureService {
 
   private readonly table = 'app_features';
   private readonly cacheKey = 'app:features';
-  private readonly cacheTtl = 300; // 5 minut
+  private readonly cacheTtl = 300;
 
   async getAllFeatures(): Promise<FeaturesMap> {
     const cached: FeaturesMap | null = await this.redisService.get(this.cacheKey);
