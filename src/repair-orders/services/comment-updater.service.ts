@@ -5,6 +5,8 @@ import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-per
 import { RepairOrderChangeLoggerService } from './repair-order-change-logger.service';
 import { RepairOrderComment } from 'src/common/types/repair-order-comment.interface';
 import { RepairOrder } from 'src/common/types/repair-order.interface';
+import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
 
 @Injectable()
 export class CommentUpdaterService {
@@ -14,7 +16,11 @@ export class CommentUpdaterService {
     private readonly changeLogger: RepairOrderChangeLoggerService,
   ) {}
 
-  async update(commentId: string, newText: string, adminId: string): Promise<{ message: string }> {
+  async update(
+    commentId: string,
+    newText: string,
+    admin: AdminPayload,
+  ): Promise<{ message: string }> {
     const comment: RepairOrderComment | undefined = await this.knex('repair_order_comments')
       .select('repair_order_id', 'status_by', 'created_by', 'status', 'text')
       .where({ id: commentId })
@@ -27,18 +33,34 @@ export class CommentUpdaterService {
       });
     }
 
-    if (comment.created_by !== adminId) {
+    if (comment.created_by !== admin.id) {
       throw new BadRequestException({
         message: 'You are not the author of this comment',
         location: 'comment_id',
       });
     }
 
-    await this.permissionService.validatePermissionOrThrow(
-      adminId,
-      comment.status_by,
-      'can_comment',
-      'comments',
+    const order: RepairOrder | undefined = await this.knex('repair_orders')
+      .select('branch_id', 'status_id')
+      .where({ id: comment.repair_order_id, status: 'Open' })
+      .first();
+
+    if (!order) {
+      throw new BadRequestException({
+        message: 'Repair order not found or already closed',
+        location: 'repair_order_id',
+      });
+    }
+
+    const allPermissions: RepairOrderStatusPermission[] =
+      await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      order.branch_id,
+      order.status_id,
+      ['can_comment'],
+      'repair_order_comment',
+      allPermissions,
     );
 
     if (comment.text === newText) {
@@ -55,7 +77,7 @@ export class CommentUpdaterService {
       'comments',
       comment.text,
       newText,
-      adminId,
+      admin.id,
     );
 
     return { message: '✅ Comment updated' };
@@ -64,29 +86,30 @@ export class CommentUpdaterService {
   async create(
     orderId: string,
     comments: { text: string }[],
-    adminId: string,
+    admin: AdminPayload,
   ): Promise<RepairOrderComment | undefined> {
     if (!comments?.length) return;
 
-    const status: RepairOrder | undefined = await this.knex('repair_orders')
-      .select('status_id')
+    const order: RepairOrder | undefined = await this.knex('repair_orders')
       .where({ id: orderId })
       .first();
 
-    if (!status) {
+    if (!order) {
       throw new BadRequestException({
         message: 'Repair order not found',
         location: 'repair_order_id',
       });
     }
 
-    const statusId = status.status_id;
-
-    await this.permissionService.validatePermissionOrThrow(
-      adminId,
-      statusId,
-      'can_comment',
-      'comments',
+    const allPermissions: RepairOrderStatusPermission[] =
+      await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      order.branch_id,
+      order.status_id,
+      ['can_comment'],
+      'repair_order_comment',
+      allPermissions,
     );
 
     const now = new Date();
@@ -94,8 +117,8 @@ export class CommentUpdaterService {
       repair_order_id: orderId,
       text: c.text,
       status: 'Open',
-      created_by: adminId,
-      status_by: statusId,
+      created_by: admin.id,
+      status_by: order.status_id,
       created_at: now,
       updated_at: now,
     }));
@@ -104,12 +127,12 @@ export class CommentUpdaterService {
       .insert(rows)
       .returning(['id', 'text', 'created_at']);
 
-    await this.changeLogger.logIfChanged(this.knex, orderId, 'comments', null, comments, adminId);
+    await this.changeLogger.logIfChanged(this.knex, orderId, 'comments', null, comments, admin.id);
 
     return inserted[0];
   }
 
-  async delete(commentId: string, adminId: string): Promise<void> {
+  async delete(commentId: string, admin: AdminPayload): Promise<void> {
     const comment: RepairOrderComment | undefined = await this.knex('repair_order_comments')
       .select('repair_order_id', 'status_by')
       .where({ id: commentId, status: 'Open' })
@@ -122,13 +145,27 @@ export class CommentUpdaterService {
       });
     }
 
-    await this.permissionService.validatePermissionOrThrow(
-      adminId,
-      comment.status_by,
-      'can_comment',
-      'comments',
-    );
+    const order: RepairOrder | undefined = await this.knex('repair_orders')
+      .where({ id: comment.repair_order_id, status: 'Open' })
+      .first();
 
+    if (!order) {
+      throw new BadRequestException({
+        message: 'Repair order not found',
+        location: 'repair_order_id',
+      });
+    }
+
+    const allPermissions: RepairOrderStatusPermission[] =
+      await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      order.branch_id,
+      order.status_id,
+      ['can_comment'],
+      'repair_order_comment',
+      allPermissions,
+    );
     await this.knex('repair_order_comments')
       .where({ id: commentId })
       .update({ status: 'Deleted', updated_at: new Date() });
@@ -139,7 +176,7 @@ export class CommentUpdaterService {
       'comments',
       'deleted',
       commentId,
-      adminId,
+      admin.id,
     );
   }
 }

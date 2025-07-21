@@ -42,7 +42,7 @@ export class RepairOrderStatusesController {
     @Req() req: AuthenticatedRequest,
     @Query('branch_id', ParseUUIDPipe) branchId: string,
   ): Promise<RepairOrderStatusWithPermissions[]> {
-    return this.service.findViewable(req.admin.id, branchId);
+    return this.service.findViewable(req.admin, branchId);
   }
 
   @Get('all')

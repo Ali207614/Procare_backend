@@ -2,7 +2,7 @@ import { Injectable, Inject, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import RedisStore from 'rate-limit-redis';
-import Redis from 'ioredis'; // ioredis import
+import Redis from 'ioredis';
 import { LoggerService } from '../logger/logger.service';
 import { HttpStatus } from '@nestjs/common';
 import type { RedisReply } from 'rate-limit-redis';
@@ -12,9 +12,11 @@ export class RateLimiterByIpMiddleware implements NestMiddleware {
   private limiter;
 
   constructor(
-    @Inject('REDIS_CLIENT') private readonly redisClient: Redis, // ⬅️ ioredis turiga o‘zgartirildi
+    @Inject('REDIS_CLIENT') private readonly redisClient: Redis | null,
     private readonly logger: LoggerService,
   ) {
+    const isRedisAvailable = !!this.redisClient;
+
     this.limiter = rateLimit({
       windowMs: 60 * 1000,
       max: 10,
@@ -35,10 +37,22 @@ export class RateLimiterByIpMiddleware implements NestMiddleware {
           path: req.originalUrl,
         });
       },
-      store: new RedisStore({
-        sendCommand: (...args: [string, ...string[]]) =>
-          this.redisClient.call(...args) as unknown as Promise<RedisReply>,
-      }),
+      ...(isRedisAvailable
+        ? {
+            store: new RedisStore({
+              sendCommand: (...args: [string, ...string[]]) => {
+                if (!this.redisClient) {
+                  this.logger.warn('⚠️ Redis not available during sendCommand');
+                  return Promise.resolve('' as RedisReply); // fallback
+                }
+                return this.redisClient.call(...args) as unknown as Promise<RedisReply>;
+              },
+            }),
+          }
+        : (() => {
+            this.logger.warn('⚠️ Redis is not connected. Rate limiting will use MemoryStore.');
+            return {};
+          })()),
     });
   }
 

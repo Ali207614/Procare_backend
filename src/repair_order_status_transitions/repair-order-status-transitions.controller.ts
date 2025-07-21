@@ -7,7 +7,7 @@ import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { PermissionsGuard } from 'src/common/guards/permission.guard';
 import { SetPermissions } from 'src/common/decorators/permission-decorator';
-import { RepairOrderStatusTransition } from '../../migrations/repair-order-status-transitions.interface';
+import { RepairOrderStatusTransition } from 'src/common/types/repair-order-status-transition.interface';
 
 @ApiTags('Repair Order Status Transitions')
 @ApiBearerAuth()

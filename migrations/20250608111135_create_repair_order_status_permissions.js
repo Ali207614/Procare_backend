@@ -11,7 +11,7 @@ exports.up = async function (knex) {
       .inTable('repair_order_statuses')
       .onDelete('CASCADE');
 
-    table.uuid('admin_id').notNullable().references('id').inTable('admins').onDelete('CASCADE');
+    table.uuid('role_id').notNullable().references('id').inTable('roles').onDelete('CASCADE');
 
     table.boolean('can_add').defaultTo(true);
     table.boolean('can_view').defaultTo(true);

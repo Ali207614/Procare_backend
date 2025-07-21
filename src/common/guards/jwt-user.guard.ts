@@ -23,7 +23,7 @@ export class JwtUserAuthGuard extends AuthGuard('jwt-user') {
     if (!authHeader?.startsWith('Bearer ')) {
       throw new UnauthorizedException({
         message: 'Authorization header missing or invalid',
-        location: 'missing_authorization',
+        location: 'missing_authorization-user',
       });
     }
 

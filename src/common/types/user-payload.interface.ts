@@ -1,7 +1,7 @@
 export interface UserPayload {
   id: string;
   phone_number: string;
-  role: string;
+  roles: string[];
   iat?: number;
   exp?: number;
 }

@@ -3,6 +3,8 @@ import { Knex } from 'knex';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { RepairOrderChangeLoggerService } from './repair-order-change-logger.service';
 import { RepairOrder } from 'src/common/types/repair-order.interface';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
+import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 
 interface FinalProblemInput {
   problem_category_id: string;
@@ -12,7 +14,7 @@ interface FinalProblemInput {
 
 interface ExistingFinalProblem {
   problem_category_id: string;
-  price: string; // yoki number, agar `.toNumber()` qilsangiz
+  price: string;
   estimated_minutes: number;
 }
 
@@ -27,20 +29,11 @@ export class FinalProblemUpdaterService {
     trx: Knex.Transaction,
     orderId: string,
     problems: FinalProblemInput[],
-    adminId: string,
-    statusId: string,
+    admin: AdminPayload,
   ): Promise<void> {
     if (!problems?.length) return;
 
-    await this.permissionService.validatePermissionOrThrow(
-      adminId,
-      statusId,
-      'can_change_final_problems',
-      'final_problems',
-    );
-
-    const order: Pick<RepairOrder, 'phone_category_id'> | undefined = await trx('repair_orders')
-      .select('phone_category_id')
+    const order: RepairOrder | undefined = await trx('repair_orders')
       .where({ id: orderId })
       .first();
 
@@ -50,6 +43,17 @@ export class FinalProblemUpdaterService {
         location: 'order_id',
       });
     }
+
+    const allPermissions: RepairOrderStatusPermission[] =
+      await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      order.branch_id,
+      order.status_id,
+      ['can_change_final_problems'],
+      'repair_order_delivery',
+      allPermissions,
+    );
 
     const phoneCategoryId = order.phone_category_id;
     const problemIds = problems.map((p) => p.problem_category_id);
@@ -98,13 +102,13 @@ export class FinalProblemUpdaterService {
       problem_category_id: p.problem_category_id,
       price: p.price,
       estimated_minutes: p.estimated_minutes,
-      created_by: adminId,
+      created_by: admin.id,
       created_at: now,
       updated_at: now,
     }));
 
     await trx('repair_order_final_problems').insert(rows);
 
-    await this.changeLogger.logIfChanged(trx, orderId, 'final_problems', old, problems, adminId);
+    await this.changeLogger.logIfChanged(trx, orderId, 'final_problems', old, problems, admin.id);
   }
 }

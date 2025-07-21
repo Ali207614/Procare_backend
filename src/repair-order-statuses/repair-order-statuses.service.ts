@@ -12,6 +12,8 @@ import {
   RepairOrderStatusWithPermissions,
 } from 'src/common/types/repair-order-status.interface';
 import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
+import { Admin } from 'src/common/types/admin.interface';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
 
 @Injectable()
 export class RepairOrderStatusesService {
@@ -128,15 +130,15 @@ export class RepairOrderStatusesService {
   }
 
   async findViewable(
-    adminId: string,
+    admin: AdminPayload,
     branchId: string,
   ): Promise<RepairOrderStatusWithPermissions[]> {
-    const cacheKey = `${this.redisKeyView}${branchId}:${adminId}`;
+    const cacheKey = `${this.redisKeyView}${branchId}:${admin.id}`;
     const cached: RepairOrderStatusWithPermissions[] | null = await this.redisService.get(cacheKey);
     if (cached !== null) return cached;
 
     const permissions: RepairOrderStatusPermission[] =
-      await this.repairOrderStatusPermissions.findByAdminBranch(adminId, branchId);
+      await this.repairOrderStatusPermissions.findByRolesAndBranch(admin.roles, branchId);
 
     if (!permissions.length) {
       await this.redisService.set(cacheKey, [], 300);
@@ -302,7 +304,7 @@ export class RepairOrderStatusesService {
       await this.knex('repair_order_status_permissions').where({ status_id: status.id }).del();
 
       for (const permission of permissions) {
-        await this.repairOrderStatusPermissions.flushPermissionCacheOnly(permission);
+        await this.repairOrderStatusPermissions.flushAndReloadCacheByRole(permission);
       }
     }
 

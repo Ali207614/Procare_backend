@@ -20,7 +20,7 @@ export class PickupController {
     @Body() dto: CreateOrUpdatePickupDto,
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<RepairOrderPickup | undefined> {
-    return this.pickupUpdater.create(orderId, dto, admin.id);
+    return this.pickupUpdater.create(orderId, dto, admin);
   }
 
   @Patch()
@@ -29,7 +29,7 @@ export class PickupController {
     @Body() dto: CreateOrUpdatePickupDto,
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<{ message: string } | undefined> {
-    return this.pickupUpdater.update(orderId, dto, admin.id);
+    return this.pickupUpdater.update(orderId, dto, admin);
   }
 
   @Delete()
@@ -37,6 +37,6 @@ export class PickupController {
     @Param('repair_order_id') orderId: string,
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<{ message: string } | undefined> {
-    return this.pickupUpdater.delete(orderId, admin.id);
+    return this.pickupUpdater.delete(orderId, admin);
   }
 }

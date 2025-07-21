@@ -7,6 +7,7 @@ import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-per
 import { CreateRepairOrderDto } from '../dto/create-repair-order.dto';
 import { validateAndInsertProblems } from 'src/common/utils/problem.util';
 import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
 
 @Injectable()
 export class RepairOrderCreateHelperService {
@@ -19,17 +20,21 @@ export class RepairOrderCreateHelperService {
   async insertRentalPhone(
     trx: Knex.Transaction,
     dto: CreateRepairOrderDto,
-    adminId: string,
+    admin: AdminPayload,
     statusId: string,
     orderId: string,
+    branchId: string,
+    allPermissions: RepairOrderStatusPermission[],
   ): Promise<void> {
     if (!dto.rental_phone) return;
 
-    await this.permissionService.validatePermissionOrThrow(
-      adminId,
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      branchId,
       statusId,
-      'can_manage_rental_phone',
+      ['can_manage_rental_phone'],
       'repair_order_rental_phones',
+      allPermissions,
     );
 
     const phone = dto.rental_phone;
@@ -56,7 +61,7 @@ export class RepairOrderCreateHelperService {
         rented_at: new Date(),
         returned_at: null,
         notes: phone.notes ?? null,
-        created_by: adminId,
+        created_by: admin.id,
         created_at: new Date(),
         updated_at: new Date(),
       })
@@ -85,17 +90,21 @@ export class RepairOrderCreateHelperService {
   async insertAssignAdmins(
     trx: Knex.Transaction,
     dto: CreateRepairOrderDto,
-    adminId: string,
+    admin: AdminPayload,
     statusId: string,
     orderId: string,
+    branchId: string,
+    allPermissions: RepairOrderStatusPermission[],
   ): Promise<void> {
     if (!dto.admin_ids?.length) return;
 
-    await this.permissionService.validatePermissionOrThrow(
-      adminId,
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      branchId,
       statusId,
-      'can_assign_admin',
-      'admin_ids',
+      ['can_assign_admin'],
+      'repair_order_assign_admins',
+      allPermissions,
     );
 
     const uniqueIds: string[] = [...new Set(dto.admin_ids)];
@@ -154,66 +163,78 @@ export class RepairOrderCreateHelperService {
   async insertInitialProblems(
     trx: Knex.Transaction,
     dto: CreateRepairOrderDto,
-    adminId: string,
+    admin: AdminPayload,
     statusId: string,
     orderId: string,
+    branchId: string,
+    allPermissions: RepairOrderStatusPermission[],
   ): Promise<void> {
     await validateAndInsertProblems(
       trx,
       dto?.initial_problems || [],
       dto.phone_category_id,
-      adminId,
+      admin,
       statusId,
+      branchId,
       orderId,
-      'can_change_initial_problems' as keyof RepairOrderStatusPermission,
+      allPermissions,
+      ['can_change_initial_problems'],
       'initial_problems',
       'repair_order_initial_problems',
-      this.permissionService.validatePermissionOrThrowUnsafe.bind(this.permissionService),
+      this.permissionService.checkPermissionsOrThrow.bind(this.permissionService),
     );
   }
 
   async insertFinalProblems(
     trx: Knex.Transaction,
     dto: CreateRepairOrderDto,
-    adminId: string,
+    admin: AdminPayload,
     statusId: string,
     orderId: string,
+    branchId: string,
+    allPermissions: RepairOrderStatusPermission[],
   ): Promise<void> {
     await validateAndInsertProblems(
       trx,
       dto?.final_problems || [],
       dto.phone_category_id,
-      adminId,
+      admin,
       statusId,
+      branchId,
       orderId,
-      'can_change_final_problems',
+      allPermissions,
+      ['can_change_final_problems'],
       'final_problems',
       'repair_order_final_problems',
-      this.permissionService.validatePermissionOrThrowUnsafe.bind(this.permissionService),
+      this.permissionService.checkPermissionsOrThrow.bind(this.permissionService),
     );
   }
 
   async insertComments(
     trx: Knex.Transaction,
     dto: CreateRepairOrderDto,
-    adminId: string,
+    admin: AdminPayload,
     statusId: string,
     orderId: string,
+    branchId: string,
+    allPermissions: RepairOrderStatusPermission[],
   ): Promise<void> {
     if (!dto.comments?.length) return;
 
-    await this.permissionService.validatePermissionOrThrow(
-      adminId,
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      branchId,
       statusId,
-      'can_comment',
-      'comments',
+      ['can_comment'],
+      'repair_order_comments',
+      allPermissions,
     );
 
     const rows = dto.comments.map((c) => ({
       repair_order_id: orderId,
       text: c.text,
       status: 'Open',
-      created_by: adminId,
+      created_by: admin.id,
       status_by: statusId,
       created_at: new Date(),
       updated_at: new Date(),
@@ -225,9 +246,11 @@ export class RepairOrderCreateHelperService {
   async insertPickup(
     trx: Knex.Transaction,
     dto: CreateRepairOrderDto,
-    adminId: string,
+    admin: AdminPayload,
     statusId: string,
     orderId: string,
+    branchId: string,
+    allPermissions: RepairOrderStatusPermission[],
   ): Promise<void> {
     if (!dto.pickup) return;
 
@@ -243,17 +266,19 @@ export class RepairOrderCreateHelperService {
       }
     }
 
-    await this.permissionService.validatePermissionOrThrow(
-      adminId,
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      branchId,
       statusId,
-      'can_pickup_manage',
-      'pickup',
+      ['can_pickup_manage'],
+      'repair_order_comments',
+      allPermissions,
     );
 
     await trx('repair_order_pickups').insert({
       repair_order_id: orderId,
       ...dto.pickup,
-      created_by: adminId,
+      created_by: admin.id,
       created_at: new Date(),
       updated_at: new Date(),
     });
@@ -262,9 +287,11 @@ export class RepairOrderCreateHelperService {
   async insertDelivery(
     trx: Knex.Transaction,
     dto: CreateRepairOrderDto,
-    adminId: string,
+    admin: AdminPayload,
     statusId: string,
     orderId: string,
+    branchId: string,
+    allPermissions: RepairOrderStatusPermission[],
   ): Promise<void> {
     if (!dto.delivery) return;
 
@@ -280,17 +307,19 @@ export class RepairOrderCreateHelperService {
       }
     }
 
-    await this.permissionService.validatePermissionOrThrow(
-      adminId,
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      branchId,
       statusId,
-      'can_delivery_manage',
-      'delivery',
+      ['can_delivery_manage'],
+      'repair_order_comments',
+      allPermissions,
     );
 
     await trx('repair_order_deliveries').insert({
       repair_order_id: orderId,
       ...dto.delivery,
-      created_by: adminId,
+      created_by: admin.id,
       created_at: new Date(),
       updated_at: new Date(),
     });

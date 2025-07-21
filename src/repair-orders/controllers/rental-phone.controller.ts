@@ -20,7 +20,7 @@ export class RentalPhoneController {
     @Body() dto: CreateOrUpdateRentalPhoneDto,
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<RepairOrderRentalPhone> {
-    return this.rentalPhoneUpdater.create(orderId, dto, admin.id);
+    return this.rentalPhoneUpdater.create(orderId, dto, admin);
   }
 
   @Patch()
@@ -29,7 +29,7 @@ export class RentalPhoneController {
     @Body() dto: CreateOrUpdateRentalPhoneDto,
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<{ message: string }> {
-    return this.rentalPhoneUpdater.update(orderId, dto, admin.id);
+    return this.rentalPhoneUpdater.update(orderId, dto, admin);
   }
 
   @Delete()
@@ -37,7 +37,7 @@ export class RentalPhoneController {
     @Param('repair_order_id') orderId: string,
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<{ message: string }> {
-    await this.rentalPhoneUpdater.delete(orderId, admin.id);
+    await this.rentalPhoneUpdater.delete(orderId, admin);
     return { message: '🗑️ Rental phone cancelled' };
   }
 }

@@ -5,6 +5,8 @@ import { NotificationService } from 'src/notification/notification.service';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { RepairOrderChangeLoggerService } from './repair-order-change-logger.service';
 import { RepairOrder } from 'src/common/types/repair-order.interface';
+import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
 
 @Injectable()
 export class AssignAdminUpdaterService {
@@ -15,28 +17,29 @@ export class AssignAdminUpdaterService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  async create(orderId: string, adminIds: string[], createdBy: string): Promise<void> {
+  async create(orderId: string, adminIds: string[], admin: AdminPayload): Promise<void> {
     if (!adminIds?.length) return;
 
-    const status: RepairOrder | undefined = await this.knex('repair_orders')
-      .select('status_id')
+    const order: RepairOrder | undefined = await this.knex('repair_orders')
       .where({ id: orderId })
       .first();
 
-    if (!status) {
+    if (!order) {
       throw new BadRequestException({
         message: 'Repair order not found',
         location: 'repair_order_id',
       });
     }
 
-    const statusId = status.status_id;
-
-    await this.permissionService.validatePermissionOrThrow(
-      createdBy,
-      statusId,
-      'can_assign_admin',
-      'admin_ids',
+    const allPermissions: RepairOrderStatusPermission[] =
+      await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      order.branch_id,
+      order.status_id,
+      ['can_update'],
+      'repair_order_update',
+      allPermissions,
     );
 
     const uniqueIds = [...new Set(adminIds)];
@@ -60,10 +63,6 @@ export class AssignAdminUpdaterService {
     }));
     await this.knex('repair_order_assign_admins').insert(rows);
 
-    const order: RepairOrder | undefined = await this.knex('repair_orders')
-      .where({ id: orderId })
-      .first();
-
     if (order) {
       const notifications = uniqueIds.map((adminId) => ({
         admin_id: adminId,
@@ -73,7 +72,7 @@ export class AssignAdminUpdaterService {
         meta: {
           order_id: order.id,
           branch_id: order.branch_id,
-          assigned_by: createdBy,
+          assigned_by: admin.id,
           action: 'assigned_to_order',
         },
         created_at: now,
@@ -93,26 +92,27 @@ export class AssignAdminUpdaterService {
     }
   }
 
-  async delete(orderId: string, adminId: string, currentAdminId: string): Promise<void> {
-    const status: RepairOrder | undefined = await this.knex('repair_orders')
-      .select('status_id')
+  async delete(orderId: string, adminId: string, admin: AdminPayload): Promise<void> {
+    const order: RepairOrder | undefined = await this.knex<RepairOrder>('repair_orders')
       .where({ id: orderId })
       .first();
 
-    if (!status) {
+    if (!order) {
       throw new BadRequestException({
         message: 'Repair order not found',
         location: 'repair_order_id',
       });
     }
 
-    const statusId = status.status_id;
-
-    await this.permissionService.validatePermissionOrThrow(
-      currentAdminId,
-      statusId,
-      'can_assign_admin',
-      'admin_ids',
+    const allPermissions: RepairOrderStatusPermission[] =
+      await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      order.branch_id,
+      order.status_id,
+      ['can_update'],
+      'repair_order_update',
+      allPermissions,
     );
 
     const deleted = await this.knex('repair_order_assign_admins')
@@ -126,7 +126,7 @@ export class AssignAdminUpdaterService {
         'admin_ids',
         [adminId],
         [],
-        currentAdminId,
+        admin.id,
       );
     }
   }

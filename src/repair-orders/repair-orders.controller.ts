@@ -44,7 +44,7 @@ export class RepairOrdersController {
     @Req() req: AuthenticatedRequest,
     @Body() dto: CreateRepairOrderDto,
   ): Promise<RepairOrder> {
-    return this.service.create(req.admin.id, req.status.branch_id, req.status.id, dto);
+    return this.service.create(req.admin, req.status.branch_id, req.status.id, dto);
   }
 
   @Patch(':repair_order_id')
@@ -56,7 +56,7 @@ export class RepairOrdersController {
     @Req() req: AuthenticatedRequest,
     @Body() dto: UpdateRepairOrderDto,
   ): Promise<{ message: string }> {
-    return this.service.update(req.admin.id, repairOrderId, dto);
+    return this.service.update(req.admin, repairOrderId, dto);
   }
 
   @Get()
@@ -71,7 +71,7 @@ export class RepairOrdersController {
     @Req() req: AuthenticatedRequest,
     @Query() query: PaginationQuery,
   ): Promise<Record<string, FreshRepairOrder[]>> {
-    return this.service.findAllByAdminBranch(req.admin.id, req.branch.id, query);
+    return this.service.findAllByAdminBranch(req.admin, req.branch.id, query);
   }
 
   @Get(':repair_order_id')
@@ -81,7 +81,7 @@ export class RepairOrdersController {
     @Param('repair_order_id', ParseUUIDPipe) id: string,
     @Req() req: AuthenticatedRequest,
   ): Promise<RepairOrderDetails> {
-    return this.service.findById(req.admin.id, id);
+    return this.service.findById(req.admin, id);
   }
 
   @Patch(':repair_order_id/move')
@@ -93,7 +93,7 @@ export class RepairOrdersController {
     @Req() req: AuthenticatedRequest,
     @Body() dto: MoveRepairOrderDto,
   ): Promise<{ message: string }> {
-    return this.service.move(req.admin.id, repairOrderId, dto);
+    return this.service.move(req.admin, repairOrderId, dto);
   }
 
   @Patch(':repair_order_id/sort')
@@ -105,7 +105,7 @@ export class RepairOrdersController {
     @Body() dto: UpdateRepairOrderSortDto,
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<{ message: string }> {
-    return this.service.updateSort(repairOrderId, dto.sort, admin.id);
+    return this.service.updateSort(repairOrderId, dto.sort, admin);
   }
 
   @Delete(':repair_order_id')
@@ -115,6 +115,6 @@ export class RepairOrdersController {
     @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
     @Req() req: AuthenticatedRequest,
   ): Promise<{ message: string }> {
-    return this.service.softDelete(req.admin.id, repairOrderId);
+    return this.service.softDelete(req.admin, repairOrderId);
   }
 }

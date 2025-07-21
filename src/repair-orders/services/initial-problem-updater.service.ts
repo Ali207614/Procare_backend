@@ -2,6 +2,9 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { RepairOrderChangeLoggerService } from './repair-order-change-logger.service';
 import { Knex } from 'knex';
+import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
+import { RepairOrder } from 'src/common/types/repair-order.interface';
 
 interface ProblemInput {
   problem_category_id: string;
@@ -26,22 +29,13 @@ export class InitialProblemUpdaterService {
     trx: Knex.Transaction,
     orderId: string,
     problems: ProblemInput[],
-    adminId: string,
-    statusId: string,
+    admin: AdminPayload,
   ): Promise<void> {
     if (!problems?.length) return;
 
-    await this.permissionService.validatePermissionOrThrow(
-      adminId,
-      statusId,
-      'can_change_initial_problems',
-      'initial_problems',
-    );
-
-    const order = await trx('repair_orders')
-      .select('phone_category_id')
+    const order: RepairOrder | undefined = await trx('repair_orders')
       .where({ id: orderId })
-      .first<{ phone_category_id: string }>();
+      .first();
 
     if (!order) {
       throw new BadRequestException({
@@ -49,6 +43,17 @@ export class InitialProblemUpdaterService {
         location: 'order_id',
       });
     }
+
+    const allPermissions: RepairOrderStatusPermission[] =
+      await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      order.branch_id,
+      order.status_id,
+      ['can_change_final_problems'],
+      'repair_order_delivery',
+      allPermissions,
+    );
 
     const phoneCategoryId = order.phone_category_id;
     const problemIds = problems.map((p) => p.problem_category_id);
@@ -97,13 +102,13 @@ export class InitialProblemUpdaterService {
       problem_category_id: p.problem_category_id,
       price: p.price,
       estimated_minutes: p.estimated_minutes,
-      created_by: adminId,
+      created_by: admin.id,
       created_at: now,
       updated_at: now,
     }));
 
     await trx('repair_order_initial_problems').insert(rows);
 
-    await this.changeLogger.logIfChanged(trx, orderId, 'initial_problems', old, problems, adminId);
+    await this.changeLogger.logIfChanged(trx, orderId, 'initial_problems', old, problems, admin.id);
   }
 }

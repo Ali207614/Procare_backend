@@ -1,26 +1,39 @@
 import { BadRequestException } from '@nestjs/common';
 import { Knex } from 'knex';
+import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
 
 export async function validateAndInsertProblems(
   trx: Knex.Transaction,
   problems: { problem_category_id: string; price: number; estimated_minutes: number }[],
   phoneCategoryId: string,
-  adminId: string,
+  admin: AdminPayload,
   statusId: string,
+  branchId: string,
   orderId: string,
-  permissionKey: string,
+  allPermissions: RepairOrderStatusPermission[],
+  permissionKey: (keyof RepairOrderStatusPermission)[],
   locationKey: string,
   tableName: string,
-  validatePermission: (
-    adminId: string,
+  checkPermissionsOrThrow: (
+    roleIds: string[],
+    branchId: string,
     statusId: string,
-    permission: string,
+    requiredFields: (keyof RepairOrderStatusPermission)[],
     location: string,
+    permissions: RepairOrderStatusPermission[],
   ) => Promise<void>,
 ): Promise<void> {
   if (!problems?.length) return;
 
-  await validatePermission(adminId, statusId, permissionKey, locationKey);
+  await checkPermissionsOrThrow(
+    admin.roles,
+    branchId,
+    statusId,
+    permissionKey,
+    locationKey,
+    allPermissions,
+  );
 
   const row = await trx('phone_problem_mappings')
     .where({ phone_category_id: phoneCategoryId })
@@ -69,7 +82,7 @@ export async function validateAndInsertProblems(
     problem_category_id: p.problem_category_id,
     price: p.price,
     estimated_minutes: p.estimated_minutes,
-    created_by: adminId,
+    created_by: admin.id,
     created_at: now,
     updated_at: now,
   }));

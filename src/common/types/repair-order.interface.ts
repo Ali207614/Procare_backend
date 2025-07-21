@@ -1,4 +1,4 @@
-import { User } from '../../../migrations/user.interface';
+import { User } from 'src/common/types/user.interface';
 
 export interface RepairOrder {
   id: string;
@@ -176,7 +176,6 @@ export interface RepairOrderDetails {
   } | null;
 }
 
-
 export interface JoinedRepairOrder {
   id: string;
   total: string;
@@ -206,4 +205,3 @@ export interface JoinedRepairOrder {
 export interface UserWithRepairOrders extends User {
   repair_orders: JoinedRepairOrder[];
 }
-

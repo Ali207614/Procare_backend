@@ -23,6 +23,7 @@ import { ParseUUIDPipe } from '../common/pipe/parse-uuid.pipe';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { Admin } from 'src/common/types/admin.interface';
 import { Branch } from 'src/common/types/branch.interface';
+import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 
 @Injectable()
 export class AdminsService {
@@ -34,6 +35,8 @@ export class AdminsService {
   ) {}
 
   private readonly table = 'admins';
+  private readonly redisKeyByAdminRoles = 'admin_roles';
+
 
   async findByPhoneNumber(phone: string): Promise<Admin | undefined> {
     return this.knex(this.table).where({ phone_number: phone }).first();
@@ -444,7 +447,9 @@ export class AdminsService {
       updated_at: new Date(),
     });
 
-    const permissions = await this.knex('repair_order_status_permissions').where({
+    const permissions: RepairOrderStatusPermission[] = await this.knex(
+      'repair_order_status_permissions',
+    ).where({
       admin_id: targetAdminId,
     });
 
@@ -452,7 +457,7 @@ export class AdminsService {
       await this.knex('repair_order_status_permissions').where({ admin_id: targetAdminId }).del();
 
       for (const permission of permissions) {
-        await this.repairOrderStatusPermissions.flushPermissionCacheOnly(permission);
+        await this.repairOrderStatusPermissions.flushAndReloadCacheByRole(permission);
       }
     }
 
@@ -462,4 +467,24 @@ export class AdminsService {
       message: 'Admin deleted successfully',
     };
   }
+
+  async findRolesByAdminId(adminId: string): Promise<string[]> {
+    const key = `${this.redisKeyByAdminRoles}:${adminId}`;
+
+    const cached: string[] | null = await this.redisService.get(key);
+    if (cached !== null) return cached;
+
+    const roles: { name: string }[] = await this.knex('admin_roles')
+      .join('roles', 'admin_roles.role_id', 'roles.id')
+      .where({ user_id: adminId })
+      .andWhere('roles.status', 'Open')
+      .select('roles.name');
+
+    const result = roles.map((r) => r.name);
+
+    await this.redisService.set(key, result, 3600);
+
+    return result;
+  }
+
 }

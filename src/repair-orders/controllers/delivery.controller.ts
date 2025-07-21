@@ -21,7 +21,7 @@ export class DeliveryController {
     @Body() dto: CreateOrUpdateDeliveryDto,
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<RepairOrderDelivery | undefined> {
-    return this.deliveryUpdater.create(orderId, dto, admin.id);
+    return this.deliveryUpdater.create(orderId, dto, admin);
   }
 
   @Patch()
@@ -30,7 +30,7 @@ export class DeliveryController {
     @Body() dto: CreateOrUpdateDeliveryDto,
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<{ message: string } | undefined> {
-    return this.deliveryUpdater.update(orderId, dto, admin.id);
+    return this.deliveryUpdater.update(orderId, dto, admin);
   }
 
   @Delete()
@@ -38,6 +38,6 @@ export class DeliveryController {
     @Param('repair_order_id') orderId: string,
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<{ message: string } | undefined> {
-    return this.deliveryUpdater.delete(orderId, admin.id);
+    return this.deliveryUpdater.delete(orderId, admin);
   }
 }

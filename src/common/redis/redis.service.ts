@@ -6,31 +6,36 @@ export class RedisService {
   private readonly prefix = process.env.REDIS_PREFIX || 'procare';
   private readonly logger = new Logger(RedisService.name);
 
-  constructor(@Inject('REDIS_CLIENT') private readonly client: Redis) {}
+  constructor(@Inject('REDIS_CLIENT') private readonly client: Redis | null) {}
 
   private buildKey(key: string): string {
     return `${this.prefix}:${key}`;
   }
 
   private async ensureConnected(): Promise<boolean> {
-    if (this.client.status !== 'ready') {
-      try {
-        await this.client.connect();
-      } catch (err) {
-        this.logger.warn('⚠️ Redis not connected, skipping operation');
-        return false;
-      }
+    if (!this.client) {
+      this.logger.warn('⚠️ Redis client is null, skipping operation');
+      return false;
     }
-    return true;
+
+    try {
+      if (this.client.status !== 'ready') {
+        await this.client.connect();
+      }
+      return true;
+    } catch (err) {
+      this.logger.warn('⚠️ Redis connection failed, skipping operation');
+      return false;
+    }
   }
 
   async set(key: string, value: unknown, ttlSeconds = 3600): Promise<void> {
     if (!(await this.ensureConnected())) return;
 
     try {
-      await this.client.set(this.buildKey(key), JSON.stringify(value), 'EX', ttlSeconds);
-    } catch (error) {
-      this.handleError(error, `Redis SET error for key=${key}`);
+      await this.client!.set(this.buildKey(key), JSON.stringify(value), 'EX', ttlSeconds);
+    } catch (err) {
+      this.handleError(err, `Redis SET error for key=${key}`);
     }
   }
 
@@ -38,10 +43,10 @@ export class RedisService {
     if (!(await this.ensureConnected())) return null;
 
     try {
-      const data = await this.client.get(this.buildKey(key));
-      return typeof data === 'string' ? (JSON.parse(data) as T) : null;
-    } catch (error) {
-      this.handleError(error, `Redis GET error for key=${key}`);
+      const data = await this.client!.get(this.buildKey(key));
+      return data ? (JSON.parse(data) as T) : null;
+    } catch (err) {
+      this.handleError(err, `Redis GET error for key=${key}`);
       return null;
     }
   }
@@ -50,9 +55,9 @@ export class RedisService {
     if (!(await this.ensureConnected())) return;
 
     try {
-      await this.client.del(this.buildKey(key));
-    } catch (error) {
-      this.handleError(error, `Redis DEL error for key=${key}`);
+      await this.client!.del(this.buildKey(key));
+    } catch (err) {
+      this.handleError(err, `Redis DEL error for key=${key}`);
     }
   }
 
@@ -61,12 +66,12 @@ export class RedisService {
 
     try {
       const fullPattern = this.buildKey(`${pattern}*`);
-      const keys = await this.client.keys(fullPattern);
+      const keys = await this.client!.keys(fullPattern);
       if (keys.length > 0) {
-        await this.client.del(...keys);
+        await this.client!.del(...keys);
       }
-    } catch (error) {
-      this.handleError(error, `Redis FLUSH error for pattern=${pattern}`);
+    } catch (err) {
+      this.handleError(err, `Redis FLUSH error for pattern=${pattern}`);
     }
   }
 
@@ -75,10 +80,10 @@ export class RedisService {
 
     try {
       const redisKeys = keys.map((k) => this.buildKey(k));
-      const results = await this.client.mget(...redisKeys);
+      const results = await this.client!.mget(...redisKeys);
       return results.map((item) => (item ? (JSON.parse(item) as T) : null));
-    } catch (error) {
-      this.handleError(error, 'Redis MGET error');
+    } catch (err) {
+      this.handleError(err, 'Redis MGET error');
       return keys.map(() => null);
     }
   }

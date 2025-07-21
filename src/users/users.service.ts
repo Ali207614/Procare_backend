@@ -10,8 +10,8 @@ import { InjectKnex } from 'nestjs-knex';
 import { CreateUserDto } from './dto/create-user.dto';
 import { FindAllUsersDto } from './dto/find-all-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { User } from '../../migrations/user.interface';
 import { JoinedRepairOrder, UserWithRepairOrders } from 'src/common/types/repair-order.interface';
+import { User } from 'src/common/types/user.interface';
 
 @Injectable()
 export class UsersService {

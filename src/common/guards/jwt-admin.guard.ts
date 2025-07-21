@@ -7,49 +7,40 @@ export class JwtAdminAuthGuard extends AuthGuard('jwt-admin') {
   constructor(private readonly redisService: RedisService) {
     super();
   }
-
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    const activated = await super.canActivate(context);
+    if (!activated) {
+      return false;
+    }
+
+    const request = context.switchToHttp().getRequest();
+    const admin = request.user;
+    const authHeader = request.headers['authorization'] as string;
+
+    if (!authHeader?.startsWith('Bearer ')) {
+      throw new UnauthorizedException({
+        message: 'Authorization header missing or invalid',
+        location: 'missing_authorization-admin',
+      });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const sessionKey = `session:admin:${admin.id}`;
+
     try {
-      const activated = await super.canActivate(context);
-      if (!activated) {
-        return false;
-      }
+      const exists: string | null = await this.redisService.get(sessionKey);
 
-      const request = context.switchToHttp().getRequest();
-      const admin = request.user;
-      const authHeader = request.headers['authorization'] as string;
-      if (!authHeader?.startsWith('Bearer ')) {
-        throw new UnauthorizedException({
-          message: 'Authorization header missing or invalid',
-          location: 'missing_authorization',
-        });
-      }
-
-      const token = authHeader.split(' ')[1];
-
-      const exists: string | null = await this.redisService.get(`session:admin:${admin.id}`);
-
-      if (!exists || exists !== token) {
+      if (exists && exists !== token) {
         throw new UnauthorizedException({
           message: 'Session invalid or expired',
           location: 'invalid_session',
         });
       }
-
-      request.admin = admin;
-      return true;
-    } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        throw new UnauthorizedException({
-          message: 'Authorization header missing or invalid',
-          location: 'missing_authorization',
-        });
-      }
-
-      throw new UnauthorizedException({
-        message: 'Authentication failed due to an internal error',
-        location: 'jwt_admin_auth_guard_internal',
-      });
+    } catch (err) {
+      console.error(err);
     }
+
+    request.admin = admin;
+    return true;
   }
 }

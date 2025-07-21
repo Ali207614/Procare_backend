@@ -2,7 +2,7 @@ export interface RepairOrderStatusPermission {
   id: string;
   branch_id: string;
   status_id: string;
-  admin_id: string;
+  role_id: string;
 
   can_add: boolean;
   can_view: boolean;

@@ -24,7 +24,7 @@ export class RepairOrderStatusPermissionsController {
   async bulkAssign(
     @Body() dto: AssignRepairOrderStatusPermissionsDto,
   ): Promise<{ message: string; count: number }> {
-    return this.service.createMany(dto);
+    return this.service.createManyByRole(dto);
   }
 
   @Get('by-status/:status_id')
@@ -37,27 +37,27 @@ export class RepairOrderStatusPermissionsController {
     return this.service.findByStatusId(statusId);
   }
 
-  @Get('by-admin/:admin_id/status/:status_id')
+  @Get('by-admin/:role_id/status/:status_id')
   @UseGuards(RepairOrderStatusExistGuard)
-  @ApiOperation({ summary: 'Get permission for a specific admin and status (from Redis)' })
-  @ApiParam({ name: 'admin_id', description: 'Admin ID' })
+  @ApiOperation({ summary: 'Get permission for a specific role and status (from Redis)' })
+  @ApiParam({ name: 'role_id', description: 'Role ID' })
   @ApiParam({ name: 'status_id', description: 'Status ID' })
   async getByAdminStatus(
-    @Param('admin_id', ParseUUIDPipe) adminId: string,
+    @Param('role_id', ParseUUIDPipe) roleId: string,
     @Param('status_id', ParseUUIDPipe) statusId: string,
   ): Promise<RepairOrderStatusPermission | null> {
-    return this.service.findByAdminStatus(adminId, statusId);
+    return this.service.findByRoleStatus(roleId, statusId);
   }
 
-  @Get('by-admin/:admin_id/branch/:branch_id')
+  @Get('by-admin/:role_id/branch/:branch_id')
   @UseGuards(BranchExistGuard)
-  @ApiOperation({ summary: 'Get permission for a specific admin and status (from Redis)' })
-  @ApiParam({ name: 'admin_id', description: 'Admin ID' })
+  @ApiOperation({ summary: 'Get permission for a specific role and status (from Redis)' })
+  @ApiParam({ name: 'role_id', description: 'Role ID' })
   @ApiParam({ name: 'branch_id', description: 'Branch ID' })
   async getByAdminBranch(
-    @Param('admin_id', ParseUUIDPipe) adminId: string,
+    @Param('role_id', ParseUUIDPipe) roleId: string,
     @Param('branch_id', ParseUUIDPipe) branchId: string,
   ): Promise<RepairOrderStatusPermission[]> {
-    return this.service.findByAdminBranch(adminId, branchId);
+    return this.service.findByRolesAndBranch([roleId], branchId);
   }
 }

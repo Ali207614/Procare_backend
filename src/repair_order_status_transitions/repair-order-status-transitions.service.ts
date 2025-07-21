@@ -4,7 +4,7 @@ import { Knex } from 'knex';
 import { CreateRepairOrderStatusTransitionDto } from './dto/create-repair-order-status-transition.dto';
 import { RepairOrderStatusesService } from '../repair-order-statuses/repair-order-statuses.service';
 import { RedisService } from 'src/common/redis/redis.service';
-import { RepairOrderStatusTransition } from '../../migrations/repair-order-status-transitions.interface';
+import { RepairOrderStatusTransition } from 'src/common/types/repair-order-status-transition.interface';
 
 @Injectable()
 export class RepairOrderStatusTransitionsService {

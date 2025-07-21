@@ -1,63 +1,61 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectKnex } from 'nestjs-knex';
 import { Knex } from 'knex';
-import { AssignRepairOrderStatusPermissionsDto } from './dto/create-repair-order-status-permission.dto';
 import { RedisService } from 'src/common/redis/redis.service';
+import { AssignRepairOrderStatusPermissionsDto } from 'src/repair-order-status-permission/dto/create-repair-order-status-permission.dto';
 import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 
 @Injectable()
 export class RepairOrderStatusPermissionsService {
+  private readonly redisKeyByRoleStatus = 'repair_order_status_role_permissions:by_role_status';
+  private readonly redisKeyByRoleBranch = 'repair_order_status_role_permissions:by_role_branch';
+  private readonly table: string = 'repair_order_status_permissions';
   constructor(
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,
   ) {}
 
-  private readonly redisKeyByAdminStatus = 'repair_order_status_permissions:by_admin_status';
-  private readonly redisKeyByAdminBranch = 'repair_order_status_permissions:by_admin_branch';
-
-  async createMany(
+  async createManyByRole(
     dto: AssignRepairOrderStatusPermissionsDto,
   ): Promise<{ message: string; count: number }> {
-    const { branch_id, status_ids, admin_ids, ...permissions } = dto;
+    const { branch_id, status_ids, role_ids, ...permissions } = dto;
 
     const trx = await this.knex.transaction();
 
     try {
-      await trx('repair_order_status_permissions')
+      await trx(this.table)
         .where({ branch_id })
-        .whereIn('admin_id', admin_ids)
+        .whereIn('role_id', role_ids)
         .whereIn('status_id', status_ids)
         .del();
 
       const inserts = [];
 
-      for (const admin_id of admin_ids) {
+      for (const role_id of role_ids) {
         for (const status_id of status_ids) {
           inserts.push({
-            admin_id,
+            role_id,
             status_id,
             branch_id,
             ...permissions,
-            created_at: new Date(),
-            updated_at: new Date(),
+            created_at: new Date().toISOString() || '',
+            updated_at: new Date().toISOString() || '',
           });
         }
       }
 
-      const inserted: RepairOrderStatusPermission[] = await trx('repair_order_status_permissions')
+      const inserted: RepairOrderStatusPermission[] = await trx<RepairOrderStatusPermission>(
+        this.table,
+      )
         .insert(inserts)
         .returning('*');
 
       await trx.commit();
 
-      await Promise.all(
-        inserted.map(
-          (row: RepairOrderStatusPermission): Promise<void> => this.flushAndReloadCache(row),
-        ),
-      );
+      await Promise.all(inserted.map((row) => this.flushAndReloadCacheByRole(row)));
 
       return {
-        message: 'Permissions assigned successfully to selected admins and statuses',
+        message: 'Permissions assigned successfully to selected roles and statuses',
         count: inserted.length,
       };
     } catch (error) {
@@ -67,114 +65,117 @@ export class RepairOrderStatusPermissionsService {
   }
 
   async findByStatusId(statusId: string): Promise<RepairOrderStatusPermission[]> {
-    return this.knex('repair_order_status_permissions')
+    return this.knex<RepairOrderStatusPermission>(this.table)
       .where({ status_id: statusId })
       .orderBy('created_at', 'desc');
   }
 
-  async findByAdminStatus(
-    adminId: string,
+  async findByRoleStatus(
+    roleId: string,
     statusId: string,
   ): Promise<RepairOrderStatusPermission | null> {
-    const key = `${this.redisKeyByAdminStatus}:${adminId}:${statusId}`;
-    const cached: RepairOrderStatusPermission | null = await this.redisService.get(key);
+    const key = `${this.redisKeyByRoleStatus}:${roleId}:${statusId}`;
+    const cached = await this.redisService.get<RepairOrderStatusPermission>(key);
 
     if (cached !== null) return cached;
-    const permission: RepairOrderStatusPermission | undefined =
-      await this.knex<RepairOrderStatusPermission>('repair_order_status_permissions')
-        .where({ admin_id: adminId, status_id: statusId })
-        .first();
 
-    await this.redisService.set(key, permission, 3600);
+    const permission = await this.knex<RepairOrderStatusPermission>(this.table)
+      .where({ role_id: roleId, status_id: statusId })
+      .first();
+
+    await this.redisService.set(key, permission ?? null, 3600);
+
     return permission ?? null;
   }
 
-  async findByAdminBranch(
-    adminId: string,
+  async findByRolesAndBranch(
+    roles: string[],
     branchId: string,
   ): Promise<RepairOrderStatusPermission[]> {
-    const key = `${this.redisKeyByAdminBranch}:${adminId}:${branchId}`;
-    const cached: RepairOrderStatusPermission[] | null = await this.redisService.get(key);
+    const keys = roles.map((roleId) => `${this.redisKeyByRoleBranch}:${roleId}:${branchId}`);
 
-    if (cached !== null) return cached ?? [];
+    const cachedResults = await Promise.all(
+      keys.map((key) => this.redisService.get<RepairOrderStatusPermission[]>(key)),
+    );
 
-    const permissions: RepairOrderStatusPermission[] = await this.knex<RepairOrderStatusPermission>(
-      'repair_order_status_permissions',
-    ).where({
-      admin_id: adminId,
-      branch_id: branchId,
-    });
+    const found: RepairOrderStatusPermission[] = cachedResults
+      .flat()
+      .filter(Boolean) as RepairOrderStatusPermission[];
 
-    if (!permissions.length) {
-      await this.redisService.set(key, [], 3600);
-      return [];
+    const missingRoles = roles.filter((_, idx) => cachedResults[idx] === null);
+
+    if (missingRoles.length === 0) {
+      return found;
     }
-    return permissions;
+
+    const missingPermissions = await this.knex<RepairOrderStatusPermission>(this.table)
+      .whereIn('role_id', missingRoles)
+      .andWhere('branch_id', branchId);
+
+    await Promise.all(
+      missingRoles.map((roleId) => {
+        const perRole = missingPermissions.filter((p) => p.role_id === roleId);
+        const key = `${this.redisKeyByRoleBranch}:${roleId}:${branchId}`;
+        return this.redisService.set(key, perRole, 3600);
+      }),
+    );
+
+    return [...found, ...missingPermissions];
   }
 
-  private async flushAndReloadCache(permission: RepairOrderStatusPermission): Promise<void> {
-    const { admin_id, status_id, branch_id } = permission;
+  async flushAndReloadCacheByRole(permission: RepairOrderStatusPermission): Promise<void> {
+    const { role_id, status_id, branch_id } = permission;
 
-    const keyByStatus = `${this.redisKeyByAdminStatus}:${admin_id}:${status_id}`;
-    const keyByBranch = `${this.redisKeyByAdminBranch}:${admin_id}:${branch_id}`;
+    const keyByStatus = `${this.redisKeyByRoleStatus}:${role_id}:${status_id}`;
+    const keyByBranch = `${this.redisKeyByRoleBranch}:${role_id}:${branch_id}`;
 
     await Promise.all([this.redisService.del(keyByStatus), this.redisService.del(keyByBranch)]);
 
     const [statusPermission, branchPermissions] = await Promise.all([
-      this.knex('repair_order_status_permissions').where({ admin_id, status_id }).first(),
-      this.knex('repair_order_status_permissions').where({ admin_id, branch_id }),
+      this.knex<RepairOrderStatusPermission>(this.table).where({ role_id, status_id }).first(),
+      this.knex<RepairOrderStatusPermission>(this.table).where({
+        role_id,
+        branch_id,
+      }),
     ]);
 
     await Promise.all([
-      this.redisService.set(keyByStatus, statusPermission, 3600),
+      this.redisService.set(keyByStatus, statusPermission ?? null, 3600),
       this.redisService.set(keyByBranch, branchPermissions, 3600),
     ]);
   }
 
-  async flushPermissionCacheOnly(permission: RepairOrderStatusPermission): Promise<void> {
-    const { admin_id, status_id, branch_id } = permission;
-
-    const keyByStatus = `${this.redisKeyByAdminStatus}:${admin_id}:${status_id}`;
-    const keyByBranch = `${this.redisKeyByAdminBranch}:${admin_id}:${branch_id}`;
-
-    await Promise.all([this.redisService.del(keyByStatus), this.redisService.del(keyByBranch)]);
-  }
-
-  async validatePermissionOrThrow(
-    adminId: string,
+  async checkPermissionsOrThrow(
+    roleIds: string[],
+    branchId: string,
     statusId: string,
-    permissionField: keyof RepairOrderStatusPermission,
+    requiredFields: (keyof RepairOrderStatusPermission)[],
     location: string,
+    permissions: RepairOrderStatusPermission[],
   ): Promise<void> {
-    const permission: RepairOrderStatusPermission | undefined | null = await this.findByAdminStatus(
-      adminId,
-      statusId,
+    let allPermissions: RepairOrderStatusPermission[] = [];
+    if (!permissions?.length) {
+      allPermissions = await this.findByRolesAndBranch(roleIds, branchId);
+    }
+
+    const matched: RepairOrderStatusPermission | undefined = allPermissions.find(
+      (perm: RepairOrderStatusPermission): boolean => perm.status_id === statusId,
     );
 
-    if (!permission?.[permissionField]) {
+    if (!matched) {
       throw new ForbiddenException({
-        message: `You do not have permission: ${permissionField}`,
+        message: 'No permission record found for the current status.',
         location,
       });
     }
-  }
 
-  async validatePermissionOrThrowUnsafe(
-    adminId: string,
-    statusId: string,
-    permission: string,
-    location: string,
-  ): Promise<void> {
-    const perm: RepairOrderStatusPermission | null = await this.findByAdminStatus(
-      adminId,
-      statusId,
-    );
-
-    if (!perm?.[permission as keyof RepairOrderStatusPermission]) {
-      throw new ForbiddenException({
-        message: `You do not have permission: ${permission}`,
-        location,
-      });
+    for (const field of requiredFields) {
+      if (!matched[field]) {
+        throw new ForbiddenException({
+          message: `Permission denied: ${field}`,
+          location,
+        });
+      }
     }
   }
 }

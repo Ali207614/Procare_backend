@@ -21,7 +21,7 @@ export class CommentController {
     @Body() dto: CreateCommentDto,
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<RepairOrderComment | undefined> {
-    return await this.commentUpdater.create(orderId, [dto], admin.id);
+    return await this.commentUpdater.create(orderId, [dto], admin);
   }
 
   @Patch('comments/:comment_id')
@@ -30,7 +30,7 @@ export class CommentController {
     @Body() dto: CreateCommentDto,
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<{ message: string }> {
-    return this.commentUpdater.update(commentId, dto.text, admin.id);
+    return this.commentUpdater.update(commentId, dto.text, admin);
   }
 
   @Delete('comments/:comment_id')
@@ -38,7 +38,7 @@ export class CommentController {
     @Param('comment_id', ParseUUIDPipe) commentId: string,
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<{ message: string }> {
-    await this.commentUpdater.delete(commentId, admin.id);
+    await this.commentUpdater.delete(commentId, admin);
     return { message: '🗑️ Comment deleted' };
   }
 }

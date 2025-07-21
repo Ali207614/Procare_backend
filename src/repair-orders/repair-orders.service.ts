@@ -20,6 +20,7 @@ import {
 } from 'src/common/types/repair-order.interface';
 import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 import { PhoneCategoryWithMeta } from 'src/common/types/phone-category.interface';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
 
 @Injectable()
 export class RepairOrdersService {
@@ -36,7 +37,7 @@ export class RepairOrdersService {
   ) {}
 
   async create(
-    adminId: string,
+    admin: AdminPayload,
     branchId: string,
     statusId: string,
     dto: CreateRepairOrderDto,
@@ -44,11 +45,15 @@ export class RepairOrdersService {
     const trx = await this.knex.transaction();
 
     try {
-      await this.permissionService.validatePermissionOrThrow(
-        adminId,
+      const allPermissions: RepairOrderStatusPermission[] =
+        await this.permissionService.findByRolesAndBranch(admin.roles, branchId);
+      await this.permissionService.checkPermissionsOrThrow(
+        admin.roles,
+        branchId,
         statusId,
-        'can_add',
+        ['can_add'],
         'repair_order_permission',
+        allPermissions,
       );
 
       const user = await this.knex('users')
@@ -104,7 +109,7 @@ export class RepairOrdersService {
         sort,
         delivery_method: 'Self',
         pickup_method: 'Self',
-        created_by: adminId,
+        created_by: admin.id,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -113,13 +118,61 @@ export class RepairOrdersService {
 
       const order: RepairOrder = insertedData[0];
 
-      await this.helper.insertAssignAdmins(trx, dto, adminId, statusId, order.id);
-      await this.helper.insertRentalPhone(trx, dto, adminId, statusId, order.id);
-      await this.helper.insertInitialProblems(trx, dto, adminId, statusId, order.id);
-      await this.helper.insertFinalProblems(trx, dto, adminId, statusId, order.id);
-      await this.helper.insertComments(trx, dto, adminId, statusId, order.id);
-      await this.helper.insertPickup(trx, dto, adminId, statusId, order.id);
-      await this.helper.insertDelivery(trx, dto, adminId, statusId, order.id);
+      await this.helper.insertAssignAdmins(
+        trx,
+        dto,
+        admin,
+        statusId,
+        order.id,
+        branchId,
+        allPermissions,
+      );
+      await this.helper.insertRentalPhone(
+        trx,
+        dto,
+        admin,
+        statusId,
+        order.id,
+        branchId,
+        allPermissions,
+      );
+      await this.helper.insertInitialProblems(
+        trx,
+        dto,
+        admin,
+        statusId,
+        order.id,
+        branchId,
+        allPermissions,
+      );
+      await this.helper.insertFinalProblems(
+        trx,
+        dto,
+        admin,
+        statusId,
+        order.id,
+        branchId,
+        allPermissions,
+      );
+      await this.helper.insertComments(
+        trx,
+        dto,
+        admin,
+        statusId,
+        order.id,
+        branchId,
+        allPermissions,
+      );
+      await this.helper.insertPickup(trx, dto, admin, statusId, order.id, branchId, allPermissions);
+      await this.helper.insertDelivery(
+        trx,
+        dto,
+        admin,
+        statusId,
+        order.id,
+        branchId,
+        allPermissions,
+      );
 
       await trx.commit();
       await this.redisService.flushByPrefix(`${this.table}:${branchId}`);
@@ -132,7 +185,7 @@ export class RepairOrdersService {
   }
 
   async update(
-    adminId: string,
+    admin: AdminPayload,
     orderId: string,
     dto: UpdateRepairOrderDto,
   ): Promise<{ message: string }> {
@@ -150,11 +203,15 @@ export class RepairOrdersService {
       }
 
       const statusId = order.status_id;
-      await this.permissionService.validatePermissionOrThrow(
-        adminId,
+      const allPermissions: RepairOrderStatusPermission[] =
+        await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+      await this.permissionService.checkPermissionsOrThrow(
+        admin.roles,
+        order.branch_id,
         statusId,
-        'can_update',
-        'repair_order_permission',
+        ['can_update'],
+        'repair_order_update',
+        allPermissions,
       );
 
       const logFields = [];
@@ -180,11 +237,13 @@ export class RepairOrdersService {
       }
 
       if (dto.user_id) {
-        await this.permissionService.validatePermissionOrThrow(
-          adminId,
+        await this.permissionService.checkPermissionsOrThrow(
+          admin.roles,
+          order.branch_id,
           statusId,
-          'can_user_manage',
-          'repair_order_permission',
+          ['can_user_manage'],
+          'repair_order_user_manage',
+          allPermissions,
         );
         const user = await this.knex('users')
           .where({ id: dto.user_id })
@@ -233,23 +292,11 @@ export class RepairOrdersService {
           .where({ id: orderId });
       }
 
-      await this.changeLogger.logMultipleFieldsIfChanged(trx, orderId, logFields, adminId);
+      await this.changeLogger.logMultipleFieldsIfChanged(trx, orderId, logFields, admin.id);
 
-      await this.initialProblemUpdater.update(
-        trx,
-        orderId,
-        dto.initial_problems || [],
-        adminId,
-        statusId,
-      );
+      await this.initialProblemUpdater.update(trx, orderId, dto.initial_problems || [], admin);
 
-      await this.finalProblemUpdater.update(
-        trx,
-        orderId,
-        dto.final_problems || [],
-        adminId,
-        statusId,
-      );
+      await this.finalProblemUpdater.update(trx, orderId, dto.final_problems || [], admin);
 
       await trx.commit();
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
@@ -262,7 +309,7 @@ export class RepairOrdersService {
   }
 
   async findAllByAdminBranch(
-    adminId: string,
+    admin: AdminPayload,
     branchId: string,
     query: PaginationQuery,
   ): Promise<Record<string, FreshRepairOrder[]>> {
@@ -270,13 +317,13 @@ export class RepairOrdersService {
     const offset = (page - 1) * limit;
 
     const permissions: RepairOrderStatusPermission[] =
-      await this.permissionService.findByAdminBranch(adminId, branchId);
+      await this.permissionService.findByRolesAndBranch(admin.roles, branchId);
     const statusIds: string[] = permissions.filter((p) => p.can_view).map((p) => p.status_id);
     if (!statusIds.length) return {};
 
     const allCacheKeys = statusIds.map(
       (statusId) =>
-        `${this.table}:${branchId}:${adminId}:${statusId}:${sort_by}:${sort_order}:${page}:${limit}`,
+        `${this.table}:${branchId}:${admin.id}:${statusId}:${sort_by}:${sort_order}:${page}:${limit}`,
     );
 
     const cachedResults = await this.redisService.mget(...allCacheKeys);
@@ -324,7 +371,7 @@ export class RepairOrdersService {
         );
         const paginated = filtered.slice(offset, offset + limit);
 
-        const cacheKey = `${this.table}:${branchId}:${adminId}:${statusId}:${sort_by}:${sort_order}:${page}:${limit}`;
+        const cacheKey = `${this.table}:${branchId}:${admin.id}:${statusId}:${sort_by}:${sort_order}:${page}:${limit}`;
         await this.redisService.set(cacheKey, paginated, 300);
 
         result[statusId] = paginated;
@@ -334,7 +381,7 @@ export class RepairOrdersService {
     return result;
   }
 
-  async softDelete(adminId: string, orderId: string): Promise<{ message: string }> {
+  async softDelete(admin: AdminPayload, orderId: string): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
 
     try {
@@ -349,20 +396,23 @@ export class RepairOrdersService {
         });
       }
 
-      await this.permissionService.validatePermissionOrThrow(
-        adminId,
+      const allPermissions: RepairOrderStatusPermission[] =
+        await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+      await this.permissionService.checkPermissionsOrThrow(
+        admin.roles,
+        order.branch_id,
         order.status_id,
-        'can_delete',
-        'repair_order_permission',
+        ['can_delete'],
+        'repair_order_delete',
+        allPermissions,
       );
-
       await this.changeLogger.logIfChanged(
         trx,
         orderId,
         'status',
         order.status,
         'Deleted',
-        adminId,
+        admin.id,
       );
 
       await trx(this.table)
@@ -380,7 +430,7 @@ export class RepairOrdersService {
     }
   }
 
-  async findById(adminId: string, orderId: string): Promise<RepairOrderDetails> {
+  async findById(admin: AdminPayload, orderId: string): Promise<RepairOrderDetails> {
     const query: string = loadSQL('repair-orders/queries/find-by-id.sql');
 
     const result: { rows: RepairOrderDetails[] } = await this.knex.raw(query, { orderId });
@@ -392,12 +442,15 @@ export class RepairOrdersService {
         location: 'repair_order_id',
       });
     }
-
-    await this.permissionService.validatePermissionOrThrow(
-      adminId,
+    const allPermissions: RepairOrderStatusPermission[] =
+      await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      order.branch_id,
       order.status_id,
-      'can_view',
-      'repair_order_permission',
+      ['can_view'],
+      'repair_order_view',
+      allPermissions,
     );
 
     return order;
@@ -429,7 +482,7 @@ export class RepairOrdersService {
     const now = new Date();
 
     const notifications = permissionedAdmins.map((a) => ({
-      admin_id: a.admin_id,
+      role_id: a.role_id,
       title: 'Buyurtma holati o‘zgardi',
       message: `Buyurtma yangi statusga o'tdi`,
       type: 'info',
@@ -448,7 +501,7 @@ export class RepairOrdersService {
   }
 
   async move(
-    adminId: string,
+    admin: AdminPayload,
     orderId: string,
     dto: MoveRepairOrderDto,
   ): Promise<{ message: string }> {
@@ -480,14 +533,18 @@ export class RepairOrdersService {
           });
         }
 
-        await this.sendStatusChangeNotification(trx, orderId, dto.status_id, adminId);
+        await this.sendStatusChangeNotification(trx, orderId, dto.status_id, admin.id);
       }
 
-      await this.permissionService.validatePermissionOrThrow(
-        adminId,
+      const allPermissions: RepairOrderStatusPermission[] =
+        await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+      await this.permissionService.checkPermissionsOrThrow(
+        admin.roles,
+        order.branch_id,
         order.status_id,
-        'can_change_status',
-        'repair_order_permission',
+        ['can_change_status'],
+        'repair_order_change_status',
+        allPermissions,
       );
 
       const updates: Partial<typeof order> = {};
@@ -508,7 +565,7 @@ export class RepairOrdersService {
         await trx(this.table).update(updates).where({ id: orderId });
       }
 
-      await this.changeLogger.logMultipleFieldsIfChanged(trx, orderId, logs, adminId);
+      await this.changeLogger.logMultipleFieldsIfChanged(trx, orderId, logs, admin.id);
 
       await trx.commit();
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
@@ -523,7 +580,7 @@ export class RepairOrdersService {
   async updateSort(
     orderId: string,
     newSort: number,
-    adminId: string,
+    admin: AdminPayload,
   ): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
 
@@ -539,11 +596,15 @@ export class RepairOrdersService {
         });
       }
 
-      await this.permissionService.validatePermissionOrThrow(
-        adminId,
+      const allPermissions: RepairOrderStatusPermission[] =
+        await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+      await this.permissionService.checkPermissionsOrThrow(
+        admin.roles,
+        order.branch_id,
         order.status_id,
-        'can_update',
-        'repair_order_permission',
+        ['can_update'],
+        'repair_order_update',
+        allPermissions,
       );
 
       const currentSort = order.sort;
@@ -575,7 +636,7 @@ export class RepairOrdersService {
         updated_at: new Date(),
       });
 
-      await this.changeLogger.logIfChanged(trx, orderId, 'sort', currentSort, newSort, adminId);
+      await this.changeLogger.logIfChanged(trx, orderId, 'sort', currentSort, newSort, admin.id);
 
       await trx.commit();
 

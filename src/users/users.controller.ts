@@ -18,8 +18,8 @@ import { PermissionsGuard } from 'src/common/guards/permission.guard';
 import { SetPermissions } from 'src/common/decorators/permission-decorator';
 import { FindAllUsersDto } from './dto/find-all-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { User } from '../../migrations/user.interface';
 import { UserWithRepairOrders } from 'src/common/types/repair-order.interface';
+import { User } from 'src/common/types/user.interface';
 
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)

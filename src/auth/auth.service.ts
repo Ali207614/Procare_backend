@@ -185,7 +185,7 @@ export class AuthService {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     await this.redisService.set(`${this.RESET_PREFIX}${dto.phone_number}`, code, 300); // 5 min
 
-    // await this.smsService.send(dto.phone_number, `🔐 Reset code: ${code}`);
+    // TODO: await this.smsService.send(dto.phone_number, `🔐 Reset code: ${code}`);
     console.log(`Reset code: ${code}`);
 
     return { message: 'Reset code sent successfully' };

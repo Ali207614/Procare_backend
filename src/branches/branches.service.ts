@@ -140,8 +140,9 @@ export class BranchesService {
   async findByAdminId(adminId: string): Promise<Branch[]> {
     const redisKey = this.getAdminBranchesKey(adminId);
 
-    const cached: [] | null = await this.redisService.get(redisKey);
-    if (cached) {
+    const cached: Branch[] | null = await this.redisService.get(redisKey);
+    if (cached !== null) {
+      console.log('🔄 Cache hit for admin branches');
       return cached;
     }
 
@@ -154,9 +155,11 @@ export class BranchesService {
       .orderBy('b.sort', 'asc');
 
     await this.redisService.set(redisKey, branches, 3600);
+    console.log('🔄 Knex hit for admin branches');
 
     return branches;
   }
+
 
   async findOne(id: string): Promise<Branch> {
     const branch: Branch | undefined = await this.knex('branches')
@@ -277,7 +280,7 @@ export class BranchesService {
       await this.knex('repair_order_status_permissions').where({ branch_id: branchId }).del();
 
       for (const permission of permissions) {
-        await this.repairOrderStatusPermissionsService.flushPermissionCacheOnly(permission);
+        await this.repairOrderStatusPermissionsService.flushAndReloadCacheByRole(permission);
       }
     }
 
