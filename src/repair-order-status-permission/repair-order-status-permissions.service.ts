@@ -10,6 +10,8 @@ export class RepairOrderStatusPermissionsService {
   private readonly redisKeyByRoleStatus = 'repair_order_status_role_permissions:by_role_status';
   private readonly redisKeyByRoleBranch = 'repair_order_status_role_permissions:by_role_branch';
   private readonly table: string = 'repair_order_status_permissions';
+  private readonly redisKeyView = 'status_viewable:';
+
   constructor(
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,
@@ -53,6 +55,7 @@ export class RepairOrderStatusPermissionsService {
       await trx.commit();
 
       await Promise.all(inserted.map((row) => this.flushAndReloadCacheByRole(row)));
+      await this.redisService.flushByPrefix(`${this.redisKeyView}${branch_id}:`);
 
       return {
         message: 'Permissions assigned successfully to selected roles and statuses',

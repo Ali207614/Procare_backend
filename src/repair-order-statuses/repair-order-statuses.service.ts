@@ -12,8 +12,8 @@ import {
   RepairOrderStatusWithPermissions,
 } from 'src/common/types/repair-order-status.interface';
 import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
-import { Admin } from 'src/common/types/admin.interface';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
+import { RepairOrderStatusTransition } from 'src/common/types/repair-order-status-transition.interface';
 
 @Injectable()
 export class RepairOrderStatusesService {
@@ -28,7 +28,7 @@ export class RepairOrderStatusesService {
   ) {}
 
   async create(dto: CreateRepairOrderStatusDto, adminId: string): Promise<RepairOrderStatus> {
-    let branchId = dto.branch_id;
+    let branchId: string | undefined = dto.branch_id;
     let branch: Branch | undefined | null = null;
 
     if (branchId) {
@@ -137,16 +137,16 @@ export class RepairOrderStatusesService {
     const cached: RepairOrderStatusWithPermissions[] | null = await this.redisService.get(cacheKey);
     if (cached !== null) return cached;
 
-    const permissions: RepairOrderStatusPermission[] =
-      await this.repairOrderStatusPermissions.findByRolesAndBranch(admin.roles, branchId);
-
+    const permissions = await this.repairOrderStatusPermissions.findByRolesAndBranch(
+      admin.roles,
+      branchId,
+    );
     if (!permissions.length) {
       await this.redisService.set(cacheKey, [], 300);
       return [];
     }
 
-    const viewableIds: string[] = permissions.filter((p) => p.can_view).map((p) => p.status_id);
-
+    const viewableIds = permissions.filter((p) => p.can_view).map((p) => p.status_id);
     if (!viewableIds.length) {
       await this.redisService.set(cacheKey, [], 300);
       return [];
@@ -157,13 +157,22 @@ export class RepairOrderStatusesService {
       .andWhere({ is_active: true, status: 'Open', branch_id: branchId })
       .orderBy('sort', 'asc');
 
-    const merged: RepairOrderStatusWithPermissions[] = statuses.map((status: RepairOrderStatus) => {
-      const matched: RepairOrderStatusPermission | undefined = permissions.find(
-        (p: RepairOrderStatusPermission): boolean => p.status_id === status.id,
-      );
+    const transitionsRaw: RepairOrderStatusTransition[] = await this.knex(
+      'repair_order_status_transitions',
+    ).whereIn('from_status_id', viewableIds);
+
+    const transitionsMap = transitionsRaw.reduce<Record<string, string[]>>((acc, t) => {
+      if (!acc[t.from_status_id]) acc[t.from_status_id] = [];
+      acc[t.from_status_id].push(t.to_status_id);
+      return acc;
+    }, {});
+
+    const merged: RepairOrderStatusWithPermissions[] = statuses.map((status) => {
+      const matched = permissions.find((p) => p.status_id === status.id);
       return {
         ...status,
         permissions: (matched ?? {}) as RepairOrderStatusPermission,
+        transitions: transitionsMap[status.id] || [],
       };
     });
 

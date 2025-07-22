@@ -7,7 +7,7 @@ export class LoggerService implements NestLoggerService {
     level: 'info',
     format: format.combine(
       format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-      format.errors({ stack: true }), // Stack trace qo‘shiladi
+      format.errors({ stack: true }),
       format.printf(({ level, message, timestamp, stack }) => {
         const msg = typeof message === 'string' ? message : JSON.stringify(message);
         return `[${timestamp}] ${level.toUpperCase()}: ${msg}${stack ? `\n${stack}` : ''}`;

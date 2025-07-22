@@ -22,4 +22,5 @@ export interface RepairOrderStatus {
 
 export interface RepairOrderStatusWithPermissions extends RepairOrderStatus {
   permissions: RepairOrderStatusPermission;
+  transitions: string[];
 }

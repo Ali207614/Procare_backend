@@ -160,7 +160,6 @@ export class BranchesService {
     return branches;
   }
 
-
   async findOne(id: string): Promise<Branch> {
     const branch: Branch | undefined = await this.knex('branches')
       .where({ id, status: 'Open' })
