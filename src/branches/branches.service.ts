@@ -12,7 +12,6 @@ import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { Branch } from 'src/common/types/branch.interface';
-import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 
 @Injectable()
 export class BranchesService {
@@ -142,7 +141,6 @@ export class BranchesService {
 
     const cached: Branch[] | null = await this.redisService.get(redisKey);
     if (cached !== null) {
-      console.log('🔄 Cache hit for admin branches');
       return cached;
     }
 
@@ -155,7 +153,6 @@ export class BranchesService {
       .orderBy('b.sort', 'asc');
 
     await this.redisService.set(redisKey, branches, 3600);
-    console.log('🔄 Knex hit for admin branches');
 
     return branches;
   }
@@ -269,19 +266,7 @@ export class BranchesService {
       updated_at: new Date(),
     });
 
-    const permissions: RepairOrderStatusPermission[] = await this.knex(
-      'repair_order_status_permissions',
-    ).where({
-      branch_id: branchId,
-    });
-
-    if (permissions.length > 0) {
-      await this.knex('repair_order_status_permissions').where({ branch_id: branchId }).del();
-
-      for (const permission of permissions) {
-        await this.repairOrderStatusPermissionsService.flushAndReloadCacheByRole(permission);
-      }
-    }
+    await this.repairOrderStatusPermissionsService.deletePermissionsByBranch(branchId);
 
     await this.redisService.del(`${this.redisKeyById}:${branchId}`);
     await this.redisService.flushByPrefix(`${this.redisKey}`);

@@ -303,19 +303,7 @@ export class RepairOrderStatusesService {
       .where({ id: status.id })
       .update({ status: 'Deleted', updated_at: new Date() });
 
-    const permissions: RepairOrderStatusPermission[] = await this.knex(
-      'repair_order_status_permissions',
-    ).where({
-      status_id: status.id,
-    });
-
-    if (permissions.length > 0) {
-      await this.knex('repair_order_status_permissions').where({ status_id: status.id }).del();
-
-      for (const permission of permissions) {
-        await this.repairOrderStatusPermissions.flushAndReloadCacheByRole(permission);
-      }
-    }
+    await this.repairOrderStatusPermissions.deletePermissionsByStatus(status.id);
 
     await this.redisService.del(`${this.redisKeyById}:${status.id}`);
     await this.redisService.flushByPrefix(`${this.redisKeyView}${status.branch_id}:`);

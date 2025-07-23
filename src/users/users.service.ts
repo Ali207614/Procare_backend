@@ -20,6 +20,51 @@ export class UsersService {
     @InjectQueue('sap') private readonly sapQueue: Queue,
   ) {}
 
+  async findOneWithOrders(userId: string): Promise<UserWithRepairOrders> {
+    const user: User | undefined = await this.knex('users')
+      .where({ id: userId})
+      .first();
+
+    if (!user) {
+      throw new NotFoundException({
+        message: 'user not found',
+        location: 'user_not_found',
+      });
+    }
+
+    const repairOrders: JoinedRepairOrder[] = await this.knex('repair_orders as ro')
+      .leftJoin('users as u', 'ro.user_id', 'u.id')
+      .leftJoin('branches as b', 'ro.branch_id', 'b.id')
+      .leftJoin('phone_categories as pc', 'ro.phone_category_id', 'pc.id')
+      .leftJoin('repair_order_statuses as s', 'ro.status_id', 's.id')
+      .select(
+        'ro.id',
+        'ro.total',
+        'ro.imei',
+        'ro.delivery_method',
+        'ro.pickup_method',
+        'ro.priority',
+        'ro.status',
+        'ro.created_at',
+        'b.name_uz as branch_name_uz',
+        'b.name_ru as branch_name_ru',
+        'b.name_en as branch_name_en',
+        'pc.name_uz as phone_name_uz',
+        'pc.name_ru as phone_name_ru',
+        'pc.name_en as phone_name_en',
+        's.name_uz as status_name_uz',
+        's.name_ru as status_name_ru',
+        's.name_en as status_name_en',
+      )
+      .where('u.id', userId)
+      .orderBy('ro.created_at', 'desc');
+
+    return {
+      ...user,
+      repair_orders: repairOrders,
+    };
+  }
+
   async create(dto: CreateUserDto): Promise<User> {
     const exists: User | undefined = await this.knex('users')
       .whereRaw('LOWER(phone_number) = ?', dto.phone_number.toLowerCase())
@@ -135,50 +180,5 @@ export class UsersService {
     });
 
     return { message: 'User deleted successfully' };
-  }
-
-  async findOneWithOrders(userId: string): Promise<UserWithRepairOrders> {
-    const user: User | undefined = await this.knex('users')
-      .where({ id: userId, status: 'Open' })
-      .first();
-
-    if (!user) {
-      throw new NotFoundException({
-        message: 'user not found',
-        location: 'user_not_found',
-      });
-    }
-
-    const repairOrders: JoinedRepairOrder[] = await this.knex('repair_orders as ro')
-      .leftJoin('users as u', 'ro.user_id', 'u.id')
-      .leftJoin('branches as b', 'ro.branch_id', 'b.id')
-      .leftJoin('phone_categories as pc', 'ro.phone_category_id', 'pc.id')
-      .leftJoin('repair_order_statuses as s', 'ro.status_id', 's.id')
-      .select(
-        'ro.id',
-        'ro.total',
-        'ro.imei',
-        'ro.delivery_method',
-        'ro.pickup_method',
-        'ro.priority',
-        'ro.status',
-        'ro.created_at',
-        'b.name_uz as branch_name_uz',
-        'b.name_ru as branch_name_ru',
-        'b.name_en as branch_name_en',
-        'pc.name_uz as phone_name_uz',
-        'pc.name_ru as phone_name_ru',
-        'pc.name_en as phone_name_en',
-        's.name_uz as status_name_uz',
-        's.name_ru as status_name_ru',
-        's.name_en as status_name_en',
-      )
-      .where('u.id', userId)
-      .orderBy('ro.created_at', 'desc');
-
-    return {
-      ...user,
-      repair_orders: repairOrders,
-    };
   }
 }

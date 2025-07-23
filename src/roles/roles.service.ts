@@ -10,6 +10,7 @@ import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { Permission } from 'src/common/types/permission.interface';
 import { Role } from 'src/common/types/role.interface';
+import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 
 export interface RoleWithPermissions extends Role {
   permissions: Permission[];
@@ -20,6 +21,7 @@ export class RolesService {
   constructor(
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,
+    private readonly repairOrderStatusPermissionsService: RepairOrderStatusPermissionsService,
   ) {}
 
   async create(dto: CreateRoleDto, adminId: string): Promise<Role> {
@@ -180,6 +182,8 @@ export class RolesService {
       status: 'Deleted',
       updated_at: new Date(),
     });
+
+    await this.repairOrderStatusPermissionsService.deletePermissionsByRole(id);
     return { message: 'Role deleted (soft) successfully' };
   }
 }

@@ -20,12 +20,9 @@ export class AssignRepairOrderStatusPermissionsDto {
   @IsUUID('all', { each: true, context: { location: 'status_ids' } })
   status_ids!: string[];
 
-  @ApiProperty({ type: [String] })
-  @IsArray({ context: { location: 'role_ids' } })
-  @ArrayNotEmpty({ context: { location: 'role_ids' } })
-  @ArrayUnique({ context: { location: 'role_ids' } })
-  @IsUUID('all', { each: true, context: { location: 'role_ids' } })
-  role_ids!: string[];
+  @ApiProperty()
+  @IsUUID('all', { context: { location: 'role_id' } })
+  role_id!: string;
 
   @ApiProperty({ required: false }) @IsOptional() @IsBoolean() can_add?: boolean;
   @ApiProperty({ required: false }) @IsOptional() @IsBoolean() can_view?: boolean;

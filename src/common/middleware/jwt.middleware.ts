@@ -16,7 +16,6 @@ export class JwtMiddleware implements NestMiddleware {
         const decoded = decode(token) as UserPayload;
 
         const roles: string[] = await this.adminsService.findRolesByAdminId(decoded.id);
-
         if (decoded?.id) {
           req.user = {
             id: decoded.id,
