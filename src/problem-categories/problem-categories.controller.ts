@@ -21,9 +21,9 @@ import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { UpdateProblemCategorySortDto } from './dto/update-problem-category-sort.dto';
 import { UpdateProblemCategoryDto } from './dto/update-problem-category.dto';
-import { ParseOptionalUUIDPipe } from 'src/common/pipe/parse-optional-uuid.pipe';
 import { PhoneCategory } from 'src/common/types/phone-category.interface';
 import { ProblemCategoryWithMeta } from 'src/common/types/problem-category.interface';
+import { FindAllProblemCategoriesDto } from 'src/problem-categories/dto/find-all-problem-categories.dto';
 
 @ApiTags('Problem Categories')
 @ApiBearerAuth()
@@ -51,16 +51,13 @@ export class ProblemCategoriesController {
   @ApiQuery({ name: 'parent_id', required: false })
   @ApiResponse({ status: 200, description: 'Problem list' })
   @ApiResponse({ status: 400, description: 'Invalid query' })
-  async find(
-    @Query('phone_category_id', ParseUUIDPipe) phoneCategoryId?: string,
-    @Query('parent_id', ParseOptionalUUIDPipe) parentId?: string,
-  ): Promise<ProblemCategoryWithMeta[]> {
-    if (parentId) {
-      return this.service.findChildrenWithBreadcrumb(parentId);
+  async find(@Query() query: FindAllProblemCategoriesDto): Promise<ProblemCategoryWithMeta[]> {
+    if (query?.parent_id) {
+      return this.service.findChildrenWithBreadcrumb(query);
     }
 
-    if (phoneCategoryId) {
-      return this.service.findRootProblems(phoneCategoryId);
+    if (query?.phone_category_id) {
+      return this.service.findRootProblems(query);
     }
 
     throw new BadRequestException({

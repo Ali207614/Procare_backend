@@ -37,7 +37,6 @@ export class AdminsService {
   private readonly table = 'admins';
   private readonly redisKeyByAdminRoles = 'admin_roles';
 
-
   async findByPhoneNumber(phone: string): Promise<Admin | undefined> {
     return this.knex(this.table).where({ phone_number: phone }).first();
   }
@@ -189,7 +188,7 @@ export class AdminsService {
     }
 
     if (dto.branch_ids?.length) {
-      const foundBranches = await this.knex('branches')
+      const foundBranches: Branch[] = await this.knex('branches')
         .whereIn('id', dto.branch_ids)
         .andWhere({ is_active: true, status: 'Open' });
 
@@ -411,6 +410,9 @@ export class AdminsService {
     await this.permissionsService.clearPermissionCache(targetAdminId);
     await this.permissionsService.getPermissions(targetAdminId);
 
+    await this.redisService.del(`admin:${targetAdminId}`);
+    await this.redisService.del(`admins:branch:${targetAdminId}`);
+
     return { message: 'Admin updated successfully' };
   }
 
@@ -463,6 +465,9 @@ export class AdminsService {
 
     await this.permissionsService.clearPermissionCache(targetAdminId);
 
+    await this.redisService.del(`admin:${targetAdminId}`);
+    await this.redisService.del(`admins:branch:${targetAdminId}`);
+
     return {
       message: 'Admin deleted successfully',
     };
@@ -486,5 +491,4 @@ export class AdminsService {
 
     return result;
   }
-
 }

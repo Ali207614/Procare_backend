@@ -3,6 +3,7 @@ import { InjectKnex, Knex } from 'nestjs-knex';
 import { LoggerService } from 'src/common/logger/logger.service';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
 import { executeOnce } from 'src/common/utils/hana.util';
+import { RedisService } from 'src/common/redis/redis.service';
 
 export interface RentalPhoneDeviceView {
   Code: string;
@@ -21,6 +22,7 @@ export class SapRentalPhoneSyncService {
   constructor(
     @InjectKnex() private readonly knex: Knex,
     private readonly loggerService: LoggerService,
+    private readonly redisService: RedisService,
   ) {}
 
   async syncFromSap(): Promise<void> {
@@ -70,6 +72,7 @@ export class SapRentalPhoneSyncService {
       this.loggerService.log(
         `✅ SAP rental phones synced: ${sapPhones.length} items (${duration}ms)`,
       );
+      await this.redisService.flushByPrefix('rental_phone_device');
     } catch (error: unknown) {
       if (error instanceof Error) {
         this.loggerService.error('❌ SAP rental phone sync failed', error.stack);

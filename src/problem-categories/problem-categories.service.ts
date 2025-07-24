@@ -1,32 +1,29 @@
-import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectKnex } from 'nestjs-knex';
 import { Knex } from 'knex';
 import { CreateProblemCategoryDto } from './dto/create-problem-category.dto';
 import { UpdateProblemCategoryDto } from './dto/update-problem-category.dto';
+import { FindAllProblemCategoriesDto } from './dto/find-all-problem-categories.dto';
 import { getNextSortValue } from 'src/common/utils/sort.util';
 import { RedisService } from 'src/common/redis/redis.service';
-import { PhoneCategory, ProblemCategory, ProblemCategoryWithMeta } from 'src/common/types';
+import { LoggerService } from 'src/common/logger/logger.service';
+import {
+  ProblemCategory,
+  ProblemCategoryWithMeta,
+} from 'src/common/types/problem-category.interface';
+import { PhoneCategory } from 'src/common/types/phone-category.interface';
 
-/**
- * Service for managing problem categories with Knex and Redis integration.
- */
 @Injectable()
 export class ProblemCategoriesService {
-  private readonly logger = new Logger(ProblemCategoriesService.name);
   private readonly redisKeyRoot = 'problem_categories:root:';
   private readonly redisKeyChildren = 'problem_categories:children:';
 
   constructor(
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,
+    private readonly logger: LoggerService,
   ) {}
 
-  /**
-   * Creates a new problem category.
-   * @param dto Problem category creation data.
-   * @param adminId Admin ID creating the category.
-   * @returns Created problem category.
-   */
   async create(dto: CreateProblemCategoryDto, adminId: string): Promise<ProblemCategory> {
     const trx = await this.knex.transaction();
     try {
@@ -61,8 +58,12 @@ export class ProblemCategoriesService {
 
         const existing = await trx('problem_categories')
           .where({ parent_id })
-          .andWhere((qb) =>
-            qb.where('name_uz', name_uz).orWhere('name_ru', name_ru).orWhere('name_en', name_en),
+          .andWhere(
+            (qb: Knex.QueryBuilder) =>
+              void qb
+                .where('name_uz', name_uz)
+                .orWhere('name_ru', name_ru)
+                .orWhere('name_en', name_en),
           )
           .first();
         if (existing) {
@@ -74,7 +75,7 @@ export class ProblemCategoriesService {
       }
 
       if (phone_category_id) {
-        const isParent = await trx<PhoneCategory>('phone_categories')
+        const isParent: PhoneCategory | undefined = await trx<PhoneCategory>('phone_categories')
           .where({ parent_id: phone_category_id, status: 'Open' })
           .first();
         if (isParent) {
@@ -92,11 +93,12 @@ export class ProblemCategoriesService {
             'p.is_active': true,
             'p.status': 'Open',
           })
-          .andWhere((qb) =>
-            qb
-              .where('p.name_uz', name_uz)
-              .orWhere('p.name_ru', name_ru)
-              .orWhere('p.name_en', name_en),
+          .andWhere(
+            (qb: Knex.QueryBuilder) =>
+              void qb
+                .where('p.name_uz', name_uz)
+                .orWhere('p.name_ru', name_ru)
+                .orWhere('p.name_en', name_en),
           )
           .first();
         if (existing) {
@@ -119,11 +121,13 @@ export class ProblemCategoriesService {
         is_active: true,
         status: 'Open',
         created_by: adminId,
-        created_at: new Date(),
-        updated_at: new Date(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       };
 
-      const [problem] = await trx('problem_categories').insert(insertData).returning('*');
+      const [problem]: ProblemCategory[] = await trx('problem_categories')
+        .insert(insertData)
+        .returning('*');
       if (phone_category_id) {
         await trx('phone_problem_mappings').insert({
           phone_category_id,
@@ -132,27 +136,36 @@ export class ProblemCategoriesService {
       }
 
       await trx.commit();
-      if (phone_category_id) {
-        await this.redisService.flushByPrefix(`${this.redisKeyRoot}${phone_category_id}`);
-      }
-      if (parent_id) {
-        await this.redisService.flushByPrefix(`${this.redisKeyChildren}${parent_id}`);
-      }
+      await Promise.all([
+        phone_category_id
+          ? this.redisService.flushByPrefix(`${this.redisKeyRoot}${phone_category_id}`)
+          : Promise.resolve(),
+        parent_id
+          ? this.redisService.flushByPrefix(`${this.redisKeyChildren}${parent_id}`)
+          : Promise.resolve(),
+      ]);
       this.logger.log(`Created problem category ${problem.id}`);
       return problem;
     } catch (err) {
       await trx.rollback();
-      this.logger.error(`Failed to create problem category:`);
+      this.logger.error(`Failed to create problem category`);
       throw new BadRequestException({
-        message:  'Failed to create problem category',
+        message: 'Failed to create problem category',
         location: 'create_problem_category',
       });
     }
   }
 
+  async findRootProblems(query: FindAllProblemCategoriesDto): Promise<ProblemCategoryWithMeta[]> {
+    const { phone_category_id, search, limit = 20, offset = 0 } = query;
+    if (!phone_category_id) {
+      throw new BadRequestException({
+        message: 'phone_category_id is required for root-level problems',
+        location: 'phone_category_id',
+      });
+    }
 
-  async findRootProblems(phone_category_id: string): Promise<ProblemCategoryWithMeta[]> {
-    const cacheKey = `${this.redisKeyRoot}${phone_category_id}`;
+    const cacheKey = `${this.redisKeyRoot}${phone_category_id}:${search || 'none'}:${offset}:${limit}`;
     const cached: ProblemCategoryWithMeta[] | null = await this.redisService.get(cacheKey);
     if (cached) {
       this.logger.debug(`Cache hit for root problems: ${cacheKey}`);
@@ -175,7 +188,20 @@ export class ProblemCategoriesService {
         'p.status': 'Open',
         'p.is_active': true,
       })
-      .orderBy('p.sort', 'asc');
+      .modify((qb) => {
+        if (search) {
+          void qb.andWhere(
+            (builder: Knex.QueryBuilder) =>
+              void builder
+                .whereILike('p.name_uz', `%${search}%`)
+                .orWhereILike('p.name_ru', `%${search}%`)
+                .orWhereILike('p.name_en', `%${search}%`),
+          );
+        }
+      })
+      .orderBy('p.sort', 'asc')
+      .offset(offset)
+      .limit(limit);
 
     await this.redisService.set(cacheKey, problems, 3600);
     this.logger.log(
@@ -184,8 +210,18 @@ export class ProblemCategoriesService {
     return problems;
   }
 
-  async findChildrenWithBreadcrumb(parent_id: string): Promise<ProblemCategoryWithMeta[]> {
-    const cacheKey = `${this.redisKeyChildren}${parent_id}`;
+  async findChildrenWithBreadcrumb(
+    query: FindAllProblemCategoriesDto,
+  ): Promise<ProblemCategoryWithMeta[]> {
+    const { parent_id, search, limit = 20, offset = 0 } = query;
+    if (!parent_id) {
+      throw new BadRequestException({
+        message: 'parent_id is required for child problems',
+        location: 'parent_id',
+      });
+    }
+
+    const cacheKey = `${this.redisKeyChildren}${parent_id}:${search || 'none'}:${offset}:${limit}`;
     const cached: ProblemCategoryWithMeta[] | null = await this.redisService.get(cacheKey);
     if (cached) {
       this.logger.debug(`Cache hit for child problems: ${cacheKey}`);
@@ -217,7 +253,20 @@ export class ProblemCategoriesService {
         ),
       )
       .where({ 'p.parent_id': parent_id, 'p.status': 'Open', 'p.is_active': true })
-      .orderBy('p.sort', 'asc');
+      .modify((qb) => {
+        if (search) {
+          void qb.andWhere(
+            (builder: Knex.QueryBuilder) =>
+              void builder
+                .whereILike('p.name_uz', `%${search}%`)
+                .orWhereILike('p.name_ru', `%${search}%`)
+                .orWhereILike('p.name_en', `%${search}%`),
+          );
+        }
+      })
+      .orderBy('p.sort', 'asc')
+      .offset(offset)
+      .limit(limit);
 
     if (!problems.length) {
       throw new NotFoundException({
@@ -338,7 +387,7 @@ export class ProblemCategoriesService {
         parent_id: parentId,
         price: price ? String(price) : undefined,
         estimated_minutes,
-        updated_at: new Date(),
+        updated_at: new Date().toISOString(),
       };
 
       await trx('problem_categories').where({ id }).update(updateData);
@@ -355,14 +404,16 @@ export class ProblemCategoriesService {
       }
 
       await trx.commit();
-      if (phone_category_id) {
-        await this.redisService.flushByPrefix(`${this.redisKeyRoot}${phone_category_id}`);
-      }
-      if (parentId || category.parent_id) {
-        await this.redisService.flushByPrefix(
-          `${this.redisKeyChildren}${parentId || category.parent_id}`,
-        );
-      }
+      await Promise.all([
+        phone_category_id
+          ? this.redisService.flushByPrefix(`${this.redisKeyRoot}${phone_category_id}`)
+          : Promise.resolve(),
+        parentId || category.parent_id
+          ? this.redisService.flushByPrefix(
+              `${this.redisKeyChildren}${parentId || category.parent_id}`,
+            )
+          : Promise.resolve(),
+      ]);
       this.logger.log(`Updated problem category ${id}`);
       return { message: 'Problem category updated successfully' };
     } catch (err) {
@@ -379,7 +430,9 @@ export class ProblemCategoriesService {
     const trx = await this.knex.transaction();
     try {
       this.logger.log(`Updating sort for problem category ${id} to ${newSort}`);
-      const category = await trx('problem_categories').where({ id, status: 'Open' }).first();
+      const category: ProblemCategory | undefined = await trx('problem_categories')
+        .where({ id, status: 'Open' })
+        .first();
       if (!category) {
         throw new BadRequestException({
           message: 'Problem category not found or inactive',
@@ -388,6 +441,7 @@ export class ProblemCategoriesService {
       }
 
       if (newSort === category.sort) {
+        await trx.commit();
         return { message: 'No change needed' };
       }
 
@@ -407,40 +461,45 @@ export class ProblemCategoriesService {
 
       await trx('problem_categories')
         .where({ id })
-        .update({ sort: newSort, updated_at: new Date() });
+        .update({ sort: newSort, updated_at: new Date().toISOString() });
       await trx.commit();
 
-      if (category.parent_id) {
-        await this.redisService.flushByPrefix(`${this.redisKeyChildren}${category.parent_id}`);
-      } else {
-        const mappings = await this.knex('phone_problem_mappings')
-          .where({ problem_category_id: id })
-          .first();
-        if (mappings?.phone_category_id) {
-          await this.redisService.flushByPrefix(
-            `${this.redisKeyRoot}${mappings.phone_category_id}`,
-          );
-        }
-      }
+      await Promise.all([
+        category.parent_id
+          ? this.redisService.flushByPrefix(`${this.redisKeyChildren}${category.parent_id}`)
+          : Promise.resolve(),
+        !category.parent_id
+          ? this.knex('phone_problem_mappings')
+              .where({ problem_category_id: id })
+              .first()
+              .then((mappings) =>
+                mappings?.phone_category_id
+                  ? this.redisService.flushByPrefix(
+                      `${this.redisKeyRoot}${mappings.phone_category_id}`,
+                    )
+                  : Promise.resolve(),
+              )
+          : Promise.resolve(),
+      ]);
       this.logger.log(`Updated sort for problem category ${id}`);
       return { message: 'Sort updated successfully' };
     } catch (err) {
       await trx.rollback();
-      this.logger.error(`Failed to update sort for problem category ${id}: ${err.message}`);
-      throw new BadRequestException({ message: 'Failed to update sort', location: 'update_sort' });
+      this.logger.error(`Failed to update sort for problem category ${id}`);
+      throw new BadRequestException({
+        message: 'Failed to update sort',
+        location: 'update_sort',
+      });
     }
   }
 
-  /**
-   * Deletes a problem category (soft delete).
-   * @param id Problem category ID.
-   * @returns Success message.
-   */
   async delete(id: string): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
       this.logger.log(`Deleting problem category ${id}`);
-      const category = await trx('problem_categories').where({ id, status: 'Open' }).first();
+      const category: ProblemCategory | undefined = await trx('problem_categories')
+        .where({ id, status: 'Open' })
+        .first();
       if (!category) {
         throw new NotFoundException({
           message: 'Problem category not found or already deleted',
@@ -460,28 +519,33 @@ export class ProblemCategoriesService {
 
       await trx('problem_categories')
         .where({ id })
-        .update({ status: 'Deleted', updated_at: new Date() });
+        .update({ status: 'Deleted', updated_at: new Date().toISOString() });
       await trx.commit();
 
-      if (category.parent_id) {
-        await this.redisService.flushByPrefix(`${this.redisKeyChildren}${category.parent_id}`);
-      } else {
-        const mappings = await this.knex('phone_problem_mappings')
-          .where({ problem_category_id: id })
-          .first();
-        if (mappings?.phone_category_id) {
-          await this.redisService.flushByPrefix(
-            `${this.redisKeyRoot}${mappings.phone_category_id}`,
-          );
-        }
-      }
+      await Promise.all([
+        category.parent_id
+          ? this.redisService.flushByPrefix(`${this.redisKeyChildren}${category.parent_id}`)
+          : Promise.resolve(),
+        !category.parent_id
+          ? this.knex('phone_problem_mappings')
+              .where({ problem_category_id: id })
+              .first()
+              .then((mappings) =>
+                mappings?.phone_category_id
+                  ? this.redisService.flushByPrefix(
+                      `${this.redisKeyRoot}${mappings.phone_category_id}`,
+                    )
+                  : Promise.resolve(),
+              )
+          : Promise.resolve(),
+      ]);
       this.logger.log(`Deleted problem category ${id}`);
       return { message: 'Problem category deleted successfully' };
     } catch (err) {
       await trx.rollback();
-      this.logger.error(`Failed to delete problem category ${id}: ${err.message}`);
+      this.logger.error(`Failed to delete problem category ${id}`);
       throw new BadRequestException({
-        message: err.message || 'Failed to delete problem category',
+        message: 'Failed to delete problem category',
         location: 'delete_problem_category',
       });
     }

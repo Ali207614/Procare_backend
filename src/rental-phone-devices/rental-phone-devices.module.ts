@@ -5,9 +5,10 @@ import { SapRentalPhoneSyncService } from './sap-sync/sap-rental-phone-sync.serv
 import { RentalPhoneSyncTask } from './tasks/rental-phone-sync.task';
 import { LoggerModule } from 'src/common/logger/logger.module';
 import { LoggerService } from 'src/common/logger/logger.service';
+import { RedisModule } from 'src/common/redis/redis.module';
 
 @Module({
-  imports: [LoggerModule],
+  imports: [LoggerModule, RedisModule],
   controllers: [RentalPhoneDevicesController],
   providers: [RentalPhoneDevicesService, SapRentalPhoneSyncService, RentalPhoneSyncTask],
 })

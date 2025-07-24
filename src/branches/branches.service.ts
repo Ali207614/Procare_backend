@@ -279,6 +279,8 @@ export class BranchesService {
     await this.flushCacheByPrefix(this.redisKey);
     this.logger.log(`Updated branch: ${branch.id}`);
 
+    await this.redisService.del(`admins:branch:${branch.id}`);
+
     return { message: 'Branch updated successfully' };
   }
 
@@ -297,6 +299,8 @@ export class BranchesService {
     await this.redisService.del(`${this.redisKeyById}:${branch.id}`);
     await this.flushCacheByPrefix(this.redisKey);
     this.logger.log(`Deleted branch: ${branch.id}`);
+
+    await this.redisService.del(`admins:branch:${branch.id}`);
 
     return { message: 'Branch deleted successfully' };
   }

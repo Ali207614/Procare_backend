@@ -12,18 +12,18 @@ import { FindAllUsersDto } from './dto/find-all-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JoinedRepairOrder, UserWithRepairOrders } from 'src/common/types/repair-order.interface';
 import { User } from 'src/common/types/user.interface';
+import { RedisService } from 'src/common/redis/redis.service';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectKnex() private readonly knex: Knex,
     @InjectQueue('sap') private readonly sapQueue: Queue,
+    private readonly redisService: RedisService,
   ) {}
 
   async findOneWithOrders(userId: string): Promise<UserWithRepairOrders> {
-    const user: User | undefined = await this.knex('users')
-      .where({ id: userId})
-      .first();
+    const user: User | undefined = await this.knex('users').where({ id: userId }).first();
 
     if (!user) {
       throw new NotFoundException({
@@ -158,6 +158,8 @@ export class UsersService {
         updated_at: new Date(),
       });
 
+    await this.redisService.del(`user:${userId}`);
+
     return { message: 'User updated successfully' };
   }
 
@@ -178,6 +180,8 @@ export class UsersService {
       is_active: false,
       updated_at: new Date(),
     });
+
+    await this.redisService.del(`user:${userId}`);
 
     return { message: 'User deleted successfully' };
   }

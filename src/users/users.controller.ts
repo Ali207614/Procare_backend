@@ -21,12 +21,14 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UserWithRepairOrders } from 'src/common/types/repair-order.interface';
 import { User } from 'src/common/types/user.interface';
 
+
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService
+  ) {}
 
   @Post()
   @UseGuards(PermissionsGuard)
