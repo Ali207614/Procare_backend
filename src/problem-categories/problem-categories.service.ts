@@ -34,7 +34,7 @@ export class ProblemCategoriesService {
     }
 
     if (parent_id) {
-      const parent: PhoneCategory | undefined = await this.knex('problem_categories')
+      const parent: ProblemCategory | undefined = await this.knex('problem_categories')
         .where({ id: parent_id, status: 'Open', is_active: true })
         .first();
 

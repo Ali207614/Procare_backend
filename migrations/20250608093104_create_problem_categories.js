@@ -10,7 +10,7 @@ exports.up = async function (knex) {
       .references('id')
       .inTable('problem_categories')
       .onDelete('CASCADE');
-    table.decimal('price', 12, 2).notNullable().defaultTo(0);
+    table.decimal('price', 12, 2).notNullable().defaultTo(0).check('price >= 0');
     table.integer('estimated_minutes').notNullable().defaultTo(0);
     table.integer('sort').notNullable().defaultTo(1);
     table.boolean('is_active').defaultTo(true);

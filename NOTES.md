@@ -8,6 +8,7 @@ qaysi statuslarda payment kiritish mumkin
 
 # Userni istriyasini qilish kerak 
 
+# k6 bilan sinab ko'rish 
 
 # brew services stop redis
 # brew services start redis

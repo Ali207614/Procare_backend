@@ -1,0 +1,31 @@
+exports.up = async function (knex) {
+  await knex.schema.createTable('repair_parts', (table) => {
+    table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+    table
+      .uuid('problem_category_id')
+      .notNullable()
+      .references('id')
+      .inTable('problem_categories')
+      .onDelete('RESTRICT');
+    table.string('part_name_uz', 255).notNullable();
+    table.string('part_name_ru', 255).notNullable();
+    table.string('part_name_en', 255).notNullable();
+    table.decimal('part_price', 12, 2).notNullable().defaultTo(0).check('part_price >= 0');
+    table.integer('quantity').notNullable().defaultTo(1).check('quantity >= 0');
+    table.text('description_uz').nullable();
+    table.text('description_ru').nullable();
+    table.text('description_en').nullable();
+    table.boolean('is_required').defaultTo(true);
+    table.enum('status', ['Open', 'Deleted']).defaultTo('Available');
+    table.uuid('created_by').nullable().references('id').inTable('admins').onDelete('SET NULL');
+    table.timestamp('created_at').defaultTo(knex.fn.now());
+    table.timestamp('updated_at').defaultTo(knex.fn.now());
+
+    table.index(['problem_category_id']);
+    table.unique(['problem_category_id', 'part_name_uz']);
+  });
+};
+
+exports.down = async function (knex) {
+  await knex.schema.dropTableIfExists('repair_parts');
+};

@@ -5,7 +5,7 @@ import {
   IsOptional,
   IsDateString,
   MinLength,
-  MaxLength,
+  MaxLength, Matches,
 } from 'class-validator';
 
 export class CreateUserDto {
@@ -23,6 +23,7 @@ export class CreateUserDto {
 
   @ApiProperty({ example: '+998901234567', description: 'Phone number' })
   @IsPhoneNumber('UZ', { context: { location: 'phone_number' } })
+  @Matches(/^\+998[0-9]{9}$/, { message: 'Invalid phone number format' })
   phone_number!: string;
 
   @ApiProperty({ example: 'AA1234567', required: false })
