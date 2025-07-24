@@ -1,88 +1,103 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  IsOptional,
   IsString,
-  IsNotEmpty,
+  IsOptional,
+  IsNumber,
+  IsUUID,
+  Matches,
   MinLength,
   MaxLength,
-  IsNumber,
   Min,
-  Max,
-  IsUUID,
-  IsBoolean,
-  IsEnum,
+  IsInt,
 } from 'class-validator';
 
 export class CreateProblemCategoryDto {
-  @ApiProperty({ example: 'Oyna', description: 'Problem name in Uzbek' })
-  @IsString({ context: { location: 'name_uz' } })
-  @IsNotEmpty({ context: { location: 'name_uz' } })
-  @MinLength(1, { context: { location: 'name_uz' } })
-  @MaxLength(100, { context: { location: 'name_uz' } })
+  @ApiProperty({ description: 'Problem name in Uzbek', example: 'Ekran sinishi', required: true })
+  @IsString({ message: 'Name (UZ) must be a string', context: { location: 'name_uz' } })
+  @MinLength(1, {
+    message: 'Name (UZ) must be at least 1 character',
+    context: { location: 'name_uz' },
+  })
+  @MaxLength(100, {
+    message: 'Name (UZ) must not exceed 100 characters',
+    context: { location: 'name_uz' },
+  })
+  @Matches(/^[a-zA-Z\s]+$/, {
+    message: 'Name (UZ) must contain only letters and spaces',
+    context: { location: 'name_uz' },
+  })
   name_uz!: string;
 
-  @ApiProperty({ example: 'Стекло', description: 'Problem name in Russian' })
-  @IsString({ context: { location: 'name_ru' } })
-  @IsNotEmpty({ context: { location: 'name_ru' } })
-  @MinLength(1, { context: { location: 'name_ru' } })
-  @MaxLength(100, { context: { location: 'name_ru' } })
+  @ApiProperty({
+    description: 'Problem name in Russian',
+    example: 'Поломка экрана',
+    required: true,
+  })
+  @IsString({ message: 'Name (RU) must be a string', context: { location: 'name_ru' } })
+  @MinLength(1, {
+    message: 'Name (RU) must be at least 1 character',
+    context: { location: 'name_ru' },
+  })
+  @MaxLength(100, {
+    message: 'Name (RU) must not exceed 100 characters',
+    context: { location: 'name_ru' },
+  })
+  @Matches(/^[а-яА-Я\s]+$/, {
+    message: 'Name (RU) must contain only Cyrillic letters and spaces',
+    context: { location: 'name_ru' },
+  })
   name_ru!: string;
 
-  @ApiProperty({ example: 'Glass', description: 'Problem name in English' })
-  @IsString({ context: { location: 'name_en' } })
-  @IsNotEmpty({ context: { location: 'name_en' } })
-  @MinLength(1, { context: { location: 'name_en' } })
-  @MaxLength(100, { context: { location: 'name_en' } })
+  @ApiProperty({ description: 'Problem name in English', example: 'Screen damage', required: true })
+  @IsString({ message: 'Name (EN) must be a string', context: { location: 'name_en' } })
+  @MinLength(1, {
+    message: 'Name (EN) must be at least 1 character',
+    context: { location: 'name_en' },
+  })
+  @MaxLength(100, {
+    message: 'Name (EN) must not exceed 100 characters',
+    context: { location: 'name_en' },
+  })
+  @Matches(/^[a-zA-Z\s]+$/, {
+    message: 'Name (EN) must contain only letters and spaces',
+    context: { location: 'name_en' },
+  })
   name_en!: string;
 
   @ApiPropertyOptional({
-    example: '41b7e2a5-1234-4cde-9876-aabbccddeeff',
-    description: 'Parent problem category ID. Required if this is a subproblem',
+    description: 'Parent problem category ID',
+    example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec',
   })
   @IsOptional()
-  @IsUUID('4', { context: { location: 'parent_id' } })
+  @IsUUID('all', { message: 'Invalid parent category ID', context: { location: 'parent_id' } })
   parent_id?: string;
 
-  @ApiProperty({
-    example: 110000,
-    description: 'Estimated price for this problem fix in UZS',
-  })
-  @IsOptional()
-  @IsNumber({}, { context: { location: 'price' } })
-  @Max(1e16, { context: { location: 'price' } })
-  price!: number;
-
-  @ApiProperty({
-    example: 30,
-    description: 'Estimated repair time in minutes',
-  })
-  @IsOptional()
-  @IsNumber({}, { context: { location: 'estimated_minutes' } })
-  @Max(1440, { context: { location: 'estimated_minutes' } }) // 1 kun max
-  estimated_minutes!: number;
-
   @ApiPropertyOptional({
-    example: true,
-    description: 'Whether the category is active or not. Defaults to true.',
+    description: 'Phone category ID',
+    example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec',
   })
   @IsOptional()
-  @IsBoolean({ context: { location: 'is_active' } })
-  is_active?: boolean;
-
-  @ApiPropertyOptional({
-    example: 'Open',
-    enum: ['Open', 'Deleted'],
-    description: 'Status of the problem category',
+  @IsUUID('all', {
+    message: 'Invalid phone category ID',
+    context: { location: 'phone_category_id' },
   })
-  @IsOptional()
-  @IsEnum(['Open', 'Deleted'], { context: { location: 'status' } })
-  status?: 'Open' | 'Deleted';
-
-  @ApiPropertyOptional({
-    example: 'd2f4a941-7c2f-4b7e-85b3-57f679514bbb',
-    description: 'Phone category ID (only required when creating a root-level problem)',
-  })
-  @IsOptional()
-  @IsUUID('4', { context: { location: 'phone_category_id' } })
   phone_category_id?: string;
+
+  @ApiPropertyOptional({ description: 'Price of the problem', example: 100000 })
+  @IsOptional()
+  @IsNumber({}, { message: 'Price must be a number', context: { location: 'price' } })
+  @Min(0, { message: 'Price cannot be negative', context: { location: 'price' } })
+  price?: number;
+
+  @ApiPropertyOptional({ description: 'Estimated minutes for repair', example: 60 })
+  @IsOptional()
+  @IsInt({
+    message: 'Estimated minutes must be an integer',
+    context: { location: 'estimated_minutes' },
+  })
+  @Min(0, {
+    message: 'Estimated minutes cannot be negative',
+    context: { location: 'estimated_minutes' },
+  })
+  estimated_minutes?: number;
 }
