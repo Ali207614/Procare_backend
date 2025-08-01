@@ -4,8 +4,7 @@ import {
   IsPhoneNumber,
   MinLength,
   MaxLength,
-  IsOptional,
-  IsBoolean, Matches,
+  Matches,
 } from 'class-validator';
 
 export class LoginDto {

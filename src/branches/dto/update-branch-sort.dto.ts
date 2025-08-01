@@ -1,4 +1,4 @@
-import { IsUUID, IsInt, Min, Max, IsNumber } from 'class-validator';
+import { Min, Max, IsNumber } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UpdateBranchSortDto {
