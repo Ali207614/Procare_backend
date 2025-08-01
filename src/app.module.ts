@@ -55,6 +55,8 @@ import { PermissionsController } from './permissions/permissions.controller';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SapService } from './sap/sap.service';
 import { LoggerModule } from 'src/common/logger/logger.module';
+import { RepairPartsController } from './repair-parts/repair-parts.controller';
+import { RepairPartsModule } from './repair-parts/repair-parts.module';
 
 @Module({
   imports: [
@@ -80,6 +82,7 @@ import { LoggerModule } from 'src/common/logger/logger.module';
     LoggerModule,
     AuthModule,
     AdminsModule,
+    RepairPartsModule,
   ],
   controllers: [
     RepairOrderStatusesController,
@@ -92,6 +95,7 @@ import { LoggerModule } from 'src/common/logger/logger.module';
     AdminsController,
     NotificationController,
     PermissionsController,
+    RepairPartsController,
   ],
   providers: [
     RepairOrdersService,

@@ -58,7 +58,11 @@ export class RepairOrdersService {
       );
 
       const user = await trx('users').where({ id: dto.user_id, status: 'Open' }).first();
-      if (!user) throw new BadRequestException('User not found or inactive');
+      if (!user)
+        throw new BadRequestException({
+          message: 'User not found or inactive',
+          location: 'user_id',
+        });
 
       const phoneCategory = await trx('phone_categories as pc')
         .select(
@@ -267,7 +271,11 @@ export class RepairOrdersService {
       const order: RepairOrder | undefined = await trx(this.table)
         .where({ id: orderId, status: 'Open' })
         .first();
-      if (!order) throw new NotFoundException('Repair order not found or already deleted');
+      if (!order)
+        throw new NotFoundException({
+          message: 'Repair order not found or already deleted',
+          location: 'repair_order',
+        });
 
       const permissions: RepairOrderStatusPermission[] =
         await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
@@ -335,7 +343,9 @@ export class RepairOrdersService {
     const order = await trx('repair_orders').where({ id: orderId }).first();
     if (!order) return;
 
-    const permissionedAdmins = await trx('repair_order_status_permissions')
+    const permissionedAdmins: RepairOrderStatusPermission[] = await trx(
+      'repair_order_status_permissions',
+    )
       .select('admin_id', 'role_id')
       .where({ status_id: newStatusId, branch_id: order.branch_id, can_notification: true });
 
@@ -437,7 +447,11 @@ export class RepairOrdersService {
       const order: RepairOrder | undefined = await trx(this.table)
         .where({ id: orderId, status: 'Open' })
         .first();
-      if (!order) throw new NotFoundException('Repair order not found or inactive');
+      if (!order)
+        throw new NotFoundException({
+          message: 'Repair order not found or already deleted',
+          location: 'repair_order',
+        });
 
       const permissions: RepairOrderStatusPermission[] =
         await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
