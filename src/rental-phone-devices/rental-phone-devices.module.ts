@@ -21,7 +21,7 @@ export class RentalPhoneDevicesModule implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     const start = Date.now();
     try {
-      // await this.sapSyncService.syncFromSap();
+      await this.sapSyncService.syncFromSap();
       const duration = Date.now() - start;
 
       this.loggerService.log(`✅ SAP rental phones initial sync completed (${duration}ms)`);

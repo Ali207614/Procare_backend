@@ -57,6 +57,7 @@ import { SapService } from './sap/sap.service';
 import { LoggerModule } from 'src/common/logger/logger.module';
 import { RepairPartsController } from './repair-parts/repair-parts.controller';
 import { RepairPartsModule } from './repair-parts/repair-parts.module';
+import { RepairPartsService } from 'src/repair-parts/repair-parts.service';
 
 @Module({
   imports: [
@@ -85,19 +86,21 @@ import { RepairPartsModule } from './repair-parts/repair-parts.module';
     RepairPartsModule,
   ],
   controllers: [
+
     RepairOrderStatusesController,
     RentalPhoneDevicesController,
     UsersController,
     RepairOrderStatusPermissionsController,
     ProblemCategoriesController,
+    RepairPartsController,
     PhoneCategoriesController,
     RolesController,
     AdminsController,
     NotificationController,
     PermissionsController,
-    RepairPartsController,
   ],
   providers: [
+    RepairPartsService,
     RepairOrdersService,
     RentalPhoneDevicesService,
     PermissionsService,

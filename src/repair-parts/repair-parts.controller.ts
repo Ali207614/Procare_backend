@@ -7,7 +7,7 @@ import { CreateRepairPartDto } from 'src/repair-parts/dto/create-repair-part.dto
 import { RepairPart } from 'src/common/types/repair-part.interface';
 import { UpdateRepairPartDto } from 'src/repair-parts/dto/update-repair-part.dto'; // Assuming you have JWT auth
 
-@ApiTags('repair-parts')
+@ApiTags('Repair parts')
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
 @Controller('repair-parts')

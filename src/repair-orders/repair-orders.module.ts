@@ -21,6 +21,7 @@ import { PickupUpdaterService } from './services/pickup-updater.service';
 import { RentalPhoneUpdaterService } from './services/rental-phone-updater.service';
 import { RepairOrderChangeLoggerService } from './services/repair-order-change-logger.service';
 import { RepairOrderCreateHelperService } from './services/repair-order-create-helper.service';
+import { LoggerModule } from 'src/common/logger/logger.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { RepairOrderCreateHelperService } from './services/repair-order-create-h
     RedisModule,
     NotificationModule,
     RepairOrderStatusesModule,
+    LoggerModule,
   ],
   controllers: [
     RepairOrdersController,
