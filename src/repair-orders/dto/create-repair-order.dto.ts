@@ -31,6 +31,14 @@ class ProblemPartInputDto {
   @IsNumber({}, { message: 'Part price must be a number' })
   @Min(0, { message: 'Part price cannot be negative' })
   part_price!: number;
+
+  @ApiProperty({
+    description: 'Quantity of the part used in the problem',
+    example: 1,
+  })
+  @IsNumber({}, { message: 'Quantity' })
+  @Min(0, { message: 'Quantity' })
+  quantity!: number;
 }
 
 class ProblemDto {

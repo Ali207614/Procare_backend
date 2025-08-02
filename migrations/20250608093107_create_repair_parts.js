@@ -10,8 +10,8 @@ exports.up = async function (knex) {
     table.string('part_name_uz', 255).notNullable();
     table.string('part_name_ru', 255).notNullable();
     table.string('part_name_en', 255).notNullable();
-    table.decimal('part_price', 12, 2).notNullable().defaultTo(0).check('part_price >= 0');
-    table.integer('quantity').notNullable().defaultTo(1).check('quantity >= 0');
+    table.decimal('part_price', 12, 2).notNullable().defaultTo(0);
+    table.integer('quantity').notNullable().defaultTo(1);
     table.text('description_uz').nullable();
     table.text('description_ru').nullable();
     table.text('description_en').nullable();
