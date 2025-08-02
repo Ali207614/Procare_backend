@@ -14,6 +14,12 @@ exports.up = async function (knex) {
       .inTable('repair_order_initial_problems')
       .onDelete('CASCADE');
     table
+      .uuid('repair_order_final_problem_id')
+      .notNullable()
+      .references('id')
+      .inTable('repair_order_final_problems')
+      .onDelete('CASCADE');
+    table
       .uuid('repair_part_id')
       .notNullable()
       .references('id')
@@ -27,6 +33,9 @@ exports.up = async function (knex) {
 
     table.index(['repair_order_id', 'repair_order_initial_problem_id', 'repair_part_id']);
     table.unique(['repair_order_id', 'repair_order_initial_problem_id', 'repair_part_id']);
+
+    table.index(['repair_order_id', 'repair_order_final_problem_id', 'repair_part_id']);
+    table.unique(['repair_order_id', 'repair_order_final_problem_id', 'repair_part_id']);
   });
 };
 

@@ -133,7 +133,8 @@ export class RepairOrdersService {
       const order: RepairOrder | undefined = await trx(this.table)
         .where({ id: orderId, status: 'Open' })
         .first();
-      if (!order) throw new NotFoundException('Repair order not found');
+      if (!order)
+        throw new NotFoundException({ message: 'Order not found', location: 'repair_order' });
 
       const permissions: RepairOrderStatusPermission[] =
         await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
@@ -173,7 +174,8 @@ export class RepairOrdersService {
           permissions,
         );
         const user = await trx('users').where({ id: dto.user_id, status: 'Open' }).first();
-        if (!user) throw new BadRequestException('User not found or inactive');
+        if (!user)
+          throw new BadRequestException({ message: 'User not found', location: 'user_id' });
       }
 
       if (dto.phone_category_id) {
@@ -186,9 +188,16 @@ export class RepairOrdersService {
           )
           .where({ 'pc.id': dto.phone_category_id, 'pc.is_active': true, 'pc.status': 'Open' })
           .first();
-        if (!phoneCategory) throw new BadRequestException('Phone category not found or inactive');
+        if (!phoneCategory)
+          throw new BadRequestException({
+            message: 'Phone category not found or inactive',
+            location: 'phone_category_id',
+          });
         if (phoneCategory.has_children)
-          throw new BadRequestException('Phone category must not have children');
+          throw new BadRequestException({
+            message: 'Phone category must not have children',
+            location: 'phone_category_id',
+          });
       }
 
       if (Object.keys(updatedFields).length) {

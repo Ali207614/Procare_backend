@@ -16,6 +16,23 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
+class ProblemPartInputDto {
+  @ApiProperty({
+    description: 'Repair part ID',
+    example: '7b2e2f60-5f0c-4c44-b2bb-6d7d0eeb7c6c',
+  })
+  @IsUUID('all', { message: 'Invalid part ID' })
+  id!: string;
+
+  @ApiProperty({
+    description: 'Custom price for the part',
+    example: 12000,
+  })
+  @IsNumber({}, { message: 'Part price must be a number' })
+  @Min(0, { message: 'Part price cannot be negative' })
+  part_price!: number;
+}
+
 class ProblemDto {
   @ApiProperty({
     description: 'Problem category ID',
@@ -33,6 +50,15 @@ class ProblemDto {
   @IsNumber({}, { message: 'Estimated minutes must be a number' })
   @Min(0, { message: 'Estimated minutes cannot be negative' })
   estimated_minutes!: number;
+
+  @ApiProperty({
+    description: 'List of used parts with custom prices',
+    type: [ProblemPartInputDto],
+  })
+  @IsArray({ message: 'Parts must be an array' })
+  @ValidateNested({ each: true })
+  @Type(() => ProblemPartInputDto)
+  parts!: ProblemPartInputDto[];
 }
 
 class CommentDto {

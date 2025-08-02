@@ -6,10 +6,17 @@ import { RepairOrderStatusPermission } from 'src/common/types/repair-order-statu
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { RepairOrder } from 'src/common/types/repair-order.interface';
 
+interface PartInput {
+  id: string;
+  part_price: number;
+  quantity: number;
+}
+
 interface ProblemInput {
   problem_category_id: string;
   price: number;
   estimated_minutes: number;
+  parts?: PartInput[];
 }
 
 interface ExistingProblem {
@@ -75,7 +82,6 @@ export class InitialProblemUpdaterService {
       .whereNull('parent_id');
 
     const rootProblemIds = rootRows.map((r) => r.id);
-
     const allowed: string[] = await trx('phone_problem_mappings')
       .where({ phone_category_id: phoneCategoryId })
       .whereIn('problem_category_id', rootProblemIds)
@@ -89,11 +95,8 @@ export class InitialProblemUpdaterService {
       });
     }
 
-    const old: ExistingProblem[] = await trx('repair_order_initial_problems')
-      .where({ repair_order_id: orderId })
-      .select('problem_category_id', 'price', 'estimated_minutes');
-
     await trx('repair_order_initial_problems').where({ repair_order_id: orderId }).delete();
+    await trx('repair_order_parts').where({ repair_order_id: orderId }).delete(); // or restrict to initial_problem_ids later
 
     const now = new Date();
 
@@ -107,7 +110,73 @@ export class InitialProblemUpdaterService {
       updated_at: now,
     }));
 
-    await trx('repair_order_initial_problems').insert(rows);
+    const inserted = await trx('repair_order_initial_problems')
+      .insert(rows)
+      .returning(['id', 'problem_category_id']);
+
+    const problemCategoryToIdMap = Object.fromEntries(
+      inserted.map((row) => [row.problem_category_id, row.id]),
+    );
+
+    const allParts = problems.flatMap((p) => p.parts || []);
+    const allPartIds = [...new Set(allParts.map((p) => p.id))];
+
+    const partRows = await trx('repair_parts')
+      .whereIn('id', allPartIds)
+      .select('id', 'problem_category_id');
+
+    const partMap = Object.fromEntries(partRows.map((r) => [r.id, r.problem_category_id]));
+
+    const duplicateParts = problems.flatMap((p) => {
+      const seen = new Set<string>();
+      return (p.parts || []).filter((pt) => {
+        const key = `${p.problem_category_id}:${pt.id}`;
+        if (seen.has(key)) return true;
+        seen.add(key);
+        return false;
+      });
+    });
+
+    if (duplicateParts.length > 0) {
+      throw new BadRequestException({
+        message: 'Duplicate parts found in one or more problems',
+        location: 'initial_problems.parts',
+      });
+    }
+
+    const invalidParts = problems.flatMap((p) =>
+      (p.parts || []).filter((pt) => partMap[pt.id] !== p.problem_category_id).map((pt) => pt.id),
+    );
+
+    if (invalidParts.length > 0) {
+      throw new BadRequestException({
+        message: 'Some parts do not belong to the specified problem category',
+        location: 'initial_problems.parts',
+        invalid_part_ids: [...new Set(invalidParts)],
+      });
+    }
+
+    const partRowsToInsert = problems.flatMap((p) =>
+      (p.parts || []).map((pt) => ({
+        repair_order_id: orderId,
+        repair_order_initial_problem_id: problemCategoryToIdMap[p.problem_category_id],
+        repair_order_final_problem_id: null,
+        repair_part_id: pt.id,
+        quantity: pt.quantity,
+        part_price: pt.part_price,
+        created_by: admin.id,
+        created_at: now,
+        updated_at: now,
+      })),
+    );
+
+    if (partRowsToInsert.length > 0) {
+      await trx('repair_order_parts').insert(partRowsToInsert);
+    }
+
+    const old: ExistingProblem[] = await trx('repair_order_initial_problems')
+      .where({ repair_order_id: orderId })
+      .select('problem_category_id', 'price', 'estimated_minutes');
 
     await this.changeLogger.logIfChanged(trx, orderId, 'initial_problems', old, problems, admin.id);
   }

@@ -29,29 +29,64 @@ SELECT
     ) AS assigned_admins,
 
     (
-        SELECT json_agg(jsonb_build_object(
-            'id', ip.id,
-            'problem_category_id', ip.problem_category_id,
-            'price', ip.price,
-            'estimated_minutes', ip.estimated_minutes,
-            'created_by', ip.created_by,
-            'created_at', ip.created_at,
-            'updated_at', ip.updated_at
-        ))
+        SELECT json_agg(
+                       jsonb_build_object(
+                               'id', ip.id,
+                               'problem_category_id', ip.problem_category_id,
+                               'price', ip.price,
+                               'estimated_minutes', ip.estimated_minutes,
+                               'created_by', ip.created_by,
+                               'created_at', ip.created_at,
+                               'updated_at', ip.updated_at,
+                               'parts', (
+                                   SELECT json_agg(
+                                                  jsonb_build_object(
+                                                          'id', rp.id,
+                                                          'repair_part_id', rp.repair_part_id,
+                                                          'quantity', rp.quantity,
+                                                          'part_price', rp.part_price,
+                                                          'created_by', rp.created_by,
+                                                          'created_at', rp.created_at,
+                                                          'updated_at', rp.updated_at
+                                                  )
+                                          )
+                                   FROM repair_order_parts rp
+                                   WHERE rp.repair_order_initial_problem_id = ip.id
+                               )
+                       )
+               )
         FROM repair_order_initial_problems ip
         WHERE ip.repair_order_id = ro.id
     ) AS initial_problems,
 
+
     (
-        SELECT json_agg(jsonb_build_object(
-            'id', fp.id,
-            'problem_category_id', fp.problem_category_id,
-            'price', fp.price,
-            'estimated_minutes', fp.estimated_minutes,
-            'created_by', fp.created_by,
-            'created_at', fp.created_at,
-            'updated_at', fp.updated_at
-        ))
+        SELECT json_agg(
+                       jsonb_build_object(
+                               'id', fp.id,
+                               'problem_category_id', fp.problem_category_id,
+                               'price', fp.price,
+                               'estimated_minutes', fp.estimated_minutes,
+                               'created_by', fp.created_by,
+                               'created_at', fp.created_at,
+                               'updated_at', fp.updated_at,
+                               'parts', (
+                                   SELECT json_agg(
+                                                  jsonb_build_object(
+                                                          'id', rp.id,
+                                                          'repair_part_id', rp.repair_part_id,
+                                                          'quantity', rp.quantity,
+                                                          'part_price', rp.part_price,
+                                                          'created_by', rp.created_by,
+                                                          'created_at', rp.created_at,
+                                                          'updated_at', rp.updated_at
+                                                  )
+                                          )
+                                   FROM repair_order_parts rp
+                                   WHERE rp.repair_order_final_problem_id = fp.id
+                               )
+                       )
+               )
         FROM repair_order_final_problems fp
         WHERE fp.repair_order_id = ro.id
     ) AS final_problems,
