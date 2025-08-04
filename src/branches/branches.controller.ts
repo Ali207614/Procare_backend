@@ -97,7 +97,7 @@ export class BranchesController {
   }
 
   @Patch(':branch_id')
-  @UseGuards(PermissionsGuard)
+  @UseGuards(PermissionsGuard, BranchExistGuard)
   @SetPermissions('branch.update')
   @ApiOperation({ summary: 'Update branch by ID' })
   @ApiParam({ name: 'branch_id', description: 'Branch ID (UUID)' })

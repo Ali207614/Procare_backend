@@ -40,12 +40,11 @@ export class BranchesService {
     return await this.knex.transaction(async (trx: Knex.Transaction) => {
       const existing: Branch | undefined = await trx('branches')
         .whereRaw(
-          'LOWER(name_uz) = LOWER(?) OR LOWER(name_ru) = LOWER(?) OR LOWER(name_en) = LOWER(?)',
-          [dto.name_uz, dto.name_ru, dto.name_en],
+          `(LOWER(name_uz) = LOWER(?) OR LOWER(name_ru) = LOWER(?) OR LOWER(name_en) = LOWER(?)) AND status != ?`,
+          [dto.name_uz, dto.name_ru, dto.name_en, 'Deleted'],
         )
-        .andWhereNot({ status: 'Deleted' })
         .first();
-
+      console.log(existing);
       if (existing) {
         throw new BadRequestException({
           message: 'Branch name already exists',
@@ -154,7 +153,6 @@ export class BranchesService {
     const redisKey = this.getAdminBranchesKey(adminId);
     const cached: Branch[] | null = await this.redisService.get(redisKey);
     if (cached) {
-      console.log('Using cached branches for admin:', adminId);
       return cached;
     }
 

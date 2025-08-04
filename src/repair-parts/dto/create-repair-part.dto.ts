@@ -4,16 +4,11 @@ import {
   IsNumber,
   IsOptional,
   IsString,
-  IsUUID,
   MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateRepairPartDto {
-  @ApiProperty()
-  @IsUUID('all', { context: { location: 'problem_category_id' } })
-  problem_category_id!: string;
-
   @ApiProperty()
   @IsString({ context: { location: 'part_name_uz' } })
   @MaxLength(255, { context: { location: 'part_name_uz' } })

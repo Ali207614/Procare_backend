@@ -258,7 +258,22 @@ exports.seed = async function (knex) {
     {
       id: '00000000-0000-0000-0000-000000000055',
       name: 'user.manage.delete',
-      description: 'User update',
+      description: 'User delete',
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000056',
+      name: 'repair_part.create',
+      description: 'Repair part manage',
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000057',
+      name: 'repair_part.update',
+      description: 'Repair part manage',
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000058',
+      name: 'repair_part.delete',
+      description: 'Repair part manage',
     },
   ];
 

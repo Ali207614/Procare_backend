@@ -10,25 +10,15 @@ export class RepairPartsService {
   constructor(@InjectKnex() private readonly knex: Knex) {}
 
   async create(createRepairPartDto: CreateRepairPartDto, createdBy: string): Promise<RepairPart> {
-    const { problem_category_id, part_name_uz } = createRepairPartDto;
+    const { part_name_uz } = createRepairPartDto;
 
     const existingPart: RepairPart | undefined = await this.knex('repair_parts')
-      .where({ problem_category_id, part_name_uz })
+      .where({ part_name_uz })
       .first();
     if (existingPart) {
       throw new BadRequestException({
         message: 'Part name must be unique for this problem category',
         location: 'part_name_uz',
-      });
-    }
-
-    const categoryExists = await this.knex('problem_categories')
-      .where({ id: problem_category_id })
-      .first();
-    if (!categoryExists) {
-      throw new NotFoundException({
-        message: 'Problem category not found',
-        location: 'problem_category_id',
       });
     }
 
@@ -74,10 +64,9 @@ export class RepairPartsService {
       });
     }
 
-    if (updateRepairPartDto.problem_category_id && updateRepairPartDto.part_name_uz) {
+    if (updateRepairPartDto.part_name_uz) {
       const existingPart: RepairPart | undefined = await this.knex('repair_parts')
         .where({
-          problem_category_id: updateRepairPartDto.problem_category_id,
           part_name_uz: updateRepairPartDto.part_name_uz,
         })
         .whereNot('id', id)
@@ -86,18 +75,6 @@ export class RepairPartsService {
         throw new BadRequestException({
           message: 'Part name must be unique for this problem category',
           location: 'part_name_uz',
-        });
-      }
-    }
-
-    if (updateRepairPartDto.problem_category_id) {
-      const categoryExists = await this.knex('problem_categories')
-        .where({ id: updateRepairPartDto.problem_category_id })
-        .first();
-      if (!categoryExists) {
-        throw new NotFoundException({
-          message: 'Problem category not found',
-          location: 'problem_category_id',
         });
       }
     }

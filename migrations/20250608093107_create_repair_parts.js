@@ -1,12 +1,6 @@
 exports.up = async function (knex) {
   await knex.schema.createTable('repair_parts', (table) => {
     table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
-    table
-      .uuid('problem_category_id')
-      .notNullable()
-      .references('id')
-      .inTable('problem_categories')
-      .onDelete('RESTRICT');
     table.string('part_name_uz', 255).notNullable();
     table.string('part_name_ru', 255).notNullable();
     table.string('part_name_en', 255).notNullable();

@@ -496,7 +496,6 @@ export class ProblemCategoriesService {
   async delete(id: string): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
-      this.logger.log(`Deleting problem category ${id}`);
       const category: ProblemCategory | undefined = await trx('problem_categories')
         .where({ id, status: 'Open' })
         .first();

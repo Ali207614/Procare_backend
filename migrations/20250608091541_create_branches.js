@@ -2,9 +2,9 @@ exports.up = async function (knex) {
   await knex.schema.createTable('branches', (table) => {
     table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
 
-    table.string('name_uz').notNullable().unique();
-    table.string('name_ru').notNullable().unique();
-    table.string('name_en').notNullable().unique();
+    table.string('name_uz').notNullable();
+    table.string('name_ru').notNullable();
+    table.string('name_en').notNullable();
 
     table.string('address_uz');
     table.string('address_ru');

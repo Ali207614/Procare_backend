@@ -1,6 +1,5 @@
 export interface RepairPart {
   id: string;
-  problem_category_id: string;
   part_name_uz: string;
   part_name_ru: string;
   part_name_en: string;

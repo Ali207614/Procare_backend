@@ -339,7 +339,6 @@ export class PhoneCategoriesService {
       await this.redisService.flushByPrefix(
         `${this.redisKeyCategories}${category.parent_id || 'root'}`,
       );
-      this.logger.log(`Updated sort for phone category ${id}`);
       return { message: 'Sort updated successfully' };
     } catch (err) {
       await trx.rollback();
@@ -351,7 +350,6 @@ export class PhoneCategoriesService {
   async delete(id: string): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
-      this.logger.log(`Deleting phone category ${id}`);
       const category = await trx('phone_categories').where({ id, status: 'Open' }).first();
       if (!category) {
         throw new BadRequestException({
@@ -393,7 +391,6 @@ export class PhoneCategoriesService {
           `${this.redisKeyCategories}${category.phone_os_type_id}`,
         );
       }
-      this.logger.log(`Deleted phone category ${id}`);
       return { message: 'Phone category deleted successfully' };
     } catch (err) {
       await trx.rollback();

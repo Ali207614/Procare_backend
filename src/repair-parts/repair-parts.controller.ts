@@ -5,7 +5,9 @@ import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { RepairPartsService } from 'src/repair-parts/repair-parts.service';
 import { CreateRepairPartDto } from 'src/repair-parts/dto/create-repair-part.dto';
 import { RepairPart } from 'src/common/types/repair-part.interface';
-import { UpdateRepairPartDto } from 'src/repair-parts/dto/update-repair-part.dto'; // Assuming you have JWT auth
+import { UpdateRepairPartDto } from 'src/repair-parts/dto/update-repair-part.dto';
+import { PermissionsGuard } from 'src/common/guards/permission.guard';
+import { SetPermissions } from 'src/common/decorators/permission-decorator'; // Assuming you have JWT auth
 
 @ApiTags('Repair parts')
 @ApiBearerAuth()
@@ -15,6 +17,8 @@ export class RepairPartsController {
   constructor(private readonly repairPartsService: RepairPartsService) {}
 
   @Post()
+  @UseGuards(PermissionsGuard)
+  @SetPermissions('repair_part.create')
   async create(
     @Body() createRepairPartDto: CreateRepairPartDto,
     @Req() req: AuthenticatedRequest,
@@ -34,7 +38,8 @@ export class RepairPartsController {
 
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards()
+  @UseGuards(PermissionsGuard)
+  @SetPermissions('repair_part.update')
   async update(
     @Param('id') id: string,
     @Body() updateRepairPartDto: UpdateRepairPartDto,
@@ -43,6 +48,8 @@ export class RepairPartsController {
   }
 
   @Delete(':id')
+  @UseGuards(PermissionsGuard)
+  @SetPermissions('repair_part.delete')
   async delete(@Param('id') id: string): Promise<{ message: string }> {
     return this.repairPartsService.delete(id);
   }
