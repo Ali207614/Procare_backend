@@ -17,21 +17,21 @@ export class CreateBranchDto {
   @IsString()
   @IsNotEmpty()
   @MinLength(1, { message: 'Name (UZ) must be at least 1 character' })
-  @MaxLength(100, { message: 'Name (UZ) must not exceed 100 characters' })
+  @MaxLength(50, { message: 'Name (UZ) must not exceed 50 characters' })
   name_uz!: string;
 
   @ApiProperty({ example: 'Main Office', description: 'Branch name in Russian', required: true })
   @IsString()
   @IsNotEmpty()
   @MinLength(1, { message: 'Name (RU) must be at least 1 character' })
-  @MaxLength(100, { message: 'Name (RU) must not exceed 100 characters' })
+  @MaxLength(50, { message: 'Name (RU) must not exceed 50 characters' })
   name_ru!: string;
 
   @ApiProperty({ example: 'Main Office', description: 'Branch name in English', required: true })
   @IsString()
   @IsNotEmpty()
   @MinLength(1, { message: 'Name (EN) must be at least 1 character' })
-  @MaxLength(100, { message: 'Name (EN) must not exceed 100 characters' })
+  @MaxLength(50, { message: 'Name (EN) must not exceed 50 characters' })
   name_en!: string;
 
   @ApiProperty({

@@ -36,6 +36,7 @@ export class AdminsService {
 
   private readonly table = 'admins';
   private readonly redisKeyByAdminRoles = 'admin_roles';
+  private readonly redisKeyByAdminId = 'admin:branches';
 
   async findByPhoneNumber(phone: string): Promise<Admin | undefined> {
     return this.knex(this.table).where({ phone_number: phone }).first();
@@ -229,7 +230,7 @@ export class AdminsService {
       }));
       await this.knex('admin_branches').insert(branchData);
 
-      await this.redisService.del(`admin:${admin.id}:branches`);
+      await this.redisService.del(`${this.redisKeyByAdminId}:${admin.id}`);
     }
     await this.permissionsService.getPermissions(admin.id);
 
@@ -376,7 +377,6 @@ export class AdminsService {
             throw new NotFoundException({
               message: 'Some branches were not found or inactive',
               location: 'branch_ids',
-              missing_ids: missingIds,
             });
           }
 
@@ -389,6 +389,7 @@ export class AdminsService {
         }
 
         await trx.commit();
+        await this.redisService.del(`${this.redisKeyByAdminId}:${targetAdminId}`);
       } catch (error) {
         await trx.rollback();
 
@@ -403,7 +404,7 @@ export class AdminsService {
       }
 
       if (dto.branch_ids !== undefined) {
-        await this.redisService.del(`admin:${targetAdminId}:branches`);
+        await this.redisService.del(`${this.redisKeyByAdminId}:${targetAdminId}`);
       }
     }
 
@@ -411,7 +412,6 @@ export class AdminsService {
     await this.permissionsService.getPermissions(targetAdminId);
 
     await this.redisService.del(`admin:${targetAdminId}`);
-    await this.redisService.del(`admins:branch:${targetAdminId}`);
 
     return { message: 'Admin updated successfully' };
   }
@@ -466,7 +466,6 @@ export class AdminsService {
     await this.permissionsService.clearPermissionCache(targetAdminId);
 
     await this.redisService.del(`admin:${targetAdminId}`);
-    await this.redisService.del(`admins:branch:${targetAdminId}`);
 
     return {
       message: 'Admin deleted successfully',

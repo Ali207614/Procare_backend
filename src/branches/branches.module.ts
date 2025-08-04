@@ -7,7 +7,7 @@ import { RepairOrderStatusPermissionsModule } from 'src/repair-order-status-perm
 import { LoggerModule } from 'src/common/logger/logger.module';
 
 @Module({
-  imports: [RedisModule, PermissionsModule, RepairOrderStatusPermissionsModule , LoggerModule],
+  imports: [RedisModule, PermissionsModule, RepairOrderStatusPermissionsModule, LoggerModule],
   controllers: [BranchesController],
   providers: [BranchesService],
 })

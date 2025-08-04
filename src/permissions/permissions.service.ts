@@ -15,6 +15,15 @@ export class PermissionsService {
     return `admin:${adminId}:permissions`;
   }
 
+  /**
+   * Retrieves permissions for a given admin ID.
+   * Caches the result in Redis for 5 minutes.
+   * If cached, returns the cached permissions.
+   * If not cached, queries the database and caches the result.
+   *
+   * @param adminId - The ID of the admin to retrieve permissions for.
+   * @returns A promise that resolves to an array of permission names.
+   */
   async getPermissions(adminId: string): Promise<string[]> {
     const start = Date.now();
 

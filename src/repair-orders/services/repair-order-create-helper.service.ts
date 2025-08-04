@@ -17,7 +17,6 @@ import { LoggerService } from 'src/common/logger/logger.service';
 export class RepairOrderCreateHelperService {
   private readonly redisKeyRentalPhoneDevice = 'rental_phone_device:';
   private readonly redisKeyUser = 'user:';
-  private readonly redisKeyAdminsByBranch = 'admins:branch:';
   private readonly redisKeyAdmin = 'admin:';
 
   constructor(
@@ -186,19 +185,13 @@ export class RepairOrderCreateHelperService {
       );
 
       const uniqueIds = [...new Set(dto.admin_ids)];
-      const adminsCacheKey = `${this.redisKeyAdminsByBranch}${branchId}`;
-      let existingAdmins: string[] | null = await this.redisService.get(adminsCacheKey);
 
-      if (!existingAdmins) {
-        existingAdmins = await trx('admins')
-          .whereIn('id', uniqueIds)
-          .andWhere('branch_id', branchId)
-          .andWhere('status', 'Open')
-          .pluck('id');
-        if (existingAdmins?.length) {
-          await this.redisService.set(adminsCacheKey, existingAdmins, 3600);
-        }
-      }
+      const existingAdmins: string[] = await trx('admin_branches as ab')
+        .join('branches as b', 'ab.branch_id', 'b.id')
+        .whereIn('ab.admin_id', uniqueIds)
+        .andWhere('ab.branch_id', branchId)
+        .andWhere('b.status', 'Open')
+        .pluck('ab.admin_id');
 
       const notFound = uniqueIds.filter((id: string): boolean => !existingAdmins?.includes(id));
       if (notFound.length) {

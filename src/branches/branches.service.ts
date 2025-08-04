@@ -3,7 +3,6 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
-  Logger,
 } from '@nestjs/common';
 import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
@@ -13,24 +12,23 @@ import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { Branch } from 'src/common/types/branch.interface';
+import { LoggerService } from 'src/common/logger/logger.service';
 
-/**
- * Service for managing branches with Knex and Redis integration.
- */
 @Injectable()
 export class BranchesService {
-  private readonly logger = new Logger(BranchesService.name);
   private readonly redisKey = 'branches:all';
   private readonly redisKeyById = 'branches:by_id';
+  private readonly redisKeyByAdminId = 'admin:branches';
 
   constructor(
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,
     private readonly repairOrderStatusPermissionsService: RepairOrderStatusPermissionsService,
+    private readonly logger: LoggerService,
   ) {}
 
   private getAdminBranchesKey(adminId: string): string {
-    return `admin:${adminId}:branches`;
+    return `admin:branches:${adminId}`;
   }
 
   private async flushCacheByPrefix(prefix: string): Promise<void> {
@@ -40,7 +38,6 @@ export class BranchesService {
 
   async create(dto: CreateBranchDto, adminId: string): Promise<Branch> {
     return await this.knex.transaction(async (trx: Knex.Transaction) => {
-      this.logger.log(`Creating branch by admin: ${adminId}`);
       const existing: Branch | undefined = await trx('branches')
         .whereRaw(
           'LOWER(name_uz) = LOWER(?) OR LOWER(name_ru) = LOWER(?) OR LOWER(name_en) = LOWER(?)',
@@ -50,7 +47,10 @@ export class BranchesService {
         .first();
 
       if (existing) {
-        throw new BadRequestException('Branch name already exists in one of the languages');
+        throw new BadRequestException({
+          message: 'Branch name already exists',
+          location: 'name',
+        });
       }
 
       const nextSort = await getNextSortValue(trx, 'branches');
@@ -118,9 +118,8 @@ export class BranchesService {
       ]);
 
       await this.flushCacheByPrefix(this.redisKey);
+      await this.flushCacheByPrefix(this.redisKeyByAdminId);
       await this.redisService.set(`${this.redisKeyById}:${branch.id}`, branch, 3600);
-      this.logger.log(`Branch created: ${branch.id}`);
-
       return branch;
     });
   }
@@ -131,7 +130,6 @@ export class BranchesService {
       : `${this.redisKey}:${offset}:${limit}`;
     const cached: Branch[] | null = await this.redisService.get(redisKey);
     if (cached) {
-      this.logger.debug(`Cache hit for branches: ${redisKey}`);
       return cached;
     }
 
@@ -148,7 +146,6 @@ export class BranchesService {
 
     const branches: Branch[] = await query.orderBy('sort', 'asc').offset(offset).limit(limit);
     await this.redisService.set(redisKey, branches, 3600);
-    this.logger.log(`Fetched ${branches.length} branches`);
 
     return branches;
   }
@@ -157,7 +154,7 @@ export class BranchesService {
     const redisKey = this.getAdminBranchesKey(adminId);
     const cached: Branch[] | null = await this.redisService.get(redisKey);
     if (cached) {
-      this.logger.debug(`Cache hit for admin branches: ${redisKey}`);
+      console.log('Using cached branches for admin:', adminId);
       return cached;
     }
 
@@ -168,7 +165,6 @@ export class BranchesService {
       .orderBy('b.sort', 'asc');
 
     await this.redisService.set(redisKey, branches, 3600);
-    this.logger.log(`Fetched ${branches.length} branches for admin: ${adminId}`);
 
     return branches;
   }
@@ -177,7 +173,6 @@ export class BranchesService {
     const redisKey = `${this.redisKeyById}:${id}`;
     const cached: Branch | null = await this.redisService.get(redisKey);
     if (cached) {
-      this.logger.debug(`Cache hit for branch: ${redisKey}`);
       return cached;
     }
 
@@ -185,20 +180,16 @@ export class BranchesService {
       .where({ id, status: 'Open' })
       .first();
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException({
+        message: 'Branch not found',
+        location: 'branches',
+      });
     }
 
     await this.redisService.set(redisKey, branch, 3600);
-    this.logger.log(`Fetched branch: ${id}`);
     return branch;
   }
 
-  /**
-   * Updates the sort order of a branch.
-   * @param branch Branch to update.
-   * @param newSort New sort value.
-   * @returns Success message.
-   */
   async updateSort(branch: Branch, newSort: number): Promise<{ message: string }> {
     if (branch.sort === newSort) {
       return { message: 'No change needed' };
@@ -223,19 +214,25 @@ export class BranchesService {
 
       await this.flushCacheByPrefix(this.redisKey);
       await this.flushCacheByPrefix(this.redisKeyById);
-      this.logger.log(`Updated sort for branch: ${branch.id}`);
+      await this.flushCacheByPrefix(this.redisKeyByAdminId);
 
       return { message: 'Sort updated successfully' };
     } catch (error) {
       await trx.rollback();
       this.logger.error(`Failed to update sort for branch ${branch.id}`);
-      throw new BadRequestException('Failed to update sort order');
+      throw new BadRequestException({
+        message: 'Failed to update branch sort',
+        location: 'branches',
+      });
     }
   }
 
   async update(branch: Branch, dto: UpdateBranchDto): Promise<{ message: string }> {
     if (dto.is_active === false && branch.is_protected) {
-      throw new ForbiddenException('Cannot deactivate protected branch');
+      throw new ForbiddenException({
+        message: 'Cannot deactivate protected branch',
+        location: 'branches',
+      });
     }
 
     if (dto.name_uz || dto.name_ru || dto.name_en) {
@@ -249,7 +246,10 @@ export class BranchesService {
         .first();
 
       if (conflict) {
-        throw new BadRequestException('Branch name already exists');
+        throw new BadRequestException({
+          message: 'Branch name already exists',
+          location: 'name',
+        });
       }
     }
 
@@ -277,16 +277,17 @@ export class BranchesService {
 
     await this.redisService.set(`${this.redisKeyById}:${branch.id}`, updated, 3600);
     await this.flushCacheByPrefix(this.redisKey);
-    this.logger.log(`Updated branch: ${branch.id}`);
-
-    await this.redisService.del(`admins:branch:${branch.id}`);
+    await this.flushCacheByPrefix(this.redisKeyByAdminId);
 
     return { message: 'Branch updated successfully' };
   }
 
   async delete(branch: Branch): Promise<{ message: string }> {
     if (branch.is_protected) {
-      throw new ForbiddenException('Cannot delete protected branch');
+      throw new ForbiddenException({
+        message: 'Cannot delete protected branch',
+        location: 'branches',
+      });
     }
 
     await this.knex('branches').where({ id: branch.id }).update({
@@ -297,10 +298,10 @@ export class BranchesService {
 
     await this.repairOrderStatusPermissionsService.deletePermissionsByBranch(branch.id);
     await this.redisService.del(`${this.redisKeyById}:${branch.id}`);
+    await this.flushCacheByPrefix(this.redisKeyByAdminId);
+
     await this.flushCacheByPrefix(this.redisKey);
     this.logger.log(`Deleted branch: ${branch.id}`);
-
-    await this.redisService.del(`admins:branch:${branch.id}`);
 
     return { message: 'Branch deleted successfully' };
   }
