@@ -23,6 +23,15 @@ import {
 export class RepairOrderStatusesController {
   constructor(private readonly service: RepairOrderStatusesService) {}
 
+  @Get()
+  @UseGuards(PermissionsGuard, BranchExistGuard)
+  @SetPermissions('repair_order_status.view')
+  @ApiOperation({ summary: 'Get all statuses for admin panel' })
+  @ApiQuery({ name: 'branch_id', required: true })
+  async getAll(@Query('branch_id', ParseUUIDPipe) branchId: string): Promise<RepairOrderStatus[]> {
+    return this.service.findAllStatuses(branchId);
+  }
+
   @Post()
   @UseGuards(PermissionsGuard)
   @SetPermissions('repair_order_status.create')
@@ -35,23 +44,15 @@ export class RepairOrderStatusesController {
   }
 
   @Get('viewable')
-  @UseGuards(PermissionsGuard, BranchExistGuard)
+  @UseGuards(BranchExistGuard)
   @ApiOperation({ summary: 'Get viewable statuses for current admin' })
   @ApiQuery({ name: 'branch_id', required: true })
   async getViewable(
     @Req() req: AuthenticatedRequest,
     @Query('branch_id', ParseUUIDPipe) branchId: string,
   ): Promise<RepairOrderStatusWithPermissions[]> {
+    console.log('Fetching viewable statuses for branch:', branchId);
     return this.service.findViewable(req.admin, branchId);
-  }
-
-  @Get('all')
-  @UseGuards(PermissionsGuard, BranchExistGuard)
-  @SetPermissions('repair_order_status.view')
-  @ApiOperation({ summary: 'Get all statuses for admin panel' })
-  @ApiQuery({ name: 'branch_id', required: true })
-  async getAll(@Query('branch_id', ParseUUIDPipe) branchId: string): Promise<RepairOrderStatus[]> {
-    return this.service.findAllStatuses(branchId);
   }
 
   @Patch(':status_id/sort')

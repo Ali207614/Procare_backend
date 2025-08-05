@@ -4,21 +4,64 @@ import { InjectKnex } from 'nestjs-knex';
 import { CreateRepairPartDto } from 'src/repair-parts/dto/create-repair-part.dto';
 import { UpdateRepairPartDto } from 'src/repair-parts/dto/update-repair-part.dto';
 import { RepairPart } from 'src/common/types/repair-part.interface';
+import { AssignRepairPartsToCategoryDto } from 'src/repair-parts/dto/assign-repair-parts.dto';
 
 @Injectable()
 export class RepairPartsService {
   constructor(@InjectKnex() private readonly knex: Knex) {}
 
+  async assignRepairPartsToProblemCategory(dto: AssignRepairPartsToCategoryDto): Promise<void> {
+    const { problem_category_id, repair_parts } = dto;
+
+    const repair_part_ids = repair_parts.map((part) => part.id);
+
+    const existingParts: RepairPart[] = await this.knex('repair_parts')
+      .whereIn('id', repair_part_ids)
+      .andWhere({ status: 'Open' })
+      .select('id');
+
+    const validIds = existingParts.map((p) => p.id);
+    const invalidIds = repair_part_ids.filter((id) => !validIds.includes(id));
+
+    if (invalidIds.length > 0) {
+      throw new BadRequestException({
+        message: 'Some repair_part IDs are invalid',
+        location: 'repair_parts',
+        invalidIds,
+      });
+    }
+
+    await this.knex('repair_part_assignments').where({ problem_category_id }).delete();
+
+    const now = this.knex.fn.now();
+    const rowsToInsert = repair_parts.map(({ id, is_required }) => ({
+      id: this.knex.raw('gen_random_uuid()'),
+      problem_category_id,
+      repair_part_id: id,
+      is_required,
+      created_at: now,
+      updated_at: now,
+    }));
+
+    await this.knex('repair_part_assignments').insert(rowsToInsert);
+  }
+
   async create(createRepairPartDto: CreateRepairPartDto, createdBy: string): Promise<RepairPart> {
-    const { part_name_uz } = createRepairPartDto;
+    const { part_name_uz, part_name_ru, part_name_en } = createRepairPartDto;
 
     const existingPart: RepairPart | undefined = await this.knex('repair_parts')
-      .where({ part_name_uz })
+      .where((qb): void => {
+        void qb
+          .whereRaw('LOWER(part_name_uz) = ?', [part_name_uz.toLowerCase()])
+          .orWhereRaw('LOWER(part_name_ru) = ?', [part_name_ru.toLowerCase()])
+          .orWhereRaw('LOWER(part_name_en) = ?', [part_name_en.toLowerCase()]);
+      })
       .first();
+
     if (existingPart) {
       throw new BadRequestException({
-        message: 'Part name must be unique for this problem category',
-        location: 'part_name_uz',
+        message: 'Part name (UZ/RU/EN) must be unique',
+        location: 'part_name',
       });
     }
 
@@ -53,6 +96,8 @@ export class RepairPartsService {
   }
 
   async update(id: string, updateRepairPartDto: UpdateRepairPartDto): Promise<{ message: string }> {
+    const { part_name_uz, part_name_ru, part_name_en } = updateRepairPartDto;
+
     const part: RepairPart | undefined = await this.knex('repair_parts')
       .where({ id })
       .whereNot('status', 'Deleted')
@@ -64,17 +109,26 @@ export class RepairPartsService {
       });
     }
 
-    if (updateRepairPartDto.part_name_uz) {
+    if (part_name_uz || part_name_ru || part_name_en) {
       const existingPart: RepairPart | undefined = await this.knex('repair_parts')
-        .where({
-          part_name_uz: updateRepairPartDto.part_name_uz,
-        })
         .whereNot('id', id)
+        .andWhere((qb) => {
+          if (part_name_uz) {
+            void qb.orWhereRaw('LOWER(part_name_uz) = ?', [part_name_uz.toLowerCase()]);
+          }
+          if (part_name_ru) {
+            void qb.orWhereRaw('LOWER(part_name_ru) = ?', [part_name_ru.toLowerCase()]);
+          }
+          if (part_name_en) {
+            void qb.orWhereRaw('LOWER(part_name_en) = ?', [part_name_en.toLowerCase()]);
+          }
+        })
         .first();
+
       if (existingPart) {
         throw new BadRequestException({
-          message: 'Part name must be unique for this problem category',
-          location: 'part_name_uz',
+          message: 'Part name (UZ/RU/EN) must be unique',
+          location: 'part_name_uz / part_name_ru / part_name_en',
         });
       }
     }

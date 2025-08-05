@@ -9,7 +9,6 @@ exports.up = async function (knex) {
     table.text('description_uz').nullable();
     table.text('description_ru').nullable();
     table.text('description_en').nullable();
-    table.boolean('is_required').defaultTo(true);
     table.enum('status', ['Open', 'Deleted']).defaultTo('Available');
     table.uuid('created_by').nullable().references('id').inTable('admins').onDelete('SET NULL');
     table.timestamp('created_at').defaultTo(knex.fn.now());
@@ -17,6 +16,31 @@ exports.up = async function (knex) {
 
     table.index(['problem_category_id']);
     table.unique(['problem_category_id', 'part_name_uz']);
+  });
+
+  await knex.schema.createTable('repair_part_assignments', (table) => {
+    table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+
+    table
+      .uuid('repair_part_id')
+      .notNullable()
+      .references('id')
+      .inTable('repair_parts')
+      .onDelete('CASCADE');
+
+    table
+      .uuid('problem_category_id')
+      .notNullable()
+      .references('id')
+      .inTable('problem_categories')
+      .onDelete('CASCADE');
+
+    table.boolean('is_required').notNullable().defaultTo(false);
+
+    table.timestamp('created_at').defaultTo(knex.fn.now());
+    table.timestamp('updated_at').defaultTo(knex.fn.now());
+
+    table.unique(['repair_part_id', 'problem_category_id']);
   });
 };
 

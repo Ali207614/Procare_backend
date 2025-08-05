@@ -140,14 +140,14 @@ export class RepairOrderStatusesService {
   ): Promise<RepairOrderStatusWithPermissions[]> {
     const cacheKey = `${this.redisKeyView}${branchId}:${admin.id}`;
     const cached: RepairOrderStatusWithPermissions[] | null = await this.redisService.get(cacheKey);
-    if (cached) {
-      this.logger.debug(`Cache hit for viewable statuses: ${cacheKey}`);
+    if (cached !== null) {
       return cached;
     }
-
     const permissions: RepairOrderStatusPermission[] =
       await this.repairOrderStatusPermissions.findByRolesAndBranch(admin.roles, branchId);
-    const viewableIds = permissions.filter((p) => p.can_view).map((p) => p.status_id);
+
+    console.log(permissions, ' bu permssions');
+    const viewableIds = permissions.filter((p) => p.can_view).map((p) => p?.status_id);
     if (!viewableIds.length) {
       await this.redisService.set(cacheKey, [], 300);
       return [];
@@ -181,7 +181,6 @@ export class RepairOrderStatusesService {
 
       await trx.commit();
       await this.redisService.set(cacheKey, merged, 3600);
-      this.logger.log(`Fetched ${merged.length} viewable statuses for admin ${admin.id}`);
       return merged;
     } catch (err) {
       await trx.rollback();
@@ -295,7 +294,6 @@ export class RepairOrderStatusesService {
         this.redisService.flushByPrefix(`${this.redisKeyView}${status.branch_id}:`),
         this.redisService.flushByPrefix(`${this.redisKeyAll}${status.branch_id}`),
       ]);
-      this.logger.log(`Updated status ${status.id}`);
       return { message: 'Status updated successfully' };
     } catch (err) {
       await trx.rollback();
@@ -362,7 +360,6 @@ export class RepairOrderStatusesService {
     }
 
     await this.redisService.set(redisKey, status, 3600);
-    this.logger.log(`Fetched status ${statusId}`);
     return status;
   }
 }

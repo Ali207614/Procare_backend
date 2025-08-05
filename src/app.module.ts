@@ -58,6 +58,7 @@ import { LoggerModule } from 'src/common/logger/logger.module';
 import { RepairPartsController } from './repair-parts/repair-parts.controller';
 import { RepairPartsModule } from './repair-parts/repair-parts.module';
 import { RepairPartsService } from 'src/repair-parts/repair-parts.service';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
@@ -84,9 +85,9 @@ import { RepairPartsService } from 'src/repair-parts/repair-parts.service';
     AuthModule,
     AdminsModule,
     RepairPartsModule,
+    ConfigModule,
   ],
   controllers: [
-
     RepairOrderStatusesController,
     RentalPhoneDevicesController,
     UsersController,

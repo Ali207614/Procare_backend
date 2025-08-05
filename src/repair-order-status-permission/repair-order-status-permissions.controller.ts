@@ -58,6 +58,6 @@ export class RepairOrderStatusPermissionsController {
     @Param('role_id', ParseUUIDPipe) roleId: string,
     @Param('branch_id', ParseUUIDPipe) branchId: string,
   ): Promise<RepairOrderStatusPermission[]> {
-    return this.service.findByRolesAndBranch([roleId], branchId);
+    return this.service.findByRolesAndBranch([{ name: '', id: roleId }], branchId);
   }
 }

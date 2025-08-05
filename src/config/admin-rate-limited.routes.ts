@@ -25,6 +25,7 @@ export const RateLimitedAdminRoutes = [
   { path: 'branches/viewable', method: RequestMethod.GET },
 
   { path: 'admins/me', method: RequestMethod.GET },
+  { path: 'admins', method: RequestMethod.GET },
   { path: 'admins', method: RequestMethod.POST },
   { path: 'admins/:id', method: RequestMethod.PATCH },
   { path: 'admins/:id', method: RequestMethod.DELETE },

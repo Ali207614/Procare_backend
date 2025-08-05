@@ -37,7 +37,7 @@ export class AssignAdminUpdaterService {
       admin.roles,
       order.branch_id,
       order.status_id,
-      ['can_update'],
+      ['can_assign_admin'],
       'repair_order_update',
       allPermissions,
     );
@@ -110,7 +110,7 @@ export class AssignAdminUpdaterService {
       admin.roles,
       order.branch_id,
       order.status_id,
-      ['can_update'],
+      ['can_assign_admin'],
       'repair_order_update',
       allPermissions,
     );

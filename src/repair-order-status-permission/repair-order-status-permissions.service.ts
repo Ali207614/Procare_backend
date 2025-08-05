@@ -121,44 +121,58 @@ export class RepairOrderStatusPermissionsService {
   }
 
   async findByRolesAndBranch(
-    roles: string[],
+    roles: { name: string; id: string }[],
     branchId: string,
   ): Promise<RepairOrderStatusPermission[]> {
-    const keys = roles.map((roleId) => `${this.redisKeyByRoleBranch}:${roleId}:${branchId}`);
+    try {
+      console.log(roles, ' bu roles');
+      const roleIds = roles.map((role) => role.id);
+      if (!roleIds.length) {
+        return [];
+      }
 
-    const cachedResults = await Promise.all(
-      keys.map((key) => this.redisService.get<RepairOrderStatusPermission[]>(key)),
-    );
+      const keys: string[] = roleIds.map(
+        (roleId: string): string => `${this.redisKeyByRoleBranch}:${roleId}:${branchId}`,
+      );
+      const cachedResults = await Promise.all(
+        keys.map((key) => this.redisService.get<RepairOrderStatusPermission[]>(key)),
+      );
 
-    const found: RepairOrderStatusPermission[] = cachedResults
-      .flat()
-      .filter(Boolean) as RepairOrderStatusPermission[];
+      const found: RepairOrderStatusPermission[] = cachedResults
+        .flat()
+        .filter(Boolean) as RepairOrderStatusPermission[];
 
-    const missingRoles = roles.filter((_, idx) => cachedResults[idx] === null);
-    if (missingRoles.length === 0) return found;
+      const missingRoleIds: string[] = roleIds.filter(
+        (_, idx: number): boolean => cachedResults[idx] === null,
+      );
+      if (missingRoleIds.length === 0) return found;
 
-    const missingPermissions: RepairOrderStatusPermission[] =
-      await this.knex<RepairOrderStatusPermission>(this.table)
-        .join('branches', `${this.table}.branch_id`, 'branches.id')
-        .join('roles', `${this.table}.role_id`, 'roles.id')
-        .join('repair_order_statuses', `${this.table}.status_id`, 'repair_order_statuses.id')
-        .whereIn(`${this.table}.role_id`, missingRoles)
-        .andWhere(`${this.table}.branch_id`, branchId)
-        .andWhere(`${this.table}.status`, 'Open')
-        .andWhere('branches.status', 'Open')
-        .andWhere('roles.status', 'Open')
-        .andWhere('repair_order_statuses.status', 'Open')
-        .select(`${this.table}.*`);
+      const missingPermissions: RepairOrderStatusPermission[] =
+        await this.knex<RepairOrderStatusPermission>(this.table)
+          .join('branches', `${this.table}.branch_id`, 'branches.id')
+          .join('roles', `${this.table}.role_id`, 'roles.id')
+          .join('repair_order_statuses', `${this.table}.status_id`, 'repair_order_statuses.id')
+          .whereIn(`${this.table}.role_id`, missingRoleIds)
+          .andWhere(`${this.table}.branch_id`, branchId)
+          .andWhere('branches.status', 'Open')
+          .andWhere('roles.status', 'Open')
+          .andWhere('repair_order_statuses.status', 'Open')
+          .select(`${this.table}.*`);
 
-    await Promise.all(
-      missingRoles.map((roleId) => {
-        const perRole = missingPermissions.filter((p) => p.role_id === roleId);
-        const key = `${this.redisKeyByRoleBranch}:${roleId}:${branchId}`;
-        return this.redisService.set(key, perRole, 3600);
-      }),
-    );
 
-    return [...found, ...missingPermissions];
+      await Promise.all(
+        missingRoleIds.map((roleId) => {
+          const perRole = missingPermissions.filter((p) => p.role_id === roleId);
+          const key = `${this.redisKeyByRoleBranch}:${roleId}:${branchId}`;
+          return this.redisService.set(key, perRole, 3600);
+        }),
+      );
+
+      return [...found, ...missingPermissions];
+    } catch (error) {
+      console.log(error, ' bu err');
+      return [];
+    }
   }
 
   async flushAndReloadCacheByRole(permission: RepairOrderStatusPermission): Promise<void> {
@@ -184,7 +198,7 @@ export class RepairOrderStatusPermissionsService {
   }
 
   async checkPermissionsOrThrow(
-    roleIds: string[],
+    roleIds: { name: string; id: string }[],
     branchId: string,
     statusId: string,
     requiredFields: (keyof RepairOrderStatusPermission)[],

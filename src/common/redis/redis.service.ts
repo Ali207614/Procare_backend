@@ -1,12 +1,15 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import Redis from 'ioredis';
+import { LoggerService } from 'src/common/logger/logger.service';
 
 @Injectable()
 export class RedisService {
   private readonly prefix = process.env.REDIS_PREFIX || 'procare';
-  private readonly logger = new Logger(RedisService.name);
 
-  constructor(@Inject('REDIS_CLIENT') private readonly client: Redis | null) {}
+  constructor(
+    @Inject('REDIS_CLIENT') private readonly client: Redis | null,
+    private readonly logger: LoggerService,
+  ) {}
 
   private buildKey(key: string): string {
     return `${this.prefix}:${key}`;

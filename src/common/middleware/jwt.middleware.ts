@@ -1,35 +1,40 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
-import { decode } from 'jsonwebtoken';
+import { verify } from 'jsonwebtoken';
 import { UserPayload } from '../types/user-payload.interface';
-import { AdminsService } from 'src/admins/admins.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class JwtMiddleware implements NestMiddleware {
-  constructor(private readonly adminsService: AdminsService) {}
+  constructor(private readonly configService: ConfigService) {}
 
   async use(req: Request, res: Response, next: NextFunction) {
     const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      try {
-        const decoded = decode(token) as UserPayload;
+    if (!authHeader?.startsWith('Bearer ')) {
+      req.user = undefined;
+      return next();
+    }
 
-        const roles: string[] = await this.adminsService.findRolesByAdminId(decoded.id);
-        if (decoded?.id) {
-          req.user = {
-            id: decoded.id,
-            phone_number: decoded.phone_number,
-            roles: roles,
-            iat: decoded.iat,
-            exp: decoded.exp,
-          };
-        } else {
-          req.user = undefined;
-        }
-      } catch {
-        req.user = undefined;
+    const token = authHeader.split(' ')[1];
+    try {
+      const secret = this.configService.get<string>('JWT_SECRET');
+      if (!secret) {
+        throw new Error('JWT_SECRET is not defined');
       }
+
+      const decoded = verify(token, secret) as UserPayload;
+      if (!decoded?.id) {
+        req.user = undefined;
+        return next();
+      }
+
+      req.user = {
+        id: decoded.id,
+        phone_number: decoded.phone_number,
+        roles: [],
+      };
+    } catch (error) {
+      req.user = undefined;
     }
     next();
   }

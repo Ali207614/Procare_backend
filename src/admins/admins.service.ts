@@ -472,19 +472,21 @@ export class AdminsService {
     };
   }
 
-  async findRolesByAdminId(adminId: string): Promise<string[]> {
+  async findRolesByAdminId(adminId: string): Promise<{ name: string; id: string }[]> {
     const key = `${this.redisKeyByAdminRoles}:${adminId}`;
 
-    const cached: string[] | null = await this.redisService.get(key);
+    const cached: { name: string; id: string }[] | null = await this.redisService.get(key);
     if (cached !== null) return cached;
 
-    const roles: { name: string }[] = await this.knex('admin_roles')
+    const roles: { name: string; id: string }[] = await this.knex('admin_roles')
       .join('roles', 'admin_roles.role_id', 'roles.id')
-      .where({ user_id: adminId })
+      .where({ admin_id: adminId })
       .andWhere('roles.status', 'Open')
-      .select('roles.name');
+      .select('roles.name', 'roles.id');
 
-    const result = roles.map((r) => r.name);
+    const result = roles.map((r) => {
+      return { id: r.id, name: r.name };
+    });
 
     await this.redisService.set(key, result, 3600);
 

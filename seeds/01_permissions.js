@@ -275,6 +275,11 @@ exports.seed = async function (knex) {
       name: 'repair_part.delete',
       description: 'Repair part manage',
     },
+    {
+      id: '00000000-0000-0000-0000-000000000058',
+      name: 'repair_part.assign_problem',
+      description: 'Repair part manage',
+    },
   ];
 
   for (const perm of permissions) {

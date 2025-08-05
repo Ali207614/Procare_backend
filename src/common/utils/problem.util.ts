@@ -4,8 +4,6 @@ import { RepairOrderStatusPermission } from 'src/common/types/repair-order-statu
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { ProblemWithParts } from 'src/common/types/problem-with-parts';
 
-
-
 export async function validateAndInsertProblems(
   trx: Knex.Transaction,
   problems: ProblemWithParts[],
@@ -19,7 +17,7 @@ export async function validateAndInsertProblems(
   locationKey: string,
   tableName: string,
   checkPermissionsOrThrow: (
-    roleIds: string[],
+    roleIds: { name: string; id: string }[],
     branchId: string,
     statusId: string,
     requiredFields: (keyof RepairOrderStatusPermission)[],

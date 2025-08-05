@@ -117,6 +117,7 @@ async function bootstrap(): Promise<void> {
     logger.log(`Swagger: http://localhost:${process.env.PORT}/${globalPrefix}/docs`);
     logger.log(`Queues: http://localhost:${process.env.PORT}/admin/queues`);
   } catch (error) {
+    console.error(error);
     process.exit(1);
   }
 }

@@ -2,10 +2,11 @@ import { Module, Global } from '@nestjs/common';
 import Redis from 'ioredis';
 import { RedisService } from './redis.service';
 import { ConfigModule } from '@nestjs/config';
+import { LoggerModule } from 'src/common/logger/logger.module';
 
 @Global()
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, LoggerModule],
   providers: [
     {
       provide: 'REDIS_CLIENT',
