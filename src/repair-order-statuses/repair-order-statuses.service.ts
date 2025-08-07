@@ -5,7 +5,7 @@ import { CreateRepairOrderStatusDto } from './dto/create-repair-order-status.dto
 import { UpdateRepairOrderStatusDto } from './dto/update-repair-order-status.dto';
 import { RedisService } from 'src/common/redis/redis.service';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException, Injectable } from '@nestjs/common';
 import { LoggerService } from 'src/common/logger/logger.service';
 import {
   RepairOrderStatus,
@@ -32,7 +32,6 @@ export class RepairOrderStatusesService {
   async create(dto: CreateRepairOrderStatusDto, adminId: string): Promise<RepairOrderStatus> {
     const trx = await this.knex.transaction();
     try {
-      this.logger.log(`Creating repair order status by admin ${adminId}`);
       let branchId = dto.branch_id;
       let branch: Branch | undefined;
 
@@ -108,7 +107,14 @@ export class RepairOrderStatusesService {
       return created;
     } catch (err) {
       await trx.rollback();
-      this.logger.error(`Failed to create status:`);
+      if (err instanceof HttpException) {
+        throw err;
+      }
+
+      this.logger.error(
+        `Failed to create status: ${err instanceof Error ? err.message : String(err)}`,
+      );
+
       throw new BadRequestException({
         message: 'Failed to create status',
         location: 'create_status',
@@ -146,7 +152,6 @@ export class RepairOrderStatusesService {
     const permissions: RepairOrderStatusPermission[] =
       await this.repairOrderStatusPermissions.findByRolesAndBranch(admin.roles, branchId);
 
-    console.log(permissions, ' bu permssions');
     const viewableIds = permissions.filter((p) => p.can_view).map((p) => p?.status_id);
     if (!viewableIds.length) {
       await this.redisService.set(cacheKey, [], 300);
@@ -184,6 +189,9 @@ export class RepairOrderStatusesService {
       return merged;
     } catch (err) {
       await trx.rollback();
+      if (err instanceof HttpException) {
+        throw err;
+      }
       this.logger.error(`Failed to fetch viewable statuses:`);
       throw new BadRequestException({
         message: 'Failed to fetch viewable statuses',
@@ -225,6 +233,10 @@ export class RepairOrderStatusesService {
       return { message: 'Sort updated successfully' };
     } catch (err) {
       await trx.rollback();
+
+      if (err instanceof HttpException) {
+        throw err;
+      }
       this.logger.error(`Failed to update sort for status ${status.id}`);
       throw new BadRequestException({ message: 'Failed to update sort', location: 'update_sort' });
     }
@@ -297,6 +309,9 @@ export class RepairOrderStatusesService {
       return { message: 'Status updated successfully' };
     } catch (err) {
       await trx.rollback();
+      if (err instanceof HttpException) {
+        throw err;
+      }
       this.logger.error(`Failed to update status ${status.id}`);
       throw new BadRequestException({
         message: 'Failed to update status',
@@ -331,6 +346,11 @@ export class RepairOrderStatusesService {
       return { message: 'Status deleted successfully' };
     } catch (err) {
       await trx.rollback();
+
+      if (err instanceof HttpException) {
+        throw err;
+      }
+
       this.logger.error(`Failed to delete status ${status.id}`);
       throw new BadRequestException({
         message: 'Failed to delete status',

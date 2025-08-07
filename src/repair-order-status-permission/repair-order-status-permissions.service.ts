@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException, Injectable } from '@nestjs/common';
 import { InjectKnex } from 'nestjs-knex';
 import { Knex } from 'knex';
 import { RedisService } from 'src/common/redis/redis.service';
@@ -159,7 +159,6 @@ export class RepairOrderStatusPermissionsService {
           .andWhere('repair_order_statuses.status', 'Open')
           .select(`${this.table}.*`);
 
-
       await Promise.all(
         missingRoleIds.map((roleId) => {
           const perRole = missingPermissions.filter((p) => p.role_id === roleId);
@@ -170,7 +169,10 @@ export class RepairOrderStatusPermissionsService {
 
       return [...found, ...missingPermissions];
     } catch (error) {
-      console.log(error, ' bu err');
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
       return [];
     }
   }

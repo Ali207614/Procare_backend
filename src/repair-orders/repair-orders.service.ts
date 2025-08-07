@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectKnex } from 'nestjs-knex';
 import { Knex } from 'knex';
 import { getNextSortValue } from 'src/common/utils/sort.util';
@@ -117,6 +117,10 @@ export class RepairOrdersService {
       return order;
     } catch (err) {
       await trx.rollback();
+
+      if (err instanceof HttpException) {
+        throw err;
+      }
       this.logger.error(`Failed to create repair order:`);
       throw err;
     }

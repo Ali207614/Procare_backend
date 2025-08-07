@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  HttpException,
 } from '@nestjs/common';
 import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
@@ -217,6 +218,9 @@ export class BranchesService {
       return { message: 'Sort updated successfully' };
     } catch (error) {
       await trx.rollback();
+      if (error instanceof HttpException) {
+        throw error;
+      }
       this.logger.error(`Failed to update sort for branch ${branch.id}`);
       throw new BadRequestException({
         message: 'Failed to update branch sort',

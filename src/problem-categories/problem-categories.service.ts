@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, HttpException } from '@nestjs/common';
 import { InjectKnex } from 'nestjs-knex';
 import { Knex } from 'knex';
 import { CreateProblemCategoryDto } from './dto/create-problem-category.dto';
@@ -148,6 +148,9 @@ export class ProblemCategoriesService {
       return problem;
     } catch (err) {
       await trx.rollback();
+      if (err instanceof HttpException) {
+        throw err;
+      }
       this.logger.error(`Failed to create problem category`);
       throw new BadRequestException({
         message: 'Failed to create problem category',
@@ -418,6 +421,9 @@ export class ProblemCategoriesService {
       return { message: 'Problem category updated successfully' };
     } catch (err) {
       await trx.rollback();
+      if (err instanceof HttpException) {
+        throw err;
+      }
       this.logger.error(`Failed to update problem category ${id}`);
       throw new BadRequestException({
         message: 'Failed to update problem category',
@@ -485,6 +491,9 @@ export class ProblemCategoriesService {
       return { message: 'Sort updated successfully' };
     } catch (err) {
       await trx.rollback();
+      if (err instanceof HttpException) {
+        throw err;
+      }
       this.logger.error(`Failed to update sort for problem category ${id}`);
       throw new BadRequestException({
         message: 'Failed to update sort',
@@ -542,6 +551,9 @@ export class ProblemCategoriesService {
       return { message: 'Problem category deleted successfully' };
     } catch (err) {
       await trx.rollback();
+      if (err instanceof HttpException) {
+        throw err;
+      }
       this.logger.error(`Failed to delete problem category ${id}`);
       throw new BadRequestException({
         message: 'Failed to delete problem category',

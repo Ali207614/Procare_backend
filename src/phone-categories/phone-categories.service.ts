@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, HttpException } from '@nestjs/common';
 import { InjectKnex } from 'nestjs-knex';
 import { Knex } from 'knex';
 import { CreatePhoneCategoryDto } from './dto/create-phone-category.dto';
@@ -105,6 +105,9 @@ export class PhoneCategoriesService {
       return inserted;
     } catch (err) {
       await trx.rollback();
+      if (err instanceof HttpException) {
+        throw err;
+      }
       this.logger.error(`Failed to create phone category`);
       throw new BadRequestException({
         message: 'Failed to create phone category',
@@ -186,6 +189,9 @@ export class PhoneCategoriesService {
       return result;
     } catch (err) {
       await trx.rollback();
+      if (err instanceof HttpException) {
+        throw err;
+      }
       this.logger.error(`Failed to fetch phone categories`);
       throw new BadRequestException({
         message: 'Failed to fetch phone categories',
@@ -292,6 +298,9 @@ export class PhoneCategoriesService {
       return { message: 'Phone category updated successfully' };
     } catch (err) {
       await trx.rollback();
+      if (err instanceof HttpException) {
+        throw err;
+      }
       this.logger.error(`Failed to update phone category ${id}`);
       throw new BadRequestException({
         message: 'Failed to update phone category',
@@ -342,6 +351,9 @@ export class PhoneCategoriesService {
       return { message: 'Sort updated successfully' };
     } catch (err) {
       await trx.rollback();
+      if (err instanceof HttpException) {
+        throw err;
+      }
       this.logger.error(`Failed to update sort for phone category ${id}`);
       throw new BadRequestException({ message: 'Failed to update sort', location: 'update_sort' });
     }
@@ -394,6 +406,9 @@ export class PhoneCategoriesService {
       return { message: 'Phone category deleted successfully' };
     } catch (err) {
       await trx.rollback();
+      if (err instanceof HttpException) {
+        throw err;
+      }
       this.logger.error(`Failed to delete phone category ${id}`);
       throw new BadRequestException({
         message: 'Failed to delete phone category',
