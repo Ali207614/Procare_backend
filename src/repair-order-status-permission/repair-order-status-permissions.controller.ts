@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Put, Body, Get, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
 import { RepairOrderStatusPermissionsService } from './repair-order-status-permissions.service';
 import { AssignRepairOrderStatusPermissionsDto } from './dto/create-repair-order-status-permission.dto';
@@ -17,7 +17,7 @@ import { RepairOrderStatusPermission } from 'src/common/types/repair-order-statu
 export class RepairOrderStatusPermissionsController {
   constructor(private readonly service: RepairOrderStatusPermissionsService) {}
 
-  @Post('bulk-assign')
+  @Put('bulk-assign')
   @UseGuards(PermissionsGuard, BranchExistGuard)
   @SetPermissions('repair_order_status_permissions.manage')
   @ApiOperation({ summary: 'Bulk assign or update permissions to multiple admins' })

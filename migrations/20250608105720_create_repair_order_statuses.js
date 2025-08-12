@@ -6,8 +6,8 @@ exports.up = async function (knex) {
     table.string('name_ru').notNullable();
     table.string('name_en').notNullable();
 
-    table.string('bg_color').notNullable();
-    table.string('color').notNullable();
+    table.string('bg_color').nullable();
+    table.string('color').nullable();
 
     table.integer('sort').defaultTo(1).notNullable();
 

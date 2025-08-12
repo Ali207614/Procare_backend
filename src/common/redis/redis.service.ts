@@ -1,5 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import Redis from 'ioredis';
+import * as lz4 from 'lz4';
 import { LoggerService } from 'src/common/logger/logger.service';
 
 @Injectable()
@@ -36,7 +37,10 @@ export class RedisService {
     if (!(await this.ensureConnected())) return;
 
     try {
-      await this.client!.set(this.buildKey(key), JSON.stringify(value), 'EX', ttlSeconds);
+      const json = JSON.stringify(value);
+      const dataToStore = json.length < 100 ? json : lz4.encode(json); // 100 baytdan kichik bo‘lsa siqmaslik
+      console.log(`Original size=${json.length}, Stored size=${dataToStore.length}`);
+      await this.client!.set(this.buildKey(key), dataToStore, 'EX', ttlSeconds);
     } catch (err) {
       this.handleError(err, `Redis SET error for key=${key}`);
     }
@@ -46,8 +50,15 @@ export class RedisService {
     if (!(await this.ensureConnected())) return null;
 
     try {
-      const data = await this.client!.get(this.buildKey(key));
-      return data ? (JSON.parse(data) as T) : null;
+      const data = await this.client!.getBuffer(this.buildKey(key));
+      if (!data) return null;
+      let decompressed: string;
+      try {
+        decompressed = lz4.decode(data).toString('utf8');
+      } catch (e) {
+        decompressed = data.toString('utf8');
+      }
+      return JSON.parse(decompressed) as T;
     } catch (err) {
       this.handleError(err, `Redis GET error for key=${key}`);
       return null;
@@ -69,25 +80,16 @@ export class RedisService {
 
     try {
       const fullPattern = this.buildKey(`${pattern}*`);
-      const keys = await this.client!.keys(fullPattern);
-      if (keys.length > 0) {
-        await this.client!.del(...keys);
-      }
+      let cursor = '0';
+      do {
+        const [nextCursor, keys] = await this.client!.scan(cursor, 'MATCH', fullPattern);
+        if (keys.length > 0) {
+          await this.client!.del(...keys);
+        }
+        cursor = nextCursor;
+      } while (cursor !== '0');
     } catch (err) {
       this.handleError(err, `Redis FLUSH error for pattern=${pattern}`);
-    }
-  }
-
-  async mget<T = unknown>(...keys: string[]): Promise<(T | null)[]> {
-    if (!(await this.ensureConnected())) return keys.map(() => null);
-
-    try {
-      const redisKeys = keys.map((k) => this.buildKey(k));
-      const results = await this.client!.mget(...redisKeys);
-      return results.map((item) => (item ? (JSON.parse(item) as T) : null));
-    } catch (err) {
-      this.handleError(err, 'Redis MGET error');
-      return keys.map(() => null);
     }
   }
 

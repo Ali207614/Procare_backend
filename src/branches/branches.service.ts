@@ -45,7 +45,6 @@ export class BranchesService {
           [dto.name_uz, dto.name_ru, dto.name_en, 'Deleted'],
         )
         .first();
-      console.log(existing);
       if (existing) {
         throw new BadRequestException({
           message: 'Branch name already exists',

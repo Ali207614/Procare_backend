@@ -125,7 +125,6 @@ export class RepairOrderStatusPermissionsService {
     branchId: string,
   ): Promise<RepairOrderStatusPermission[]> {
     try {
-      console.log(roles, ' bu roles');
       const roleIds = roles.map((role) => role.id);
       if (!roleIds.length) {
         return [];

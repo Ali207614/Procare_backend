@@ -87,6 +87,10 @@ export class RepairOrderStatusesService {
         branch_id: branchId,
         is_active: dto.is_active ?? true,
         can_user_view: dto.can_user_view ?? true,
+        can_add_payment: dto.can_add_payment ?? false,
+        bg_color: dto.bg_color,
+        color: dto.color,
+        status: 'Open',
         sort: nextSort,
         created_by: adminId,
         created_at: new Date().toISOString(),
@@ -126,7 +130,6 @@ export class RepairOrderStatusesService {
     const cacheKey = `${this.redisKeyAll}${branchId}`;
     const cached: RepairOrderStatus[] | null = await this.redisService.get(cacheKey);
     if (cached) {
-      this.logger.debug(`Cache hit for statuses: ${cacheKey}`);
       return cached;
     }
 
@@ -136,7 +139,6 @@ export class RepairOrderStatusesService {
       .where({ branch_id: branchId, status: 'Open' })
       .orderBy('sort', 'asc');
     await this.redisService.set(cacheKey, statuses, 3600);
-    this.logger.log(`Fetched ${statuses.length} statuses for branch ${branchId}`);
     return statuses;
   }
 
