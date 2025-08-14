@@ -5,7 +5,8 @@ import {
   IsOptional,
   IsDateString,
   MinLength,
-  MaxLength, Matches,
+  MaxLength,
+  Matches,
 } from 'class-validator';
 
 export class CreateUserDto {

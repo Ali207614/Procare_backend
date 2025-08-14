@@ -5,7 +5,8 @@ import { FindNotificationsDto } from './dto/find-notification.dto';
 import { NotificationGateway } from './notification.gateway';
 import {
   BroadcastMessage,
-  Notification, NotificationPayload,
+  Notification,
+  NotificationPayload,
   RepairNotificationMeta,
 } from '../common/types/notification.interface';
 

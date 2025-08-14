@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Req, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -10,6 +10,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
+import { AuthenticatedRequest } from 'src/common/types/authenticated-request.type';
 
 @ApiTags('Auth-admin')
 @Controller('auth/admin')
@@ -20,7 +21,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Send verification code to phone number' })
   @ApiResponse({ status: 201, description: 'Verification code sent successfully' })
   @ApiResponse({ status: 400, description: 'Bad Request' })
-  sendCode(@Body() dto: SmsDto): Promise<{ message: string }> {
+  sendCode(@Body() dto: SmsDto): Promise<{ message: string; code: string }> {
     return this.authService.sendVerificationCode(dto);
   }
 
@@ -50,7 +51,7 @@ export class AuthController {
   @Post('forgot-password')
   @ApiOperation({ summary: 'Request password reset code' })
   @ApiResponse({ status: 200, description: 'Reset code sent' })
-  forgotPassword(@Body() dto: ForgotPasswordDto): Promise<{ message: string }> {
+  forgotPassword(@Body() dto: ForgotPasswordDto): Promise<{ message: string; code: string }> {
     return this.authService.forgotPassword(dto);
   }
 
@@ -66,7 +67,19 @@ export class AuthController {
   @UseGuards(JwtAdminAuthGuard)
   @ApiOperation({ summary: 'Logout current admin' })
   @ApiResponse({ status: 200, description: 'Logged out successfully' })
-  logout(@CurrentAdmin() admin: AdminPayload): Promise<{ message: string }> {
-    return this.authService.logout(admin.id);
+  logout(
+    @CurrentAdmin() admin: AdminPayload,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ message: string }> {
+    const authHeader = req.headers['authorization'];
+    const token: string | undefined = authHeader?.startsWith('Bearer ')
+      ? authHeader.split(' ')[1]
+      : undefined;
+
+    if (!token) {
+      throw new UnauthorizedException('Token not found');
+    }
+
+    return this.authService.logout(admin.id, token);
   }
 }

@@ -17,7 +17,7 @@ export interface Branch {
 
   support_phone?: string | null;
   work_start_time?: string | null; // Format: HH:mm:ss
-  work_end_time?: string | null;   // Format: HH:mm:ss
+  work_end_time?: string | null; // Format: HH:mm:ss
 
   bg_color?: string | null;
   color?: string | null;

@@ -51,7 +51,6 @@ export class RepairOrderStatusesController {
     @Req() req: AuthenticatedRequest,
     @Query('branch_id', ParseUUIDPipe) branchId: string,
   ): Promise<RepairOrderStatusWithPermissions[]> {
-    console.log('Fetching viewable statuses for branch:', branchId);
     return this.service.findViewable(req.admin, branchId);
   }
 

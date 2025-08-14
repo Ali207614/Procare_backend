@@ -4,7 +4,7 @@ import { Reflector } from '@nestjs/core';
 
 @Injectable()
 export class ClassSerializerInterceptor extends BaseInterceptor {
-    constructor(reflector: Reflector) {
-        super(reflector);
-    }
+  constructor(reflector: Reflector) {
+    super(reflector);
+  }
 }

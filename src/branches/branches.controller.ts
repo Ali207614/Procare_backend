@@ -47,7 +47,7 @@ export class BranchesController {
   @ApiResponse({ status: 201, description: 'Branch created successfully' })
   @ApiResponse({ status: 400, description: 'Validation failed' })
   async create(@CurrentAdmin() admin: AdminPayload, @Body() dto: CreateBranchDto): Promise<Branch> {
-    const adminId = admin.id;
+    const adminId: string = admin.id;
     return this.service.create(dto, adminId);
   }
 

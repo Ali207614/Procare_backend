@@ -6,7 +6,7 @@ import { RedisModule } from 'src/common/redis/redis.module';
 import { LoggerModule } from 'src/common/logger/logger.module';
 
 @Module({
-  imports: [PermissionsModule , RedisModule , LoggerModule],
+  imports: [PermissionsModule, RedisModule, LoggerModule],
   controllers: [ProblemCategoriesController],
   providers: [ProblemCategoriesService],
 })

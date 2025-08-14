@@ -34,7 +34,7 @@ export class AuthService {
 
   private readonly RESET_PREFIX = 'reset-code:';
 
-  async sendVerificationCode(dto: SmsDto): Promise<{ message: string }> {
+  async sendVerificationCode(dto: SmsDto): Promise<{ message: string; code: string }> {
     const existingAdmin: Admin | undefined = await this.adminsService.findByPhoneNumber(
       dto.phone_number,
     );
@@ -60,7 +60,7 @@ export class AuthService {
 
     // TODO: await this.smsService.send(dto.phone_number, code);
 
-    return { message: 'Verification code sent successfully' };
+    return { message: 'Verification code sent successfully', code };
   }
 
   async verifyCode(dto: VerifyDto): Promise<{ message: string }> {
@@ -160,7 +160,7 @@ export class AuthService {
     };
   }
 
-  async logout(adminId: string): Promise<{ message: string }> {
+  async logout(adminId: string, token: string): Promise<{ message: string }> {
     const sessionKey = `session:admin:${adminId}`;
 
     const exists: string | null = await this.redisService.get(sessionKey);
@@ -174,10 +174,13 @@ export class AuthService {
 
     await this.redisService.del(sessionKey);
 
+    const blacklistKey = `blacklist:token:${token}`;
+    await this.redisService.set(blacklistKey, 'blacklisted', 60 * 60 * 24 * 7);
+
     return { message: 'Logged out successfully' };
   }
 
-  async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string }> {
+  async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string; code: string }> {
     const admin: Admin | undefined = await this.adminsService.findByPhoneNumber(dto.phone_number);
 
     this.adminsService.checkAdminAccessControl(admin, { requireVerified: true });
@@ -188,7 +191,7 @@ export class AuthService {
     // TODO: await this.smsService.send(dto.phone_number, `🔐 Reset code: ${code}`);
     console.log(`Reset code: ${code}`);
 
-    return { message: 'Reset code sent successfully' };
+    return { message: 'Reset code sent successfully', code: code };
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {

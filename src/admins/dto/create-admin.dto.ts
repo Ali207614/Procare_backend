@@ -10,7 +10,8 @@ import {
   MinLength,
   MaxLength,
   ArrayMaxSize,
-  IsBoolean, Matches,
+  IsBoolean,
+  Matches,
 } from 'class-validator';
 
 export class CreateAdminDto {

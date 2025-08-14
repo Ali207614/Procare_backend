@@ -1,6 +1,6 @@
 export enum PaymentMethod {
-    MANUAL = 'manual',
-    PAYME = 'payme',
-    CLICK = 'click',
-    UZUM = 'uzum',
+  MANUAL = 'manual',
+  PAYME = 'payme',
+  CLICK = 'click',
+  UZUM = 'uzum',
 }

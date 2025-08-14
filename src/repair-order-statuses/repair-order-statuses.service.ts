@@ -205,7 +205,6 @@ export class RepairOrderStatusesService {
   async updateSort(status: RepairOrderStatus, newSort: number): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
-      this.logger.log(`Updating sort for status ${status.id} to ${newSort}`);
       if (newSort === status.sort) return { message: 'No change needed' };
 
       if (newSort < status.sort) {
@@ -231,7 +230,6 @@ export class RepairOrderStatusesService {
         this.redisService.flushByPrefix(`${this.redisKeyView}${status.branch_id}:`),
         this.redisService.flushByPrefix(`${this.redisKeyAll}${status.branch_id}`),
       ]);
-      this.logger.log(`Updated sort for status ${status.id}`);
       return { message: 'Sort updated successfully' };
     } catch (err) {
       await trx.rollback();
@@ -250,7 +248,6 @@ export class RepairOrderStatusesService {
   ): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
-      this.logger.log(`Updating status ${status.id}`);
       if (dto.is_active === false && status.is_protected) {
         throw new ForbiddenException({
           message: 'Cannot deactivate protected status',
@@ -325,7 +322,6 @@ export class RepairOrderStatusesService {
   async delete(status: RepairOrderStatus): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
-      this.logger.log(`Deleting status ${status.id}`);
       if (status.is_protected) {
         throw new ForbiddenException({
           message: 'Cannot delete protected status',
@@ -344,15 +340,12 @@ export class RepairOrderStatusesService {
         this.redisService.flushByPrefix(`${this.redisKeyView}${status.branch_id}:`),
         this.redisService.flushByPrefix(`${this.redisKeyAll}${status.branch_id}`),
       ]);
-      this.logger.log(`Deleted status ${status.id}`);
       return { message: 'Status deleted successfully' };
     } catch (err) {
       await trx.rollback();
-
       if (err instanceof HttpException) {
         throw err;
       }
-
       this.logger.error(`Failed to delete status ${status.id}`);
       throw new BadRequestException({
         message: 'Failed to delete status',

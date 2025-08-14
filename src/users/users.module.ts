@@ -6,7 +6,7 @@ import { SapModule } from 'src/sap/sap.module';
 import { RedisModule } from 'src/common/redis/redis.module';
 
 @Module({
-  imports: [SapModule, PermissionsModule,RedisModule],
+  imports: [SapModule, PermissionsModule, RedisModule],
   controllers: [UsersController],
   providers: [UsersService],
 })

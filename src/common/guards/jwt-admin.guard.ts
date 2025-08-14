@@ -43,6 +43,15 @@ export class JwtAdminAuthGuard extends AuthGuard('jwt-admin') {
       });
     }
 
+    const blacklistKey = `blacklist:token:${token}`;
+    const isBlacklisted = await this.redisService.get(blacklistKey);
+    if (isBlacklisted) {
+      throw new UnauthorizedException({
+        message: 'Token has been blacklisted',
+        location: 'blacklisted_token',
+      });
+    }
+
     request.admin = {
       id: admin.id,
       phone_number: admin.phone_number,
