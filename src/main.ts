@@ -1,4 +1,9 @@
 import './config/env-loader';
+import { webcrypto } from 'node:crypto';
+
+if (!(globalThis as any).crypto) {
+  (globalThis as any).crypto = webcrypto;
+}
 import { NestFactory, Reflector } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
