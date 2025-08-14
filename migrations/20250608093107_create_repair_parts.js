@@ -13,9 +13,6 @@ exports.up = async function (knex) {
     table.uuid('created_by').nullable().references('id').inTable('admins').onDelete('SET NULL');
     table.timestamp('created_at').defaultTo(knex.fn.now());
     table.timestamp('updated_at').defaultTo(knex.fn.now());
-
-    table.index(['problem_category_id']);
-    table.unique(['problem_category_id', 'part_name_uz']);
   });
 
   await knex.schema.createTable('repair_part_assignments', (table) => {
