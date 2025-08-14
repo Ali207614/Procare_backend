@@ -276,7 +276,7 @@ exports.seed = async function (knex) {
       description: 'Repair part manage',
     },
     {
-      id: '00000000-0000-0000-0000-000000000058',
+      id: '00000000-0000-0000-0000-000000000059',
       name: 'repair_part.assign_problem',
       description: 'Repair part manage',
     },
