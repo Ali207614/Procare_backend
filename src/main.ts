@@ -20,6 +20,7 @@ import { getQueueToken } from '@nestjs/bull';
 import { Queue } from 'bull';
 import basicAuth from 'express-basic-auth';
 import { LoggerService } from 'src/common/logger/logger.service';
+import type { Application as ExpressApp } from 'express';
 
 async function bootstrap(): Promise<void> {
   try {
@@ -117,7 +118,10 @@ async function bootstrap(): Promise<void> {
 
     app.use('/admin/queues', serverAdapter.getRouter());
 
-    await app.listen(process.env.PORT || 3000);
+    await app.listen(process.env.PORT ?? 5001, '127.0.0.1');
+    const expressApp = app.getHttpAdapter().getInstance() as ExpressApp;
+    expressApp.set('trust proxy', 1);
+
     logger.log(`http://localhost:${process.env.PORT}/${globalPrefix}`);
     logger.log(`Swagger: http://localhost:${process.env.PORT}/${globalPrefix}/docs`);
     logger.log(`Queues: http://localhost:${process.env.PORT}/admin/queues`);
