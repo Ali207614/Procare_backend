@@ -59,6 +59,10 @@ import { RepairPartsController } from './repair-parts/repair-parts.controller';
 import { RepairPartsModule } from './repair-parts/repair-parts.module';
 import { RepairPartsService } from 'src/repair-parts/repair-parts.service';
 import { ConfigModule } from '@nestjs/config';
+import { TemplatesController } from './templates/templates.controller';
+import { TemplatesModule } from './templates/templates.module';
+import { AuthController } from 'src/auth/auth.controller';
+import { BranchesController } from 'src/branches/branches.controller';
 
 @Module({
   imports: [
@@ -86,19 +90,23 @@ import { ConfigModule } from '@nestjs/config';
     AdminsModule,
     RepairPartsModule,
     ConfigModule,
+    TemplatesModule,
   ],
   controllers: [
+    AuthController,
+    AdminsController,
+    UsersController,
+    BranchesController,
+    RolesController,
     RepairOrderStatusesController,
     RentalPhoneDevicesController,
-    UsersController,
     RepairOrderStatusPermissionsController,
     ProblemCategoriesController,
-    RepairPartsController,
     PhoneCategoriesController,
-    RolesController,
-    AdminsController,
+    RepairPartsController,
     NotificationController,
     PermissionsController,
+    TemplatesController,
   ],
   providers: [
     RepairPartsService,

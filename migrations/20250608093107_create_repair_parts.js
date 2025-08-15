@@ -42,5 +42,6 @@ exports.up = async function (knex) {
 };
 
 exports.down = async function (knex) {
+  await knex.schema.dropTableIfExists('repair_part_assignments');
   await knex.schema.dropTableIfExists('repair_parts');
 };

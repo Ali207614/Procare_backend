@@ -10,5 +10,6 @@ import { LoggerModule } from 'src/common/logger/logger.module';
   imports: [RedisModule, PermissionsModule, RepairOrderStatusPermissionsModule, LoggerModule],
   controllers: [BranchesController],
   providers: [BranchesService],
+  exports: [BranchesService],
 })
 export class BranchesModule {}
