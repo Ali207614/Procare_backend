@@ -13,6 +13,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { JoinedRepairOrder, UserWithRepairOrders } from 'src/common/types/repair-order.interface';
 import { User } from 'src/common/types/user.interface';
 import { RedisService } from 'src/common/redis/redis.service';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
 
 @Injectable()
 export class UsersService {
@@ -65,7 +66,7 @@ export class UsersService {
     };
   }
 
-  async create(dto: CreateUserDto): Promise<User> {
+  async create(dto: CreateUserDto, admin: AdminPayload): Promise<User> {
     const exists: User | undefined = await this.knex('users')
       .whereRaw('LOWER(phone_number) = ?', dto.phone_number.toLowerCase())
       .andWhereNot({ status: 'Deleted' })
@@ -89,9 +90,11 @@ export class UsersService {
         id_card_number: dto.id_card_number ?? null,
         language: dto.language ?? 'uz',
         status: 'Pending',
+        source: 'Web',
         is_active: true,
         created_at: new Date(),
         updated_at: new Date(),
+        crated_by: admin.id,
       })
       .returning('*');
 

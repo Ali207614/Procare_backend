@@ -20,6 +20,8 @@ import { FindAllUsersDto } from './dto/find-all-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserWithRepairOrders } from 'src/common/types/repair-order.interface';
 import { User } from 'src/common/types/user.interface';
+import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
 
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
@@ -32,8 +34,8 @@ export class UsersController {
   @UseGuards(PermissionsGuard)
   @SetPermissions('user.manage.create')
   @ApiOperation({ summary: 'Create new user' })
-  async create(@Body() dto: CreateUserDto): Promise<User> {
-    return this.usersService.create(dto);
+  async create(@Body() dto: CreateUserDto, @CurrentAdmin() admin: AdminPayload): Promise<User> {
+    return this.usersService.create(dto, admin);
   }
 
   @Get()

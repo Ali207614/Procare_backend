@@ -7,6 +7,9 @@ import {
   MinLength,
   MaxLength,
   Matches,
+  IsEnum,
+  IsBoolean,
+  IsNumber,
 } from 'class-validator';
 
 export class CreateUserDto {
@@ -47,9 +50,61 @@ export class CreateUserDto {
   @IsString({ context: { location: 'language' } })
   language?: string;
 
+  @ApiProperty({ example: 'C000123', required: false, description: 'SAP card code' })
   @IsOptional()
-  @IsString({ context: { location: 'card_code' } })
-  @MinLength(1, { context: { location: 'card_code' } })
-  @MaxLength(30, { context: { location: 'card_cod' } })
-  sap_card_code!: string;
+  @IsString({ context: { location: 'sap_card_code' } })
+  @MinLength(1, { context: { location: 'sap_card_code' } })
+  @MaxLength(30, { context: { location: 'sap_card_code' } })
+  sap_card_code?: string;
+
+  @ApiProperty({ example: 'password123', required: false, description: 'Password' })
+  @IsOptional()
+  @IsString({ context: { location: 'password' } })
+  @MinLength(6, { context: { location: 'password' } })
+  password?: string;
+
+  @ApiProperty({ example: 1234567890, required: false, description: 'Telegram chat ID' })
+  @IsOptional()
+  @IsNumber({}, { context: { location: 'telegram_chat_id' } })
+  telegram_chat_id?: number;
+
+  @ApiProperty({ example: 'telegram_user', required: false, description: 'Telegram username' })
+  @IsOptional()
+  @IsString({ context: { location: 'telegram_username' } })
+  telegram_username?: string;
+
+  @ApiProperty({
+    enum: ['telegram_bot', 'employee', 'web', 'app', 'other'],
+    required: false,
+    description: 'Registration source',
+  })
+  @IsOptional()
+  @IsEnum(['telegram_bot', 'employee', 'web', 'app', 'other'], { context: { location: 'source' } })
+  source?: string;
+
+  @ApiProperty({ example: true, required: false, description: 'Phone verified status' })
+  @IsOptional()
+  @IsBoolean({ context: { location: 'phone_verified' } })
+  phone_verified?: boolean;
+
+  @ApiProperty({ example: '123456', required: false, description: 'Verification code' })
+  @IsOptional()
+  @IsString({ context: { location: 'verification_code' } })
+  @MinLength(4, { context: { location: 'verification_code' } })
+  @MaxLength(6, { context: { location: 'verification_code' } })
+  verification_code?: string;
+
+  @ApiProperty({ example: true, required: false, description: 'Active status' })
+  @IsOptional()
+  @IsBoolean({ context: { location: 'is_active' } })
+  is_active?: boolean;
+
+  @ApiProperty({
+    enum: ['Pending', 'Open', 'Deleted', 'Banned'],
+    required: false,
+    description: 'User status',
+  })
+  @IsOptional()
+  @IsEnum(['Pending', 'Open', 'Deleted', 'Banned'], { context: { location: 'status' } })
+  status?: string;
 }
