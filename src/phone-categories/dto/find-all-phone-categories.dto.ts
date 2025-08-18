@@ -1,4 +1,4 @@
-import { IsOptional, IsUUID, IsString, IsInt, Min } from 'class-validator';
+import { IsOptional, IsUUID, IsString, IsInt, Min, MinLength, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class FindAllPhoneCategoriesDto {
@@ -24,5 +24,7 @@ export class FindAllPhoneCategoriesDto {
 
   @IsOptional()
   @IsString()
+  @MinLength(3, { message: 'Search term must be at least 3 characters long' })
+  @MaxLength(100, { message: 'Search term must be at most 100 characters long' })
   search?: string;
 }

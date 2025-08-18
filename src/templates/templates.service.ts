@@ -38,6 +38,7 @@ export class TemplatesService {
     offset: number;
     status?: string;
     language?: string;
+    search?: string;
   }): Promise<ITemplateWithHistories[]> {
     return this.knex('templates')
       .select(
@@ -54,6 +55,7 @@ export class TemplatesService {
       .modify((qb) => {
         if (filters.status) void qb.where('status', filters.status);
         if (filters.language) void qb.where('language', filters.language);
+        if (filters.search) void qb.whereRaw('LOWER(title) LIKE ?', [`%${filters.search.toLowerCase()}%`]);
       })
       .limit(filters.limit)
       .offset(filters.offset);

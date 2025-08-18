@@ -5,7 +5,7 @@ export class FindAllUsersDto {
   @ApiPropertyOptional({ description: 'Search by name, phone, passport, etc.' })
   @IsOptional()
   @IsString()
-  @MinLength(1)
+  @MinLength(3)
   @MaxLength(100)
   search?: string;
 

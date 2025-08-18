@@ -42,7 +42,7 @@ export class TemplatesController {
   @ApiQuery({
     name: 'status',
     required: false,
-    enum: ['draft', 'active', 'archived'],
+    enum: ['Draft', 'Open', 'Deleted'],
     description: 'Filter by status',
   })
   @ApiQuery({
@@ -51,14 +51,16 @@ export class TemplatesController {
     enum: ['uz', 'ru', 'en'],
     description: 'Filter by language',
   })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search' })
   @ApiResponse({ status: 200, description: 'List of templates.' })
   async findAll(
     @Query('limit') limit: number = 10,
     @Query('offset') offset: number = 0,
     @Query('status') status?: string,
     @Query('language') language?: string,
+    @Query('search') search?: string,
   ): Promise<ITemplateWithHistories[]> {
-    return this.templatesService.findAll({ limit, offset, status, language });
+    return this.templatesService.findAll({ limit, offset, status, language, search });
   }
 
   @Get(':id')

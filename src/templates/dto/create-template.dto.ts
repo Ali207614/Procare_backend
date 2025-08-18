@@ -24,8 +24,8 @@ export class CreateTemplateDto {
   @IsOptional()
   variables?: any;
 
-  @ApiProperty({ enum: ['draft', 'active', 'archived'], description: 'Status' })
-  @IsEnum(['draft', 'active', 'archived'])
+  @ApiProperty({ enum: ['Draft', 'Open', 'Deleted'], description: 'Status' })
+  @IsEnum(['Draft', 'Open', 'Deleted'])
   status!: string;
 
   @ApiProperty({ description: 'Created by (Admin UUID)' })

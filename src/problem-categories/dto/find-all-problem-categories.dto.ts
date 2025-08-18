@@ -1,5 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID, IsInt, Min, Max, MaxLength } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsUUID,
+  IsInt,
+  Min,
+  Max,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class FindAllProblemCategoriesDto {
   @ApiPropertyOptional({
@@ -24,10 +33,8 @@ export class FindAllProblemCategoriesDto {
   @ApiPropertyOptional({ description: 'Search term for category names', example: 'Ekran' })
   @IsOptional()
   @IsString({ message: 'Search must be a string', context: { location: 'search' } })
-  @MaxLength(100, {
-    message: 'Search term must not exceed 100 characters',
-    context: { location: 'search' },
-  })
+  @MinLength(3, { message: 'Search term must be at least 3 characters long' })
+  @MaxLength(100, { message: 'Search term must be at most 100 characters long' })
   search?: string;
 
   @ApiPropertyOptional({ description: 'Number of records to return', example: 20 })
