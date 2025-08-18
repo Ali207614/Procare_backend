@@ -280,6 +280,21 @@ exports.seed = async function (knex) {
       name: 'repair_part.assign_problem',
       description: 'Repair part manage',
     },
+    {
+      id: '00000000-0000-0000-0000-000000000060',
+      name: 'create:template',
+      description: 'Create Template',
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000061',
+      name: 'update:template',
+      description: 'Update Template',
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000062',
+      name: 'delete:template',
+      description: 'Delete Template',
+    },
   ];
 
   for (const perm of permissions) {

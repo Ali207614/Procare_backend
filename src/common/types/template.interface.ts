@@ -20,3 +20,7 @@ export interface ITemplateHistory {
   author_id: string;
   updated_at: Date;
 }
+
+export interface ITemplateWithHistories extends ITemplate {
+  histories: ITemplateHistory[];
+}

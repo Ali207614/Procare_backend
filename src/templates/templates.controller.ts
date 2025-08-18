@@ -8,7 +8,7 @@ import { SetPermissions } from 'src/common/decorators/permission-decorator';
 import { UpdateTemplateDto } from 'src/templates/dto/update-template.dto';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
-import { ITemplate } from 'src/common/types/template.interface';
+import { ITemplate, ITemplateWithHistories } from 'src/common/types/template.interface';
 
 @ApiTags('Templates')
 @Controller('templates')
@@ -57,7 +57,7 @@ export class TemplatesController {
     @Query('offset') offset: number = 0,
     @Query('status') status?: string,
     @Query('language') language?: string,
-  ): Promise<ITemplate[]> {
+  ): Promise<ITemplateWithHistories[]> {
     return this.templatesService.findAll({ limit, offset, status, language });
   }
 
