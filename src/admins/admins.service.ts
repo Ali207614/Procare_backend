@@ -78,7 +78,7 @@ export class AdminsService {
     await this.knex(this.table).where({ phone_number: phone }).update({
       phone_verified: true,
       verification_code: null,
-      status: 'pending',
+      status: 'Pending',
       updated_at: new Date(),
     });
   }
