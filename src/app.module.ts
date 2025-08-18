@@ -63,6 +63,8 @@ import { TemplatesController } from './templates/templates.controller';
 import { TemplatesModule } from './templates/templates.module';
 import { AuthController } from 'src/auth/auth.controller';
 import { BranchesController } from 'src/branches/branches.controller';
+import { CampaignsController } from './campaigns/campaigns.controller';
+import { CampaignsModule } from './campaigns/campaigns.module';
 
 @Module({
   imports: [
@@ -91,6 +93,7 @@ import { BranchesController } from 'src/branches/branches.controller';
     RepairPartsModule,
     ConfigModule,
     TemplatesModule,
+    CampaignsModule,
   ],
   controllers: [
     AuthController,
@@ -107,6 +110,7 @@ import { BranchesController } from 'src/branches/branches.controller';
     NotificationController,
     PermissionsController,
     TemplatesController,
+    CampaignsController,
   ],
   providers: [
     RepairPartsService,

@@ -1,6 +1,6 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsNumber, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 
 export class PaginationQueryDto {
   @ApiPropertyOptional({ example: 0, description: 'Qaysi indexdan boshlab olish' })
@@ -23,4 +23,12 @@ export class PaginationQueryDto {
   @MinLength(3, { message: 'Search term must be at least 3 characters long' })
   @MaxLength(100, { message: 'Search term must be at most 100 characters long' })
   search?: string;
+
+  @IsOptional()
+  @ApiProperty({
+    enum: ['queued', 'scheduled', 'sending', 'paused', 'completed', 'failed'],
+    description: 'Status',
+  })
+  @IsEnum(['queued', 'scheduled', 'sending', 'paused', 'completed', 'failed'])
+  status?: string;
 }

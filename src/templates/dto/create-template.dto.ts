@@ -13,11 +13,11 @@ export class CreateTemplateDto {
   @IsEnum(['uz', 'ru', 'en'])
   language!: string;
 
-  @ApiProperty({ description: 'Body text (min 10, max 2000 characters)' })
+  @ApiProperty({ description: 'Body text (min 5, max 1000 characters)' })
   @IsString()
   @IsNotEmpty()
-  @MinLength(10, { message: 'Body must be at least 10 characters long' })
-  @MaxLength(2000, { message: 'Body must be at most 2000 characters long' })
+  @MinLength(5, { message: 'Body must be at least 5 characters long' })
+  @MaxLength(1000, { message: 'Body must be at most 1000 characters long' })
   body!: string;
 
   @ApiProperty({ description: 'Variables (JSON)', required: false })

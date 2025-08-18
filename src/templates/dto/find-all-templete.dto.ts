@@ -3,11 +3,11 @@ import { Transform } from 'class-transformer';
 
 export class FindAllTemplatesDto {
   @IsOptional()
-  @Transform(({ value }) => parseInt(value, 10))
+  @Transform(({ value }) => (value === undefined || value === null ? undefined : Number(value)))
   limit: number = 10;
 
   @IsOptional()
-  @Transform(({ value }) => parseInt(value, 10))
+  @Transform(({ value }) => (value === undefined || value === null ? undefined : Number(value)))
   offset: number = 0;
 
   @IsOptional()
