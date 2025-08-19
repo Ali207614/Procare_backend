@@ -95,6 +95,10 @@ export class AdminsService {
       updateData.password = data.password;
     }
 
+    if (data.status) {
+      updateData.status = data.status;
+    }
+
     await this.knex(this.table).where({ phone_number: phone }).update(updateData);
   }
 
