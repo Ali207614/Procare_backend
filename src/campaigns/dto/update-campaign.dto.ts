@@ -12,11 +12,6 @@ export class UpdateCampaignDto {
   @IsUUID()
   template_id?: string;
 
-  @ApiProperty({ example: '{}', description: 'JSON filters for targeting users', required: false })
-  @IsOptional()
-  @IsJSON()
-  filters?: string;
-
   @ApiProperty({ enum: ['now', 'schedule'], description: 'Send type', required: false })
   @IsOptional()
   @IsEnum(['now', 'schedule'])
@@ -30,11 +25,6 @@ export class UpdateCampaignDto {
   @IsOptional()
   @IsString()
   schedule_at?: string;
-
-  @ApiProperty({ example: '{}', description: 'A/B test configuration (JSON)', required: false })
-  @IsOptional()
-  @IsJSON()
-  ab_test?: string;
 
   @ApiProperty({
     enum: ['queued', 'scheduled', 'sending', 'paused', 'completed', 'failed'],

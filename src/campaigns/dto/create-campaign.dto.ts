@@ -123,8 +123,4 @@ export class CreateCampaignDto {
   @IsString()
   schedule_at?: string;
 
-  @ApiProperty({ example: '{}', description: 'A/B test configuration (JSON)', required: false })
-  @IsOptional()
-  @IsJSON()
-  ab_test?: string;
 }

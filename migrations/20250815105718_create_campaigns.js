@@ -11,10 +11,18 @@ exports.up = async function (knex) {
     table.jsonb('filters').defaultTo(knex.raw("'{}'::jsonb")).nullable();
     table.enu('send_type', ['now', 'schedule']).defaultTo('now').notNullable();
     table.timestamp('schedule_at').nullable();
-    table.jsonb('ab_test').defaultTo(knex.raw("'{}'::jsonb")).nullable();
+    // table.jsonb('ab_test').defaultTo(knex.raw("'{}'::jsonb")).nullable();
     table.enu('delivery_method', ['bot', 'app']).defaultTo('bot').notNullable();
     table
-      .enu('status', ['queued', 'scheduled', 'sending', 'paused', 'completed', 'failed'])
+      .enu('status', [
+        'queued',
+        'scheduled',
+        'sending',
+        'paused',
+        'completed',
+        'failed',
+        'canceled',
+      ])
       .defaultTo('queued')
       .notNullable();
 

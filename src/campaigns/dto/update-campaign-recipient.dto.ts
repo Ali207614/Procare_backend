@@ -5,7 +5,6 @@ export class UpdateCampaignRecipientDto {
   @ApiProperty({ example: 123456, description: 'Telegram message ID', required: false })
   @IsOptional()
   @IsInt()
-
   message_id?: number;
 
   @ApiProperty({

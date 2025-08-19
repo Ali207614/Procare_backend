@@ -34,6 +34,13 @@ export class CampaignsService {
             location: 'schedule_at',
           });
         }
+        const scheduleDate = new Date(createCampaignDto.schedule_at);
+        if (scheduleDate <= new Date()) {
+          throw new BadRequestException({
+            message: 'Schedule time must be in the future',
+            location: 'schedule_at',
+          });
+        }
         status = 'scheduled';
       } else {
         throw new BadRequestException({
@@ -50,7 +57,6 @@ export class CampaignsService {
           schedule_at: createCampaignDto.schedule_at
             ? new Date(createCampaignDto.schedule_at)
             : null,
-          ab_test: createCampaignDto.ab_test ? JSON.stringify(createCampaignDto.ab_test) : '{}',
           status,
           created_at: new Date(),
           updated_at: new Date(),
@@ -89,7 +95,6 @@ export class CampaignsService {
       return campaign;
     });
   }
-
   async findAll(filters: FindAllCampaignsDto): Promise<ICampaign[]> {
     return this.knex('campaigns')
       .select('*')
@@ -115,22 +120,63 @@ export class CampaignsService {
   }
 
   async update(id: string, updateCampaignDto: UpdateCampaignDto): Promise<ICampaign> {
-    const campaign: ICampaign = await this.findOne(id);
-    const [updatedCampaign]: ICampaign[] = await this.knex('campaigns')
-      .where('id', id)
-      .update({
-        template_id: updateCampaignDto.template_id || campaign.template_id,
-        filters: updateCampaignDto.filters || campaign.filters,
-        send_type: updateCampaignDto.send_type || campaign.send_type,
-        schedule_at: updateCampaignDto.schedule_at
-          ? new Date(updateCampaignDto.schedule_at)
-          : campaign.schedule_at,
-        ab_test: updateCampaignDto.ab_test || campaign.ab_test,
-        status: updateCampaignDto.status || campaign.status,
-        updated_at: new Date(),
-      })
-      .returning('*');
-    return updatedCampaign;
+    return this.knex.transaction(async (trx) => {
+      const campaign: ICampaign = await this.findOne(id);
+
+      const newTemplateId = updateCampaignDto.template_id || campaign.template_id;
+      const template = await trx('templates')
+        .where('id', newTemplateId)
+        .where('status', 'active')
+        .first();
+      if (!template) {
+        throw new NotFoundException({
+          message: 'Template not found or inactive',
+          location: 'template_id',
+        });
+      }
+
+      const newSendType = updateCampaignDto.send_type || campaign.send_type;
+      const newScheduleAt = updateCampaignDto.schedule_at
+        ? new Date(updateCampaignDto.schedule_at)
+        : campaign.schedule_at;
+      let newStatus = updateCampaignDto.status || campaign.status;
+
+      if (newSendType === 'schedule') {
+        if (!newScheduleAt) {
+          throw new BadRequestException({
+            message: 'Schedule time is required for scheduled campaigns',
+            location: 'schedule_at',
+          });
+        }
+        if (newScheduleAt <= new Date()) {
+          throw new BadRequestException({
+            message: 'Schedule time must be in the future',
+            location: 'schedule_at',
+          });
+        }
+        newStatus = 'scheduled';
+      } else if (newSendType === 'now') {
+        newStatus = 'queued';
+      } else {
+        throw new BadRequestException({
+          message: 'Invalid send type',
+          location: 'send_type',
+        });
+      }
+
+      const [updatedCampaign]: ICampaign[] = await trx('campaigns')
+        .where('id', id)
+        .update({
+          template_id: newTemplateId,
+          send_type: newSendType,
+          schedule_at: newScheduleAt,
+          status: newStatus,
+          updated_at: new Date(),
+        })
+        .returning('*');
+
+      return updatedCampaign;
+    });
   }
 
   async remove(id: string): Promise<void> {
