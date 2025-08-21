@@ -1,13 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 import { Knex } from 'knex';
-
 import { InjectKnex } from 'nestjs-knex';
 import { ICampaign } from 'src/common/types/campaign.interface';
 import {
-  AbTestConfigDto,
-  AbTestVariantDto,
   CreateCampaignDto,
   UsersFilterDto,
+  AbTestConfigDto,
+  AbTestVariantDto,
 } from 'src/campaigns/dto/create-campaign.dto';
 import { FindAllCampaignsDto } from 'src/campaigns/dto/find-all-campaigns.dto';
 import { UpdateCampaignDto } from 'src/campaigns/dto/update-campaign.dto';
@@ -15,7 +16,10 @@ import { ITemplate } from 'src/common/types/template.interface';
 
 @Injectable()
 export class CampaignsService {
-  constructor(@InjectKnex() private readonly knex: Knex) {}
+  constructor(
+    @InjectKnex() private readonly knex: Knex,
+    @InjectQueue('campaign-queue') private readonly campaignQueue: Queue,
+  ) {}
 
   async create(createCampaignDto: CreateCampaignDto): Promise<ICampaign> {
     return this.knex.transaction(async (trx) => {
@@ -32,9 +36,7 @@ export class CampaignsService {
       }
 
       let status: 'queued' | 'scheduled' = 'queued';
-      if (createCampaignDto.send_type === 'now') {
-        status = 'queued';
-      } else if (createCampaignDto.send_type === 'schedule') {
+      if (createCampaignDto.send_type === 'schedule') {
         if (!createCampaignDto.schedule_at) {
           throw new BadRequestException({
             message: 'Schedule time is required for scheduled campaigns',
@@ -49,25 +51,17 @@ export class CampaignsService {
           });
         }
         status = 'scheduled';
-      } else {
-        throw new BadRequestException({
-          message: 'Invalid send type',
-          location: 'send_type',
-        });
       }
 
       let abTestToSave: AbTestConfigDto = { enabled: false, variants: [] };
-
       if (createCampaignDto.ab_test?.enabled) {
         const variants: AbTestVariantDto[] = createCampaignDto?.ab_test?.variants || [];
-
         if (variants.length < 1) {
           throw new BadRequestException({
             message: 'At least 1 variant is required when A/B test is enabled',
             location: 'ab_test.variants',
           });
         }
-
         const total = variants.reduce((s, v) => s + Number(v.percentage || 0), 0);
         if (total > 100) {
           throw new BadRequestException({
@@ -75,7 +69,6 @@ export class CampaignsService {
             location: 'ab_test.variants.percentage',
           });
         }
-
         const ids: string[] = variants.map((v: AbTestVariantDto): string => v.template_id);
         const uniqueIds = new Set(ids);
         if (uniqueIds.size !== ids.length) {
@@ -84,18 +77,15 @@ export class CampaignsService {
             location: 'ab_test.variants.template_id',
           });
         }
-
         const activeTemplates: ITemplate[] = await trx('templates')
           .whereIn('id', ids)
-          .andWhere('status', 'Open');
-
+          .andWhere('status', 'active');
         if (activeTemplates.length !== ids.length) {
           throw new BadRequestException({
             message: 'One or more A/B test templates not found or inactive',
             location: 'ab_test.variants.template_id',
           });
         }
-
         if (total < 100) {
           variants.push({
             name: 'Default',
@@ -103,7 +93,6 @@ export class CampaignsService {
             percentage: 100 - total,
           });
         }
-
         abTestToSave = {
           enabled: true,
           variants: variants.map((v) => ({
@@ -112,8 +101,6 @@ export class CampaignsService {
             percentage: Number(v.percentage),
           })),
         };
-      } else if (createCampaignDto.ab_test) {
-        abTestToSave = { enabled: false, variants: [] };
       }
 
       const [campaign]: ICampaign[] = await trx('campaigns')
@@ -125,6 +112,7 @@ export class CampaignsService {
             ? new Date(createCampaignDto.schedule_at)
             : null,
           ab_test: JSON.stringify(abTestToSave),
+          delivery_method: createCampaignDto.delivery_method,
           status,
           created_at: new Date(),
           updated_at: new Date(),
@@ -132,24 +120,24 @@ export class CampaignsService {
         .returning('*');
 
       if (createCampaignDto.filters && Object.keys(createCampaignDto.filters).length > 0) {
-        let query = trx('users').select('id as user_id');
-
+        let query = trx('users').select('id as user_id', 'telegram_chat_id');
         const filters = createCampaignDto.filters ?? {};
-
         (
-          Object.entries(filters) as [keyof UsersFilterDto, UsersFilterDto[keyof UsersFilterDto]][]
+          Object.entries(filters) as [keyof UsersFilterDto, string | boolean | number | undefined][]
         ).forEach(([key, value]) => {
           if (value === undefined) return;
 
           if (key === 'created_from' && filters.created_to) {
-            query = query.whereBetween('created_at', [
-              new Date(value as string),
-              new Date(filters.created_to),
-            ]);
-          } else if (key === 'created_from') {
-            query = query.where('created_at', '>=', new Date(value as string));
-          } else if (key === 'created_to') {
-            query = query.where('created_at', '<=', new Date(value as string));
+            if (filters.created_to === 'string') {
+              query = query.whereBetween('created_at', [
+                new Date(value as string),
+                new Date(filters.created_to),
+              ]);
+            }
+          } else if (key === 'created_from' && typeof value === 'string') {
+            query = query.where('created_at', '>=', new Date(value));
+          } else if (key === 'created_to' && typeof value === 'string') {
+            query = query.where('created_at', '<=', new Date(value));
           } else if (
             typeof value === 'string' &&
             [
@@ -168,7 +156,6 @@ export class CampaignsService {
         });
 
         const users = await query;
-
         if (users.length > 0) {
           const now = new Date();
           const recipients = users.map((u) => ({
@@ -178,8 +165,33 @@ export class CampaignsService {
             created_at: now,
             updated_at: now,
           }));
+          const batchSize = 1000;
+          for (let i = 0; i < recipients.length; i += batchSize) {
+            await trx('campaign_recipient').insert(recipients.slice(i, i + batchSize));
+          }
 
-          await trx('campaign_recipient').insert(recipients);
+          if (status === 'queued') {
+            await this.campaignQueue.add(
+              'send-campaign',
+              { campaignId: campaign.id },
+              { attempts: 3, backoff: 1000 },
+            );
+          } else if (status === 'scheduled') {
+            const delay = createCampaignDto.schedule_at
+              ? new Date(createCampaignDto.schedule_at).getTime() - Date.now()
+              : 0;
+            if (delay < 0) {
+              throw new BadRequestException({
+                message: 'Schedule time must be in the future',
+                location: 'schedule_at',
+              });
+            }
+            await this.campaignQueue.add(
+              'send-campaign',
+              { campaignId: campaign.id },
+              { delay, attempts: 3, backoff: 1000 },
+            );
+          }
         }
       }
 
@@ -198,10 +210,9 @@ export class CampaignsService {
 
     if (filters.status) void qb.where('campaigns.status', filters.status);
     if (filters.search) {
-      const search = filters.search.toLowerCase();
-
-      void qb.where(function (): void {
-        void this.whereRaw('LOWER(campaigns.template_id) LIKE ?', [`%${search}%`])
+      const search = filters.search;
+      void qb.where(function () {
+        void this.where('campaigns.template_id', 'like', `%${search}%`)
           .orWhereILike('templates.name', `%${search}%`)
           .orWhereILike('templates.description', `%${search}%`);
       });
@@ -213,11 +224,7 @@ export class CampaignsService {
   async findOne(id: string): Promise<ICampaign> {
     const campaign: ICampaign | undefined = await this.knex('campaigns').where('id', id).first();
     if (!campaign) {
-      throw new NotFoundException({
-        message: 'Campaign not found',
-        location: 'campaign',
-        id,
-      });
+      throw new NotFoundException({ message: 'Campaign not found', location: 'campaign', id });
     }
     return campaign;
   }
@@ -230,9 +237,9 @@ export class CampaignsService {
       }
 
       const newTemplateId = updateCampaignDto.template_id || campaign.template_id;
-      const template: ITemplate | undefined = await trx('templates')
+      const template = await trx('templates')
         .where('id', newTemplateId)
-        .where('status', 'Open')
+        .where('status', 'active')
         .first();
       if (!template)
         throw new NotFoundException({
@@ -281,25 +288,45 @@ export class CampaignsService {
 
       if (updateCampaignDto.filters) {
         await trx('campaign_recipient').where('campaign_id', id).del();
-
-        let query = trx('users').select('id as user_id');
-        const filters: UsersFilterDto = updateCampaignDto.filters ?? {};
-
-        // bu yerda entries ni aniq tipga keltiramiz
+        let query = trx('users').select('id as user_id', 'telegram_chat_id');
+        const filters = updateCampaignDto.filters ?? {};
         (
-          Object.entries(filters) as [keyof UsersFilterDto, UsersFilterDto[keyof UsersFilterDto]][]
+          Object.entries(filters) as [keyof UsersFilterDto, string | boolean | number | undefined][]
         ).forEach(([key, value]) => {
           if (value === undefined) return;
 
-          if (key === 'created_from' && filters.created_to) {
-            query = query.whereBetween('created_at', [
-              new Date(value as string),
-              new Date(filters.created_to),
-            ]);
-          } else if (key === 'created_from') {
-            query = query.where('created_at', '>=', new Date(value as string));
-          } else if (key === 'created_to') {
-            query = query.where('created_at', '<=', new Date(value as string));
+          if (
+            key === 'created_from' &&
+            typeof value === 'string' &&
+            typeof filters.created_to === 'string'
+          ) {
+            const startDate = new Date(value);
+            const endDate = new Date(filters.created_to);
+            if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+              throw new BadRequestException({
+                message: 'Invalid date format for created_from or created_to',
+                location: key,
+              });
+            }
+            query = query.whereBetween('created_at', [startDate, endDate]);
+          } else if (key === 'created_from' && typeof value === 'string') {
+            const date = new Date(value);
+            if (isNaN(date.getTime())) {
+              throw new BadRequestException({
+                message: 'Invalid date format for created_from',
+                location: key,
+              });
+            }
+            query = query.where('created_at', '>=', date);
+          } else if (key === 'created_to' && typeof value === 'string') {
+            const date = new Date(value);
+            if (isNaN(date.getTime())) {
+              throw new BadRequestException({
+                message: 'Invalid date format for created_to',
+                location: key,
+              });
+            }
+            query = query.where('created_at', '<=', date);
           } else if (
             typeof value === 'string' &&
             [
@@ -313,10 +340,9 @@ export class CampaignsService {
           ) {
             query = query.whereILike(key, `%${value}%`);
           } else {
-            query = query.where(key as string, value);
+            query = query.where(key, value);
           }
         });
-
         const users = await query;
         if (users.length > 0) {
           const now = new Date();
@@ -327,7 +353,30 @@ export class CampaignsService {
             created_at: now,
             updated_at: now,
           }));
-          await trx('campaign_recipient').insert(recipients);
+          const batchSize = 1000;
+          for (let i = 0; i < recipients.length; i += batchSize) {
+            await trx('campaign_recipient').insert(recipients.slice(i, i + batchSize));
+          }
+          if (newStatus === 'queued') {
+            await this.campaignQueue.add(
+              'send-campaign',
+              { campaignId: id },
+              { attempts: 3, backoff: 1000 },
+            );
+          } else if (newStatus === 'scheduled') {
+            const delay = newScheduleAt ? newScheduleAt.getTime() - Date.now() : 0;
+            if (newScheduleAt && delay < 0) {
+              throw new BadRequestException({
+                message: 'Schedule time must be in the future',
+                location: 'schedule_at',
+              });
+            }
+            await this.campaignQueue.add(
+              'send-campaign',
+              { campaignId: id },
+              { delay, attempts: 3, backoff: 1000 },
+            );
+          }
         }
       }
 
@@ -338,11 +387,7 @@ export class CampaignsService {
   async remove(id: string): Promise<void> {
     const deleted = await this.knex('campaigns').where('id', id).del();
     if (!deleted) {
-      throw new NotFoundException({
-        message: 'Campaign not found',
-        location: 'campaign',
-        id,
-      });
+      throw new NotFoundException({ message: 'Campaign not found', location: 'campaign', id });
     }
   }
 }
