@@ -4,7 +4,7 @@ export interface ITemplate {
   language: 'uz' | 'ru' | 'en';
   body: string;
   variables?: Record<string, any>;
-  status: 'draft' | 'active' | 'archived';
+  status: 'Draft' | 'Open' | 'Deleted';
   created_by: string;
   used_count: number;
   created_at: Date;

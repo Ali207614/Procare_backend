@@ -7,4 +7,12 @@ export interface ICampaign {
   status: 'queued' | 'scheduled' | 'sending' | 'paused' | 'completed' | 'failed' | 'canceled';
   created_at: Date;
   updated_at: Date;
+  ab_test: {
+    enabled: boolean;
+    variants: {
+      name: string;
+      template_id: string;
+      percentage: number;
+    }[];
+  } | null;
 }

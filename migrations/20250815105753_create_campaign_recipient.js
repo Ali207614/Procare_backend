@@ -11,14 +11,13 @@ exports.up = async function (knex) {
     table.uuid('user_id').references('id').inTable('users').onDelete('CASCADE').notNullable();
     table.bigInteger('message_id').nullable();
     table
-      .enu('status', ['sent', 'delivered', 'read', 'failed', 'blocked', 'unsubscribed'])
-      .defaultTo('sent')
+      .enu('status', ['pending', 'sent', 'delivered', 'read', 'failed', 'blocked', 'unsubscribed'])
+      .defaultTo('pending')
       .notNullable();
     table.timestamp('sent_at').nullable();
     table.timestamp('delivered_at').nullable();
     table.timestamp('read_at').nullable();
     table.text('error').nullable();
-
     table.timestamp('created_at').defaultTo(knex.fn.now());
     table.timestamp('updated_at').defaultTo(knex.fn.now());
   });

@@ -12,6 +12,10 @@ export interface User {
   id_card_number: string | null;
   language: string;
   is_active: boolean;
+  telegram_chat_id: string | null;
+  telegram_username: string | null;
+  source: 'telegram_bot' | 'employee' | 'web' | 'app' | 'other';
+  roles: string[];
   status: 'Pending' | 'Open' | 'Deleted' | 'Banned';
   created_at: string;
   updated_at: string;
