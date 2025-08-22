@@ -15,4 +15,5 @@ export interface ICampaign {
       percentage: number;
     }[];
   } | null;
+  job_id?: string;
 }

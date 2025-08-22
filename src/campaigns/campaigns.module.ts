@@ -3,9 +3,11 @@ import { PermissionsModule } from 'src/permissions/permissions.module';
 import { CampaignsController } from 'src/campaigns/campaigns.controller';
 import { CampaignsService } from 'src/campaigns/campaigns.service';
 import { BullModule } from '@nestjs/bull';
+import { LoggerModule } from 'src/common/logger/logger.module';
 
 @Module({
   imports: [
+    LoggerModule,
     PermissionsModule,
     BullModule.forRoot({
       redis: {

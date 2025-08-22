@@ -13,12 +13,15 @@ import {
 import { FindAllCampaignsDto } from 'src/campaigns/dto/find-all-campaigns.dto';
 import { UpdateCampaignDto } from 'src/campaigns/dto/update-campaign.dto';
 import { ITemplate } from 'src/common/types/template.interface';
+import { User } from 'src/common/types/user.interface';
+import { LoggerService } from 'src/common/logger/logger.service';
 
 @Injectable()
 export class CampaignsService {
   constructor(
     @InjectKnex() private readonly knex: Knex,
     @InjectQueue('campaign-queue') private readonly campaignQueue: Queue,
+    private readonly logger: LoggerService,
   ) {}
 
   async create(createCampaignDto: CreateCampaignDto): Promise<ICampaign> {
@@ -120,7 +123,7 @@ export class CampaignsService {
         .returning('*');
 
       if (createCampaignDto.filters && Object.keys(createCampaignDto.filters).length > 0) {
-        let query = trx('users').select('id as user_id', 'telegram_chat_id');
+        let query = trx('users').select('id', 'telegram_chat_id');
         const filters = createCampaignDto.filters ?? {};
         (
           Object.entries(filters) as [keyof UsersFilterDto, string | boolean | number | undefined][]
@@ -155,12 +158,12 @@ export class CampaignsService {
           }
         });
 
-        const users = await query;
+        const users: User[] = await query;
         if (users.length > 0) {
           const now = new Date();
           const recipients = users.map((u) => ({
             campaign_id: campaign.id,
-            user_id: u.user_id,
+            user_id: u.id,
             status: status === 'scheduled' ? 'pending' : 'sent',
             created_at: now,
             updated_at: now,
@@ -170,8 +173,9 @@ export class CampaignsService {
             await trx('campaign_recipient').insert(recipients.slice(i, i + batchSize));
           }
 
+          let job;
           if (status === 'queued') {
-            await this.campaignQueue.add(
+            job = await this.campaignQueue.add(
               'send-campaign',
               { campaignId: campaign.id },
               { attempts: 3, backoff: 1000 },
@@ -186,11 +190,16 @@ export class CampaignsService {
                 location: 'schedule_at',
               });
             }
-            await this.campaignQueue.add(
+            job = await this.campaignQueue.add(
               'send-campaign',
               { campaignId: campaign.id },
               { delay, attempts: 3, backoff: 1000 },
             );
+          }
+          if (job) {
+            const jobIdStr = job.id.toString();
+            await trx('campaigns').where('id', campaign.id).update({ job_id: jobIdStr });
+            campaign.job_id = jobIdStr;
           }
         }
       }
@@ -232,8 +241,8 @@ export class CampaignsService {
   async update(id: string, updateCampaignDto: UpdateCampaignDto): Promise<ICampaign> {
     return this.knex.transaction(async (trx) => {
       const campaign: ICampaign = await this.findOne(id);
-      if (!['queued', 'scheduled'].includes(campaign.status)) {
-        throw new BadRequestException('Cannot update running or completed campaign');
+      if (!['queued', 'scheduled', 'paused'].includes(campaign.status)) {
+        throw new BadRequestException('Cannot update running, completed, or canceled campaign');
       }
 
       const newTemplateId = updateCampaignDto.template_id || campaign.template_id;
@@ -255,6 +264,23 @@ export class CampaignsService {
       const newFilters = updateCampaignDto.filters || campaign.filters;
       const newAbTest = updateCampaignDto.ab_test || campaign.ab_test;
 
+      if (newStatus === 'paused' && campaign.job_id) {
+        const job = await this.campaignQueue.getJob(campaign.job_id);
+        if (job) {
+          await job.remove();
+          await trx('campaigns').where('id', id).update({ job_id: null });
+          this.logger.log(`Paused (removed) job ${campaign.job_id} for campaign ${id}`);
+        }
+      } else if (newStatus === 'canceled' && campaign.job_id) {
+        const job = await this.campaignQueue.getJob(campaign.job_id);
+        if (job) {
+          await job.remove();
+          this.logger.log(`Canceled job ${campaign.job_id} for campaign ${id}`);
+        }
+        await trx('campaign_recipient').where('campaign_id', id).update({ status: 'canceled' });
+        await trx('campaigns').where('id', id).update({ job_id: null });
+      }
+
       if (newSendType === 'schedule') {
         if (!newScheduleAt)
           throw new BadRequestException({
@@ -266,9 +292,9 @@ export class CampaignsService {
             message: 'Schedule time must be in the future',
             location: 'schedule_at',
           });
-        newStatus = 'scheduled';
+        if (newStatus !== 'paused' && newStatus !== 'canceled') newStatus = 'scheduled';
       } else if (newSendType === 'now') {
-        newStatus = 'queued';
+        if (newStatus !== 'paused' && newStatus !== 'canceled') newStatus = 'queued';
       } else {
         throw new BadRequestException({ message: 'Invalid send type', location: 'send_type' });
       }
@@ -288,67 +314,13 @@ export class CampaignsService {
 
       if (updateCampaignDto.filters) {
         await trx('campaign_recipient').where('campaign_id', id).del();
-        let query = trx('users').select('id as user_id', 'telegram_chat_id');
-        const filters = updateCampaignDto.filters ?? {};
-        (
-          Object.entries(filters) as [keyof UsersFilterDto, string | boolean | number | undefined][]
-        ).forEach(([key, value]) => {
-          if (value === undefined) return;
-
-          if (
-            key === 'created_from' &&
-            typeof value === 'string' &&
-            typeof filters.created_to === 'string'
-          ) {
-            const startDate = new Date(value);
-            const endDate = new Date(filters.created_to);
-            if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-              throw new BadRequestException({
-                message: 'Invalid date format for created_from or created_to',
-                location: key,
-              });
-            }
-            query = query.whereBetween('created_at', [startDate, endDate]);
-          } else if (key === 'created_from' && typeof value === 'string') {
-            const date = new Date(value);
-            if (isNaN(date.getTime())) {
-              throw new BadRequestException({
-                message: 'Invalid date format for created_from',
-                location: key,
-              });
-            }
-            query = query.where('created_at', '>=', date);
-          } else if (key === 'created_to' && typeof value === 'string') {
-            const date = new Date(value);
-            if (isNaN(date.getTime())) {
-              throw new BadRequestException({
-                message: 'Invalid date format for created_to',
-                location: key,
-              });
-            }
-            query = query.where('created_at', '<=', date);
-          } else if (
-            typeof value === 'string' &&
-            [
-              'first_name',
-              'last_name',
-              'phone_number',
-              'passport_series',
-              'id_card_number',
-              'telegram_username',
-            ].includes(key)
-          ) {
-            query = query.whereILike(key, `%${value}%`);
-          } else {
-            query = query.where(key, value);
-          }
-        });
-        const users = await query;
+        const query = trx('users').select('id', 'telegram_chat_id');
+        const users: User[] = await query;
         if (users.length > 0) {
           const now = new Date();
           const recipients = users.map((u) => ({
             campaign_id: id,
-            user_id: u.user_id,
+            user_id: u.id,
             status: newStatus === 'scheduled' ? 'pending' : 'sent',
             created_at: now,
             updated_at: now,
@@ -357,33 +329,66 @@ export class CampaignsService {
           for (let i = 0; i < recipients.length; i += batchSize) {
             await trx('campaign_recipient').insert(recipients.slice(i, i + batchSize));
           }
+          let job;
           if (newStatus === 'queued') {
-            await this.campaignQueue.add(
+            job = await this.campaignQueue.add(
               'send-campaign',
               { campaignId: id },
               { attempts: 3, backoff: 1000 },
             );
           } else if (newStatus === 'scheduled') {
             const delay = newScheduleAt ? newScheduleAt.getTime() - Date.now() : 0;
-            if (newScheduleAt && delay < 0) {
+            if (delay < 0) {
               throw new BadRequestException({
                 message: 'Schedule time must be in the future',
                 location: 'schedule_at',
               });
             }
-            await this.campaignQueue.add(
+            job = await this.campaignQueue.add(
               'send-campaign',
               { campaignId: id },
               { delay, attempts: 3, backoff: 1000 },
             );
           }
+          if (job) {
+            const jobIdStr = job.id.toString();
+            await trx('campaigns').where('id', id).update({ job_id: job.id });
+            updatedCampaign.job_id = jobIdStr;
+          }
+        }
+      }
+
+      if (campaign.status === 'paused' && ['queued', 'scheduled'].includes(newStatus)) {
+        let job;
+        if (newStatus === 'queued') {
+          job = await this.campaignQueue.add(
+            'send-campaign',
+            { campaignId: id },
+            { attempts: 3, backoff: 1000 },
+          );
+        } else if (newStatus === 'scheduled') {
+          const delay = newScheduleAt ? newScheduleAt.getTime() - Date.now() : 0;
+          if (delay < 0)
+            throw new BadRequestException({
+              message: 'Schedule time must be in the future',
+              location: 'schedule_at',
+            });
+          job = await this.campaignQueue.add(
+            'send-campaign',
+            { campaignId: id },
+            { delay, attempts: 3, backoff: 1000 },
+          );
+        }
+        if (job) {
+          await trx('campaigns').where('id', id).update({ job_id: job.id.toString() }); // Tip moslash
+          updatedCampaign.job_id = job.id.toString();
+          this.logger.log(`Resumed by adding new job ${job.id} for campaign ${id}`);
         }
       }
 
       return updatedCampaign;
     });
   }
-
   async remove(id: string): Promise<void> {
     const deleted = await this.knex('campaigns').where('id', id).del();
     if (!deleted) {

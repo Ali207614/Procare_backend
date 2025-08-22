@@ -48,4 +48,7 @@ export class UpdateCampaignDto {
   @ValidateNested()
   @Type(() => AbTestConfigDto)
   ab_test?: AbTestConfigDto;
+
+
+
 }
