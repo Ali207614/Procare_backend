@@ -65,6 +65,7 @@ import { AuthController } from 'src/auth/auth.controller';
 import { BranchesController } from 'src/branches/branches.controller';
 import { CampaignsController } from './campaigns/campaigns.controller';
 import { CampaignsModule } from './campaigns/campaigns.module';
+import { TelegramModule } from './telegram/telegram.module';
 
 @Module({
   imports: [
@@ -94,6 +95,7 @@ import { CampaignsModule } from './campaigns/campaigns.module';
     ConfigModule,
     TemplatesModule,
     CampaignsModule,
+    TelegramModule,
   ],
   controllers: [
     AuthController,

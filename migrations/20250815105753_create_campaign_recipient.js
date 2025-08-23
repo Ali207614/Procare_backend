@@ -8,12 +8,22 @@ exports.up = async function (knex) {
       .inTable('campaigns')
       .onDelete('CASCADE')
       .notNullable();
+
     table.uuid('user_id').references('id').inTable('users').onDelete('CASCADE').notNullable();
+
+    table
+      .uuid('variant_template_id') // 🔑 yangi ustun
+      .references('id')
+      .inTable('templates')
+      .nullable();
+
     table.bigInteger('message_id').nullable();
+
     table
       .enu('status', ['pending', 'sent', 'delivered', 'read', 'failed', 'blocked', 'unsubscribed'])
       .defaultTo('pending')
       .notNullable();
+
     table.timestamp('sent_at').nullable();
     table.timestamp('delivered_at').nullable();
     table.timestamp('read_at').nullable();

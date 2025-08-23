@@ -7,6 +7,7 @@ export interface ICampaign {
   status: 'queued' | 'scheduled' | 'sending' | 'paused' | 'completed' | 'failed' | 'canceled';
   created_at: Date;
   updated_at: Date;
+  delivery_method: 'bot' | 'app' | 'sms';
   ab_test: {
     enabled: boolean;
     variants: {
@@ -15,5 +16,4 @@ export interface ICampaign {
       percentage: number;
     }[];
   } | null;
-  job_id?: string;
 }

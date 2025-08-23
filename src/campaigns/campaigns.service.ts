@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
 import { ICampaign } from 'src/common/types/campaign.interface';
@@ -14,23 +14,27 @@ import { FindAllCampaignsDto } from 'src/campaigns/dto/find-all-campaigns.dto';
 import { UpdateCampaignDto } from 'src/campaigns/dto/update-campaign.dto';
 import { ITemplate } from 'src/common/types/template.interface';
 import { User } from 'src/common/types/user.interface';
+import { ICampaignRecipient } from 'src/common/types/campaign-recipient.interface';
 import { LoggerService } from 'src/common/logger/logger.service';
+
+interface AbTestInput {
+  template_id: string;
+  ab_test?: AbTestConfigDto;
+}
 
 @Injectable()
 export class CampaignsService {
   constructor(
+    @InjectQueue('campaigns') private readonly queue: Queue,
     @InjectKnex() private readonly knex: Knex,
-    @InjectQueue('campaign-queue') private readonly campaignQueue: Queue,
     private readonly logger: LoggerService,
   ) {}
 
-  async create(createCampaignDto: CreateCampaignDto): Promise<ICampaign> {
+  async create(dto: CreateCampaignDto): Promise<ICampaign> {
     return this.knex.transaction(async (trx) => {
       const template = await trx('templates')
-        .where('id', createCampaignDto.template_id)
-        .where('status', 'active')
+        .where({ id: dto.template_id, status: 'active' })
         .first();
-
       if (!template) {
         throw new NotFoundException({
           message: 'Template not found or inactive',
@@ -38,173 +42,116 @@ export class CampaignsService {
         });
       }
 
-      let status: 'queued' | 'scheduled' = 'queued';
-      if (createCampaignDto.send_type === 'schedule') {
-        if (!createCampaignDto.schedule_at) {
+      let status: ICampaign['status'] = 'queued';
+      if (dto.send_type === 'schedule') {
+        if (!dto.schedule_at) {
           throw new BadRequestException({
-            message: 'Schedule time is required for scheduled campaigns',
+            message: 'Schedule time required',
             location: 'schedule_at',
           });
         }
-        const scheduleDate = new Date(createCampaignDto.schedule_at);
+        const scheduleDate = new Date(dto.schedule_at);
         if (scheduleDate <= new Date()) {
           throw new BadRequestException({
-            message: 'Schedule time must be in the future',
+            message: 'Schedule must be in the future',
             location: 'schedule_at',
           });
         }
         status = 'scheduled';
       }
 
-      let abTestToSave: AbTestConfigDto = { enabled: false, variants: [] };
-      if (createCampaignDto.ab_test?.enabled) {
-        const variants: AbTestVariantDto[] = createCampaignDto?.ab_test?.variants || [];
-        if (variants.length < 1) {
-          throw new BadRequestException({
-            message: 'At least 1 variant is required when A/B test is enabled',
-            location: 'ab_test.variants',
-          });
-        }
-        const total = variants.reduce((s, v) => s + Number(v.percentage || 0), 0);
-        if (total > 100) {
-          throw new BadRequestException({
-            message: 'A/B test percentages cannot exceed 100',
-            location: 'ab_test.variants.percentage',
-          });
-        }
-        const ids: string[] = variants.map((v: AbTestVariantDto): string => v.template_id);
-        const uniqueIds = new Set(ids);
-        if (uniqueIds.size !== ids.length) {
-          throw new BadRequestException({
-            message: 'Duplicate template_id detected in A/B variants',
-            location: 'ab_test.variants.template_id',
-          });
-        }
-        const activeTemplates: ITemplate[] = await trx('templates')
-          .whereIn('id', ids)
-          .andWhere('status', 'active');
-        if (activeTemplates.length !== ids.length) {
-          throw new BadRequestException({
-            message: 'One or more A/B test templates not found or inactive',
-            location: 'ab_test.variants.template_id',
-          });
-        }
-        if (total < 100) {
-          variants.push({
-            name: 'Default',
-            template_id: createCampaignDto.template_id,
-            percentage: 100 - total,
-          });
-        }
-        abTestToSave = {
-          enabled: true,
-          variants: variants.map((v) => ({
-            name: v.name,
-            template_id: v.template_id,
-            percentage: Number(v.percentage),
-          })),
-        };
-      }
+      const abTest = await this.prepareAbTest(trx, dto);
 
       const [campaign]: ICampaign[] = await trx('campaigns')
         .insert({
-          template_id: createCampaignDto.template_id,
-          filters: createCampaignDto.filters ? JSON.stringify(createCampaignDto.filters) : '{}',
-          send_type: createCampaignDto.send_type,
-          schedule_at: createCampaignDto.schedule_at
-            ? new Date(createCampaignDto.schedule_at)
-            : null,
-          ab_test: JSON.stringify(abTestToSave),
-          delivery_method: createCampaignDto.delivery_method,
+          template_id: dto.template_id,
+          filters: dto.filters ? JSON.stringify(dto.filters) : '{}',
+          send_type: dto.send_type,
+          schedule_at: dto.schedule_at ? new Date(dto.schedule_at) : null,
+          ab_test: JSON.stringify(abTest),
+          delivery_method: dto.delivery_method,
           status,
-          created_at: new Date(),
-          updated_at: new Date(),
+          created_at: trx.fn.now(),
+          updated_at: trx.fn.now(),
         })
         .returning('*');
 
-      if (createCampaignDto.filters && Object.keys(createCampaignDto.filters).length > 0) {
-        let query = trx('users').select('id', 'telegram_chat_id');
-        const filters = createCampaignDto.filters ?? {};
-        (
-          Object.entries(filters) as [keyof UsersFilterDto, string | boolean | number | undefined][]
-        ).forEach(([key, value]) => {
-          if (value === undefined) return;
+      await this.insertRecipients(trx, campaign.id, dto.filters, abTest);
 
-          if (key === 'created_from' && filters.created_to) {
-            if (filters.created_to === 'string') {
-              query = query.whereBetween('created_at', [
-                new Date(value as string),
-                new Date(filters.created_to),
-              ]);
-            }
-          } else if (key === 'created_from' && typeof value === 'string') {
-            query = query.where('created_at', '>=', new Date(value));
-          } else if (key === 'created_to' && typeof value === 'string') {
-            query = query.where('created_at', '<=', new Date(value));
-          } else if (
-            typeof value === 'string' &&
-            [
-              'first_name',
-              'last_name',
-              'phone_number',
-              'passport_series',
-              'id_card_number',
-              'telegram_username',
-            ].includes(key)
-          ) {
-            query = query.whereILike(key, `%${value}%`);
-          } else {
-            query = query.where(key, value);
-          }
-        });
-
-        const users: User[] = await query;
-        if (users.length > 0) {
-          const now = new Date();
-          const recipients = users.map((u) => ({
-            campaign_id: campaign.id,
-            user_id: u.id,
-            status: status === 'scheduled' ? 'pending' : 'sent',
-            created_at: now,
-            updated_at: now,
-          }));
-          const batchSize = 1000;
-          for (let i = 0; i < recipients.length; i += batchSize) {
-            await trx('campaign_recipient').insert(recipients.slice(i, i + batchSize));
-          }
-
-          let job;
-          if (status === 'queued') {
-            job = await this.campaignQueue.add(
-              'send-campaign',
-              { campaignId: campaign.id },
-              { attempts: 3, backoff: 1000 },
-            );
-          } else if (status === 'scheduled') {
-            const delay = createCampaignDto.schedule_at
-              ? new Date(createCampaignDto.schedule_at).getTime() - Date.now()
-              : 0;
-            if (delay < 0) {
-              throw new BadRequestException({
-                message: 'Schedule time must be in the future',
-                location: 'schedule_at',
-              });
-            }
-            job = await this.campaignQueue.add(
-              'send-campaign',
-              { campaignId: campaign.id },
-              { delay, attempts: 3, backoff: 1000 },
-            );
-          }
-          if (job) {
-            const jobIdStr = job.id.toString();
-            await trx('campaigns').where('id', campaign.id).update({ job_id: jobIdStr });
-            campaign.job_id = jobIdStr;
-          }
-        }
-      }
+      // Enqueue qilish: kampaniya yaratgach, recipientlarni job sifatida qo'shish
+      await this.enqueueRecipients(campaign.id);
 
       return campaign;
+    });
+  }
+
+  async update(id: string, dto: UpdateCampaignDto): Promise<ICampaign> {
+    return this.knex.transaction(async (trx) => {
+      const campaign: ICampaign | undefined = await trx('campaigns').where('id', id).first();
+      if (!campaign) {
+        throw new NotFoundException({
+          message: 'Campaign not found',
+          location: 'campaign',
+          id,
+        });
+      }
+
+      if (!['queued', 'scheduled', 'paused'].includes(campaign.status)) {
+        throw new BadRequestException('Cannot update running, completed, or canceled campaign');
+      }
+
+      const newTemplateId = dto.template_id || campaign.template_id;
+      const template = await trx('templates')
+        .where({ id: newTemplateId, status: 'active' })
+        .first();
+      if (!template) {
+        throw new NotFoundException({
+          message: 'Template not found or inactive',
+          location: 'template_id',
+        });
+      }
+
+      const newSendType = dto.send_type || campaign.send_type;
+      const newScheduleAt = dto.schedule_at ? new Date(dto.schedule_at) : campaign.schedule_at;
+      let newStatus: string = dto.status || campaign.status;
+
+      if (newSendType === 'schedule') {
+        if (!newScheduleAt) {
+          throw new BadRequestException({
+            message: 'Schedule time is required',
+            location: 'schedule_at',
+          });
+        }
+        if (newScheduleAt <= new Date()) {
+          throw new BadRequestException({
+            message: 'Schedule must be in the future',
+            location: 'schedule_at',
+          });
+        }
+        if (!['paused', 'canceled'].includes(newStatus)) newStatus = 'scheduled';
+      } else if (newSendType === 'now') {
+        if (!['paused', 'canceled'].includes(newStatus)) newStatus = 'queued';
+      } else {
+        throw new BadRequestException({
+          message: 'Invalid send type',
+          location: 'send_type',
+        });
+      }
+
+      const [updated]: ICampaign[] = await trx('campaigns')
+        .where('id', id)
+        .update({
+          template_id: newTemplateId,
+          send_type: newSendType,
+          schedule_at: newScheduleAt,
+          status: newStatus,
+          updated_at: trx.fn.now(),
+        })
+        .returning('*');
+
+      // Agar status 'queued' yoki 'scheduled' bo'lsa, qayta enqueue qilish mumkin, lekin hozircha kerak emas
+
+      return updated;
     });
   }
 
@@ -219,11 +166,10 @@ export class CampaignsService {
 
     if (filters.status) void qb.where('campaigns.status', filters.status);
     if (filters.search) {
-      const search = filters.search;
       void qb.where(function () {
-        void this.where('campaigns.template_id', 'like', `%${search}%`)
-          .orWhereILike('templates.name', `%${search}%`)
-          .orWhereILike('templates.description', `%${search}%`);
+        void this.where('campaigns.template_id', 'like', `%${filters.search}%`)
+          .orWhereILike('templates.name', `%${filters.search}%`)
+          .orWhereILike('templates.description', `%${filters.search}%`);
       });
     }
 
@@ -233,166 +179,198 @@ export class CampaignsService {
   async findOne(id: string): Promise<ICampaign> {
     const campaign: ICampaign | undefined = await this.knex('campaigns').where('id', id).first();
     if (!campaign) {
-      throw new NotFoundException({ message: 'Campaign not found', location: 'campaign', id });
+      throw new NotFoundException({
+        message: 'Campaign not found',
+        location: 'campaign',
+        id,
+      });
     }
     return campaign;
   }
 
-  async update(id: string, updateCampaignDto: UpdateCampaignDto): Promise<ICampaign> {
-    return this.knex.transaction(async (trx) => {
-      const campaign: ICampaign = await this.findOne(id);
-      if (!['queued', 'scheduled', 'paused'].includes(campaign.status)) {
-        throw new BadRequestException('Cannot update running, completed, or canceled campaign');
-      }
-
-      const newTemplateId = updateCampaignDto.template_id || campaign.template_id;
-      const template = await trx('templates')
-        .where('id', newTemplateId)
-        .where('status', 'active')
-        .first();
-      if (!template)
-        throw new NotFoundException({
-          message: 'Template not found or inactive',
-          location: 'template_id',
-        });
-
-      const newSendType = updateCampaignDto.send_type || campaign.send_type;
-      const newScheduleAt = updateCampaignDto.schedule_at
-        ? new Date(updateCampaignDto.schedule_at)
-        : campaign.schedule_at;
-      let newStatus = updateCampaignDto.status || campaign.status;
-      const newFilters = updateCampaignDto.filters || campaign.filters;
-      const newAbTest = updateCampaignDto.ab_test || campaign.ab_test;
-
-      if (newStatus === 'paused' && campaign.job_id) {
-        const job = await this.campaignQueue.getJob(campaign.job_id);
-        if (job) {
-          await job.remove();
-          await trx('campaigns').where('id', id).update({ job_id: null });
-          this.logger.log(`Paused (removed) job ${campaign.job_id} for campaign ${id}`);
-        }
-      } else if (newStatus === 'canceled' && campaign.job_id) {
-        const job = await this.campaignQueue.getJob(campaign.job_id);
-        if (job) {
-          await job.remove();
-          this.logger.log(`Canceled job ${campaign.job_id} for campaign ${id}`);
-        }
-        await trx('campaign_recipient').where('campaign_id', id).update({ status: 'canceled' });
-        await trx('campaigns').where('id', id).update({ job_id: null });
-      }
-
-      if (newSendType === 'schedule') {
-        if (!newScheduleAt)
-          throw new BadRequestException({
-            message: 'Schedule time is required',
-            location: 'schedule_at',
-          });
-        if (newScheduleAt <= new Date())
-          throw new BadRequestException({
-            message: 'Schedule time must be in the future',
-            location: 'schedule_at',
-          });
-        if (newStatus !== 'paused' && newStatus !== 'canceled') newStatus = 'scheduled';
-      } else if (newSendType === 'now') {
-        if (newStatus !== 'paused' && newStatus !== 'canceled') newStatus = 'queued';
-      } else {
-        throw new BadRequestException({ message: 'Invalid send type', location: 'send_type' });
-      }
-
-      const [updatedCampaign]: ICampaign[] = await trx('campaigns')
-        .where('id', id)
-        .update({
-          template_id: newTemplateId,
-          send_type: newSendType,
-          schedule_at: newScheduleAt,
-          status: newStatus,
-          filters: newFilters ? JSON.stringify(newFilters) : campaign.filters,
-          ab_test: newAbTest ? JSON.stringify(newAbTest) : campaign.ab_test,
-          updated_at: new Date(),
-        })
-        .returning('*');
-
-      if (updateCampaignDto.filters) {
-        await trx('campaign_recipient').where('campaign_id', id).del();
-        const query = trx('users').select('id', 'telegram_chat_id');
-        const users: User[] = await query;
-        if (users.length > 0) {
-          const now = new Date();
-          const recipients = users.map((u) => ({
-            campaign_id: id,
-            user_id: u.id,
-            status: newStatus === 'scheduled' ? 'pending' : 'sent',
-            created_at: now,
-            updated_at: now,
-          }));
-          const batchSize = 1000;
-          for (let i = 0; i < recipients.length; i += batchSize) {
-            await trx('campaign_recipient').insert(recipients.slice(i, i + batchSize));
-          }
-          let job;
-          if (newStatus === 'queued') {
-            job = await this.campaignQueue.add(
-              'send-campaign',
-              { campaignId: id },
-              { attempts: 3, backoff: 1000 },
-            );
-          } else if (newStatus === 'scheduled') {
-            const delay = newScheduleAt ? newScheduleAt.getTime() - Date.now() : 0;
-            if (delay < 0) {
-              throw new BadRequestException({
-                message: 'Schedule time must be in the future',
-                location: 'schedule_at',
-              });
-            }
-            job = await this.campaignQueue.add(
-              'send-campaign',
-              { campaignId: id },
-              { delay, attempts: 3, backoff: 1000 },
-            );
-          }
-          if (job) {
-            const jobIdStr = job.id.toString();
-            await trx('campaigns').where('id', id).update({ job_id: job.id });
-            updatedCampaign.job_id = jobIdStr;
-          }
-        }
-      }
-
-      if (campaign.status === 'paused' && ['queued', 'scheduled'].includes(newStatus)) {
-        let job;
-        if (newStatus === 'queued') {
-          job = await this.campaignQueue.add(
-            'send-campaign',
-            { campaignId: id },
-            { attempts: 3, backoff: 1000 },
-          );
-        } else if (newStatus === 'scheduled') {
-          const delay = newScheduleAt ? newScheduleAt.getTime() - Date.now() : 0;
-          if (delay < 0)
-            throw new BadRequestException({
-              message: 'Schedule time must be in the future',
-              location: 'schedule_at',
-            });
-          job = await this.campaignQueue.add(
-            'send-campaign',
-            { campaignId: id },
-            { delay, attempts: 3, backoff: 1000 },
-          );
-        }
-        if (job) {
-          await trx('campaigns').where('id', id).update({ job_id: job.id.toString() }); // Tip moslash
-          updatedCampaign.job_id = job.id.toString();
-          this.logger.log(`Resumed by adding new job ${job.id} for campaign ${id}`);
-        }
-      }
-
-      return updatedCampaign;
-    });
-  }
   async remove(id: string): Promise<void> {
     const deleted = await this.knex('campaigns').where('id', id).del();
     if (!deleted) {
-      throw new NotFoundException({ message: 'Campaign not found', location: 'campaign', id });
+      throw new NotFoundException({
+        message: 'Campaign not found',
+        location: 'campaign',
+        id,
+      });
     }
+  }
+
+  private async prepareAbTest(trx: Knex.Transaction, dto: AbTestInput): Promise<AbTestConfigDto> {
+    if (!dto.ab_test?.enabled) return { enabled: false, variants: [] };
+
+    const variants: AbTestVariantDto[] = dto.ab_test.variants || [];
+    if (variants.length < 1) {
+      throw new BadRequestException({
+        message: 'At least 1 variant is required when A/B test is enabled',
+        location: 'ab_test.variants',
+      });
+    }
+
+    const total: number = variants.reduce((s, v) => s + Number(v.percentage || 0), 0);
+    if (total > 100) {
+      throw new BadRequestException({
+        message: 'A/B test percentages cannot exceed 100',
+        location: 'ab_test.variants.percentage',
+      });
+    }
+
+    const ids: string[] = variants.map((v) => v.template_id);
+    const uniqueIds = new Set(ids);
+    if (uniqueIds.size !== ids.length) {
+      throw new BadRequestException({
+        message: 'Duplicate template_id detected in A/B variants',
+        location: 'ab_test.variants.template_id',
+      });
+    }
+
+    const activeTemplates: ITemplate[] = await trx('templates')
+      .whereIn('id', ids)
+      .andWhere('status', 'active');
+
+    if (activeTemplates.length !== ids.length) {
+      throw new BadRequestException({
+        message: 'One or more A/B test templates not found or inactive',
+        location: 'ab_test.variants.template_id',
+      });
+    }
+
+    if (total < 100) {
+      variants.push({
+        name: 'Default',
+        template_id: dto.template_id,
+        percentage: 100 - total,
+      });
+    }
+
+    return {
+      enabled: true,
+      variants: variants.map((v) => ({
+        name: v.name,
+        template_id: v.template_id,
+        percentage: Number(v.percentage),
+      })),
+    };
+  }
+
+  private async insertRecipients(
+    trx: Knex.Transaction,
+    campaignId: string,
+    filters: UsersFilterDto = {},
+    abTest: AbTestConfigDto,
+  ): Promise<void> {
+    let query = trx('users').select('id');
+
+    if (filters.created_from && filters.created_to) {
+      query = query.whereBetween('created_at', [
+        new Date(filters.created_from),
+        new Date(filters.created_to),
+      ]);
+    } else if (filters.created_from) {
+      query = query.where('created_at', '>=', new Date(filters.created_from));
+    } else if (filters.created_to) {
+      query = query.where('created_at', '<=', new Date(filters.created_to));
+    }
+
+    const allowedFilters: (keyof UsersFilterDto)[] = [
+      'first_name',
+      'last_name',
+      'phone_number',
+      'passport_series',
+      'id_card_number',
+      'telegram_username',
+      'is_active',
+    ];
+
+    for (const [key, rawValue] of Object.entries(filters)) {
+      if (rawValue === undefined) continue;
+      const value = rawValue as string | number | boolean;
+      if (!allowedFilters.includes(key as keyof UsersFilterDto)) continue;
+
+      if (
+        typeof value === 'string' &&
+        [
+          'first_name',
+          'last_name',
+          'phone_number',
+          'passport_series',
+          'id_card_number',
+          'telegram_username',
+        ].includes(key)
+      ) {
+        query = query.whereILike(key, `%${value}%`);
+      } else {
+        query = query.where(key, value);
+      }
+    }
+
+    const users: User[] = await query;
+    if (!users.length) return;
+
+    const now = new Date();
+    let recipients: any[] = [];
+
+    if (abTest.enabled && abTest.variants.length) {
+      const shuffled = users.sort(() => Math.random() - 0.5);
+      let start = 0;
+      for (const variant of abTest.variants) {
+        const count = Math.floor((shuffled.length * variant.percentage) / 100);
+        const chunk = shuffled.slice(start, start + count);
+        start += count;
+        recipients = recipients.concat(
+          chunk.map((u) => ({
+            campaign_id: campaignId,
+            user_id: u.id,
+            status: 'pending',
+            variant_template_id: variant.template_id,
+            created_at: now,
+            updated_at: now,
+          })),
+        );
+      }
+    } else {
+      recipients = users.map((u) => ({
+        campaign_id: campaignId,
+        user_id: u.id,
+        status: 'pending',
+        created_at: now,
+        updated_at: now,
+      }));
+    }
+
+    const batchSize = 1000;
+    for (let i = 0; i < recipients.length; i += batchSize) {
+      await trx('campaign_recipient').insert(recipients.slice(i, i + batchSize));
+    }
+  }
+
+  private async enqueueRecipients(campaignId: string): Promise<void> {
+    const recipients: ICampaignRecipient[] = await this.knex('campaign_recipient').where({
+      campaign_id: campaignId,
+      status: 'pending',
+    });
+
+    const jobs = recipients.map((r) => ({
+      name: 'send_message',
+      data: { campaignId, recipientId: r.id },
+      opts: { delay: 0, attempts: 3 }, // Retry 3 marta
+    }));
+
+    await this.queue.addBulk(jobs);
+    this.logger.log(`Enqueued ${recipients.length} jobs for campaign ${campaignId}`);
+  }
+
+  async pauseCampaign(campaignId: string): Promise<void> {
+    await this.knex('campaigns').where('id', campaignId).update({ status: 'paused' });
+    this.logger.log(`Paused campaign ${campaignId}`);
+  }
+
+  async resumeCampaign(campaignId: string): Promise<void> {
+    await this.knex('campaigns').where('id', campaignId).update({ status: 'sending' });
+    await this.enqueueRecipients(campaignId); // Faqat pendinglarni qayta qo'shadi
+    this.logger.log(`Resumed campaign ${campaignId}`);
   }
 }

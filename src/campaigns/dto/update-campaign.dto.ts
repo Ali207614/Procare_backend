@@ -1,7 +1,5 @@
-import { IsString, IsOptional, IsEnum, IsUUID, ValidateNested } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsUUID } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { AbTestConfigDto, UsersFilterDto } from 'src/campaigns/dto/create-campaign.dto';
 
 export class UpdateCampaignDto {
   @ApiProperty({
@@ -36,19 +34,4 @@ export class UpdateCampaignDto {
   @IsOptional()
   @IsEnum(['queued', 'scheduled', 'sending', 'paused', 'completed', 'failed'])
   status?: 'queued' | 'scheduled' | 'sending' | 'paused' | 'completed' | 'failed';
-
-  @ApiProperty({ type: UsersFilterDto, required: false, description: 'Filters for users' })
-  @IsOptional()
-  @Type(() => UsersFilterDto)
-  @ValidateNested()
-  filters?: UsersFilterDto;
-
-  @ApiProperty({ type: AbTestConfigDto, required: false, description: 'A/B test configuration' })
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => AbTestConfigDto)
-  ab_test?: AbTestConfigDto;
-
-
-
 }
