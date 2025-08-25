@@ -352,17 +352,14 @@ export class CampaignsService {
       .where('id', campaignId)
       .first();
     if (!campaign) {
-      throw new NotFoundException({
-        message: 'Campaign not found',
-        location: 'campaign',
-      });
+      throw new NotFoundException(`Campaign ${campaignId} not found`);
     }
 
     let delay = 0;
     if (campaign.send_type === 'schedule' && campaign.schedule_at) {
       const scheduleTime = new Date(campaign.schedule_at).getTime();
       delay = scheduleTime - Date.now();
-      if (delay < 0) delay = 0;
+      if (delay < 0) delay = 0; // O'tgan bo'lsa darhol ishla
     }
 
     const recipients: ICampaignRecipient[] = await this.knex('campaign_recipient').where({
@@ -387,6 +384,7 @@ export class CampaignsService {
   async pauseCampaign(campaignId: string): Promise<void> {
     await this.knex('campaigns').where('id', campaignId).update({ status: 'paused' });
 
+    // Joblarni remove qilish
     const jobs = await this.queue.getJobs(['waiting', 'delayed', 'active']);
     for (const job of jobs) {
       if (job.data.campaignId === campaignId) {

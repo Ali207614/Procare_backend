@@ -9,7 +9,6 @@ import { ICampaignRecipient } from 'src/common/types/campaign-recipient.interfac
 
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
-import { NotFoundException } from '@nestjs/common';
 
 @Processor('campaigns')
 export class CampaignsProcessor extends WorkerHost {
@@ -65,7 +64,7 @@ export class CampaignsProcessor extends WorkerHost {
           if (!user.telegram_chat_id)
             throw new Error(`No telegram_chat_id for user ${recipient.user_id}`);
           const template: ITemplate = await trx('templates').where('id', templateId).first();
-          if (!template) throw new NotFoundException(`Template ${templateId} not found`);
+          if (!template) throw new Error(`Template ${templateId} not found`);
           const res = await this.telegramService.sendMessage(user.telegram_chat_id, template.body);
           messageId = res.data?.result?.message_id;
         } else if (campaign.delivery_method === 'sms') {
