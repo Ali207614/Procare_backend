@@ -1,5 +1,6 @@
 import { Injectable, LoggerService as NestLoggerService } from '@nestjs/common';
 import { createLogger, format, transports } from 'winston';
+import 'winston-daily-rotate-file';
 
 @Injectable()
 export class LoggerService implements NestLoggerService {
@@ -13,31 +14,45 @@ export class LoggerService implements NestLoggerService {
         return `[${timestamp}] ${level.toUpperCase()}: ${msg}${stack ? `\n${stack}` : ''}`;
       }),
     ),
-
     transports: [
       new transports.Console(),
-      new transports.File({ filename: 'logs/app.log', level: 'info' }),
-      new transports.File({ filename: 'logs/error.log', level: 'error' }),
+
+      // app loglari rotation bilan
+      new (transports as any).DailyRotateFile({
+        dirname: 'logs',
+        filename: 'app-%DATE%.log',
+        datePattern: 'YYYY-MM-DD',
+        zippedArchive: true,
+        maxSize: '20m',
+        maxFiles: '14d',
+        level: 'info',
+      }),
+
+      new (transports as any).DailyRotateFile({
+        dirname: 'logs',
+        filename: 'error-%DATE%.log',
+        datePattern: 'YYYY-MM-DD',
+        zippedArchive: true,
+        maxSize: '20m',
+        maxFiles: '30d',
+        level: 'error',
+      }),
     ],
   });
 
-  log(message: string) {
+  log(message: string): void {
     this.logger.info(message);
   }
-
-  error(message: string, trace?: string) {
+  error(message: string, trace?: string): void {
     this.logger.error(message, trace ? { stack: trace } : undefined);
   }
-
-  warn(message: string) {
+  warn(message: string): void {
     this.logger.warn(message);
   }
-
-  debug(message: string) {
+  debug(message: string): void {
     this.logger.debug(message);
   }
-
-  verbose(message: string) {
+  verbose(message: string): void {
     this.logger.verbose(message);
   }
 }

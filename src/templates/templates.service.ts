@@ -9,7 +9,6 @@ import {
   ITemplateWithHistories,
 } from 'src/common/types/template.interface';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
-import { UserPayload } from 'src/common/types/user-payload.interface';
 
 @Injectable()
 export class TemplatesService {
@@ -102,7 +101,7 @@ export class TemplatesService {
         updateTemplateDto.title &&
         updateTemplateDto.title.toLowerCase() !== oldTemplate.title.toLowerCase()
       ) {
-        const existing = await trx('templates')
+        const existing: ITemplate | undefined = await trx<ITemplate>('templates')
           .whereRaw('LOWER(title) = ?', [updateTemplateDto.title.toLowerCase()])
           .whereNot('id', id)
           .first();
@@ -114,7 +113,7 @@ export class TemplatesService {
         }
       }
 
-      const histories: ITemplateHistory[] = await trx('template_histories')
+      const histories: ITemplateHistory[] = await trx<ITemplateHistory>('template_histories')
         .where('template_id', id)
         .orderBy('updated_at', 'desc');
       if (histories.length >= 5) {
@@ -150,14 +149,16 @@ export class TemplatesService {
   }
 
   async remove(id: string): Promise<{ message: string }> {
-    const template = await this.knex('templates').where('id', id).first();
+    const template: ITemplate | undefined = await this.knex<ITemplate>('templates')
+      .where('id', id)
+      .first();
     if (!template) {
       throw new NotFoundException({
         message: 'Template not found',
         location: 'template',
       });
     }
-    await this.knex('templates').where('id', id).update({ status: 'archived' });
+    await this.knex<ITemplate>('templates').where('id', id).update({ status: 'Deleted' });
     return { message: 'Template status updated to archived' };
   }
 }
