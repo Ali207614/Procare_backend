@@ -44,28 +44,40 @@ export class CampaignsController {
     return this.campaignsService.findAll(filters);
   }
 
-  @Get(':id')
+  @Get(':campaign_id')
   @ApiOperation({ summary: 'Get a campaign by ID' })
   @ApiNotFoundResponse({ description: 'Campaign not found' })
-  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<ICampaign> {
+  async findOne(@Param('campaign_id', ParseUUIDPipe) id: string): Promise<ICampaign> {
     return this.campaignsService.findOne(id);
   }
 
-  @Patch(':id')
+  @Patch(':campaign_id')
   @ApiOperation({ summary: 'Update a campaign by ID' })
   @ApiNotFoundResponse({ description: 'Campaign not found' })
   async update(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('campaign_id', ParseUUIDPipe) id: string,
     @Body(ValidationPipe) updateCampaignDto: UpdateCampaignDto,
   ): Promise<ICampaign> {
     return this.campaignsService.update(id, updateCampaignDto);
   }
 
-  @Delete(':id')
+  @Delete(':campaign_id')
   @ApiOperation({ summary: 'Delete a campaign by ID' })
   @ApiOkResponse()
   @ApiNotFoundResponse({ description: 'Campaign not found' })
-  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+  async remove(@Param('campaign_id', ParseUUIDPipe) id: string): Promise<void> {
     return this.campaignsService.remove(id);
+  }
+
+  @Post(':campaign_id/pause')
+  async pause(@Param('campaign_id') id: string): Promise<{ message: string }> {
+    await this.campaignsService.pauseCampaign(id);
+    return { message: `Campaign ${id} paused` };
+  }
+
+  @Post(':campaign_id/resume')
+  async resume(@Param('campaign_id') id: string): Promise<{ message: string }> {
+    await this.campaignsService.resumeCampaign(id);
+    return { message: `Campaign ${id} resumed` };
   }
 }

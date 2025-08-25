@@ -348,29 +348,58 @@ export class CampaignsService {
   }
 
   private async enqueueRecipients(campaignId: string): Promise<void> {
+    const campaign: ICampaign | undefined = await this.knex('campaigns')
+      .where('id', campaignId)
+      .first();
+    if (!campaign) {
+      throw new NotFoundException({
+        message: 'Campaign not found',
+        location: 'campaign',
+      });
+    }
+
+    let delay = 0;
+    if (campaign.send_type === 'schedule' && campaign.schedule_at) {
+      const scheduleTime = new Date(campaign.schedule_at).getTime();
+      delay = scheduleTime - Date.now();
+      if (delay < 0) delay = 0;
+    }
+
     const recipients: ICampaignRecipient[] = await this.knex('campaign_recipient').where({
       campaign_id: campaignId,
       status: 'pending',
     });
 
+    if (!recipients.length) return;
+
     const jobs = recipients.map((r) => ({
       name: 'send_message',
       data: { campaignId, recipientId: r.id },
-      opts: { delay: 0, attempts: 3 }, // Retry 3 marta
+      opts: { delay, attempts: 3, backoff: { type: 'exponential', delay: 1000 } }, // Retry strategiyasi
     }));
 
     await this.queue.addBulk(jobs);
-    this.logger.log(`Enqueued ${recipients.length} jobs for campaign ${campaignId}`);
+    this.logger.log(
+      `Enqueued ${recipients.length} jobs for campaign ${campaignId} with delay ${delay}ms`,
+    );
   }
 
   async pauseCampaign(campaignId: string): Promise<void> {
     await this.knex('campaigns').where('id', campaignId).update({ status: 'paused' });
-    this.logger.log(`Paused campaign ${campaignId}`);
+
+    const jobs = await this.queue.getJobs(['waiting', 'delayed', 'active']);
+    for (const job of jobs) {
+      if (job.data.campaignId === campaignId) {
+        await job.remove();
+      }
+    }
+
+    this.logger.log(`Paused campaign ${campaignId} and removed pending jobs`);
   }
 
   async resumeCampaign(campaignId: string): Promise<void> {
     await this.knex('campaigns').where('id', campaignId).update({ status: 'sending' });
-    await this.enqueueRecipients(campaignId); // Faqat pendinglarni qayta qo'shadi
+    await this.enqueueRecipients(campaignId);
     this.logger.log(`Resumed campaign ${campaignId}`);
   }
 }
