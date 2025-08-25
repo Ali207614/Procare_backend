@@ -14,7 +14,6 @@ import { FindAllCampaignsDto } from 'src/campaigns/dto/find-all-campaigns.dto';
 import { UpdateCampaignDto } from 'src/campaigns/dto/update-campaign.dto';
 import { ITemplate } from 'src/common/types/template.interface';
 import { User } from 'src/common/types/user.interface';
-import { ICampaignRecipient } from 'src/common/types/campaign-recipient.interface';
 import { LoggerService } from 'src/common/logger/logger.service';
 
 interface AbTestInput {
@@ -76,11 +75,9 @@ export class CampaignsService {
         })
         .returning('*');
 
-      await this.insertRecipients(trx, campaign.id, dto.filters, abTest);
+      const recipientIds = await this.insertRecipients(trx, campaign.id, dto.filters, abTest);
 
-      // Enqueue qilish: kampaniya yaratgach, recipientlarni job sifatida qo'shish
-      await this.enqueueRecipients(campaign.id);
-
+      await this.enqueueRecipients(campaign.id, recipientIds);
       return campaign;
     });
   }
@@ -96,7 +93,7 @@ export class CampaignsService {
         });
       }
 
-      if (!['queued', 'scheduled', 'paused'].includes(campaign.status)) {
+      if (!['queued', 'scheduled'].includes(campaign.status)) {
         throw new BadRequestException('Cannot update running, completed, or canceled campaign');
       }
 
@@ -261,9 +258,10 @@ export class CampaignsService {
     campaignId: string,
     filters: UsersFilterDto = {},
     abTest: AbTestConfigDto,
-  ): Promise<void> {
+  ): Promise<{ id: string }[]> {
     let query = trx('users').select('id');
 
+    // Sana filterlari
     if (filters.created_from && filters.created_to) {
       query = query.whereBetween('created_at', [
         new Date(filters.created_from),
@@ -287,8 +285,9 @@ export class CampaignsService {
 
     for (const [key, rawValue] of Object.entries(filters)) {
       if (rawValue === undefined) continue;
-      const value = rawValue as string | number | boolean;
       if (!allowedFilters.includes(key as keyof UsersFilterDto)) continue;
+
+      const value = rawValue as unknown;
 
       if (
         typeof value === 'string' &&
@@ -302,26 +301,30 @@ export class CampaignsService {
         ].includes(key)
       ) {
         query = query.whereILike(key, `%${value}%`);
-      } else {
+      } else if (
+        typeof value === 'boolean' ||
+        typeof value === 'number' ||
+        typeof value === 'string'
+      ) {
         query = query.where(key, value);
       }
     }
 
     const users: User[] = await query;
-    if (!users.length) return;
+    if (!users.length) return [];
 
     const now = new Date();
     let recipients: any[] = [];
 
     if (abTest.enabled && abTest.variants.length) {
-      const shuffled = users.sort(() => Math.random() - 0.5);
+      const shuffled: User[] = users.sort(() => Math.random() - 0.5);
       let start = 0;
       for (const variant of abTest.variants) {
         const count = Math.floor((shuffled.length * variant.percentage) / 100);
         const chunk = shuffled.slice(start, start + count);
         start += count;
-        recipients = recipients.concat(
-          chunk.map((u) => ({
+        recipients.push(
+          ...chunk.map((u) => ({
             campaign_id: campaignId,
             user_id: u.id,
             status: 'pending',
@@ -342,12 +345,20 @@ export class CampaignsService {
     }
 
     const batchSize = 1000;
+    const insertedIds: { id: string }[] = [];
     for (let i = 0; i < recipients.length; i += batchSize) {
-      await trx('campaign_recipient').insert(recipients.slice(i, i + batchSize));
+      const chunk = recipients.slice(i, i + batchSize);
+      const ids: { id: string }[] = await trx('campaign_recipient').insert(chunk).returning('id');
+      insertedIds.push(...ids);
     }
+
+    return insertedIds;
   }
 
-  private async enqueueRecipients(campaignId: string): Promise<void> {
+  private async enqueueRecipients(
+    campaignId: string,
+    recipientIds?: { id: string }[],
+  ): Promise<void> {
     const campaign: ICampaign | undefined = await this.knex('campaigns')
       .where('id', campaignId)
       .first();
@@ -359,32 +370,26 @@ export class CampaignsService {
     if (campaign.send_type === 'schedule' && campaign.schedule_at) {
       const scheduleTime = new Date(campaign.schedule_at).getTime();
       delay = scheduleTime - Date.now();
-      if (delay < 0) delay = 0; // O'tgan bo'lsa darhol ishla
+      if (delay < 0) delay = 0; // agar o‘tib ketgan bo‘lsa darhol ishga tushadi
     }
 
-    const recipients: ICampaignRecipient[] = await this.knex('campaign_recipient').where({
-      campaign_id: campaignId,
-      status: 'pending',
-    });
-
-    if (!recipients.length) return;
-
-    const jobs = recipients.map((r) => ({
+    const jobs = (recipientIds ?? []).map((r) => ({
       name: 'send_message',
       data: { campaignId, recipientId: r.id },
-      opts: { delay, attempts: 3, backoff: { type: 'exponential', delay: 1000 } }, // Retry strategiyasi
+      opts: { delay, attempts: 3, backoff: { type: 'exponential', delay: 1000 } },
     }));
 
-    await this.queue.addBulk(jobs);
-    this.logger.log(
-      `Enqueued ${recipients.length} jobs for campaign ${campaignId} with delay ${delay}ms`,
-    );
+    if (jobs.length) {
+      await this.queue.addBulk(jobs);
+      this.logger.log(
+        `Enqueued ${jobs.length} jobs for campaign ${campaignId} with delay ${delay}ms`,
+      );
+    }
   }
 
   async pauseCampaign(campaignId: string): Promise<void> {
     await this.knex('campaigns').where('id', campaignId).update({ status: 'paused' });
 
-    // Joblarni remove qilish
     const jobs = await this.queue.getJobs(['waiting', 'delayed', 'active']);
     for (const job of jobs) {
       if (job.data.campaignId === campaignId) {

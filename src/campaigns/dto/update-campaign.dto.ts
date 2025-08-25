@@ -27,11 +27,11 @@ export class UpdateCampaignDto {
   schedule_at?: string;
 
   @ApiProperty({
-    enum: ['queued', 'scheduled', 'sending', 'paused', 'completed', 'failed'],
+    enum: ['queued', 'scheduled'],
     description: 'Campaign status',
     required: false,
   })
   @IsOptional()
-  @IsEnum(['queued', 'scheduled', 'sending', 'paused', 'completed', 'failed'])
-  status?: 'queued' | 'scheduled' | 'sending' | 'paused' | 'completed' | 'failed';
+  @IsEnum(['queued', 'scheduled'])
+  status?: 'queued' | 'scheduled';
 }

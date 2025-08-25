@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 export class JwtMiddleware implements NestMiddleware {
   constructor(private readonly configService: ConfigService) {}
 
-  async use(req: Request, res: Response, next: NextFunction) {
+  use(req: Request, res: Response, next: NextFunction): void {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
       req.user = undefined;

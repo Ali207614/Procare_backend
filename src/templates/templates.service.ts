@@ -9,6 +9,7 @@ import {
   ITemplateWithHistories,
 } from 'src/common/types/template.interface';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
+import { UserPayload } from 'src/common/types/user-payload.interface';
 
 @Injectable()
 export class TemplatesService {
@@ -55,7 +56,8 @@ export class TemplatesService {
       .modify((qb) => {
         if (filters.status) void qb.where('status', filters.status);
         if (filters.language) void qb.where('language', filters.language);
-        if (filters.search) void qb.whereRaw('LOWER(title) LIKE ?', [`%${filters.search.toLowerCase()}%`]);
+        if (filters.search)
+          void qb.whereRaw('LOWER(title) LIKE ?', [`%${filters.search.toLowerCase()}%`]);
       })
       .limit(filters.limit)
       .offset(filters.offset);
@@ -88,7 +90,11 @@ export class TemplatesService {
     return template;
   }
 
-  async update(id: string, updateTemplateDto: UpdateTemplateDto): Promise<{ message: string }> {
+  async update(
+    id: string,
+    updateTemplateDto: UpdateTemplateDto,
+    admin: AdminPayload,
+  ): Promise<{ message: string }> {
     return this.knex.transaction(async (trx) => {
       const oldTemplate: ITemplate = await this.findOne(id);
 
@@ -101,7 +107,10 @@ export class TemplatesService {
           .whereNot('id', id)
           .first();
         if (existing) {
-          throw new BadRequestException('Title already exists (case-insensitive)');
+          throw new BadRequestException({
+            message: 'Template with this title already exists',
+            location: 'title',
+          });
         }
       }
 
@@ -114,11 +123,14 @@ export class TemplatesService {
           .del();
       }
       await trx('template_histories').insert({
+        title: updateTemplateDto.title || oldTemplate.title,
+        language: updateTemplateDto.language || oldTemplate.language,
         template_id: id,
         version: histories.length + 1,
         body: oldTemplate.body,
         variables: oldTemplate.variables,
-        author_id: updateTemplateDto.created_by || oldTemplate.created_by,
+        created_by: admin.id,
+        status: updateTemplateDto.status || oldTemplate.status,
         updated_at: new Date(),
       });
 

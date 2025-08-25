@@ -16,8 +16,12 @@ import compression from 'compression';
 import { createBullBoard } from '@bull-board/api';
 import { BullAdapter } from '@bull-board/api/bullAdapter';
 import { ExpressAdapter } from '@bull-board/express';
-import { getQueueToken } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { getQueueToken as getBullToken } from '@nestjs/bull';
+import { getQueueToken as getBullMQToken } from '@nestjs/bullmq';
+import { Queue as BullQueue } from 'bull';
+import { Queue as BullMQQueue } from 'bullmq';
+import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
+
 import basicAuth from 'express-basic-auth';
 import { LoggerService } from 'src/common/logger/logger.service';
 import type { Application as ExpressApp } from 'express';
@@ -107,12 +111,14 @@ async function bootstrap(): Promise<void> {
 
     app.setGlobalPrefix(globalPrefix);
 
-    const sapQueue = app.get<Queue>(getQueueToken('sap'));
+    const sapQueue = app.get<BullQueue>(getBullToken('sap'));
+
+    const campaignsQueue = app.get<BullMQQueue>(getBullMQToken('campaigns'));
     const serverAdapter = new ExpressAdapter();
     serverAdapter.setBasePath('/admin/queues');
 
     createBullBoard({
-      queues: [new BullAdapter(sapQueue)],
+      queues: [new BullAdapter(sapQueue), new BullMQAdapter(campaignsQueue)],
       serverAdapter,
     });
 

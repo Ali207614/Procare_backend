@@ -295,6 +295,31 @@ exports.seed = async function (knex) {
       name: 'delete:template',
       description: 'Delete Template',
     },
+    {
+      id: '00000000-0000-0000-0000-000000000063',
+      name: 'create:campaign',
+      description: 'Create campaign',
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000064',
+      name: 'update:campaign',
+      description: 'Update campaign',
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000065',
+      name: 'delete:campaign',
+      description: 'Delete campaign',
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000066',
+      name: 'pause:campaign',
+      description: 'Pause campaign',
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000067',
+      name: 'resume:campaign',
+      description: 'Resume campaign',
+    },
   ];
 
   for (const perm of permissions) {

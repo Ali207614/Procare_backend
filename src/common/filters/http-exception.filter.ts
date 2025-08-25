@@ -4,6 +4,14 @@ import { LoggerService } from '../logger/logger.service';
 import { DatabaseError } from 'pg';
 import { parsePgError } from '../utils/pg-error.util';
 
+interface ErrorResponse {
+  message: string | string[];
+  error?: string;
+  statusCode: number;
+  location?: string;
+  [key: string]: unknown;
+}
+
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   constructor(private readonly logger: LoggerService) {}
@@ -90,8 +98,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const res = exception.getResponse();
 
-      if (typeof res === 'object' && res !== null && 'location' in res) {
-        return (res as any).location;
+      if (typeof res === 'object' && res !== null) {
+        const response = res as ErrorResponse;
+        return response.location ?? null;
       }
     }
     return null;

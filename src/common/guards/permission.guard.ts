@@ -6,6 +6,7 @@ import {
   PermissionMode,
 } from '../decorators/permission-decorator';
 import { PermissionsService } from '../../permissions/permissions.service';
+import { UserPayload } from 'src/common/types/user-payload.interface';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -32,7 +33,7 @@ export class PermissionsGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
-    const user = request.user;
+    const user: UserPayload = request.user;
 
     if (!user) {
       throw new ForbiddenException({

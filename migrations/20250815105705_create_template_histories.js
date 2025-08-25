@@ -8,9 +8,12 @@ exports.up = async function (knex) {
       .inTable('templates')
       .onDelete('CASCADE')
       .notNullable();
+    table.string('title').notNullable();
+    table.enu('language', ['uz', 'ru', 'en']).defaultTo('uz').notNullable();
     table.integer('version').notNullable();
     table.text('body').notNullable();
     table.jsonb('variables').defaultTo(knex.raw("'{}'::jsonb")).nullable();
+    table.enu('status', ['Draft', 'Open', 'Deleted']).defaultTo('Draft').notNullable();
     table.uuid('created_by').references('id').inTable('admins').onDelete('SET NULL').notNullable();
     table.timestamp('updated_at').defaultTo(knex.fn.now());
   });

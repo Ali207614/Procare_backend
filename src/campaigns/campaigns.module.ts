@@ -2,25 +2,19 @@ import { Module } from '@nestjs/common';
 import { PermissionsModule } from 'src/permissions/permissions.module';
 import { CampaignsController } from 'src/campaigns/campaigns.controller';
 import { CampaignsService } from 'src/campaigns/campaigns.service';
-import { BullModule } from '@nestjs/bull';
+import { BullModule } from '@nestjs/bullmq';
 import { LoggerModule } from 'src/common/logger/logger.module';
 
 @Module({
   imports: [
     LoggerModule,
     PermissionsModule,
-    BullModule.forRoot({
-      redis: {
-        host: 'localhost',
-        port: 6379,
-      },
-    }),
     BullModule.registerQueue({
-      name: 'campaign-queue',
+      name: 'campaigns',
     }),
   ],
   controllers: [CampaignsController],
   providers: [CampaignsService],
-  exports: [CampaignsService],
+  exports: [CampaignsService, BullModule],
 })
 export class CampaignsModule {}
