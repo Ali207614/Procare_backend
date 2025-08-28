@@ -38,8 +38,28 @@ export class RedisService {
 
     try {
       const json = JSON.stringify(value);
-      const dataToStore = json.length < 100 ? json : lz4.encode(json); // 100 baytdan kichik bo‘lsa siqmaslik
-      console.log(`Original size=${json.length}, Stored size=${dataToStore.length}`);
+      const originalSize = Buffer.byteLength(json, 'utf8');
+
+      let dataToStore: string;
+      if (json.length < 100) {
+        // RAW: → bu oddiy string JSON (siqilmagan).
+        // LZ4: → bu Base64 qilingan LZ4 siqilgan string.
+        dataToStore = 'RAW:' + json;
+        console.log(
+          `[Redis SET] key=${key} | RAW | size=${originalSize} bytes (~${(originalSize / 1024).toFixed(2)} KB)`,
+        );
+      } else {
+        const compressed = lz4.encode(json);
+        const compressedSize = compressed.length;
+        dataToStore = 'LZ4:' + compressed.toString('base64');
+
+        console.log(
+          `[Redis SET] key=${key} | LZ4 | original=${originalSize} bytes (~${(originalSize / 1024).toFixed(2)} KB)` +
+            ` | compressed=${compressedSize} bytes (~${(compressedSize / 1024).toFixed(2)} KB)` +
+            ` | ratio=${((compressedSize / originalSize) * 100).toFixed(1)}%`,
+        );
+      }
+
       await this.client!.set(this.buildKey(key), dataToStore, 'EX', ttlSeconds);
     } catch (err) {
       this.handleError(err, `Redis SET error for key=${key}`);
@@ -50,14 +70,19 @@ export class RedisService {
     if (!(await this.ensureConnected())) return null;
 
     try {
-      const data = await this.client!.getBuffer(this.buildKey(key));
+      const data = await this.client!.get(this.buildKey(key));
       if (!data) return null;
+
       let decompressed: string;
-      try {
-        decompressed = lz4.decode(data).toString('utf8');
-      } catch (e) {
-        decompressed = data.toString('utf8');
+      if (data.startsWith('RAW:')) {
+        decompressed = data.slice(4); // oddiy JSON
+      } else if (data.startsWith('LZ4:')) {
+        const buffer = Buffer.from(data.slice(4), 'base64');
+        decompressed = lz4.decode(buffer).toString('utf8');
+      } else {
+        throw new Error('Unknown data format');
       }
+
       return JSON.parse(decompressed) as T;
     } catch (err) {
       this.handleError(err, `Redis GET error for key=${key}`);

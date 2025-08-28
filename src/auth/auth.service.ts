@@ -132,8 +132,6 @@ export class AuthService {
       loginDto.phone_number,
     );
 
-    console.log(admin);
-
     if (admin && admin?.status === 'Pending') {
       throw new ForbiddenException({
         message: 'Registration incomplete. Please finish registration.',
