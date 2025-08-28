@@ -42,7 +42,14 @@ export class PermissionsGuard implements CanActivate {
       });
     }
 
-    const userPermissions = await this.permissionsService.getPermissions(user.id);
+    const userPermissions: string[] = await this.permissionsService.getPermissions(user.id);
+
+    if (!userPermissions.length || !requiredPermissions.length) {
+      throw new ForbiddenException({
+        message: 'You do not have the required permissions to perform this action.',
+        location: 'permission_denied',
+      });
+    }
 
     const hasPermission =
       mode === 'AND'

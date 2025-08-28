@@ -49,7 +49,7 @@ export class AuthService {
     if (existingAdmin.status !== 'Pending') {
       throw new ConflictException({
         message: 'Admin already registered or not allowed to verify.',
-        location: 'invalid_status',
+        location: 'already_registered',
       });
     }
 
@@ -85,7 +85,7 @@ export class AuthService {
     if (dto.password !== dto.confirm_password) {
       throw new BadRequestException({
         message: 'Passwords do not match',
-        location: 'confirmPassword',
+        location: 'confirm_password',
       });
     }
 
@@ -208,7 +208,7 @@ export class AuthService {
     if (dto.new_password !== dto.confirm_new_password) {
       throw new BadRequestException({
         message: 'Passwords do not match',
-        location: 'confirm_new_password',
+        location: 'confirm_password',
       });
     }
 

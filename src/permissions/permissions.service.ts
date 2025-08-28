@@ -55,7 +55,7 @@ export class PermissionsService {
       .select('p.name')
       .groupBy('p.name');
 
-    return rows.map((row) => row.name as string);
+    return rows.map((row) => row?.name as string);
   }
 
   async clearPermissionCache(adminId: string): Promise<void> {
