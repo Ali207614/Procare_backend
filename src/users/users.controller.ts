@@ -25,7 +25,7 @@ import { AdminPayload } from 'src/common/types/admin-payload.interface';
 
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
-@ApiTags('Users')
+@ApiTags('Clients')
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}

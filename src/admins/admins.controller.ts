@@ -31,7 +31,7 @@ import { AuthenticatedRequest } from 'src/common/types/authenticated-request.typ
 
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
-@ApiTags('Admins')
+@ApiTags('Employees')
 @Controller('admins')
 export class AdminsController {
   constructor(private readonly adminsService: AdminsService) {}
