@@ -25,7 +25,7 @@ exports.up = async function (knex) {
       ])
       .defaultTo('queued')
       .notNullable();
-    table.string('job_id').notNullable();
+    table.string('job_id').nullable();
     table.timestamp('created_at').defaultTo(knex.fn.now());
     table.timestamp('updated_at').defaultTo(knex.fn.now());
   });

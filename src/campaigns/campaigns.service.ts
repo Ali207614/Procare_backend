@@ -30,56 +30,65 @@ export class CampaignsService {
   ) {}
 
   async create(dto: CreateCampaignDto): Promise<ICampaign> {
-    return this.knex.transaction(async (trx) => {
-      const template = await trx('templates')
-        .where({ id: dto.template_id, status: 'active' })
-        .first();
-      if (!template) {
-        throw new NotFoundException({
-          message: 'Template not found or inactive',
-          location: 'template_id',
-        });
-      }
-
-      let status: ICampaign['status'] = 'queued';
-      if (dto.send_type === 'schedule') {
-        if (!dto.schedule_at) {
-          throw new BadRequestException({
-            message: 'Schedule time required',
-            location: 'schedule_at',
+    return this.knex
+      .transaction(async (trx) => {
+        const template = await trx<ITemplate>('templates')
+          .where({ id: dto.template_id, status: 'Open' })
+          .first();
+        if (!template) {
+          throw new NotFoundException({
+            message: 'Template not found or inactive',
+            location: 'template_id',
           });
         }
-        const scheduleDate = new Date(dto.schedule_at);
-        if (scheduleDate <= new Date()) {
-          throw new BadRequestException({
-            message: 'Schedule must be in the future',
-            location: 'schedule_at',
-          });
+
+        let status: ICampaign['status'] = 'queued';
+        if (dto.send_type === 'schedule') {
+          if (!dto.schedule_at) {
+            throw new BadRequestException({
+              message: 'Schedule time required',
+              location: 'schedule_at',
+            });
+          }
+          const scheduleDate = new Date(dto.schedule_at);
+          if (scheduleDate <= new Date()) {
+            throw new BadRequestException({
+              message: 'Schedule must be in the future',
+              location: 'schedule_at',
+            });
+          }
+          status = 'scheduled';
         }
-        status = 'scheduled';
-      }
 
-      const abTest = await this.prepareAbTest(trx, dto);
+        const abTest = await this.prepareAbTest(trx, dto);
 
-      const [campaign]: ICampaign[] = await trx('campaigns')
-        .insert({
-          template_id: dto.template_id,
-          filters: dto.filters ? JSON.stringify(dto.filters) : '{}',
-          send_type: dto.send_type,
-          schedule_at: dto.schedule_at ? new Date(dto.schedule_at) : null,
-          ab_test: JSON.stringify(abTest),
-          delivery_method: dto.delivery_method,
-          status,
-          created_at: trx.fn.now(),
-          updated_at: trx.fn.now(),
-        })
-        .returning('*');
+        const [campaign]: ICampaign[] = await trx('campaigns')
+          .insert({
+            template_id: dto.template_id,
+            filters: dto.filters ? JSON.stringify(dto.filters) : '{}',
+            send_type: dto.send_type,
+            schedule_at: dto.schedule_at ? new Date(dto.schedule_at) : null,
+            ab_test: JSON.stringify(abTest),
+            delivery_method: dto.delivery_method,
+            status,
+            created_at: trx.fn.now(),
+            updated_at: trx.fn.now(),
+          })
+          .returning('*');
 
-      const recipientIds = await this.insertRecipients(trx, campaign.id, dto.filters, abTest);
+        const recipientIds: { id: string }[] = await this.insertRecipients(
+          trx,
+          campaign.id,
+          dto.filters,
+          abTest,
+        );
 
-      await this.enqueueRecipients(campaign.id, recipientIds);
-      return campaign;
-    });
+        return { campaign, recipientIds };
+      })
+      .then(async ({ campaign, recipientIds }) => {
+        await this.enqueueRecipients(campaign.id, recipientIds);
+        return campaign;
+      });
   }
 
   async update(id: string, dto: UpdateCampaignDto): Promise<ICampaign> {
@@ -155,11 +164,7 @@ export class CampaignsService {
   async findAll(filters: FindAllCampaignsDto): Promise<ICampaign[]> {
     const qb = this.knex('campaigns')
       .leftJoin('templates', 'campaigns.template_id', 'templates.id')
-      .select(
-        'campaigns.*',
-        'templates.name as template_name',
-        'templates.description as template_description',
-      );
+      .select('campaigns.*', 'templates.*');
 
     if (filters.status) void qb.where('campaigns.status', filters.status);
     if (filters.search) {
@@ -261,7 +266,6 @@ export class CampaignsService {
   ): Promise<{ id: string }[]> {
     let query = trx('users').select('id');
 
-    // Sana filterlari
     if (filters.created_from && filters.created_to) {
       query = query.whereBetween('created_at', [
         new Date(filters.created_from),
@@ -363,14 +367,17 @@ export class CampaignsService {
       .where('id', campaignId)
       .first();
     if (!campaign) {
-      throw new NotFoundException(`Campaign ${campaignId} not found`);
+      throw new NotFoundException({
+        message: 'Campaign not found',
+        location: 'campaign',
+      });
     }
 
     let delay = 0;
     if (campaign.send_type === 'schedule' && campaign.schedule_at) {
       const scheduleTime = new Date(campaign.schedule_at).getTime();
       delay = scheduleTime - Date.now();
-      if (delay < 0) delay = 0; // agar o‘tib ketgan bo‘lsa darhol ishga tushadi
+      if (delay < 0) delay = 0;
     }
 
     const jobs = (recipientIds ?? []).map((r) => ({
@@ -378,6 +385,8 @@ export class CampaignsService {
       data: { campaignId, recipientId: r.id },
       opts: { delay, attempts: 3, backoff: { type: 'exponential', delay: 1000 } },
     }));
+    console.log(jobs);
+    console.log(recipientIds?.length)
 
     if (jobs.length) {
       await this.queue.addBulk(jobs);
