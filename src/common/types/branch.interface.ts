@@ -31,3 +31,18 @@ export interface Branch {
   created_at: Date;
   updated_at: Date;
 }
+
+export interface BranchWithAdmins {
+  id: string;
+  name_uz: string;
+  name_ru: string;
+  name_en: string;
+  status: 'Open' | 'Pending' | 'Deleted' | 'Banned';
+  admins: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    phone_number: string;
+    is_active: boolean;
+  }[];
+}

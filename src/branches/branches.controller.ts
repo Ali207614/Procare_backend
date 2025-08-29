@@ -30,7 +30,7 @@ import { UpdateBranchSortDto } from './dto/update-branch-sort.dto';
 import { BranchExistGuard } from 'src/common/guards/branch-exist.guard';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
-import { Branch } from 'src/common/types/branch.interface';
+import { Branch, BranchWithAdmins } from 'src/common/types/branch.interface';
 import { AuthenticatedRequest } from 'src/common/types/authenticated-request.type';
 
 @ApiTags('Branches')
@@ -78,7 +78,7 @@ export class BranchesController {
   @ApiParam({ name: 'branch_id', description: 'Branch ID (UUID)' })
   @ApiResponse({ status: 200, description: 'Branch returned successfully' })
   @ApiResponse({ status: 404, description: 'Branch not found' })
-  async findOne(@Param('branch_id', ParseUUIDPipe) branchId: string): Promise<Branch> {
+  async findOne(@Param('branch_id', ParseUUIDPipe) branchId: string): Promise<BranchWithAdmins> {
     return this.service.findOne(branchId);
   }
 

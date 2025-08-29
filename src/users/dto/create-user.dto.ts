@@ -26,9 +26,15 @@ export class CreateUserDto {
   last_name!: string;
 
   @ApiProperty({ example: '+998901234567', description: 'Phone number' })
-  @IsPhoneNumber('UZ', { context: { location: 'phone_number' } })
+  @IsPhoneNumber('UZ', { context: { location: 'phone_number1' } })
   @Matches(/^\+998[0-9]{9}$/, { message: 'Invalid phone number format' })
-  phone_number!: string;
+  phone_number1!: string;
+
+  @ApiProperty({ example: '+998901234567', description: 'Phone number' })
+  @IsOptional()
+  @IsPhoneNumber('UZ', { context: { location: 'phone_number2' } })
+  @Matches(/^\+998[0-9]{9}$/, { message: 'Invalid phone number format' })
+  phone_number2?: string;
 
   @ApiProperty({ example: 'AA1234567', required: false })
   @IsOptional()

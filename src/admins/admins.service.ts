@@ -233,8 +233,6 @@ export class AdminsService {
         branch_id,
       }));
       await this.knex('admin_branches').insert(branchData);
-
-      await this.redisService.del(`${this.redisKeyByAdminId}:${admin.id}`);
     }
     await this.permissionsService.getPermissions(admin.id);
 
@@ -393,7 +391,6 @@ export class AdminsService {
         }
 
         await trx.commit();
-        await this.redisService.del(`${this.redisKeyByAdminId}:${targetAdminId}`);
       } catch (error) {
         await trx.rollback();
 
@@ -409,6 +406,10 @@ export class AdminsService {
 
       if (dto.branch_ids !== undefined) {
         await this.redisService.del(`${this.redisKeyByAdminId}:${targetAdminId}`);
+      }
+
+      if (dto.role_ids !== undefined) {
+        await this.redisService.del(`${this.redisKeyByAdminRoles}:${targetAdminId}`);
       }
     }
 
@@ -466,6 +467,8 @@ export class AdminsService {
         await this.repairOrderStatusPermissions.flushAndReloadCacheByRole(permission);
       }
     }
+    await this.redisService.del(`${this.redisKeyByAdminId}:${targetAdminId}`);
+    await this.redisService.del(`${this.redisKeyByAdminRoles}:${targetAdminId}`);
 
     await this.permissionsService.clearPermissionCache(targetAdminId);
 

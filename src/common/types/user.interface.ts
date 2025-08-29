@@ -3,7 +3,8 @@ export interface User {
   sap_card_code: string | null;
   first_name: string;
   last_name: string;
-  phone_number: string;
+  phone_number1: string | null;
+  phone_number2: string | null;
   phone_verified: boolean;
   verification_code: string | null;
   password: string | null;
@@ -19,4 +20,5 @@ export interface User {
   status: 'Pending' | 'Open' | 'Deleted' | 'Banned';
   created_at: string;
   updated_at: string;
+  created_by: string | null;
 }

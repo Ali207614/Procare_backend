@@ -12,7 +12,7 @@ import { getNextSortValue } from 'src/common/utils/sort.util';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
-import { Branch } from 'src/common/types/branch.interface';
+import { Branch, BranchWithAdmins } from 'src/common/types/branch.interface';
 import { LoggerService } from 'src/common/logger/logger.service';
 
 @Injectable()
@@ -124,16 +124,8 @@ export class BranchesService {
   }
 
   async findAll(offset = 0, limit = 10, search?: string): Promise<Branch[]> {
-    const redisKey = search
-      ? `${this.redisKey}:search:${search}:${offset}:${limit}`
-      : `${this.redisKey}:${offset}:${limit}`;
-    const cached: Branch[] | null = await this.redisService.get(redisKey);
-    if (cached) {
-      return cached;
-    }
-
-    const query = this.knex('branches').where({ status: 'Open' });
     if (search?.trim()) {
+      const query = this.knex('branches').where({ status: 'Open' });
       void query.andWhere(
         (qb) =>
           void qb
@@ -141,11 +133,20 @@ export class BranchesService {
             .orWhereILike('name_ru', `%${search}%`)
             .orWhereILike('name_en', `%${search}%`),
       );
+      return query.orderBy('sort', 'asc').offset(offset).limit(limit);
     }
 
-    const branches: Branch[] = await query.orderBy('sort', 'asc').offset(offset).limit(limit);
-    await this.redisService.set(redisKey, branches, 3600);
+    const redisKey = `${this.redisKey}:${offset}:${limit}`;
+    const cached: Branch[] | null = await this.redisService.get(redisKey);
+    if (cached !== null) return cached;
 
+    const branches: Branch[] = await this.knex('branches')
+      .where({ status: 'Open' })
+      .orderBy('sort', 'asc')
+      .offset(offset)
+      .limit(limit);
+
+    await this.redisService.set(redisKey, branches, 3600);
     return branches;
   }
 
@@ -167,16 +168,38 @@ export class BranchesService {
     return branches;
   }
 
-  async findOne(id: string): Promise<Branch> {
+  async findOne(id: string): Promise<BranchWithAdmins> {
     const redisKey = `${this.redisKeyById}:${id}`;
-    const cached: Branch | null = await this.redisService.get(redisKey);
-    if (cached) {
-      return cached;
-    }
+    const cached: BranchWithAdmins | null = await this.redisService.get(redisKey);
+    if (cached) return cached;
 
-    const branch: Branch | undefined = await this.knex('branches')
-      .where({ id, status: 'Open' })
+    const branch: BranchWithAdmins = await this.knex
+      .select([
+        'b.*',
+        this.knex.raw(`
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', a.id,
+              'first_name', a.first_name,
+              'last_name', a.last_name,
+              'phone_number', a.phone_number,
+              'is_active', a.is_active
+            )
+          ) FILTER (WHERE a.id IS NOT NULL), '[]'
+        ) as admins
+      `),
+      ])
+      .from('branches as b')
+      .leftJoin('admin_branches as ab', 'b.id', 'ab.branch_id')
+      .leftJoin('admins as a', function () {
+        this.on('a.id', '=', 'ab.admin_id').andOnVal('a.status', '=', 'Open');
+      })
+      .where('b.id', id)
+      .andWhere('b.status', 'Open')
+      .groupBy('b.id')
       .first();
+
     if (!branch) {
       throw new NotFoundException({
         message: 'Branch not found',

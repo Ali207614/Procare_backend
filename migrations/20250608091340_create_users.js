@@ -7,7 +7,8 @@ exports.up = async function (knex) {
     table.string('sap_card_code').unique().nullable();
     table.string('first_name');
     table.string('last_name');
-    table.string('phone_number').unique().notNullable();
+    table.string('phone_number1').unique().nullable();
+    table.string('phone_number2').unique().nullable();
     table.boolean('phone_verified').defaultTo(false);
     table.string('verification_code');
     table.string('password');
@@ -31,7 +32,7 @@ exports.up = async function (knex) {
 
     table.timestamp('created_at').defaultTo(knex.fn.now());
     table.timestamp('updated_at').defaultTo(knex.fn.now());
-    table.unique(['id', 'phone_number']);
+    table.unique(['id', 'phone_number1']);
   });
 };
 

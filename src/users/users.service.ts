@@ -1,7 +1,3 @@
-/*
-https://docs.nestjs.com/providers#services
-*/
-
 import { InjectQueue } from '@nestjs/bull';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Queue } from 'bull';
@@ -68,7 +64,7 @@ export class UsersService {
 
   async create(dto: CreateUserDto, admin: AdminPayload): Promise<User> {
     const exists: User | undefined = await this.knex('users')
-      .whereRaw('LOWER(phone_number) = ?', dto.phone_number.toLowerCase())
+      .whereRaw('LOWER(phone_number1) = ?', dto.phone_number1.toLowerCase())
       .andWhereNot({ status: 'Deleted' })
       .first();
 
@@ -79,22 +75,23 @@ export class UsersService {
       });
     }
 
-    const [user]: User[] = await this.knex('users')
+    const [user]: User[] = await this.knex<User>('users')
       .insert({
         sap_card_code: dto.sap_card_code || null,
         first_name: dto.first_name,
         last_name: dto.last_name,
-        phone_number: dto.phone_number,
+        phone_number1: dto.phone_number1 ?? null,
+        phone_number2: dto.phone_number2 ?? null,
         passport_series: dto.passport_series ?? null,
         birth_date: dto.birth_date ?? null,
         id_card_number: dto.id_card_number ?? null,
         language: dto.language ?? 'uz',
         status: 'Pending',
-        source: 'Web',
+        source: 'web',
         is_active: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-        crated_by: admin.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        created_by: admin.id,
       })
       .returning('*');
 
@@ -103,7 +100,7 @@ export class UsersService {
       {
         userId: user.id,
         cardName: `${user.first_name} ${user.last_name}`,
-        phone: user.phone_number,
+        phone: user.phone_number1,
       },
       {
         attempts: 5,
@@ -122,7 +119,21 @@ export class UsersService {
     const limit = Number(query.limit) || 20;
 
     const q = this.knex('users')
-      .select('*')
+      .select(
+        'id',
+        'first_name',
+        'last_name',
+        'sap_card_code',
+        'passport_series',
+        'id_card_number',
+        'birth_date',
+        'language',
+        'phone_number1',
+        'phone_number2',
+        'created_at',
+        'status',
+        'is_active',
+      )
       .orderBy('created_at', 'desc')
       .offset(offset)
       .limit(limit);
@@ -133,11 +144,12 @@ export class UsersService {
         `
             LOWER(first_name) LIKE ?
             OR LOWER(last_name) LIKE ?
-            OR phone_number ILIKE ?
+            OR phone_number1 ILIKE ?
+            OR phone_number2 ILIKE ?
             OR passport_series ILIKE ?
             OR id_card_number ILIKE ?
           `,
-        [term, term, term, term, term],
+        [term, term, term, term, term, term],
       );
     }
 
