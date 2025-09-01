@@ -23,11 +23,11 @@ export class JwtMiddleware implements NestMiddleware {
       }
 
       const decoded = verify(token, secret) as UserPayload;
+
       if (!decoded?.id) {
         req.user = undefined;
         return next();
       }
-
       req.user = {
         id: decoded.id,
         phone_number: decoded.phone_number,
@@ -35,6 +35,7 @@ export class JwtMiddleware implements NestMiddleware {
       };
     } catch (error) {
       req.user = undefined;
+      console.log(error);
     }
     next();
   }
