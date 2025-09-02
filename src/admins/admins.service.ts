@@ -332,7 +332,7 @@ export class AdminsService {
       await this.knex<Admin>('admins').where({ id: targetAdminId }).update(updateData);
     }
 
-    if (dto.role_ids !== undefined || dto.branch_ids !== undefined) {
+    if (dto?.role_ids?.length || dto?.branch_ids?.length) {
       const trx = await this.knex.transaction();
 
       try {
