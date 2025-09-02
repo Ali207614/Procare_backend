@@ -448,19 +448,7 @@ export class AdminsService {
       updated_at: new Date(),
     });
 
-    const permissions: RepairOrderStatusPermission[] = await this.knex(
-      'repair_order_status_permissions',
-    ).where({
-      admin_id: targetAdminId,
-    });
 
-    if (permissions.length > 0) {
-      await this.knex('repair_order_status_permissions').where({ admin_id: targetAdminId }).del();
-
-      for (const permission of permissions) {
-        await this.repairOrderStatusPermissions.flushAndReloadCacheByRole(permission);
-      }
-    }
     await this.redisService.del(`${this.redisKeyByAdminId}:${targetAdminId}`);
     await this.redisService.del(`${this.redisKeyByAdminRoles}:${targetAdminId}`);
 
