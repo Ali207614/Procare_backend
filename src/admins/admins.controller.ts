@@ -55,7 +55,10 @@ export class AdminsController {
   @UseGuards(PermissionsGuard)
   @SetPermissions('admin.manage.create')
   @ApiOperation({ summary: 'Create new admin (without password)' })
-  async create(@CurrentAdmin() admin: AdminPayload, @Body() dto: CreateAdminDto): Promise<Admin> {
+  async create(
+    @CurrentAdmin() admin: AdminPayload,
+    @Body() dto: CreateAdminDto,
+  ): Promise<Admin> {
     return this.adminsService.create(admin.id, dto);
   }
 

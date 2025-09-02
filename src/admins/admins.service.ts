@@ -1,9 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
-  HttpException,
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -167,76 +165,82 @@ export class AdminsService {
   }
 
   async create(adminId: string, dto: CreateAdminDto): Promise<Admin> {
-    const existing: Admin | undefined = await this.knex<Admin>('admins')
-      .whereRaw('LOWER(phone_number) = ?', dto.phone_number.toLowerCase())
-      .andWhereNot({ status: 'Deleted' })
-      .first();
+    return this.knex.transaction(async (trx) => {
+      const { role_ids, branch_ids, ...adminFields } = dto;
 
-    if (existing) {
-      throw new BadRequestException({
-        message: 'Phone number already exists',
-        location: 'phone_number',
-      });
-    }
+      const existing: Admin | undefined = await trx<Admin>('admins')
+        .whereRaw('LOWER(phone_number) = ?', dto.phone_number.toLowerCase())
+        .andWhereNot({ status: 'Deleted' })
+        .first();
 
-    if (dto.role_ids?.length) {
-      const foundRoles = await this.knex('roles')
-        .whereIn('id', dto.role_ids)
-        .andWhere({ is_active: true, status: 'Open' });
-
-      if (foundRoles.length !== dto.role_ids.length) {
+      if (existing) {
         throw new BadRequestException({
-          message: 'Some role IDs are invalid or inactive',
-          location: 'role_ids',
+          message: 'Phone number already exists',
+          location: 'phone_number',
         });
       }
-    }
 
-    if (dto.branch_ids?.length) {
-      const foundBranches: Branch[] = await this.knex('branches')
-        .whereIn('id', dto.branch_ids)
-        .andWhere({ is_active: true, status: 'Open' });
+      // Validate roles
+      if (role_ids?.length) {
+        const foundRoles = await trx('roles')
+          .whereIn('id', role_ids)
+          .andWhere({ is_active: true, status: 'Open' });
 
-      if (foundBranches.length !== dto.branch_ids.length) {
-        throw new BadRequestException({
-          message: 'Some branch IDs are invalid or inactive',
-          location: 'branch_ids',
-        });
+        if (foundRoles.length !== role_ids.length) {
+          throw new BadRequestException({
+            message: 'Some role IDs are invalid or inactive',
+            location: 'role_ids',
+          });
+        }
       }
-    }
 
-    const insertData: Partial<Admin> = {
-      ...dto,
-      birth_date: dto.birth_date ? new Date(dto.birth_date) : null,
-      hire_date: dto.hire_date ? new Date(dto.hire_date) : null,
-      passport_series: dto.passport_series ?? null,
-      id_card_number: dto.id_card_number ?? null,
-      created_by: adminId,
-      status: 'Pending',
-    };
+      if (branch_ids?.length) {
+        const foundBranches: Branch[] = await trx('branches')
+          .whereIn('id', branch_ids)
+          .andWhere({ is_active: true, status: 'Open' });
 
-    const inserted: Admin[] = await this.knex<Admin>('admins').insert(insertData).returning('*');
+        if (foundBranches.length !== branch_ids.length) {
+          throw new BadRequestException({
+            message: 'Some branch IDs are invalid or inactive',
+            location: 'branch_ids',
+          });
+        }
+      }
 
-    const admin: Admin = inserted[0];
+      const insertData: Partial<Admin> = {
+        ...adminFields,
+        birth_date: dto.birth_date ? new Date(dto.birth_date) : null,
+        hire_date: dto.hire_date ? new Date(dto.hire_date) : null,
+        passport_series: dto.passport_series ?? null,
+        id_card_number: dto.id_card_number ?? null,
+        created_by: adminId,
+        status: 'Pending',
+      };
 
-    if (dto?.role_ids?.length) {
-      const rolesData = dto.role_ids.map((role_id) => ({
-        admin_id: admin.id,
-        role_id,
-      }));
-      await this.knex('admin_roles').insert(rolesData);
-    }
+      const inserted: Admin[] = await trx<Admin>('admins').insert(insertData).returning('*');
 
-    if (dto?.branch_ids?.length) {
-      const branchData = dto.branch_ids.map((branch_id) => ({
-        admin_id: admin.id,
-        branch_id,
-      }));
-      await this.knex('admin_branches').insert(branchData);
-    }
-    await this.permissionsService.getPermissions(admin.id);
+      const admin: Admin = inserted[0];
 
-    return admin;
+      if (role_ids?.length) {
+        const rolesData = role_ids.map((role_id) => ({
+          admin_id: admin.id,
+          role_id,
+        }));
+        await trx('admin_roles').insert(rolesData);
+      }
+
+      if (branch_ids?.length) {
+        const branchData = branch_ids.map((branch_id) => ({
+          admin_id: admin.id,
+          branch_id,
+        }));
+        await trx('admin_branches').insert(branchData);
+      }
+
+      await this.permissionsService.getPermissions(admin.id);
+
+      return admin;
+    });
   }
 
   async update(
@@ -244,123 +248,132 @@ export class AdminsService {
     targetAdminId: string,
     dto: UpdateAdminDto & { role_ids?: string[]; branch_ids?: string[] },
   ): Promise<{ message: string }> {
-    const target: Admin | undefined = await this.knex<Admin>('admins')
-      .where({ id: targetAdminId })
-      .andWhereNot({ status: 'Deleted' })
-      .first();
+    return this.knex.transaction(async (trx) => {
+      const target: Admin | undefined = await trx<Admin>('admins')
+        .where({ id: targetAdminId })
+        .andWhereNot({ status: 'Deleted' })
+        .first();
 
-    if (!target) {
-      throw new NotFoundException({
-        message: 'Admin not found',
-        location: 'admin_not_found',
-      });
-    }
-
-    if (
-      target.is_protected &&
-      (dto?.is_active === false || (Array.isArray(dto.role_ids) && dto.role_ids.length > 0))
-    ) {
-      throw new ForbiddenException({
-        message: 'This admin is system-protected and cannot be deleted or deactivated.',
-        location: 'admin_protected',
-      });
-    }
-
-    const isSelf = currentAdmin.id === target.id;
-    const permissions = await this.permissionsService.getPermissions(currentAdmin.id);
-
-    const canEditOthers = permissions.includes('admin.manage.edit');
-    const canEditOwnBasic = permissions.includes('admin.profile.edit.basic');
-    const canEditOwnSensitive = permissions.includes('admin.profile.edit.sensitive');
-
-    if (!isSelf && !canEditOthers) {
-      throw new ForbiddenException({
-        message: 'You cannot edit other admins',
-        location: 'edit_forbidden',
-      });
-    }
-
-    if (isSelf && !canEditOthers) {
-      const sensitiveFields: (keyof typeof dto)[] = [
-        'passport_series',
-        'birth_date',
-        'hire_date',
-        'id_card_number',
-        'language',
-        'role_ids',
-        'branch_ids',
-        'is_active',
-      ];
-
-      for (const field of sensitiveFields) {
-        if (dto[field] !== undefined && !canEditOwnSensitive) {
-          throw new ForbiddenException({
-            message: `You cannot edit your ${field}`,
-            location: field,
-          });
-        }
+      if (!target) {
+        throw new NotFoundException({
+          message: 'Admin not found',
+          location: 'admin_not_found',
+        });
       }
 
-      const basicFields: (keyof UpdateAdminDto)[] = ['first_name', 'last_name'];
-      if (!canEditOwnBasic) {
-        for (const field of basicFields) {
-          if (dto[field] !== undefined) {
+      if (
+        target.is_protected &&
+        (dto?.is_active === false || (Array.isArray(dto.role_ids) && dto.role_ids.length > 0))
+      ) {
+        throw new ForbiddenException({
+          message: 'This admin is system-protected and cannot be deleted or deactivated.',
+          location: 'admin_protected',
+        });
+      }
+
+      const isSelf = currentAdmin.id === target.id;
+      const permissions = await this.permissionsService.getPermissions(currentAdmin.id);
+
+      const canEditOthers = permissions.includes('admin.manage.edit');
+      const canEditOwnBasic = permissions.includes('admin.profile.edit.basic');
+      const canEditOwnSensitive = permissions.includes('admin.profile.edit.sensitive');
+
+      if (!isSelf && !canEditOthers) {
+        throw new ForbiddenException({
+          message: 'You cannot edit other admins',
+          location: 'edit_forbidden',
+        });
+      }
+
+      if (isSelf && !canEditOthers) {
+        const sensitiveFields: (keyof typeof dto)[] = [
+          'passport_series',
+          'birth_date',
+          'hire_date',
+          'id_card_number',
+          'language',
+          'role_ids',
+          'branch_ids',
+          'is_active',
+        ];
+
+        for (const field of sensitiveFields) {
+          if (dto[field] !== undefined && !canEditOwnSensitive) {
             throw new ForbiddenException({
               message: `You cannot edit your ${field}`,
               location: field,
             });
           }
         }
-      }
-    }
 
-    const updateData: Partial<Admin> = {
-      ...extractDefinedFields(dto, [
-        'first_name',
-        'last_name',
-        'passport_series',
-        'id_card_number',
-        'language',
-        'is_active',
-      ]),
-      birth_date: dto.birth_date ? new Date(dto.birth_date) : null,
-      hire_date: dto.hire_date ? new Date(dto.hire_date) : null,
-      updated_at: new Date(),
-    };
-
-    if (Object.keys(updateData).length > 1) {
-      await this.knex<Admin>('admins').where({ id: targetAdminId }).update(updateData);
-    }
-
-    if (dto?.role_ids?.length || dto?.branch_ids?.length) {
-      const trx = await this.knex.transaction();
-
-      try {
-        if (dto.role_ids !== undefined) {
-          await trx('admin_roles').where({ admin_id: targetAdminId }).del();
-
-          if (dto.role_ids.length > 0) {
-            const roleData = dto.role_ids.map((role_id) => ({
-              admin_id: targetAdminId,
-              role_id,
-            }));
-            await trx('admin_roles').insert(roleData);
+        const basicFields: (keyof UpdateAdminDto)[] = ['first_name', 'last_name'];
+        if (!canEditOwnBasic) {
+          for (const field of basicFields) {
+            if (dto[field] !== undefined) {
+              throw new ForbiddenException({
+                message: `You cannot edit your ${field}`,
+                location: field,
+              });
+            }
           }
         }
-        if (dto.branch_ids !== undefined) {
-          if (!Array.isArray(dto.branch_ids) || dto.branch_ids.length === 0) {
+      }
+
+      const { role_ids, branch_ids, ...adminFields } = dto;
+
+      const updateData: Partial<Admin> = {
+        ...extractDefinedFields(adminFields, [
+          'first_name',
+          'last_name',
+          'passport_series',
+          'id_card_number',
+          'language',
+          'is_active',
+        ]),
+        birth_date: dto.birth_date ? new Date(dto.birth_date) : null,
+        hire_date: dto.hire_date ? new Date(dto.hire_date) : null,
+        updated_at: new Date(),
+      };
+
+      if (Object.keys(updateData).length > 0) {
+        await trx<Admin>('admins').where({ id: targetAdminId }).update(updateData);
+      }
+
+      if (role_ids !== undefined) {
+        // undefined bo‘lmasa ishlasin
+        await trx('admin_roles').where({ admin_id: targetAdminId }).del();
+
+        if (role_ids.length > 0) {
+          const foundRoles = await trx('roles')
+            .whereIn('id', role_ids)
+            .andWhere({ is_active: true, status: 'Open' });
+
+          if (foundRoles.length !== role_ids.length) {
             throw new BadRequestException({
-              message: 'branch_ids must be a non-empty array',
-              location: 'branch_ids',
+              message: 'Some role IDs are invalid or inactive',
+              location: 'role_ids',
             });
           }
 
+          const roleData = role_ids.map((role_id) => ({
+            admin_id: targetAdminId,
+            role_id,
+          }));
+          await trx('admin_roles').insert(roleData);
+        }
+
+        await this.redisService.del(`${this.redisKeyByAdminRoles}:${targetAdminId}`);
+      }
+
+      if (branch_ids !== undefined) {
+        if (branch_ids.length === 0) {
+          await trx('admin_branches').where({ admin_id: targetAdminId }).del();
+          await this.redisService.del(`${this.redisKeyByAdminId}:${targetAdminId}`);
+        } else {
           const parser = new ParseUUIDPipe();
-
           let branchIds: string[];
-
           try {
-            branchIds = dto.branch_ids.map((id) => parser.transform(id));
+            branchIds = branch_ids.map((id) => parser.transform(id));
           } catch {
             throw new BadRequestException({
               message: 'One or more branch IDs are not valid UUIDs',
@@ -370,7 +383,7 @@ export class AdminsService {
 
           const foundBranches: Branch[] = await trx<Branch>('branches')
             .whereIn('id', branchIds)
-            .andWhere({ status: 'Open' });
+            .andWhere({ status: 'Open', is_active: true });
 
           const foundIds = foundBranches.map((b) => b.id);
           const missingIds = branchIds.filter((id) => !foundIds.includes(id));
@@ -382,43 +395,24 @@ export class AdminsService {
             });
           }
 
-          await trx('admin_branches').where({ admin_id: targetAdminId }).del();
+          await trx('admin_branches').where({ id: targetAdminId }).del();
           const branchData = branchIds.map((branch_id) => ({
             admin_id: targetAdminId,
             branch_id,
           }));
           await trx('admin_branches').insert(branchData);
+
+          await this.redisService.del(`${this.redisKeyByAdminId}:${targetAdminId}`);
         }
-
-        await trx.commit();
-      } catch (error) {
-        await trx.rollback();
-
-        if (error instanceof HttpException) {
-          throw error;
-        }
-
-        throw new InternalServerErrorException({
-          message: 'Failed to update admin roles or branches',
-          location: 'admin_update_failure',
-        });
       }
 
-      if (dto.branch_ids !== undefined) {
-        await this.redisService.del(`${this.redisKeyByAdminId}:${targetAdminId}`);
-      }
+      await this.permissionsService.clearPermissionCache(targetAdminId);
+      await this.permissionsService.getPermissions(targetAdminId);
 
-      if (dto.role_ids !== undefined) {
-        await this.redisService.del(`${this.redisKeyByAdminRoles}:${targetAdminId}`);
-      }
-    }
+      await this.redisService.del(`admin:${targetAdminId}`);
 
-    await this.permissionsService.clearPermissionCache(targetAdminId);
-    await this.permissionsService.getPermissions(targetAdminId);
-
-    await this.redisService.del(`admin:${targetAdminId}`);
-
-    return { message: 'Admin updated successfully' };
+      return { message: 'Admin updated successfully' };
+    });
   }
 
   async delete(requestingAdmin: AdminPayload, targetAdminId: string): Promise<{ message: string }> {
