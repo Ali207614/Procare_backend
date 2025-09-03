@@ -320,6 +320,11 @@ exports.seed = async function (knex) {
       name: 'resume:campaign',
       description: 'Resume campaign',
     },
+    {
+      id: '00000000-0000-0000-0000-000000000068',
+      name: 'branch.assign_admins',
+      description: 'Branch Assign',
+    },
   ];
 
   for (const perm of permissions) {

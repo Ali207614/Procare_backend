@@ -32,6 +32,8 @@ import { UpdateBranchDto } from './dto/update-branch.dto';
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { Branch, BranchWithAdmins } from 'src/common/types/branch.interface';
 import { AuthenticatedRequest } from 'src/common/types/authenticated-request.type';
+import { AssignAdminsDto } from 'src/branches/dto/assign-admins.dto';
+import { RemoveAdminsDto } from 'src/branches/dto/remove-admins.dto';
 
 @ApiTags('Branches')
 @ApiBearerAuth()
@@ -117,5 +119,34 @@ export class BranchesController {
   @ApiParam({ name: 'id', description: 'Branch ID (UUID)' })
   async delete(@Req() req: AuthenticatedRequest): Promise<{ message: string }> {
     return this.service.delete(req.branch);
+  }
+
+  @Post(':branch_id/admins')
+  @UseGuards(PermissionsGuard, BranchExistGuard)
+  @SetPermissions('branch.assign_admins')
+  @ApiOperation({ summary: 'Assign admins to branch' })
+  @ApiParam({ name: 'branch_id', description: 'Branch ID (UUID)' })
+  @ApiResponse({ status: 201, description: 'Admins assigned successfully' })
+  @ApiResponse({ status: 400, description: 'Validation failed' })
+  @ApiResponse({ status: 404, description: 'Branch or admins not found' })
+  async assignAdmins(
+    @Param('branch_id', ParseUUIDPipe) branchId: string,
+    @Body() dto: AssignAdminsDto,
+  ): Promise<{ message: string }> {
+    return this.service.assignAdmins(branchId, dto.admin_ids);
+  }
+
+  @Delete(':branch_id/admins')
+  @UseGuards(PermissionsGuard, BranchExistGuard)
+  @SetPermissions('branch.assign_admins')
+  @ApiOperation({ summary: 'Remove admins from branch' })
+  @ApiParam({ name: 'branch_id', description: 'Branch ID (UUID)' })
+  @ApiResponse({ status: 200, description: 'Admins removed successfully' })
+  @ApiResponse({ status: 404, description: 'Assignment not found' })
+  async removeAdmins(
+    @Param('branch_id', ParseUUIDPipe) branchId: string,
+    @Body() dto: RemoveAdminsDto,
+  ): Promise<{ message: string }> {
+    return this.service.removeAdmins(branchId, dto.admin_ids);
   }
 }

@@ -329,4 +329,76 @@ export class BranchesService {
 
     return { message: 'Branch deleted successfully' };
   }
+
+  async assignAdmins(branchId: string, adminIds: string[]): Promise<{ message: string }> {
+    return this.knex.transaction(async (trx) => {
+      const validAdmins = await trx('admins')
+        .whereIn('id', adminIds)
+        .andWhere({ status: 'Open', is_active: true });
+
+      if (validAdmins.length !== adminIds.length) {
+        throw new NotFoundException({
+          message: 'One or more admins not found or inactive',
+          location: 'admin_ids',
+        });
+      }
+
+      const uniqueAdminIds = [...new Set(adminIds)];
+      if (uniqueAdminIds.length !== adminIds.length) {
+        throw new BadRequestException({
+          message: 'Duplicate admin IDs provided',
+          location: 'admin_ids',
+        });
+      }
+
+      const existing: { admin_id: string; branch_id: string }[] = await trx('admin_branches')
+        .whereIn('admin_id', uniqueAdminIds)
+        .andWhere('branch_id', branchId);
+
+      if (existing.length > 0) {
+        const alreadyAssigned = existing.map((e) => e.admin_id);
+        throw new BadRequestException({
+          message: `Admins already assigned: ${alreadyAssigned.join(', ')}`,
+          location: 'admin_ids',
+        });
+      }
+
+      const insertRows = uniqueAdminIds.map((id) => ({
+        admin_id: id,
+        branch_id: branchId,
+      }));
+
+      await trx('admin_branches').insert(insertRows);
+
+      await this.flushCacheByPrefix(this.redisKeyByAdminId);
+      await this.flushCacheByPrefix(this.redisKey);
+
+      return { message: 'Admins assigned to branch successfully' };
+    });
+  }
+
+  async removeAdmins(branchId: string, adminIds: string[]): Promise<{ message: string }> {
+    return this.knex.transaction(async (trx) => {
+      const existing = await trx('admin_branches')
+        .whereIn('admin_id', adminIds)
+        .andWhere('branch_id', branchId);
+
+      if (existing.length === 0) {
+        throw new NotFoundException({
+          message: 'No matching admin-branch assignments found',
+          location: 'admin_ids',
+        });
+      }
+
+      await trx('admin_branches')
+        .whereIn('admin_id', adminIds)
+        .andWhere('branch_id', branchId)
+        .del();
+
+      await this.flushCacheByPrefix(this.redisKeyByAdminId);
+      await this.flushCacheByPrefix(this.redisKey);
+
+      return { message: 'Admins removed from branch successfully' };
+    });
+  }
 }
