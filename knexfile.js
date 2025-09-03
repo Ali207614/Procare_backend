@@ -3,9 +3,8 @@ const fs = require('fs');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const dotenv = require('dotenv');
 
-// 1. .env.local → dev uchun
-// 2. .env.docker → docker/prod uchun
-const envFile = process.env.ENV_FILE || '.env.local';
+
+const envFile = '.env';
 
 if (fs.existsSync(envFile)) {
   dotenv.config({ path: envFile });

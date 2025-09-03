@@ -16,8 +16,8 @@ exports.up = async function (knex) {
     table.decimal('lat', 10, 7);
     table.decimal('long', 10, 7);
     table.string('support_phone');
-    table.time('work_start_time');
-    table.time('work_end_time');
+    table.string('work_start_time', 5);
+    table.string('work_end_time', 5);
 
     table.string('bg_color');
     table.string('color');
