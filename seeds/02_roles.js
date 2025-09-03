@@ -8,7 +8,7 @@ exports.seed = async function (knex) {
       id: '00000000-0000-0000-0000-000000000000',
       name: 'Super Admin',
       is_active: true,
-      is_protected: true,
+      is_protected: false,
       status: 'Open',
       created_at: knex.fn.now(),
       updated_at: knex.fn.now(),

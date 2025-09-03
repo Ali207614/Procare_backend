@@ -363,6 +363,8 @@ export class AdminsService {
         }
 
         await this.redisService.del(`${this.redisKeyByAdminRoles}:${targetAdminId}`);
+        await this.redisService.del(`admin:${targetAdminId}:permissions`);
+
       }
 
       if (branch_ids !== undefined) {

@@ -7,7 +7,7 @@ exports.seed = async function (knex) {
     id: '00000000-0000-0000-0000-000000000000',
     first_name: 'Super',
     last_name: 'Admin',
-    is_protected: true,
+    is_protected: false,
     phone_number: '+998903367448',
     phone_verified: true,
     password: '$2a$10$EHzpy4lcLj0mZ/pkji./5uyz8f.WFoXiCd9DXdrXMt3rV5GF8KNzK', // 1111
