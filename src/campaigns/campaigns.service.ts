@@ -169,9 +169,10 @@ export class CampaignsService {
     if (filters.status) void qb.where('campaigns.status', filters.status);
     if (filters.search) {
       void qb.where(function () {
-        void this.where('campaigns.template_id', 'like', `%${filters.search}%`)
-          .orWhereILike('templates.name', `%${filters.search}%`)
-          .orWhereILike('templates.description', `%${filters.search}%`);
+        void this.where('templates.name', 'like', `%${filters.search}%`).orWhereILike(
+          'templates.description',
+          `%${filters.search}%`,
+        );
       });
     }
 
@@ -179,7 +180,9 @@ export class CampaignsService {
   }
 
   async findOne(id: string): Promise<ICampaign> {
+    console.log(id);
     const campaign: ICampaign | undefined = await this.knex('campaigns').where('id', id).first();
+    console.log(campaign);
     if (!campaign) {
       throw new NotFoundException({
         message: 'Campaign not found',
@@ -385,8 +388,6 @@ export class CampaignsService {
       data: { campaignId, recipientId: r.id },
       opts: { delay, attempts: 3, backoff: { type: 'exponential', delay: 1000 } },
     }));
-    console.log(jobs);
-    console.log(recipientIds?.length)
 
     if (jobs.length) {
       await this.queue.addBulk(jobs);

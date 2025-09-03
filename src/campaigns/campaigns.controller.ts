@@ -46,7 +46,7 @@ export class CampaignsController {
   @ApiOperation({ summary: 'Get all campaigns with pagination and filters' })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
   @ApiQuery({ name: 'offset', required: false, example: 0 })
-  @ApiQuery({ name: 'search', required: false, example: '550e8400-e29b-41d4-a716-446655440000' })
+  @ApiQuery({ name: 'search', required: false, example: 'daily' })
   @ApiQuery({ name: 'status', required: false, example: 'active' })
   async findAll(@Query(ValidationPipe) filters: FindAllCampaignsDto): Promise<ICampaign[]> {
     return this.campaignsService.findAll(filters);

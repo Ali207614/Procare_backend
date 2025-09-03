@@ -340,7 +340,6 @@ export class AdminsService {
       }
 
       if (role_ids !== undefined) {
-        // undefined bo‘lmasa ishlasin
         await trx('admin_roles').where({ admin_id: targetAdminId }).del();
 
         if (role_ids.length > 0) {
@@ -364,7 +363,6 @@ export class AdminsService {
 
         await this.redisService.del(`${this.redisKeyByAdminRoles}:${targetAdminId}`);
         await this.redisService.del(`admin:${targetAdminId}:permissions`);
-
       }
 
       if (branch_ids !== undefined) {
@@ -397,7 +395,7 @@ export class AdminsService {
             });
           }
 
-          await trx('admin_branches').where({ id: targetAdminId }).del();
+          await trx('admin_branches').where({ admin_id: targetAdminId }).del();
           const branchData = branchIds.map((branch_id) => ({
             admin_id: targetAdminId,
             branch_id,
@@ -449,7 +447,6 @@ export class AdminsService {
       status: 'Deleted',
       updated_at: new Date(),
     });
-
 
     await this.redisService.del(`${this.redisKeyByAdminId}:${targetAdminId}`);
     await this.redisService.del(`${this.redisKeyByAdminRoles}:${targetAdminId}`);

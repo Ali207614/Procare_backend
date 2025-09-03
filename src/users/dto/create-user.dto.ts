@@ -72,7 +72,7 @@ export class CreateUserDto {
   @ApiProperty({ example: 1234567890, required: false, description: 'Telegram chat ID' })
   @IsOptional()
   @IsNumber({}, { context: { location: 'telegram_chat_id' } })
-  telegram_chat_id?: number;
+  telegram_chat_id?: string;
 
   @ApiProperty({ example: 'telegram_user', required: false, description: 'Telegram username' })
   @IsOptional()
