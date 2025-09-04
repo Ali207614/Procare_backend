@@ -13,6 +13,7 @@ import {
   IsBoolean,
   Matches,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateAdminDto {
   @ApiProperty({ example: 'Ali', description: 'First name' })
@@ -39,15 +40,27 @@ export class CreateAdminDto {
   @MaxLength(15, { context: { location: 'passport_series' } })
   passport_series?: string;
 
-  @ApiProperty({ example: '1990-01-01', required: false, description: 'Birth date (YYYY-MM-DD)' })
+  @ApiProperty({
+    example: '1990-01-01T00:00:00Z',
+    required: false,
+    description: 'Birth date in ISO 8601 format',
+    type: String,
+    format: 'date-time',
+  })
   @IsOptional()
   @IsDateString({}, { context: { location: 'birth_date' } })
-  birth_date?: string;
+  birth_date?: string | null;
 
-  @ApiProperty({ example: '2023-10-01', required: false, description: 'Hire date (YYYY-MM-DD)' })
+  @ApiProperty({
+    example: '2023-10-01T00:00:00Z',
+    required: false,
+    description: 'Hire date in ISO 8601 format',
+    type: String,
+    format: 'date-time',
+  })
   @IsOptional()
   @IsDateString({}, { context: { location: 'hire_date' } })
-  hire_date?: string;
+  hire_date?: string | null;
 
   @ApiProperty({ example: '12345678', required: false, description: 'ID card number' })
   @IsOptional()

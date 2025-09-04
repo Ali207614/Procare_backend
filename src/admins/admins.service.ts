@@ -220,8 +220,8 @@ export class AdminsService {
 
       const insertData: Partial<Admin> = {
         ...adminFields,
-        birth_date: dto.birth_date ? new Date(dto.birth_date) : null,
-        hire_date: dto.hire_date ? new Date(dto.hire_date) : null,
+        birth_date: dto.birth_date ? new Date(dto.birth_date).toISOString() : null,
+        hire_date: dto.hire_date ? new Date(dto.hire_date).toISOString() : null,
         passport_series: dto.passport_series ?? null,
         id_card_number: dto.id_card_number ?? null,
         created_by: adminId,
@@ -270,6 +270,21 @@ export class AdminsService {
           message: 'Admin not found',
           location: 'admin_not_found',
         });
+      }
+
+      if (dto.phone_number) {
+        const existingAdmin: Admin | undefined = await trx<Admin>('admins')
+          .where({ phone_number: dto.phone_number })
+          .andWhereNot({ id: targetAdminId })
+          .andWhereNot({ status: 'Deleted' })
+          .first();
+
+        if (existingAdmin) {
+          throw new BadRequestException({
+            message: 'This phone number is already used by another admin',
+            location: 'phone_number',
+          });
+        }
       }
 
       if (
@@ -343,16 +358,15 @@ export class AdminsService {
           'language',
           'is_active',
         ]),
+        ...(dto.birth_date !== undefined && {
+          birth_date: dto.birth_date ? new Date(dto.birth_date).toISOString() : null,
+        }),
+        ...(dto.hire_date !== undefined && {
+          hire_date: dto.hire_date ? new Date(dto.hire_date).toISOString() : null,
+        }),
         updated_at: new Date(),
       };
 
-      if (dto.birth_date !== undefined) {
-        updateData.birth_date = dto.birth_date ? new Date(dto.birth_date) : null;
-      }
-
-      if (dto.hire_date !== undefined) {
-        updateData.hire_date = dto.hire_date ? new Date(dto.hire_date) : null;
-      }
       if (Object.keys(updateData).length > 0) {
         await trx<Admin>('admins').where({ id: targetAdminId }).update(updateData);
       }

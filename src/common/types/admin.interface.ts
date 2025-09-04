@@ -9,8 +9,8 @@ export interface Admin {
   is_protected: boolean;
 
   passport_series: string | null;
-  birth_date: Date | null;
-  hire_date: Date | null;
+  birth_date: string | null;
+  hire_date: string | null;
   id_card_number: string | null;
   language: string;
 

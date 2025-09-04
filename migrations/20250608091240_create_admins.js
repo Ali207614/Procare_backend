@@ -6,7 +6,7 @@ exports.up = async function (knex) {
 
     table.string('first_name');
     table.string('last_name');
-    table.string('phone_number').unique().notNullable();
+    table.string('phone_number').notNullable();
     table.boolean('phone_verified').defaultTo(false);
     table.string('verification_code');
     table.string('password');

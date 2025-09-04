@@ -18,7 +18,7 @@ export class RateLimiterMiddleware implements NestMiddleware {
 
     this.limiter = rateLimit({
       windowMs: 60 * 1000,
-      max: 20,
+      max: 100,
       keyGenerator: (req: Request): string => req.admin?.id ?? req.ip ?? 'unknown',
 
       handler: (req: Request, res: Response) => {

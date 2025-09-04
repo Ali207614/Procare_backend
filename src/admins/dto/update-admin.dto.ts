@@ -43,14 +43,12 @@ export class UpdateAdminDto {
   @ApiProperty({ required: false, type: String, format: 'date-time' })
   @IsOptional()
   @IsDateString()
-  @Type(() => Date)
-  birth_date?: Date | null;
+  birth_date?: string;
 
   @ApiProperty({ required: false, type: String, format: 'date-time' })
   @IsOptional()
   @IsDateString()
-  @Type(() => Date)
-  hire_date?: Date | null;
+  hire_date?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
