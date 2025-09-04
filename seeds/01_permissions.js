@@ -325,6 +325,11 @@ exports.seed = async function (knex) {
       name: 'branch.assign_admins',
       description: 'Branch Assign',
     },
+    {
+      id: '00000000-0000-0000-0000-000000000069',
+      name: 'permission.view',
+      description: 'Permissions view',
+    },
   ];
 
   for (const perm of permissions) {

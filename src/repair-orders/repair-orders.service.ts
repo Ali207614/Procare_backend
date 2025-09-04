@@ -45,7 +45,6 @@ export class RepairOrdersService {
   ): Promise<RepairOrder> {
     const trx = await this.knex.transaction();
     try {
-      this.logger.log(`Creating repair order by admin ${admin.id} in branch ${branchId}`);
       const permissions: RepairOrderStatusPermission[] =
         await this.permissionService.findByRolesAndBranch(admin.roles, branchId);
       await this.permissionService.checkPermissionsOrThrow(
@@ -73,9 +72,16 @@ export class RepairOrdersService {
         )
         .where({ 'pc.id': dto.phone_category_id, 'pc.is_active': true, 'pc.status': 'Open' })
         .first();
-      if (!phoneCategory) throw new BadRequestException('Phone category not found or inactive');
+      if (!phoneCategory)
+        throw new BadRequestException({
+          message: 'Phone category not found or inactive',
+          location: 'phone_category_id',
+        });
       if (phoneCategory.has_children)
-        throw new BadRequestException('Phone category must not have children');
+        throw new BadRequestException({
+          message: 'Phone category must not have children',
+          location: 'phone_category_id',
+        });
 
       const sort = await getNextSortValue(trx, this.table, { where: { branch_id: branchId } });
       const insertData: Partial<RepairOrder> = {

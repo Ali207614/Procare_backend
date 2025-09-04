@@ -1,14 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import {
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  MinLength,
-  MaxLength,
-  IsBoolean,
-  IsUUID,
-} from 'class-validator';
+import { IsOptional, IsString, MaxLength, IsBoolean } from 'class-validator';
 
 export class UpdatePhoneCategoryDto {
   @ApiProperty({ example: 'iPhone', description: 'Category name in Uzbek' })

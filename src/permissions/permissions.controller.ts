@@ -1,8 +1,11 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { PermissionsService } from './permissions.service';
 import { Permission } from 'src/common/types/permission.interface';
+import { PermissionsGuard } from 'src/common/guards/permission.guard';
+import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
+import { SetPermissions } from 'src/common/decorators/permission-decorator';
 
 @ApiTags('Permissions')
 @ApiBearerAuth()
@@ -12,6 +15,8 @@ export class PermissionsController {
   constructor(private readonly permissionsService: PermissionsService) {}
 
   @Get()
+  @UseGuards(PermissionsGuard)
+  @SetPermissions('permission.view')
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'offset', required: false, type: Number })
