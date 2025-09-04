@@ -5,6 +5,8 @@ import { CreateRepairOrderStatusTransitionDto } from './dto/create-repair-order-
 import { RepairOrderStatusesService } from '../repair-order-statuses/repair-order-statuses.service';
 import { RedisService } from 'src/common/redis/redis.service';
 import { RepairOrderStatusTransition } from 'src/common/types/repair-order-status-transition.interface';
+import { PaginationResult } from 'src/common/utils/pagination.util';
+import { RepairOrderStatus } from 'src/common/types/repair-order-status.interface';
 
 @Injectable()
 export class RepairOrderStatusTransitionsService {
@@ -25,8 +27,9 @@ export class RepairOrderStatusTransitionsService {
     const fromStatus = await this.statusService.getOrLoadStatusById(from_status_id);
     const branchId = fromStatus.branch_id;
 
-    const statuses = await this.statusService.findAllStatuses(branchId);
-    const validStatusIds = statuses.map((s) => s.id);
+    const statuses: PaginationResult<RepairOrderStatus> =
+      await this.statusService.findAllStatuses(branchId);
+    const validStatusIds = statuses.rows.map((s) => s.id);
 
     for (const id of to_status_ids) {
       if (!validStatusIds.includes(id)) {

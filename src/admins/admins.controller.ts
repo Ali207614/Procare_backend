@@ -28,6 +28,8 @@ import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { FindAllAdminsDto } from './dto/find-all-admins.dto';
 import { Admin } from 'src/common/types/admin.interface';
 import { AuthenticatedRequest } from 'src/common/types/authenticated-request.type';
+import { PaginationResult } from 'src/common/utils/pagination.util';
+import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
 
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
@@ -55,10 +57,7 @@ export class AdminsController {
   @UseGuards(PermissionsGuard)
   @SetPermissions('admin.manage.create')
   @ApiOperation({ summary: 'Create new admin (without password)' })
-  async create(
-    @CurrentAdmin() admin: AdminPayload,
-    @Body() dto: CreateAdminDto,
-  ): Promise<Admin> {
+  async create(@CurrentAdmin() admin: AdminPayload, @Body() dto: CreateAdminDto): Promise<Admin> {
     return this.adminsService.create(admin.id, dto);
   }
 
@@ -88,13 +87,18 @@ export class AdminsController {
   }
 
   @Get()
-  @UseInterceptors(ClassSerializerInterceptor)
+  @UseInterceptors(ClassSerializerInterceptor, PaginationInterceptor)
   @UseGuards(PermissionsGuard)
   @SetAllPermissions('admin.manage.view')
   @ApiOperation({ summary: 'Get all admins with filters and pagination' })
-  async findAll(@Query() query: FindAllAdminsDto): Promise<AdminProfileDto[]> {
+  async findAll(
+    @Query() query: FindAllAdminsDto,
+  ): Promise<{ rows: AdminProfileDto[]; total: number; limit: number; offset: number }> {
     const result = await this.adminsService.findAll(query);
 
-    return result.map((admin: Admin): AdminProfileDto => plainToInstance(AdminProfileDto, admin));
+    return {
+      ...result,
+      rows: result.rows.map((admin: Admin) => plainToInstance(AdminProfileDto, admin)),
+    };
   }
 }

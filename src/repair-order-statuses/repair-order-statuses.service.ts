@@ -15,6 +15,7 @@ import { Branch } from 'src/common/types/branch.interface';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 import { RepairOrderStatusTransition } from 'src/common/types/repair-order-status-transition.interface';
+import { PaginationResult } from 'src/common/utils/pagination.util';
 
 @Injectable()
 export class RepairOrderStatusesService {
@@ -126,75 +127,119 @@ export class RepairOrderStatusesService {
     }
   }
 
-  async findAllStatuses(branchId: string): Promise<RepairOrderStatus[]> {
-    const cacheKey = `${this.redisKeyAll}${branchId}`;
-    const cached: RepairOrderStatus[] | null = await this.redisService.get(cacheKey);
+  async findAllStatuses(
+    branchId: string,
+    offset = 0,
+    limit = 50,
+  ): Promise<PaginationResult<RepairOrderStatus>> {
+    const cacheKey = `${this.redisKeyAll}${branchId}:${offset}:${limit}`;
+    const cached: PaginationResult<RepairOrderStatus> | null =
+      await this.redisService.get(cacheKey);
     if (cached) {
       return cached;
     }
 
-    const statuses: RepairOrderStatus[] = await this.knex<RepairOrderStatus>(
-      'repair_order_statuses',
-    )
-      .where({ branch_id: branchId, status: 'Open' })
-      .orderBy('sort', 'asc');
-    await this.redisService.set(cacheKey, statuses, 3600);
-    return statuses;
+    const baseQuery = this.knex<RepairOrderStatus>('repair_order_statuses').where({
+      branch_id: branchId,
+      status: 'Open',
+    });
+
+    const [rows, countResult] = await Promise.all([
+      baseQuery.clone().orderBy('sort', 'asc').offset(offset).limit(limit),
+      baseQuery.clone().count<{ count: string }[]>('* as count'),
+    ]);
+
+    const total: number = Number(countResult[0].count);
+
+    const result: PaginationResult<RepairOrderStatus> = {
+      rows,
+      total: Number(total),
+      limit,
+      offset,
+    };
+
+    await this.redisService.set(cacheKey, result, 3600);
+    return result;
   }
 
   async findViewable(
     admin: AdminPayload,
     branchId: string,
-  ): Promise<RepairOrderStatusWithPermissions[]> {
-    const cacheKey = `${this.redisKeyView}${branchId}:${admin.id}`;
-    const cached: RepairOrderStatusWithPermissions[] | null = await this.redisService.get(cacheKey);
-    if (cached !== null) {
+    offset = 0,
+    limit = 50,
+  ): Promise<PaginationResult<RepairOrderStatusWithPermissions>> {
+    const cacheKey = `${this.redisKeyView}${branchId}:${admin.id}:${offset}:${limit}`;
+    const cached: PaginationResult<RepairOrderStatusWithPermissions> | null =
+      await this.redisService.get(cacheKey);
+    if (cached) {
       return cached;
     }
+
     const permissions: RepairOrderStatusPermission[] =
       await this.repairOrderStatusPermissions.findByRolesAndBranch(admin.roles, branchId);
 
-    const viewableIds = permissions.filter((p) => p.can_view).map((p) => p?.status_id);
+    const viewableIds = permissions.filter((p) => p.can_view).map((p) => p.status_id);
     if (!viewableIds.length) {
-      await this.redisService.set(cacheKey, [], 300);
-      return [];
+      const empty: PaginationResult<RepairOrderStatusWithPermissions> = {
+        rows: [],
+        total: 0,
+        limit,
+        offset,
+      };
+      await this.redisService.set(cacheKey, empty, 300);
+      return empty;
     }
 
     const trx = await this.knex.transaction();
     try {
-      const statuses: RepairOrderStatus[] = await trx('repair_order_statuses')
+      const baseQuery = trx<RepairOrderStatus>('repair_order_statuses')
         .whereIn('id', viewableIds)
-        .andWhere({ is_active: true, status: 'Open', branch_id: branchId })
-        .orderBy('sort', 'asc');
+        .andWhere({ is_active: true, status: 'Open', branch_id: branchId });
 
-      const transitionsRaw: RepairOrderStatusTransition[] = await trx(
-        'repair_order_status_transitions',
-      ).whereIn('from_status_id', viewableIds);
+      const [statuses, countResult, transitionsRaw] = await Promise.all([
+        baseQuery.clone().orderBy('sort', 'asc').offset(offset).limit(limit),
+        baseQuery.clone().count<{ count: string }[]>('* as count'),
+        trx<RepairOrderStatusTransition>('repair_order_status_transitions').whereIn(
+          'from_status_id',
+          viewableIds,
+        ),
+      ]);
+
+      const total: number = Number(countResult[0].count);
+
       const transitionsMap = transitionsRaw.reduce<Record<string, string[]>>((acc, t) => {
         acc[t.from_status_id] = acc[t.from_status_id] || [];
         acc[t.from_status_id].push(t.to_status_id);
         return acc;
       }, {});
 
-      const merged: RepairOrderStatusWithPermissions[] = statuses.map(
-        (status: RepairOrderStatus): RepairOrderStatusWithPermissions => ({
-          ...status,
-          permissions:
-            permissions.find((p) => p.status_id === status.id) ??
-            ({} as RepairOrderStatusPermission),
-          transitions: transitionsMap[status.id] || [],
-        }),
-      );
+      const merged: RepairOrderStatusWithPermissions[] = statuses.map((status) => ({
+        ...status,
+        permissions:
+          permissions.find((p) => p.status_id === status.id) ?? ({} as RepairOrderStatusPermission),
+        transitions: transitionsMap[status.id] || [],
+      }));
 
       await trx.commit();
-      await this.redisService.set(cacheKey, merged, 3600);
-      return merged;
-    } catch (err) {
+
+      const result: PaginationResult<RepairOrderStatusWithPermissions> = {
+        rows: merged,
+        total: Number(total),
+        limit,
+        offset,
+      };
+
+      await this.redisService.set(cacheKey, result, 3600);
+      return result;
+    } catch (err: unknown) {
       await trx.rollback();
-      if (err instanceof HttpException) {
-        throw err;
-      }
-      this.logger.error(`Failed to fetch viewable statuses:`);
+      if (err instanceof HttpException) throw err;
+
+      this.logger.error(
+        `Failed to fetch viewable statuses:`,
+        err instanceof Error ? err.stack : String(err),
+      );
+
       throw new BadRequestException({
         message: 'Failed to fetch viewable statuses',
         location: 'find_viewable',

@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Body, Patch, Delete, Req, UseGuards, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Delete,
+  Req,
+  UseGuards,
+  Query,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { RepairOrderStatusesService } from './repair-order-statuses.service';
 import { CreateRepairOrderStatusDto } from './dto/create-repair-order-status.dto';
@@ -15,6 +26,8 @@ import {
   RepairOrderStatus,
   RepairOrderStatusWithPermissions,
 } from 'src/common/types/repair-order-status.interface';
+import { PaginationResult } from 'src/common/utils/pagination.util';
+import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
 
 @ApiTags('Repair Order Statuses')
 @ApiBearerAuth()
@@ -25,10 +38,13 @@ export class RepairOrderStatusesController {
 
   @Get()
   @UseGuards(PermissionsGuard, BranchExistGuard)
+  @UseInterceptors(PaginationInterceptor)
   @SetPermissions('repair_order_status.view')
   @ApiOperation({ summary: 'Get all statuses for admin panel' })
   @ApiQuery({ name: 'branch_id', required: true })
-  async getAll(@Query('branch_id', ParseUUIDPipe) branchId: string): Promise<RepairOrderStatus[]> {
+  async getAll(
+    @Query('branch_id', ParseUUIDPipe) branchId: string,
+  ): Promise<PaginationResult<RepairOrderStatus>> {
     return this.service.findAllStatuses(branchId);
   }
 
@@ -45,12 +61,13 @@ export class RepairOrderStatusesController {
 
   @Get('viewable')
   @UseGuards(BranchExistGuard)
+  @UseInterceptors(PaginationInterceptor)
   @ApiOperation({ summary: 'Get viewable statuses for current admin' })
   @ApiQuery({ name: 'branch_id', required: true })
   async getViewable(
     @Req() req: AuthenticatedRequest,
     @Query('branch_id', ParseUUIDPipe) branchId: string,
-  ): Promise<RepairOrderStatusWithPermissions[]> {
+  ): Promise<PaginationResult<RepairOrderStatusWithPermissions>> {
     return this.service.findViewable(req.admin, branchId);
   }
 

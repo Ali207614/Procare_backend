@@ -14,6 +14,7 @@ import { UpdateBranchDto } from './dto/update-branch.dto';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { Branch, BranchWithAdmins } from 'src/common/types/branch.interface';
 import { LoggerService } from 'src/common/logger/logger.service';
+import { PaginationResult } from 'src/common/utils/pagination.util';
 
 @Injectable()
 export class BranchesService {
@@ -123,49 +124,92 @@ export class BranchesService {
     });
   }
 
-  async findAll(offset = 0, limit = 10, search?: string): Promise<Branch[]> {
+  async findAll(offset = 0, limit = 10, search?: string): Promise<PaginationResult<Branch>> {
+    const baseQuery = this.knex('branches').where({ status: 'Open' });
+
     if (search?.trim()) {
-      const query = this.knex('branches').where({ status: 'Open' });
-      void query.andWhere(
+      void baseQuery.andWhere(
         (qb) =>
           void qb
             .whereILike('name_uz', `%${search}%`)
             .orWhereILike('name_ru', `%${search}%`)
             .orWhereILike('name_en', `%${search}%`),
       );
-      return query.orderBy('sort', 'asc').offset(offset).limit(limit);
+
+      const [rows, [{ count }]] = await Promise.all([
+        baseQuery.clone().orderBy('sort', 'asc').offset(offset).limit(limit),
+        baseQuery.clone().count('* as count'),
+      ]);
+
+      return {
+        rows,
+        total: Number(count),
+        limit,
+        offset,
+      };
     }
 
+    // cache key
     const redisKey = `${this.redisKey}:${offset}:${limit}`;
-    const cached: Branch[] | null = await this.redisService.get(redisKey);
-    if (cached !== null) return cached;
 
-    const branches: Branch[] = await this.knex('branches')
-      .where({ status: 'Open' })
-      .orderBy('sort', 'asc')
-      .offset(offset)
-      .limit(limit);
+    const cached: PaginationResult<Branch> | null = await this.redisService.get(redisKey);
+    if (cached) return cached;
 
-    await this.redisService.set(redisKey, branches, 3600);
-    return branches;
+    const [rows, [{ count }]] = await Promise.all([
+      this.knex('branches')
+        .where({ status: 'Open' })
+        .orderBy('sort', 'asc')
+        .offset(offset)
+        .limit(limit),
+      this.knex('branches').where({ status: 'Open' }).count('* as count'),
+    ]);
+
+    const result: PaginationResult<Branch> = {
+      rows,
+      total: Number(count),
+      limit,
+      offset,
+    };
+
+    await this.redisService.set(redisKey, result, 3600);
+    return result;
   }
 
-  async findByAdminId(adminId: string): Promise<Branch[]> {
-    const redisKey = this.getAdminBranchesKey(adminId);
-    const cached: Branch[] | null = await this.redisService.get(redisKey);
+  async findByAdminId(adminId: string, offset = 0, limit = 20): Promise<PaginationResult<Branch>> {
+    const redisKey = `${this.getAdminBranchesKey(adminId)}:${offset}:${limit}`;
+    const cached: PaginationResult<Branch> | null = await this.redisService.get(redisKey);
     if (cached) {
       return cached;
     }
 
-    const branches: Branch[] = await this.knex('branches as b')
+    const baseQuery = this.knex('branches as b')
       .join('admin_branches as ab', 'ab.branch_id', 'b.id')
-      .where({ 'ab.admin_id': adminId, 'b.status': 'Open', 'b.is_active': true })
-      .select('b.id', 'b.name_uz', 'b.name_ru', 'b.name_en', 'b.bg_color', 'b.color', 'b.sort')
-      .orderBy('b.sort', 'asc');
+      .where({
+        'ab.admin_id': adminId,
+        'b.status': 'Open',
+        'b.is_active': true,
+      });
 
-    await this.redisService.set(redisKey, branches, 3600);
+    const [rows, [{ count }]] = await Promise.all([
+      baseQuery
+        .clone()
+        .select('b.id', 'b.name_uz', 'b.name_ru', 'b.name_en', 'b.bg_color', 'b.color', 'b.sort')
+        .orderBy('b.sort', 'asc')
+        .offset(offset)
+        .limit(limit),
 
-    return branches;
+      baseQuery.clone().count('* as count'),
+    ]);
+
+    const result: PaginationResult<Branch> = {
+      rows,
+      total: Number(count),
+      limit,
+      offset,
+    };
+
+    await this.redisService.set(redisKey, result, 3600);
+    return result;
   }
 
   async findOne(id: string): Promise<BranchWithAdmins> {

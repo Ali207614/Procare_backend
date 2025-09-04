@@ -31,6 +31,16 @@ export class FindAllAdminsDto {
   status?: string[];
 
   @ApiPropertyOptional({
+    description: 'Exclude by status',
+    type: [String],
+    enum: ['Open', 'Pending', 'Deleted', 'Banned'],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsIn(['Open', 'Pending', 'Deleted', 'Banned'], { each: true })
+  exclude_status?: string[];
+
+  @ApiPropertyOptional({
     description: 'Filter by branch IDs',
     type: [String],
     format: 'uuid',
@@ -41,6 +51,16 @@ export class FindAllAdminsDto {
   branch_ids?: string[];
 
   @ApiPropertyOptional({
+    description: 'Exclude by branch IDs',
+    type: [String],
+    format: 'uuid',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  exclude_branch_ids?: string[];
+
+  @ApiPropertyOptional({
     description: 'Filter by role IDs',
     type: [String],
     format: 'uuid',
@@ -49,6 +69,16 @@ export class FindAllAdminsDto {
   @IsArray()
   @IsUUID('all', { each: true })
   role_ids?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Exclude by role IDs',
+    type: [String],
+    format: 'uuid',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  exclude_role_ids?: string[];
 
   @ApiPropertyOptional({ description: 'Pagination offset', default: 0 })
   @IsOptional()

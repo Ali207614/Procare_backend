@@ -10,6 +10,7 @@ import { JoinedRepairOrder, UserWithRepairOrders } from 'src/common/types/repair
 import { User } from 'src/common/types/user.interface';
 import { RedisService } from 'src/common/redis/redis.service';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
+import { PaginationResult } from 'src/common/utils/pagination.util';
 
 @Injectable()
 export class UsersService {
@@ -116,7 +117,7 @@ export class UsersService {
     return user;
   }
 
-  async findAll(query: FindAllUsersDto): Promise<User[]> {
+  async findAll(query: FindAllUsersDto): Promise<PaginationResult<User>> {
     const offset = Number(query.offset) || 0;
     const limit = Number(query.limit) || 20;
 
@@ -146,20 +147,46 @@ export class UsersService {
       const term = `%${query.search.toLowerCase()}%`;
       void q.whereRaw(
         `
-            LOWER(first_name) LIKE ?
-            OR LOWER(last_name) LIKE ?
-            OR phone_number1 ILIKE ?
-            OR phone_number2 ILIKE ?
-            OR passport_series ILIKE ?
-            OR id_card_number ILIKE ?
-          `,
+        LOWER(first_name) LIKE ?
+        OR LOWER(last_name) LIKE ?
+        OR phone_number1 ILIKE ?
+        OR phone_number2 ILIKE ?
+        OR passport_series ILIKE ?
+        OR id_card_number ILIKE ?
+      `,
         [term, term, term, term, term, term],
       );
     }
 
-    return q;
-  }
+    const [rows, [{ count }]] = await Promise.all([
+      q,
+      this.knex('users')
+        .count('* as count')
+        .modify((qb) => {
+          if (query.search) {
+            const term = `%${query.search.toLowerCase()}%`;
+            void qb.whereRaw(
+              `
+              LOWER(first_name) LIKE ?
+              OR LOWER(last_name) LIKE ?
+              OR phone_number1 ILIKE ?
+              OR phone_number2 ILIKE ?
+              OR passport_series ILIKE ?
+              OR id_card_number ILIKE ?
+            `,
+              [term, term, term, term, term, term],
+            );
+          }
+        }),
+    ]);
 
+    return {
+      rows,
+      total: Number(count),
+      limit,
+      offset,
+    };
+  }
   async update(userId: string, dto: UpdateUserDto): Promise<{ message: string }> {
     const user = await this.knex('users').where({ id: userId, status: 'Open' }).first();
 

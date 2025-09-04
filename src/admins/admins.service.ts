@@ -18,10 +18,11 @@ import { extractDefinedFields } from 'src/common/utils/extract-defined-fields.ut
 import { FindAllAdminsDto } from './dto/find-all-admins.dto';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
 import { ParseUUIDPipe } from '../common/pipe/parse-uuid.pipe';
-import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { Admin } from 'src/common/types/admin.interface';
 import { Branch } from 'src/common/types/branch.interface';
-import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
+import { PaginationResult } from 'src/common/utils/pagination.util';
+
+type AdminWithTotal = Admin & { total: number };
 
 @Injectable()
 export class AdminsService {
@@ -29,7 +30,6 @@ export class AdminsService {
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,
     private readonly permissionsService: PermissionsService,
-    private readonly repairOrderStatusPermissions: RepairOrderStatusPermissionsService,
   ) {}
 
   private readonly table = 'admins';
@@ -57,19 +57,30 @@ export class AdminsService {
     return admin;
   }
 
-  async findAll(query: FindAllAdminsDto): Promise<Admin[]> {
+  async findAll(query: FindAllAdminsDto): Promise<PaginationResult<Admin>> {
     const sql = loadSQL('admins/queries/find-all.sql');
 
-    const data: { rows: Admin[] } = await this.knex.raw(sql, {
+    const data = await this.knex.raw(sql, {
       search: query.search ?? null,
       status: query.status?.length ? query.status : null,
+      exclude_status: query.exclude_status?.length ? query.exclude_status : null,
       branch_ids: query.branch_ids?.length ? query.branch_ids : null,
+      exclude_branch_ids: query.exclude_branch_ids?.length ? query.exclude_branch_ids : null,
       role_ids: query.role_ids?.length ? query.role_ids : null,
+      exclude_role_ids: query.exclude_role_ids?.length ? query.exclude_role_ids : null,
       limit: query.limit ?? 20,
       offset: query.offset ?? 0,
     });
 
-    return data.rows;
+    const rows = data.rows as AdminWithTotal[];
+    const total: number = rows.length > 0 ? Number(rows[0].total) : 0;
+
+    return {
+      rows: rows.map(({ total, ...rest }) => rest),
+      total,
+      limit: query.limit ?? 20,
+      offset: query.offset ?? 0,
+    };
   }
 
   async markPhoneVerified(phone: string): Promise<void> {

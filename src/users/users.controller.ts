@@ -9,6 +9,7 @@ import {
   Post,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -22,6 +23,8 @@ import { UserWithRepairOrders } from 'src/common/types/repair-order.interface';
 import { User } from 'src/common/types/user.interface';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
+import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
+import { PaginationResult } from 'src/common/utils/pagination.util';
 
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
@@ -39,8 +42,9 @@ export class UsersController {
   }
 
   @Get()
+  @UseInterceptors(PaginationInterceptor)
   @ApiOperation({ summary: 'Get all users with search and pagination' })
-  async findAll(@Query() query: FindAllUsersDto): Promise<User[]> {
+  async findAll(@Query() query: FindAllUsersDto): Promise<PaginationResult<User>> {
     return this.usersService.findAll(query);
   }
 

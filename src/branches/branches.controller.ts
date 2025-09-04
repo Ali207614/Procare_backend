@@ -9,6 +9,7 @@ import {
   Patch,
   Req,
   Delete,
+  UseInterceptors,
 } from '@nestjs/common';
 import { BranchesService } from './branches.service';
 import { CreateBranchDto } from './dto/create-branch.dto';
@@ -34,6 +35,8 @@ import { Branch, BranchWithAdmins } from 'src/common/types/branch.interface';
 import { AuthenticatedRequest } from 'src/common/types/authenticated-request.type';
 import { AssignAdminsDto } from 'src/branches/dto/assign-admins.dto';
 import { RemoveAdminsDto } from 'src/branches/dto/remove-admins.dto';
+import { PaginationResult } from 'src/common/utils/pagination.util';
+import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
 
 @ApiTags('Branches')
 @ApiBearerAuth()
@@ -55,21 +58,23 @@ export class BranchesController {
 
   @Get()
   @UseGuards(PermissionsGuard)
+  @UseInterceptors(PaginationInterceptor)
   @SetPermissions('branch.view')
   @ApiOperation({ summary: 'Get list of active branches (paginated)' })
   @ApiQuery({ name: 'offset', required: false, example: 0 })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
   @ApiQuery({ name: 'search', required: false, example: 'main' })
   @ApiResponse({ status: 200, description: 'List of branches returned' })
-  async findAll(@Query() query: PaginationQueryDto): Promise<Branch[]> {
+  async findAll(@Query() query: PaginationQueryDto): Promise<PaginationResult<Branch>> {
     const { offset, limit, search } = query;
     return this.service.findAll(offset, limit, search);
   }
 
   @Get('viewable')
+  @UseInterceptors(PaginationInterceptor)
   @ApiOperation({ summary: 'Get branches assigned to current admin' })
   @ApiResponse({ status: 200, description: 'List of assigned branches returned' })
-  async findMyBranches(@CurrentAdmin() admin: AdminPayload): Promise<Branch[]> {
+  async findMyBranches(@CurrentAdmin() admin: AdminPayload): Promise<PaginationResult<Branch>> {
     return this.service.findByAdminId(admin.id);
   }
 
