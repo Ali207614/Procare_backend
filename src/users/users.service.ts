@@ -187,6 +187,7 @@ export class UsersService {
       offset,
     };
   }
+
   async update(userId: string, dto: UpdateUserDto): Promise<{ message: string }> {
     const user = await this.knex('users').where({ id: userId, status: 'Open' }).first();
 

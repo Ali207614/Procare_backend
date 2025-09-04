@@ -302,6 +302,7 @@ export class AdminsService {
           'birth_date',
           'hire_date',
           'id_card_number',
+          'phone_number',
           'language',
           'role_ids',
           'branch_ids',
@@ -338,14 +339,20 @@ export class AdminsService {
           'last_name',
           'passport_series',
           'id_card_number',
+          'phone_number',
           'language',
           'is_active',
         ]),
-        birth_date: dto.birth_date ? new Date(dto.birth_date) : null,
-        hire_date: dto.hire_date ? new Date(dto.hire_date) : null,
         updated_at: new Date(),
       };
 
+      if (dto.birth_date !== undefined) {
+        updateData.birth_date = dto.birth_date ? new Date(dto.birth_date) : null;
+      }
+
+      if (dto.hire_date !== undefined) {
+        updateData.hire_date = dto.hire_date ? new Date(dto.hire_date) : null;
+      }
       if (Object.keys(updateData).length > 0) {
         await trx<Admin>('admins').where({ id: targetAdminId }).update(updateData);
       }

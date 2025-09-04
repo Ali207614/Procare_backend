@@ -8,6 +8,8 @@ import {
   ArrayUnique,
   IsUUID,
   IsBoolean,
+  IsPhoneNumber,
+  Matches,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -32,15 +34,23 @@ export class UpdateAdminDto {
   @IsString({ context: { location: 'passport_series' } })
   passport_series?: string;
 
-  @ApiProperty({ required: false })
   @IsOptional()
-  @IsDateString()
-  birth_date?: string;
+  @ApiProperty({ example: '+998901234567', description: 'Phone number' })
+  @IsPhoneNumber('UZ', { context: { location: 'phone_number' } })
+  @Matches(/^\+998[0-9]{9}$/, { message: 'Invalid phone number format' })
+  phone_number?: string;
 
-  @ApiProperty({ required: false })
+  @ApiProperty({ required: false, type: String, format: 'date-time' })
   @IsOptional()
   @IsDateString()
-  hire_date?: string;
+  @Type(() => Date)
+  birth_date?: Date | null;
+
+  @ApiProperty({ required: false, type: String, format: 'date-time' })
+  @IsOptional()
+  @IsDateString()
+  @Type(() => Date)
+  hire_date?: Date | null;
 
   @ApiProperty({ required: false })
   @IsOptional()
