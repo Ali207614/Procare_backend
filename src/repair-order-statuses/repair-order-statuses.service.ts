@@ -130,7 +130,7 @@ export class RepairOrderStatusesService {
   async findAllStatuses(
     branchId: string,
     offset = 0,
-    limit = 50,
+    limit = 20,
   ): Promise<PaginationResult<RepairOrderStatus>> {
     const cacheKey = `${this.redisKeyAll}${branchId}:${offset}:${limit}`;
     const cached: PaginationResult<RepairOrderStatus> | null =

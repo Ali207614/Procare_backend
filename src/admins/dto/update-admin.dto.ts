@@ -40,15 +40,27 @@ export class UpdateAdminDto {
   @Matches(/^\+998[0-9]{9}$/, { message: 'Invalid phone number format' })
   phone_number?: string;
 
-  @ApiProperty({ required: false, type: String, format: 'date-time' })
+  @ApiProperty({
+    example: '1990-01-01T00:00:00Z',
+    required: false,
+    description: 'Birth date in ISO 8601 format',
+    type: String,
+    format: 'date-time',
+  })
   @IsOptional()
-  @IsDateString()
-  birth_date?: string;
+  @IsDateString({}, { context: { location: 'birth_date' } })
+  birth_date?: string | null;
 
-  @ApiProperty({ required: false, type: String, format: 'date-time' })
+  @ApiProperty({
+    example: '2023-10-01T00:00:00Z',
+    required: false,
+    description: 'Hire date in ISO 8601 format',
+    type: String,
+    format: 'date-time',
+  })
   @IsOptional()
-  @IsDateString()
-  hire_date?: string;
+  @IsDateString({}, { context: { location: 'hire_date' } })
+  hire_date?: string | null;
 
   @ApiProperty({ required: false })
   @IsOptional()
