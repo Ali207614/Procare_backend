@@ -13,7 +13,7 @@ export class RentalPhoneDevicesController {
 
   @Get()
   @ApiQuery({ name: 'search', required: false })
-  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'offset', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'sort_by', required: false, enum: ['sort', 'created_at'] })
   @ApiQuery({ name: 'sort_order', required: false, enum: ['asc', 'desc'] })

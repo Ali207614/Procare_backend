@@ -8,9 +8,8 @@ export class RentalPhoneDevicesService {
   constructor(@InjectKnex() private readonly knex: Knex) {}
 
   async findAll(dto: FindRentalPhoneDevicesDto): Promise<RentalPhoneDevice[]> {
-    const { page = 1, limit = 20, search, sort_by = 'created_at', sort_order = 'desc' } = dto;
+    const { offset = 0, limit = 20, search, sort_by = 'created_at', sort_order = 'desc' } = dto;
 
-    const offset = (page - 1) * limit;
 
     const baseQuery = this.knex('rental_phone_devices').where('is_available', true);
 

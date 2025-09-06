@@ -50,9 +50,9 @@ export class NotificationService {
     adminId: string,
     query: FindNotificationsDto,
   ): Promise<PaginationResult<Notification>> {
-    const page = Number(query.page) || 1;
+    const page = Number(query.offset) || 0;
     const limit = Number(query.limit) || 20;
-    const offset = (page - 1) * limit;
+    const offset = page;
 
     const baseQuery = this.knex<Notification>('notifications').where({
       admin_id: adminId,

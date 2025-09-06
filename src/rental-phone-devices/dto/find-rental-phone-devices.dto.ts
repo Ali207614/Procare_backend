@@ -10,7 +10,7 @@ export class FindRentalPhoneDevicesDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
-  page?: number;
+  offset?: number;
 
   @ApiPropertyOptional()
   @IsOptional()

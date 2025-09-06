@@ -238,15 +238,14 @@ export class RepairOrdersService {
     branchId: string,
     query: PaginationQuery,
   ): Promise<Record<string, FreshRepairOrder[]>> {
-    const { page = 1, limit = 20, sort_by = 'sort', sort_order = 'asc' } = query;
-    const offset = (page - 1) * limit;
+    const { offset = 0, limit = 20, sort_by = 'sort', sort_order = 'asc' } = query;
 
     this.logger.log(`Fetching repair orders for admin ${admin.id} in branch ${branchId}`);
     const permissions = await this.permissionService.findByRolesAndBranch(admin.roles, branchId);
     const statusIds = permissions.filter((p) => p.can_view).map((p) => p.status_id);
     if (!statusIds.length) return {};
 
-    const cacheKey = `${this.table}:${branchId}:${admin.id}:${sort_by}:${sort_order}:${page}:${limit}`;
+    const cacheKey = `${this.table}:${branchId}:${admin.id}:${sort_by}:${sort_order}:${offset}:${limit}`;
     const cached: Record<string, FreshRepairOrder[]> | null = await this.redisService.get(cacheKey);
     if (cached) {
       this.logger.debug(`Cache hit for repair orders: ${cacheKey}`);
