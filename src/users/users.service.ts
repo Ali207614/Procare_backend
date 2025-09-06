@@ -139,6 +139,7 @@ export class UsersService {
         'status',
         'is_active',
       )
+      .where({ status: 'Open' })
       .orderBy('created_at', 'desc')
       .offset(offset)
       .limit(limit);
