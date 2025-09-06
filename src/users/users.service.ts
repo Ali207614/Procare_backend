@@ -189,7 +189,9 @@ export class UsersService {
   }
 
   async update(userId: string, dto: UpdateUserDto): Promise<{ message: string }> {
-    const user = await this.knex('users').where({ id: userId, status: 'Open' }).first();
+    const user: User | undefined = await this.knex<User>('users')
+      .where({ id: userId, status: 'Open' })
+      .first();
 
     if (!user) {
       throw new NotFoundException({

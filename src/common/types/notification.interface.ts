@@ -29,7 +29,7 @@ export interface BroadcastMessage<M = unknown> {
 }
 
 export interface RepairNotificationMeta {
-  orderId: string;
+  order_id: string;
   phoneModel: string;
   status: string;
 }

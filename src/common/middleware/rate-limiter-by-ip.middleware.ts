@@ -19,7 +19,7 @@ export class RateLimiterByIpMiddleware implements NestMiddleware {
 
     this.limiter = rateLimit({
       windowMs: 60 * 1000,
-      max: 10,
+      max: 20,
       keyGenerator: (req: Request) => req.ip ?? 'unknown-ip',
       handler: (req: Request, res: Response) => {
         const statusCode = 429;

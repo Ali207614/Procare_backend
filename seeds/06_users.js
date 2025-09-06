@@ -39,7 +39,7 @@ exports.seed = async function (knex) {
       is_active: true,
       status: 'Open',
 
-      created_at: new Date(),
+      created_at: new Date(Date.now() - i * 60000),
       updated_at: new Date(),
     });
   }

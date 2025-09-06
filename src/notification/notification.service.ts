@@ -9,6 +9,7 @@ import {
   NotificationPayload,
   RepairNotificationMeta,
 } from '../common/types/notification.interface';
+import { PaginationResult } from 'src/common/utils/pagination.util';
 
 @Injectable()
 export class NotificationService {
@@ -45,24 +46,35 @@ export class NotificationService {
     this.gateway.broadcastToAdmins(adminIds, message);
   }
 
-  async findAll(adminId: string, query: FindNotificationsDto): Promise<Notification[]> {
+  async findAll(
+    adminId: string,
+    query: FindNotificationsDto,
+  ): Promise<PaginationResult<Notification>> {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
     const offset = (page - 1) * limit;
 
-    const q = this.knex<Notification>('notifications')
-      .where({ admin_id: adminId })
-      .orderBy('created_at', 'desc')
-      .limit(limit)
-      .offset(offset);
+    const baseQuery = this.knex<Notification>('notifications').where({
+      admin_id: adminId,
+    });
 
     if (query.is_read === 'true') {
-      void q.andWhere({ is_read: true });
+      void baseQuery.andWhere({ is_read: true });
     } else if (query.is_read === 'false') {
-      void q.andWhere({ is_read: false });
+      void baseQuery.andWhere({ is_read: false });
     }
 
-    return (await q) as Notification[];
+    const [rows, [{ count }]] = await Promise.all([
+      baseQuery.clone().orderBy('created_at', 'desc').offset(offset).limit(limit),
+      baseQuery.clone().count<{ count: string }[]>('* as count'),
+    ]);
+
+    return {
+      rows,
+      total: Number(count),
+      limit,
+      offset,
+    };
   }
 
   async markAsRead(adminId: string, notificationId: string): Promise<{ message: string }> {

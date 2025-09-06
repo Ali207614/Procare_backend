@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Patch, Query, UseGuards, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
@@ -7,6 +7,8 @@ import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { FindNotificationsDto } from './dto/find-notification.dto';
 import { NotificationService } from './notification.service';
 import { Notification } from 'src/common/types/notification.interface';
+import { PaginationResult } from 'src/common/utils/pagination.util';
+import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
 @ApiTags('Notifications')
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
@@ -15,6 +17,7 @@ export class NotificationController {
   constructor(private readonly service: NotificationService) {}
 
   @Get()
+  @UseInterceptors(PaginationInterceptor)
   @ApiQuery({ name: 'is_read', required: false, type: Boolean })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
@@ -22,7 +25,7 @@ export class NotificationController {
   async findAll(
     @Query() query: FindNotificationsDto,
     @CurrentAdmin() admin: AdminPayload,
-  ): Promise<Notification[]> {
+  ): Promise<PaginationResult<Notification>> {
     return this.service.findAll(admin.id, query);
   }
 

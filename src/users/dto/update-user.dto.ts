@@ -62,5 +62,5 @@ export class UpdateUserDto {
   @IsString({ context: { location: 'card_code' } })
   @MinLength(1, { context: { location: 'card_code' } })
   @MaxLength(30, { context: { location: 'card_cod' } })
-  sap_card_code!: string;
+  sap_card_code?: string;
 }

@@ -1,0 +1,154 @@
+const { v4: uuidv4 } = require('uuid');
+
+exports.seed = async function (knex) {
+  await knex('notifications').del();
+
+  const admins = await knex('admins').select('id');
+  if (admins.length === 0) {
+    console.warn('⚠️ No admins found. Seed admins first.');
+    return;
+  }
+
+  const now = new Date();
+
+  const notifications = [
+    {
+      id: uuidv4(),
+      admin_id: admins[0].id,
+      title: 'Заказ #4395889 завершён',
+      message: 'Ваш заказ успешно завершён и готов к выдаче клиенту',
+      type: 'success',
+      is_read: false,
+      meta: { order_id: '4395889', event: 'completed' },
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      id: uuidv4(),
+      admin_id: admins[0].id,
+      title: 'Заказ #4395889 изменён',
+      message: 'Статус заказа #4395889 был обновлён на "В ремонте"',
+      type: 'info',
+      is_read: false,
+      meta: { order_id: '4395889', event: 'updated' },
+      created_at: new Date(now.getTime() - 1000 * 60 * 30),
+      updated_at: new Date(now.getTime() - 1000 * 60 * 30),
+    },
+    {
+      id: uuidv4(),
+      admin_id: admins[0].id,
+      title: 'Новый заказ #4396001',
+      message: 'Создан новый заказ клиентом',
+      type: 'info',
+      is_read: true,
+      meta: { order_id: '4396001', event: 'created' },
+      created_at: new Date(now.getTime() - 1000 * 60 * 60),
+      updated_at: new Date(now.getTime() - 1000 * 60 * 60),
+      read_at: now,
+    },
+    // Qo'shimcha 10 ta
+    {
+      id: uuidv4(),
+      admin_id: admins[0].id,
+      title: 'Заказ #4396002 отменён',
+      message: 'Заказ #4396002 был отменён клиентом',
+      type: 'error',
+      is_read: false,
+      meta: { order_id: '4396002', event: 'canceled' },
+      created_at: new Date(now.getTime() - 1000 * 60 * 90),
+      updated_at: new Date(now.getTime() - 1000 * 60 * 90),
+    },
+    {
+      id: uuidv4(),
+      admin_id: admins[0].id,
+      title: 'Заказ #4396003 изменён',
+      message: 'Администратор обновил заказ #4396003',
+      type: 'info',
+      is_read: false,
+      meta: { order_id: '4396003', event: 'updated' },
+      created_at: new Date(now.getTime() - 1000 * 60 * 120),
+      updated_at: new Date(now.getTime() - 1000 * 60 * 120),
+    },
+    {
+      id: uuidv4(),
+      admin_id: admins[0].id,
+      title: 'Заказ #4396004 завершён',
+      message: 'Ремонт по заказу #4396004 успешно завершён',
+      type: 'success',
+      is_read: true,
+      meta: { order_id: '4396004', event: 'completed' },
+      created_at: new Date(now.getTime() - 1000 * 60 * 150),
+      updated_at: new Date(now.getTime() - 1000 * 60 * 150),
+      read_at: now,
+    },
+    {
+      id: uuidv4(),
+      admin_id: admins[0].id,
+      title: 'Новый заказ #4396005',
+      message: 'Создан новый заказ системой',
+      type: 'info',
+      is_read: false,
+      meta: { order_id: '4396005', event: 'created' },
+      created_at: new Date(now.getTime() - 1000 * 60 * 180),
+      updated_at: new Date(now.getTime() - 1000 * 60 * 180),
+    },
+    {
+      id: uuidv4(),
+      admin_id: admins[0].id,
+      title: 'Заказ #4396006 изменён',
+      message: 'Заказ #4396006 был обновлён: добавлены детали ремонта',
+      type: 'info',
+      is_read: false,
+      meta: { order_id: '4396006', event: 'updated' },
+      created_at: new Date(now.getTime() - 1000 * 60 * 210),
+      updated_at: new Date(now.getTime() - 1000 * 60 * 210),
+    },
+    {
+      id: uuidv4(),
+      admin_id: admins[0].id,
+      title: 'Заказ #4396007 завершён',
+      message: 'Ремонт по заказу #4396007 завершён и готов к выдаче',
+      type: 'success',
+      is_read: false,
+      meta: { order_id: '4396007', event: 'completed' },
+      created_at: new Date(now.getTime() - 1000 * 60 * 240),
+      updated_at: new Date(now.getTime() - 1000 * 60 * 240),
+    },
+    {
+      id: uuidv4(),
+      admin_id: admins[0].id,
+      title: 'Новый заказ #4396008',
+      message: 'Клиент оформил заказ #4396008 через приложение',
+      type: 'info',
+      is_read: true,
+      meta: { order_id: '4396008', event: 'created' },
+      created_at: new Date(now.getTime() - 1000 * 60 * 270),
+      updated_at: new Date(now.getTime() - 1000 * 60 * 270),
+      read_at: now,
+    },
+    {
+      id: uuidv4(),
+      admin_id: admins[0].id,
+      title: 'Заказ #4396009 отменён',
+      message: 'Система автоматически отменила заказ #4396009',
+      type: 'error',
+      is_read: false,
+      meta: { order_id: '4396009', event: 'canceled' },
+      created_at: new Date(now.getTime() - 1000 * 60 * 300),
+      updated_at: new Date(now.getTime() - 1000 * 60 * 300),
+    },
+    {
+      id: uuidv4(),
+      admin_id: admins[0].id,
+      title: 'Заказ #4396010 изменён',
+      message: 'Обновлена стоимость заказа #4396010',
+      type: 'warning',
+      is_read: false,
+      meta: { order_id: '4396010', event: 'updated' },
+      created_at: new Date(now.getTime() - 1000 * 60 * 330),
+      updated_at: new Date(now.getTime() - 1000 * 60 * 330),
+    },
+  ];
+
+  await knex('notifications').insert(notifications);
+};
