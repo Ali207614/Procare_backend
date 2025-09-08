@@ -10,7 +10,6 @@ export class JwtAdminAuthGuard extends AuthGuard('jwt-admin') {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const activated = await super.canActivate(context);
-    console.log(activated, ' bu activeated');
     if (!activated) {
       return false;
     }

@@ -1,4 +1,4 @@
-import { Injectable, NestMiddleware } from '@nestjs/common';
+import { Injectable, NestMiddleware, UnauthorizedException } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { verify } from 'jsonwebtoken';
 import { UserPayload } from '../types/user-payload.interface';
@@ -10,33 +10,37 @@ export class JwtMiddleware implements NestMiddleware {
 
   use(req: Request, res: Response, next: NextFunction): void {
     const authHeader = req.headers.authorization;
+
     if (!authHeader?.startsWith('Bearer ')) {
       req.user = undefined;
       return next();
     }
 
     const token = authHeader.split(' ')[1];
+    const secret = this.configService.get<string>('JWT_SECRET');
+    if (!secret) {
+      throw new Error('JWT_SECRET is not defined');
+    }
+
     try {
-      const secret = this.configService.get<string>('JWT_SECRET');
-      if (!secret) {
-        throw new Error('JWT_SECRET is not defined');
-      }
-
       const decoded = verify(token, secret) as UserPayload;
-
       if (!decoded?.id) {
-        req.user = undefined;
-        return next();
+        throw new UnauthorizedException({
+          message: 'Invalid token payload',
+          location: 'invalid_payload',
+        });
       }
       req.user = {
         id: decoded.id,
         phone_number: decoded.phone_number,
-        roles: [],
+        roles: decoded.roles ?? [],
       };
+      return next();
     } catch (error) {
-      req.user = undefined;
-      console.log(error);
+      throw new UnauthorizedException({
+        message: 'Invalid or expired token',
+        location: 'invalid_token',
+      });
     }
-    next();
   }
 }

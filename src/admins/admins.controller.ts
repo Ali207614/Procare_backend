@@ -28,7 +28,6 @@ import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { FindAllAdminsDto } from './dto/find-all-admins.dto';
 import { Admin } from 'src/common/types/admin.interface';
 import { AuthenticatedRequest } from 'src/common/types/authenticated-request.type';
-import { PaginationResult } from 'src/common/utils/pagination.util';
 import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
 
 @ApiBearerAuth()
