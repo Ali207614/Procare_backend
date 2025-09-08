@@ -46,7 +46,6 @@ exports.seed = async function (knex) {
       updated_at: new Date(now.getTime() - 1000 * 60 * 60),
       read_at: now,
     },
-    // Qo'shimcha 10 ta
     {
       id: uuidv4(),
       admin_id: admins[0].id,
