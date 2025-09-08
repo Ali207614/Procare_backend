@@ -1,21 +1,76 @@
-import { IsOptional, IsString, IsNumberString, MinLength, MaxLength } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsArray,
+  IsUUID,
+  IsIn,
+  IsInt,
+  Min,
+  MinLength,
+  MaxLength,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class FindAllUsersDto {
   @ApiPropertyOptional({ description: 'Search by name, phone, passport, etc.' })
   @IsOptional()
   @IsString()
-  @MinLength(3)
-  @MaxLength(100)
+  @MinLength(3, { message: 'Search term must be at least 3 characters long' })
+  @MaxLength(100, { message: 'Search term must be at most 100 characters' })
   search?: string;
 
-  @ApiPropertyOptional({ description: 'Offset (for pagination)', example: 0 })
+  @ApiPropertyOptional({
+    description: 'Filter by status',
+    type: [String],
+    enum: ['Pending', 'Open', 'Deleted', 'Banned'],
+  })
   @IsOptional()
-  @IsNumberString()
-  offset?: string;
+  @IsArray()
+  @IsIn(['Pending', 'Open', 'Deleted', 'Banned'], { each: true })
+  status_ids?: string[];
 
-  @ApiPropertyOptional({ description: 'Limit (for pagination)', example: 20 })
+  @ApiPropertyOptional({
+    description: 'Exclude by status',
+    type: [String],
+    enum: ['Pending', 'Open', 'Deleted', 'Banned'],
+  })
   @IsOptional()
-  @IsNumberString()
-  limit?: string;
+  @IsArray()
+  @IsIn(['Pending', 'Open', 'Deleted', 'Banned'], { each: true })
+  exclude_status_ids?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Filter by source',
+    type: [String],
+    enum: ['telegram_bot', 'employee', 'web', 'app', 'other'],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsIn(['telegram_bot', 'employee', 'web', 'app', 'other'], { each: true })
+  source?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Exclude by source',
+    type: [String],
+    enum: ['telegram_bot', 'employee', 'web', 'app', 'other'],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsIn(['telegram_bot', 'employee', 'web', 'app', 'other'], { each: true })
+  exclude_source?: string[];
+
+  @ApiPropertyOptional({ description: 'Pagination offset', example: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  offset?: number;
+
+  @ApiPropertyOptional({ description: 'Pagination limit', example: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number;
 }

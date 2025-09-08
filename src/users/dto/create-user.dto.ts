@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsString,
   IsPhoneNumber,
@@ -10,6 +10,7 @@ import {
   IsEnum,
   IsBoolean,
   IsNumber,
+  IsIn,
 } from 'class-validator';
 
 export class CreateUserDto {
@@ -27,13 +28,13 @@ export class CreateUserDto {
 
   @ApiProperty({ example: '+998901234567', description: 'Phone number' })
   @IsPhoneNumber('UZ', { context: { location: 'phone_number1' } })
-  @Matches(/^\+998[0-9]{9}$/, { message: 'Invalid phone number format' })
+  @Matches(/^\+998[0-9]{9}$/, { message: 'Invalid phone number1 format' })
   phone_number1!: string;
 
   @ApiProperty({ example: '+998901234567', description: 'Phone number' })
   @IsOptional()
   @IsPhoneNumber('UZ', { context: { location: 'phone_number2' } })
-  @Matches(/^\+998[0-9]{9}$/, { message: 'Invalid phone number format' })
+  @Matches(/^\+998[0-9]{9}$/, { message: 'Invalid phone number2 format' })
   phone_number2?: string;
 
   @ApiProperty({ example: 'AA1234567', required: false })
@@ -105,12 +106,8 @@ export class CreateUserDto {
   @IsBoolean({ context: { location: 'is_active' } })
   is_active?: boolean;
 
-  @ApiProperty({
-    enum: ['Pending', 'Open', 'Deleted', 'Banned'],
-    required: false,
-    description: 'User status',
-  })
+  @ApiPropertyOptional({ enum: ['Pending', 'Open', 'Deleted', 'Banned'] })
   @IsOptional()
-  @IsEnum(['Pending', 'Open', 'Deleted', 'Banned'], { context: { location: 'status' } })
-  status?: string;
+  @IsIn(['Pending', 'Open', 'Deleted', 'Banned'])
+  status?: 'Pending' | 'Open' | 'Deleted' | 'Banned';
 }

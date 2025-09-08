@@ -89,7 +89,7 @@ export class UsersService {
         telegram_chat_id: dto.telegram_chat_id ?? null,
         telegram_username: dto.telegram_username ?? null,
         language: dto.language ?? 'uz',
-        status: 'Pending',
+        status: dto?.status ?? 'Open',
         source: 'web',
         is_active: true,
         created_at: new Date().toISOString(),
@@ -121,64 +121,63 @@ export class UsersService {
     const offset = Number(query.offset) || 0;
     const limit = Number(query.limit) || 20;
 
-    const q = this.knex('users')
-      .select(
-        'id',
-        'first_name',
-        'last_name',
-        'sap_card_code',
-        'passport_series',
-        'id_card_number',
-        'birth_date',
-        'language',
-        'phone_number1',
-        'phone_number2',
-        'telegram_chat_id',
-        'telegram_username',
-        'created_at',
-        'status',
-        'is_active',
-      )
-      .where({ status: 'Open' })
-      .orderBy('created_at', 'desc')
-      .offset(offset)
-      .limit(limit);
+    const baseQuery = this.knex('users');
 
     if (query.search) {
       const term = `%${query.search.toLowerCase()}%`;
-      void q.whereRaw(
-        `
-        LOWER(first_name) LIKE ?
-        OR LOWER(last_name) LIKE ?
-        OR phone_number1 ILIKE ?
-        OR phone_number2 ILIKE ?
-        OR passport_series ILIKE ?
-        OR id_card_number ILIKE ?
-      `,
-        [term, term, term, term, term, term],
+      void baseQuery.andWhere(
+        (qb) =>
+          void qb
+            .whereRaw('LOWER(first_name) LIKE ?', [term])
+            .orWhereRaw('LOWER(last_name) LIKE ?', [term])
+            .orWhereRaw('phone_number1 ILIKE ?', [term])
+            .orWhereRaw('phone_number2 ILIKE ?', [term])
+            .orWhereRaw('passport_series ILIKE ?', [term])
+            .orWhereRaw('id_card_number ILIKE ?', [term]),
       );
     }
 
+    if (Array.isArray(query.status_ids) && query.status_ids.length > 0) {
+      void baseQuery.whereIn('status', query.status_ids);
+    }
+    if (Array.isArray(query.exclude_status_ids) && query.exclude_status_ids.length > 0) {
+      void baseQuery.whereNotIn('status', query.exclude_status_ids);
+    }
+
+    if (Array.isArray(query.source) && query.source.length > 0) {
+      void baseQuery.whereIn('source', query.source);
+    }
+    if (Array.isArray(query.exclude_source) && query.exclude_source.length > 0) {
+      void baseQuery.whereNotIn('source', query.exclude_source);
+    }
+
     const [rows, [{ count }]] = await Promise.all([
-      q,
-      this.knex('users')
-        .count('* as count')
-        .modify((qb) => {
-          if (query.search) {
-            const term = `%${query.search.toLowerCase()}%`;
-            void qb.whereRaw(
-              `
-              LOWER(first_name) LIKE ?
-              OR LOWER(last_name) LIKE ?
-              OR phone_number1 ILIKE ?
-              OR phone_number2 ILIKE ?
-              OR passport_series ILIKE ?
-              OR id_card_number ILIKE ?
-            `,
-              [term, term, term, term, term, term],
-            );
-          }
-        }),
+      baseQuery
+        .clone()
+        .select(
+          'id',
+          'first_name',
+          'last_name',
+          'sap_card_code',
+          'passport_series',
+          'id_card_number',
+          'birth_date',
+          'language',
+          'phone_number1',
+          'phone_number2',
+          'telegram_chat_id',
+          'telegram_username',
+          'created_at',
+          'status',
+          'is_active',
+          'source',
+          'created_by',
+        )
+        .orderBy('created_at', 'desc')
+        .offset(offset)
+        .limit(limit),
+
+      baseQuery.clone().clearSelect().count<{ count: string }[]>('* as count'),
     ]);
 
     return {
