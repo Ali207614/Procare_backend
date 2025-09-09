@@ -1,15 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsInt,
-  IsNumber,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Matches,
-  MaxLength,
-  Min,
-  MinLength,
-} from 'class-validator';
+import { IsInt, IsNumber, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 
 export class UpdateProblemCategoryDto {
   @ApiPropertyOptional({ description: 'Problem name in Uzbek', example: 'Ekran sinishi' })
@@ -21,10 +11,6 @@ export class UpdateProblemCategoryDto {
   })
   @MaxLength(100, {
     message: 'Name (UZ) must not exceed 100 characters',
-    context: { location: 'name_uz' },
-  })
-  @Matches(/^[a-zA-Z\s]+$/, {
-    message: 'Name (UZ) must contain only letters and spaces',
     context: { location: 'name_uz' },
   })
   name_uz?: string;
@@ -40,10 +26,6 @@ export class UpdateProblemCategoryDto {
     message: 'Name (RU) must not exceed 100 characters',
     context: { location: 'name_ru' },
   })
-  @Matches(/^[а-яА-Я\s]+$/, {
-    message: 'Name (RU) must contain only Cyrillic letters and spaces',
-    context: { location: 'name_ru' },
-  })
   name_ru?: string;
 
   @ApiPropertyOptional({ description: 'Problem name in English', example: 'Screen damage' })
@@ -57,30 +39,7 @@ export class UpdateProblemCategoryDto {
     message: 'Name (EN) must not exceed 100 characters',
     context: { location: 'name_en' },
   })
-  @Matches(/^[a-zA-Z\s]+$/, {
-    message: 'Name (EN) must contain only letters and spaces',
-    context: { location: 'name_en' },
-  })
   name_en?: string;
-
-  @ApiPropertyOptional({
-    description: 'Parent problem category ID',
-    example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec',
-  })
-  @IsOptional()
-  @IsUUID('all', { message: 'Invalid parent category ID', context: { location: 'parent_id' } })
-  parent_id?: string;
-
-  @ApiPropertyOptional({
-    description: 'Phone category ID',
-    example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec',
-  })
-  @IsOptional()
-  @IsUUID('all', {
-    message: 'Invalid phone category ID',
-    context: { location: 'phone_category_id' },
-  })
-  phone_category_id?: string;
 
   @ApiPropertyOptional({ description: 'Price of the problem', example: 100000 })
   @IsOptional()

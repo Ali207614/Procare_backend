@@ -22,10 +22,6 @@ export class CreateProblemCategoryDto {
     message: 'Name (UZ) must not exceed 100 characters',
     context: { location: 'name_uz' },
   })
-  @Matches(/^[a-zA-Z\s]+$/, {
-    message: 'Name (UZ) must contain only letters and spaces',
-    context: { location: 'name_uz' },
-  })
   name_uz!: string;
 
   @ApiProperty({
@@ -42,10 +38,6 @@ export class CreateProblemCategoryDto {
     message: 'Name (RU) must not exceed 100 characters',
     context: { location: 'name_ru' },
   })
-  @Matches(/^[а-яА-Я\s]+$/, {
-    message: 'Name (RU) must contain only Cyrillic letters and spaces',
-    context: { location: 'name_ru' },
-  })
   name_ru!: string;
 
   @ApiProperty({ description: 'Problem name in English', example: 'Screen damage', required: true })
@@ -56,10 +48,6 @@ export class CreateProblemCategoryDto {
   })
   @MaxLength(100, {
     message: 'Name (EN) must not exceed 100 characters',
-    context: { location: 'name_en' },
-  })
-  @Matches(/^[a-zA-Z\s]+$/, {
-    message: 'Name (EN) must contain only letters and spaces',
     context: { location: 'name_en' },
   })
   name_en!: string;

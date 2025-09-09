@@ -8,6 +8,7 @@ import {
   Post,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -29,6 +30,8 @@ import { UpdatePhoneCategorySortDto } from './dto/update-phone-category-sort.dto
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { FindAllPhoneCategoriesDto } from './dto/find-all-phone-categories.dto';
 import { PhoneCategory, PhoneCategoryWithMeta } from 'src/common/types/phone-category.interface';
+import { PaginationResult } from 'src/common/utils/pagination.util';
+import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
 
 @ApiTags('Phone Categories')
 @ApiBearerAuth()
@@ -51,13 +54,16 @@ export class PhoneCategoriesController {
   }
 
   @Get()
+  @UseInterceptors(PaginationInterceptor)
   @ApiQuery({ name: 'phone_os_type_id', required: false })
   @ApiQuery({ name: 'parent_id', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'offset', required: false })
   @ApiQuery({ name: 'search', required: false })
   @ApiOperation({ summary: 'Get phone categories (root or children)' })
-  async findAll(@Query() query: FindAllPhoneCategoriesDto): Promise<PhoneCategoryWithMeta[]> {
+  async findAll(
+    @Query() query: FindAllPhoneCategoriesDto,
+  ): Promise<PaginationResult<PhoneCategoryWithMeta>> {
     return this.service.findWithParentOrRoot(query);
   }
 

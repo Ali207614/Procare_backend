@@ -12,11 +12,13 @@ import {
   ProblemCategoryWithMeta,
 } from 'src/common/types/problem-category.interface';
 import { PhoneCategory } from 'src/common/types/phone-category.interface';
+import { PaginationResult } from 'src/common/utils/pagination.util';
 
 @Injectable()
 export class ProblemCategoriesService {
   private readonly redisKeyRoot = 'problem_categories:root:';
   private readonly redisKeyChildren = 'problem_categories:children:';
+  private readonly redisKeyAll = 'problem_categories:';
 
   constructor(
     @InjectKnex() private readonly knex: Knex,
@@ -27,7 +29,6 @@ export class ProblemCategoriesService {
   async create(dto: CreateProblemCategoryDto, adminId: string): Promise<ProblemCategory> {
     const trx = await this.knex.transaction();
     try {
-      this.logger.log(`Creating problem category by admin ${adminId}`);
       const { parent_id, name_uz, name_ru, name_en, phone_category_id, price, estimated_minutes } =
         dto;
 
@@ -136,15 +137,8 @@ export class ProblemCategoriesService {
       }
 
       await trx.commit();
-      await Promise.all([
-        phone_category_id
-          ? this.redisService.flushByPrefix(`${this.redisKeyRoot}${phone_category_id}`)
-          : Promise.resolve(),
-        parent_id
-          ? this.redisService.flushByPrefix(`${this.redisKeyChildren}${parent_id}`)
-          : Promise.resolve(),
-      ]);
-      this.logger.log(`Created problem category ${problem.id}`);
+
+      await this.redisService.flushByPrefix(this.redisKeyAll);
       return problem;
     } catch (err) {
       await trx.rollback();
@@ -159,7 +153,9 @@ export class ProblemCategoriesService {
     }
   }
 
-  async findRootProblems(query: FindAllProblemCategoriesDto): Promise<ProblemCategoryWithMeta[]> {
+  async findRootProblems(
+    query: FindAllProblemCategoriesDto,
+  ): Promise<PaginationResult<ProblemCategoryWithMeta>> {
     const { phone_category_id, search, limit = 20, offset = 0 } = query;
     if (!phone_category_id) {
       throw new BadRequestException({
@@ -168,54 +164,88 @@ export class ProblemCategoriesService {
       });
     }
 
-    const cacheKey = `${this.redisKeyRoot}${phone_category_id}:${search || 'none'}:${offset}:${limit}`;
-    const cached: ProblemCategoryWithMeta[] | null = await this.redisService.get(cacheKey);
+    const cacheKey = `${this.redisKeyRoot}${phone_category_id}:${search ?? 'none'}:${offset}:${limit}`;
+    const cached: PaginationResult<ProblemCategoryWithMeta> | null =
+      await this.redisService.get<PaginationResult<ProblemCategoryWithMeta>>(cacheKey);
     if (cached) {
       this.logger.debug(`Cache hit for root problems: ${cacheKey}`);
       return cached;
     }
 
-    const problems: ProblemCategoryWithMeta[] = await this.knex('problem_categories as p')
-      .select(
-        'p.*',
-        this.knex.raw(`EXISTS (
-          SELECT 1 FROM problem_categories c
-          WHERE c.parent_id = p.id AND c.status = 'Open' AND c.is_active = true
-        ) as has_children`),
-        this.knex.raw(`'[]'::json as breadcrumb`),
-      )
-      .join('phone_problem_mappings as ppm', 'ppm.problem_category_id', 'p.id')
-      .where({
-        'ppm.phone_category_id': phone_category_id,
-        'p.parent_id': null,
-        'p.status': 'Open',
-        'p.is_active': true,
-      })
-      .modify((qb) => {
+    const trx = await this.knex.transaction();
+    try {
+      const applyFilters = (query: Knex.QueryBuilder): void => {
         if (search) {
-          void qb.andWhere(
-            (builder: Knex.QueryBuilder) =>
+          void query.andWhere(
+            (builder) =>
               void builder
                 .whereILike('p.name_uz', `%${search}%`)
                 .orWhereILike('p.name_ru', `%${search}%`)
                 .orWhereILike('p.name_en', `%${search}%`),
           );
         }
-      })
-      .orderBy('p.sort', 'asc')
-      .offset(offset)
-      .limit(limit);
+      };
 
-    await this.redisService.set(cacheKey, problems, 3600);
-    this.logger.log(
-      `Fetched ${problems.length} root problems for phone category ${phone_category_id}`,
-    );
-    return problems;
+      const baseQuery = trx('problem_categories as p')
+        .select(
+          'p.*',
+          trx.raw(`EXISTS (
+          SELECT 1 FROM problem_categories c
+          WHERE c.parent_id = p.id AND c.status = 'Open' AND c.is_active = true
+        ) as has_children`),
+          trx.raw(`'[]'::json as breadcrumb`),
+        )
+        .leftJoin('phone_problem_mappings as ppm', 'ppm.problem_category_id', 'p.id')
+        .where({
+          'ppm.phone_category_id': phone_category_id,
+          'p.parent_id': null,
+          'p.status': 'Open',
+          'p.is_active': true,
+        });
+
+      applyFilters(baseQuery);
+
+      const countQuery = trx('problem_categories as p')
+        .leftJoin('phone_problem_mappings as ppm', 'ppm.problem_category_id', 'p.id')
+        .where({
+          'ppm.phone_category_id': phone_category_id,
+          'p.parent_id': null,
+          'p.status': 'Open',
+          'p.is_active': true,
+        });
+
+      applyFilters(countQuery);
+
+      const [rows, [{ count }]] = await Promise.all([
+        baseQuery.clone().orderBy('p.sort', 'asc').offset(offset).limit(limit),
+        countQuery.count<{ count: string }[]>('* as count'),
+      ]);
+
+      await trx.commit();
+
+      const result: PaginationResult<ProblemCategoryWithMeta> = {
+        rows,
+        total: Number(count),
+        limit,
+        offset,
+      };
+
+      await this.redisService.set(cacheKey, result, 3600);
+      return result;
+    } catch (err) {
+      await trx.rollback();
+      this.logger.error(`Failed to fetch root problems`);
+      if (err instanceof HttpException) throw err;
+      throw new BadRequestException({
+        message: 'Failed to fetch root problems',
+        location: 'find_root_problems',
+      });
+    }
   }
 
   async findChildrenWithBreadcrumb(
     query: FindAllProblemCategoriesDto,
-  ): Promise<ProblemCategoryWithMeta[]> {
+  ): Promise<PaginationResult<ProblemCategoryWithMeta>> {
     const { parent_id, search, limit = 20, offset = 0 } = query;
     if (!parent_id) {
       throw new BadRequestException({
@@ -224,69 +254,96 @@ export class ProblemCategoriesService {
       });
     }
 
-    const cacheKey = `${this.redisKeyChildren}${parent_id}:${search || 'none'}:${offset}:${limit}`;
-    const cached: ProblemCategoryWithMeta[] | null = await this.redisService.get(cacheKey);
+    const cacheKey = `${this.redisKeyChildren}${parent_id}:${search ?? 'none'}:${offset}:${limit}`;
+    const cached: PaginationResult<ProblemCategoryWithMeta> | null =
+      await this.redisService.get<PaginationResult<ProblemCategoryWithMeta>>(cacheKey);
     if (cached) {
       this.logger.debug(`Cache hit for child problems: ${cacheKey}`);
       return cached;
     }
 
-    const problems: ProblemCategoryWithMeta[] = await this.knex('problem_categories as p')
-      .select(
-        'p.*',
-        this.knex.raw(`EXISTS (
-          SELECT 1 FROM problem_categories c
-          WHERE c.parent_id = p.id AND c.status = 'Open' AND c.is_active = true
-        ) as has_children`),
-        this.knex.raw(
-          `(
-            WITH RECURSIVE breadcrumb AS (
-              SELECT id, name_uz, name_ru, name_en, parent_id, sort
-              FROM problem_categories
-              WHERE id = ?
-              UNION ALL
-              SELECT c.id, c.name_uz, c.name_ru, c.name_en, c.parent_id, c.sort
-              FROM problem_categories c
-              JOIN breadcrumb b ON b.parent_id = c.id
-              WHERE c.status = 'Open' AND c.is_active = true
-            )
-            SELECT COALESCE(JSON_AGG(breadcrumb ORDER BY sort), '[]') FROM breadcrumb
-          ) as breadcrumb`,
-          [parent_id],
-        ),
-      )
-      .where({ 'p.parent_id': parent_id, 'p.status': 'Open', 'p.is_active': true })
-      .modify((qb) => {
+    const trx = await this.knex.transaction();
+    try {
+      const applyFilters = (query: Knex.QueryBuilder): void => {
         if (search) {
-          void qb.andWhere(
-            (builder: Knex.QueryBuilder) =>
+          void query.andWhere(
+            (builder) =>
               void builder
                 .whereILike('p.name_uz', `%${search}%`)
                 .orWhereILike('p.name_ru', `%${search}%`)
                 .orWhereILike('p.name_en', `%${search}%`),
           );
         }
-      })
-      .orderBy('p.sort', 'asc')
-      .offset(offset)
-      .limit(limit);
+      };
 
-    if (!problems.length) {
-      throw new NotFoundException({
-        message: 'Problem category not found or has no children',
-        location: 'parent_id',
+      const baseQuery = trx('problem_categories as p')
+        .select(
+          'p.*',
+          trx.raw(`EXISTS (
+          SELECT 1 FROM problem_categories c
+          WHERE c.parent_id = p.id AND c.status = 'Open' AND c.is_active = true
+        ) as has_children`),
+          trx.raw(
+            `(
+            WITH RECURSIVE breadcrumb AS (
+              SELECT id, name_uz, name_ru, name_en, parent_id, sort, 1 as depth
+              FROM problem_categories
+              WHERE id = ?
+              UNION ALL
+              SELECT c.id, c.name_uz, c.name_ru, c.name_en, c.parent_id, c.sort, b.depth + 1
+              FROM problem_categories c
+              JOIN breadcrumb b ON b.parent_id = c.id
+              WHERE c.status = 'Open' AND c.is_active = true
+            )
+            SELECT COALESCE(JSON_AGG(row_to_json(breadcrumb) ORDER BY depth DESC), '[]'::json) FROM breadcrumb
+          ) as breadcrumb`,
+            [parent_id],
+          ),
+        )
+        .where({ 'p.parent_id': parent_id, 'p.status': 'Open', 'p.is_active': true });
+
+      applyFilters(baseQuery);
+
+      const countQuery = trx('problem_categories as p').where({
+        'p.parent_id': parent_id,
+        'p.status': 'Open',
+        'p.is_active': true,
       });
-    }
 
-    await this.redisService.set(cacheKey, problems, 3600);
-    this.logger.log(`Fetched ${problems.length} child problems for parent ${parent_id}`);
-    return problems;
+      applyFilters(countQuery);
+
+      const [rows, [{ count }]] = await Promise.all([
+        baseQuery.clone().orderBy('p.sort', 'asc').offset(offset).limit(limit),
+        countQuery.count<{ count: string }[]>('* as count'),
+      ]);
+
+      await trx.commit();
+
+      const result: PaginationResult<ProblemCategoryWithMeta> = {
+        rows,
+        total: Number(count),
+        limit,
+        offset,
+      };
+
+      await this.redisService.set(cacheKey, result, 3600);
+      return result;
+    } catch (err) {
+      await trx.rollback();
+      this.logger.error(`Failed to fetch child problems: `);
+      if (err instanceof HttpException) throw err;
+      throw new BadRequestException({
+        message: 'Failed to fetch child problems',
+        location: 'find_children_with_breadcrumb',
+      });
+    } finally {
+      await trx.destroy();
+    }
   }
 
   async update(id: string, dto: UpdateProblemCategoryDto): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
-      this.logger.log(`Updating problem category ${id}`);
       const category = await trx('problem_categories').where({ id, status: 'Open' }).first();
       if (!category) {
         throw new BadRequestException({
@@ -295,66 +352,13 @@ export class ProblemCategoriesService {
         });
       }
 
-      const {
-        parent_id: dtoParentId,
-        name_uz,
-        name_ru,
-        name_en,
-        phone_category_id,
-        price,
-        estimated_minutes,
-      } = dto;
-      let parentId = dtoParentId ?? category.parent_id;
-      if (typeof parentId === 'string' && parentId.trim() === '') parentId = null;
+      const { name_uz, name_ru, name_en } = dto;
 
-      if (id === parentId) {
-        throw new BadRequestException({
-          message: 'Category cannot be its own parent',
-          location: 'parent_id',
-        });
-      }
-
-      if (parentId && phone_category_id) {
-        throw new BadRequestException({
-          message: 'Cannot provide both parent_id and phone_category_id',
-          location: 'conflict_parent_and_phone',
-        });
-      }
-
-      if (!parentId && !phone_category_id) {
-        throw new BadRequestException({
-          message: 'phone_category_id is required for root-level problems',
-          location: 'phone_category_id',
-        });
-      }
-
-      if (parentId) {
-        const parent = await trx('problem_categories')
-          .where({ id: parentId, status: 'Open', is_active: true })
-          .first();
-        if (!parent) {
-          throw new BadRequestException({
-            message: 'Parent category not found or inactive',
-            location: 'parent_id',
-          });
-        }
-      }
-
-      if (phone_category_id) {
-        const isParent = await trx('phone_categories')
-          .where({ parent_id: phone_category_id, status: 'Open' })
-          .first();
-        if (isParent) {
-          throw new BadRequestException({
-            message: 'Cannot assign problem to a phone category with children',
-            location: 'phone_category_id',
-          });
-        }
-      }
-
+      const parentId: string | null = category.parent_id;
       if (name_uz || name_ru || name_en) {
         const conflictQuery = trx('problem_categories')
           .whereNot({ id })
+          .andWhere({ status: 'Open', is_active: true })
           .andWhere((qb) => {
             if (name_uz) void qb.orWhere('name_uz', name_uz);
             if (name_ru) void qb.orWhere('name_ru', name_ru);
@@ -363,15 +367,8 @@ export class ProblemCategoriesService {
 
         if (parentId) {
           void conflictQuery.andWhere({ parent_id: parentId });
-        } else if (phone_category_id) {
-          void conflictQuery
-            .whereNull('parent_id')
-            .join(
-              'phone_problem_mappings as ppm',
-              'ppm.problem_category_id',
-              'problem_categories.id',
-            )
-            .andWhere({ 'ppm.phone_category_id': phone_category_id });
+        } else {
+          void conflictQuery.andWhere({ parent_id: null });
         }
 
         const conflict = await conflictQuery.first();
@@ -383,59 +380,38 @@ export class ProblemCategoriesService {
         }
       }
 
-      const updateData: Partial<ProblemCategory> = {
-        name_uz,
-        name_ru,
-        name_en,
+      const updateData = {
+        name_uz: dto.name_uz ?? category.name_uz,
+        name_ru: dto.name_ru ?? category.name_ru,
+        name_en: dto.name_en ?? category.name_en,
         parent_id: parentId,
-        price: price ? String(price) : undefined,
-        estimated_minutes,
-        updated_at: new Date().toISOString(),
+        price: dto.price ?? category.price,
+        estimated_minutes: dto.estimated_minutes ?? category.estimated_minutes,
+        updated_at: this.knex.fn.now(),
       };
 
       await trx('problem_categories').where({ id }).update(updateData);
-      if (phone_category_id) {
-        const mappingExists = await trx('phone_problem_mappings')
-          .where({ phone_category_id, problem_category_id: id })
-          .first();
-        if (!mappingExists) {
-          await trx('phone_problem_mappings').insert({
-            phone_category_id,
-            problem_category_id: id,
-          });
-        }
-      }
 
       await trx.commit();
-      await Promise.all([
-        phone_category_id
-          ? this.redisService.flushByPrefix(`${this.redisKeyRoot}${phone_category_id}`)
-          : Promise.resolve(),
-        parentId || category.parent_id
-          ? this.redisService.flushByPrefix(
-              `${this.redisKeyChildren}${parentId || category.parent_id}`,
-            )
-          : Promise.resolve(),
-      ]);
-      this.logger.log(`Updated problem category ${id}`);
+
+      await this.redisService.flushByPrefix(this.redisKeyAll);
+
       return { message: 'Problem category updated successfully' };
     } catch (err) {
       await trx.rollback();
-      if (err instanceof HttpException) {
-        throw err;
-      }
-      this.logger.error(`Failed to update problem category ${id}`);
+      this.logger.error(`Failed to update problem category ${id}:`);
+      if (err instanceof HttpException) throw err;
       throw new BadRequestException({
         message: 'Failed to update problem category',
         location: 'update_problem_category',
       });
+    } finally {
+      await trx.destroy();
     }
   }
-
   async updateSort(id: string, newSort: number): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
-      this.logger.log(`Updating sort for problem category ${id} to ${newSort}`);
       const category: ProblemCategory | undefined = await trx('problem_categories')
         .where({ id, status: 'Open' })
         .first();
@@ -469,25 +445,8 @@ export class ProblemCategoriesService {
         .where({ id })
         .update({ sort: newSort, updated_at: new Date().toISOString() });
       await trx.commit();
+      await this.redisService.flushByPrefix(this.redisKeyAll);
 
-      await Promise.all([
-        category.parent_id
-          ? this.redisService.flushByPrefix(`${this.redisKeyChildren}${category.parent_id}`)
-          : Promise.resolve(),
-        !category.parent_id
-          ? this.knex('phone_problem_mappings')
-              .where({ problem_category_id: id })
-              .first()
-              .then((mappings) =>
-                mappings?.phone_category_id
-                  ? this.redisService.flushByPrefix(
-                      `${this.redisKeyRoot}${mappings.phone_category_id}`,
-                    )
-                  : Promise.resolve(),
-              )
-          : Promise.resolve(),
-      ]);
-      this.logger.log(`Updated sort for problem category ${id}`);
       return { message: 'Sort updated successfully' };
     } catch (err) {
       await trx.rollback();
@@ -530,24 +489,7 @@ export class ProblemCategoriesService {
         .update({ status: 'Deleted', updated_at: new Date().toISOString() });
       await trx.commit();
 
-      await Promise.all([
-        category.parent_id
-          ? this.redisService.flushByPrefix(`${this.redisKeyChildren}${category.parent_id}`)
-          : Promise.resolve(),
-        !category.parent_id
-          ? this.knex('phone_problem_mappings')
-              .where({ problem_category_id: id })
-              .first()
-              .then((mappings) =>
-                mappings?.phone_category_id
-                  ? this.redisService.flushByPrefix(
-                      `${this.redisKeyRoot}${mappings.phone_category_id}`,
-                    )
-                  : Promise.resolve(),
-              )
-          : Promise.resolve(),
-      ]);
-      this.logger.log(`Deleted problem category ${id}`);
+      await this.redisService.flushByPrefix(this.redisKeyAll);
       return { message: 'Problem category deleted successfully' };
     } catch (err) {
       await trx.rollback();

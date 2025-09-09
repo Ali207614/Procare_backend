@@ -10,6 +10,7 @@ import { PhoneOsTypesService } from 'src/phone-os-types/phone-os-types.service';
 import { LoggerService } from 'src/common/logger/logger.service';
 import { PhoneCategory, PhoneCategoryWithMeta } from 'src/common/types/phone-category.interface';
 import { PhoneOsType } from 'src/common/types/phone-os-type.interface';
+import { PaginationResult } from 'src/common/utils/pagination.util';
 
 @Injectable()
 export class PhoneCategoriesService {
@@ -139,20 +140,22 @@ export class PhoneCategoriesService {
     }
   }
 
-  async findWithParentOrRoot(query: FindAllPhoneCategoriesDto): Promise<PhoneCategoryWithMeta[]> {
+  async findWithParentOrRoot(
+    query: FindAllPhoneCategoriesDto,
+  ): Promise<PaginationResult<PhoneCategoryWithMeta>> {
     return this.findPhoneCategories(query);
   }
 
   async findPhoneCategories(
     query: Omit<FindAllPhoneCategoriesDto, 'parent_id'> & { parent_id?: string },
-  ): Promise<PhoneCategoryWithMeta[]> {
+  ): Promise<PaginationResult<PhoneCategoryWithMeta>> {
     const { phone_os_type_id, limit = 20, offset = 0, search, parent_id } = query;
     const hasSearch = !!search;
 
     let cacheKey: string | null = null;
     if (!hasSearch) {
       cacheKey = `${this.redisKeyCategories}${parent_id || 'root'}:${phone_os_type_id || 'all'}:${offset}:${limit}`;
-      const cached = await this.redisService.get<PhoneCategoryWithMeta[]>(cacheKey);
+      const cached = await this.redisService.get<PaginationResult<PhoneCategoryWithMeta>>(cacheKey);
       if (cached) {
         return cached;
       }
@@ -160,44 +163,44 @@ export class PhoneCategoriesService {
 
     const trx = await this.knex.transaction();
     try {
-      const q = trx('phone_categories as pc')
+      const baseQuery = trx('phone_categories as pc')
         .where({ 'pc.is_active': true, 'pc.status': 'Open' })
         .andWhere(parent_id ? { 'pc.parent_id': parent_id } : { 'pc.parent_id': null })
         .select(
           'pc.*',
           trx.raw(`EXISTS (
-            SELECT 1 FROM phone_categories c
-            WHERE c.parent_id = pc.id AND c.is_active = true AND c.status = 'Open'
-          ) as has_children`),
+          SELECT 1 FROM phone_categories c
+          WHERE c.parent_id = pc.id AND c.is_active = true AND c.status = 'Open'
+        ) as has_children`),
           trx.raw(`EXISTS (
-            SELECT 1 FROM phone_problem_mappings ppm
-            JOIN problem_categories p ON p.id = ppm.problem_category_id
-            WHERE ppm.phone_category_id = pc.id AND p.status = 'Open'
-          ) as has_problems`),
+          SELECT 1 FROM phone_problem_mappings ppm
+          JOIN problem_categories p ON p.id = ppm.problem_category_id
+          WHERE ppm.phone_category_id = pc.id AND p.status = 'Open'
+        ) as has_problems`),
           parent_id
             ? trx.raw(
                 `(
-                  WITH RECURSIVE breadcrumb (id, name_uz, name_ru, name_en, parent_id, sort, depth) AS (
-                    SELECT id, name_uz, name_ru, name_en, parent_id, sort, 1 as depth
-                    FROM phone_categories
-                    WHERE id = ?
-                    UNION ALL
-                    SELECT c.id, c.name_uz, c.name_ru, c.name_en, c.parent_id, c.sort, b.depth + 1
-                    FROM phone_categories c
-                    JOIN breadcrumb b ON b.parent_id = c.id
-                    WHERE c.is_active = true AND c.status = 'Open'
-                  )
-                  SELECT COALESCE(JSON_AGG(row_to_json(breadcrumb) ORDER BY depth DESC), '[]'::json)
-                  FROM breadcrumb
-                ) as breadcrumb`,
+        WITH RECURSIVE breadcrumb (id, name_uz, name_ru, name_en, parent_id, sort, depth) AS (
+          SELECT id, name_uz, name_ru, name_en, parent_id, sort, 1 as depth
+          FROM phone_categories
+          WHERE id = ?
+          UNION ALL
+          SELECT c.id, c.name_uz, c.name_ru, c.name_en, c.parent_id, c.sort, b.depth + 1
+          FROM phone_categories c
+          JOIN breadcrumb b ON b.parent_id = c.id
+          WHERE c.is_active = true AND c.status = 'Open'
+        )
+        SELECT COALESCE(JSON_AGG(row_to_json(breadcrumb) ORDER BY depth DESC), '[]'::json)
+        FROM breadcrumb
+      )`,
                 [parent_id],
               )
             : trx.raw(`'[]'::json as breadcrumb`),
         );
 
-      if (phone_os_type_id) void q.andWhere('pc.phone_os_type_id', phone_os_type_id);
+      if (phone_os_type_id) void baseQuery.andWhere('pc.phone_os_type_id', phone_os_type_id);
       if (search) {
-        void q.andWhere(
+        void baseQuery.andWhere(
           (builder: Knex.QueryBuilder) =>
             void builder
               .whereILike('pc.name_uz', `%${search}%`)
@@ -206,11 +209,35 @@ export class PhoneCategoriesService {
         );
       }
 
-      const result: PhoneCategoryWithMeta[] = await q
-        .orderBy('pc.sort', 'asc')
-        .offset(offset)
-        .limit(limit);
+      const [rows, [{ count }]] = await Promise.all([
+        baseQuery.clone().orderBy('pc.sort', 'asc').offset(offset).limit(limit),
+
+        trx('phone_categories as pc')
+          .where({ 'pc.is_active': true, 'pc.status': 'Open' })
+          .andWhere(parent_id ? { 'pc.parent_id': parent_id } : { 'pc.parent_id': null })
+          .modify((qb) => {
+            if (phone_os_type_id) void qb.andWhere('pc.phone_os_type_id', phone_os_type_id);
+            if (search) {
+              void qb.andWhere(
+                (builder) =>
+                  void builder
+                    .whereILike('pc.name_uz', `%${search}%`)
+                    .orWhereILike('pc.name_ru', `%${search}%`)
+                    .orWhereILike('pc.name_en', `%${search}%`),
+              );
+            }
+          })
+          .count<{ count: string }[]>('* as count'),
+      ]);
+
       await trx.commit();
+
+      const result: PaginationResult<PhoneCategoryWithMeta> = {
+        rows,
+        total: Number(count),
+        limit,
+        offset,
+      };
 
       if (!hasSearch && cacheKey) {
         await this.redisService.set(cacheKey, result, 3600);
@@ -219,9 +246,7 @@ export class PhoneCategoriesService {
       return result;
     } catch (err) {
       await trx.rollback();
-      if (err instanceof HttpException) {
-        throw err;
-      }
+      if (err instanceof HttpException) throw err;
       this.logger.error(`Failed to fetch phone categories`);
       throw new BadRequestException({
         message: 'Failed to fetch phone categories',
@@ -281,27 +306,6 @@ export class PhoneCategoriesService {
           throw new BadRequestException({
             message: 'Category with the same name already exists under this parent',
             location: 'name_conflict',
-          });
-        }
-      }
-      if (parentId) {
-        const parent = await trx('phone_categories')
-          .where({ id: parentId, is_active: true, status: 'Open' })
-          .first();
-        if (!parent) {
-          throw new BadRequestException({
-            message: 'Parent category not found or inactive',
-            location: 'parent_id',
-          });
-        }
-
-        const isParentBoundToProblems = await trx('phone_problem_mappings')
-          .where({ phone_category_id: parentId })
-          .first();
-        if (isParentBoundToProblems) {
-          throw new BadRequestException({
-            message: 'Cannot add child to a category already linked with problems',
-            location: 'parent_id',
           });
         }
       }

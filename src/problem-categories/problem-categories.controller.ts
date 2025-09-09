@@ -9,6 +9,7 @@ import {
   Post,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ProblemCategoriesService } from './problem-categories.service';
@@ -24,6 +25,8 @@ import { UpdateProblemCategoryDto } from './dto/update-problem-category.dto';
 import { PhoneCategory } from 'src/common/types/phone-category.interface';
 import { ProblemCategoryWithMeta } from 'src/common/types/problem-category.interface';
 import { FindAllProblemCategoriesDto } from 'src/problem-categories/dto/find-all-problem-categories.dto';
+import { PaginationResult } from 'src/common/utils/pagination.util';
+import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
 
 @ApiTags('Problem Categories')
 @ApiBearerAuth()
@@ -46,12 +49,15 @@ export class ProblemCategoriesController {
   }
 
   @Get()
+  @UseInterceptors(PaginationInterceptor)
   @ApiOperation({ summary: 'Get root-level or child problems with breadcrumb' })
   @ApiQuery({ name: 'phone_category_id', required: true })
   @ApiQuery({ name: 'parent_id', required: false })
   @ApiResponse({ status: 200, description: 'Problem list' })
   @ApiResponse({ status: 400, description: 'Invalid query' })
-  async find(@Query() query: FindAllProblemCategoriesDto): Promise<ProblemCategoryWithMeta[]> {
+  async find(
+    @Query() query: FindAllProblemCategoriesDto,
+  ): Promise<PaginationResult<ProblemCategoryWithMeta>> {
     if (query?.parent_id) {
       return this.service.findChildrenWithBreadcrumb(query);
     }
