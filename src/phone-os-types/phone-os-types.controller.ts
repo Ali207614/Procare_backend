@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { PhoneOsTypesService } from './phone-os-types.service';
 import { CreatePhoneOsTypeDto } from './dto/create-phone-os-type.dto';
@@ -10,6 +20,8 @@ import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { UpdatePhoneOsTypeDto } from './dto/update-phone-os-type.dto';
 import { PhoneOsType } from 'src/common/types/phone-os-type.interface';
+import { PaginationResult } from 'src/common/utils/pagination.util';
+import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
 
 @ApiTags('Phone OS Types')
 @ApiBearerAuth()
@@ -32,9 +44,10 @@ export class PhoneOsTypesController {
 
   @Get()
   @UseGuards(PermissionsGuard)
+  @UseInterceptors(PaginationInterceptor)
   @SetPermissions('phone-os-type.view')
   @ApiOperation({ summary: 'Get all phone OS types (from Redis or DB)' })
-  async findAll(): Promise<PhoneOsType[]> {
+  async findAll(): Promise<PaginationResult<PhoneOsType>> {
     return this.service.findAll();
   }
 

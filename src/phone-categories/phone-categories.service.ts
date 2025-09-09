@@ -47,8 +47,10 @@ export class PhoneCategoriesService {
       const { parent_id, name_uz, name_ru, name_en, phone_os_type_id } = dto;
 
       if (phone_os_type_id) {
-        const allOsTypes: PhoneOsType[] = await this.phoneOsTypesService.findAll();
-        const found = allOsTypes.find((os) => os.id === phone_os_type_id);
+        const allOsTypes: PaginationResult<PhoneOsType> = await this.phoneOsTypesService.findAll();
+        const found: PhoneOsType | undefined = allOsTypes.rows.find(
+          (os: PhoneOsType): boolean => os.id === phone_os_type_id,
+        );
         if (!found || !found.is_active) {
           throw new BadRequestException({
             message: 'Phone OS type not found or inactive',

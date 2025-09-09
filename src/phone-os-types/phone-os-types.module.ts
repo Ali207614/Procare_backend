@@ -3,9 +3,10 @@ import { Module } from '@nestjs/common';
 import { RedisModule } from 'src/common/redis/redis.module';
 import { PermissionsModule } from 'src/permissions/permissions.module';
 import { PhoneOsTypesService } from './phone-os-types.service';
+import { LoggerModule } from 'src/common/logger/logger.module';
 
 @Module({
-  imports: [RedisModule, PermissionsModule],
+  imports: [RedisModule, PermissionsModule, LoggerModule],
   controllers: [PhoneOsTypesController],
   providers: [PhoneOsTypesService],
   exports: [PhoneOsTypesService],
