@@ -124,7 +124,7 @@ export class PhoneCategoriesService {
         .returning('*');
       await trx.commit();
 
-      await this.redisService.flushByPrefix(`${this.redisKeyCategories}${parent_id || 'root'}`);
+      await this.redisService.flushByPrefix(`${this.redisKeyCategories}`);
       return inserted;
     } catch (err) {
       await trx.rollback();
