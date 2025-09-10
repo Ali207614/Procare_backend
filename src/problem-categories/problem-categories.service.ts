@@ -467,6 +467,7 @@ export class ProblemCategoriesService {
       const category: ProblemCategory | undefined = await trx('problem_categories')
         .where({ id, status: 'Open' })
         .first();
+
       if (!category) {
         throw new NotFoundException({
           message: 'Problem category not found or already deleted',
@@ -474,9 +475,10 @@ export class ProblemCategoriesService {
         });
       }
 
-      const hasChildren = await trx('problem_categories')
+      const hasChildren: ProblemCategory | undefined = await trx('problem_categories')
         .where({ parent_id: id, status: 'Open' })
         .first();
+
       if (hasChildren) {
         throw new BadRequestException({
           message: 'Cannot delete category with child problems',
@@ -484,12 +486,18 @@ export class ProblemCategoriesService {
         });
       }
 
+      if (category.parent_id === null) {
+        await trx('phone_problem_mappings').where({ problem_category_id: id }).del();
+      }
+
       await trx('problem_categories')
         .where({ id })
         .update({ status: 'Deleted', updated_at: new Date().toISOString() });
+
       await trx.commit();
 
       await this.redisService.flushByPrefix(this.redisKeyAll);
+
       return { message: 'Problem category deleted successfully' };
     } catch (err) {
       await trx.rollback();
