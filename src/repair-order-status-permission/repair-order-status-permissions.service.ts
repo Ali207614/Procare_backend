@@ -88,7 +88,6 @@ export class RepairOrderStatusPermissionsService {
       .andWhere(`${this.table}.status`, 'Open')
       .andWhere('branches.status', 'Open')
       .andWhere('roles.status', 'Open')
-      .andWhere('repair_order_statuses.status', 'Open')
       .select(`${this.table}.*`)
       .orderBy(`${this.table}.created_at`, 'desc');
   }
@@ -111,7 +110,6 @@ export class RepairOrderStatusPermissionsService {
       .andWhere(`${this.table}.status`, 'Open')
       .andWhere('branches.status', 'Open')
       .andWhere('roles.status', 'Open')
-      .andWhere('repair_order_statuses.status', 'Open')
       .select(`${this.table}.*`)
       .first()) as RepairOrderStatusPermission | undefined;
 
