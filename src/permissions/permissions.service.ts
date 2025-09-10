@@ -59,7 +59,7 @@ export class PermissionsService {
   }
 
   async clearPermissionCache(adminId: string): Promise<void> {
-    const cacheKey = this.getCacheKey(adminId);
+    const cacheKey: string = this.getCacheKey(adminId);
     await this.redisService.del(cacheKey);
   }
 

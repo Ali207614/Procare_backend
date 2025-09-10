@@ -249,6 +249,7 @@ export class AdminsService {
       }
 
       await this.permissionsService.getPermissions(admin.id);
+      await this.permissionsService.clearPermissionCache(admin.id);
 
       return admin;
     });
