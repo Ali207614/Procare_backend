@@ -324,7 +324,7 @@ export class PhoneCategoriesService {
       await trx('phone_categories').where({ id }).update(updateData);
       await trx.commit();
 
-      const parentCacheKey = `${this.redisKeyCategories}${category.parent_id || 'root'}`;
+      const parentCacheKey = `${this.redisKeyCategories}`;
       await this.redisService.flushByPrefix(parentCacheKey);
 
       if (nameChanged) {
@@ -385,9 +385,7 @@ export class PhoneCategoriesService {
         .update({ sort: newSort, updated_at: new Date().toISOString() });
       await trx.commit();
 
-      await this.redisService.flushByPrefix(
-        `${this.redisKeyCategories}${category.parent_id || 'root'}`,
-      );
+      await this.redisService.flushByPrefix(`${this.redisKeyCategories}`);
       return { message: 'Sort updated successfully' };
     } catch (err) {
       await trx.rollback();
