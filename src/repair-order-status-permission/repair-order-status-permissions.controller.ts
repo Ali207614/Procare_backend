@@ -37,7 +37,7 @@ export class RepairOrderStatusPermissionsController {
     return this.service.findByStatusId(statusId);
   }
 
-  @Get('by-admin/:role_id/status/:status_id')
+  @Get('by-role/:role_id/status/:status_id')
   @UseGuards(RepairOrderStatusExistGuard)
   @ApiOperation({ summary: 'Get permission for a specific role and status (from Redis)' })
   @ApiParam({ name: 'role_id', description: 'Role ID' })
@@ -49,7 +49,7 @@ export class RepairOrderStatusPermissionsController {
     return this.service.findByRoleStatus(roleId, statusId);
   }
 
-  @Get('by-admin/:role_id/branch/:branch_id')
+  @Get('by-role/:role_id/branch/:branch_id')
   @UseGuards(BranchExistGuard)
   @ApiOperation({ summary: 'Get permission for a specific role and status (from Redis)' })
   @ApiParam({ name: 'role_id', description: 'Role ID' })
