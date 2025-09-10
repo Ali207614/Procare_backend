@@ -85,9 +85,9 @@ export class RepairOrderStatusPermissionsService {
       .join('roles', `${this.table}.role_id`, 'roles.id')
       .join('repair_order_statuses', `${this.table}.status_id`, 'repair_order_statuses.id')
       .where(`${this.table}.status_id`, statusId)
-      .andWhere(`${this.table}.status`, 'Open')
       .andWhere('branches.status', 'Open')
       .andWhere('roles.status', 'Open')
+      .andWhere('repair_order_statuses.status', 'Open')
       .select(`${this.table}.*`)
       .orderBy(`${this.table}.created_at`, 'desc');
   }
@@ -107,9 +107,9 @@ export class RepairOrderStatusPermissionsService {
       .join('repair_order_statuses', `${this.table}.status_id`, 'repair_order_statuses.id')
       .where(`${this.table}.role_id`, roleId)
       .andWhere(`${this.table}.status_id`, statusId)
-      .andWhere(`${this.table}.status`, 'Open')
       .andWhere('branches.status', 'Open')
       .andWhere('roles.status', 'Open')
+      .andWhere('repair_order_statuses.status', 'Open')
       .select(`${this.table}.*`)
       .first()) as RepairOrderStatusPermission | undefined;
 
