@@ -82,7 +82,14 @@ export class RepairPartsService {
   }
 
   async findAll(query: FindAllPartsDto): Promise<PaginationResult<RepairPart>> {
-    const { limit = 10, offset = 0, search, status, problem_category_ids } = query;
+    const {
+      limit = 10,
+      offset = 0,
+      search,
+      status,
+      problem_category_ids,
+      exclude_problem_category_ids,
+    } = query;
 
     const baseQuery = this.knex<RepairPart>('repair_parts as rp')
       .leftJoin('repair_part_assignments as rpa', 'rp.id', 'rpa.repair_part_id')
@@ -104,6 +111,12 @@ export class RepairPartsService {
     if (problem_category_ids?.length) {
       void baseQuery.andWhere((qb) => {
         void qb.whereIn('rpa.problem_category_id', problem_category_ids);
+      });
+    }
+
+    if (exclude_problem_category_ids?.length) {
+      void baseQuery.andWhereNot((qb) => {
+        void qb.whereIn('rpa.problem_category_id', exclude_problem_category_ids);
       });
     }
 

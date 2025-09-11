@@ -55,4 +55,14 @@ export class FindAllPartsDto {
   @IsArray()
   @IsUUID('all', { each: true })
   problem_category_ids?: string[];
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Exclude by problem category IDs (UUID format)',
+    example: ['550e8400-e29b-41d4-a716-446655440111'],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  exclude_problem_category_ids?: string[];
 }

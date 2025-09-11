@@ -333,8 +333,6 @@ export class ProblemCategoriesService {
         message: 'Failed to fetch child problems',
         location: 'find_children_with_breadcrumb',
       });
-    } finally {
-      await trx.destroy();
     }
   }
 
@@ -405,6 +403,7 @@ export class ProblemCategoriesService {
       });
     }
   }
+
   async updateSort(id: string, newSort: number): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
