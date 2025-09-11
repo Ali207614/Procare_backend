@@ -77,7 +77,7 @@ export class ProblemCategoriesService {
 
       if (phone_category_id) {
         const isParent: PhoneCategory | undefined = await trx<PhoneCategory>('phone_categories')
-          .where({ parent_id: phone_category_id, status: 'Open' })
+          .where({ parent_id: phone_category_id, status: 'Open', is_active: true })
           .first();
         if (isParent) {
           throw new BadRequestException({
@@ -91,8 +91,8 @@ export class ProblemCategoriesService {
           .where({
             'p.parent_id': null,
             'ppm.phone_category_id': phone_category_id,
-            'p.is_active': true,
             'p.status': 'Open',
+            'p.is_active': true,
           })
           .andWhere(
             (qb: Knex.QueryBuilder) =>
@@ -191,7 +191,7 @@ export class ProblemCategoriesService {
           'p.*',
           trx.raw(`EXISTS (
           SELECT 1 FROM problem_categories c
-          WHERE c.parent_id = p.id AND c.status = 'Open' AND c.is_active = true
+          WHERE c.parent_id = p.id AND c.status = 'Open' 
         ) as has_children`),
           trx.raw(`'[]'::json as breadcrumb`),
         )
@@ -200,7 +200,6 @@ export class ProblemCategoriesService {
           'ppm.phone_category_id': phone_category_id,
           'p.parent_id': null,
           'p.status': 'Open',
-          'p.is_active': true,
         });
 
       applyFilters(baseQuery);
@@ -211,7 +210,6 @@ export class ProblemCategoriesService {
           'ppm.phone_category_id': phone_category_id,
           'p.parent_id': null,
           'p.status': 'Open',
-          'p.is_active': true,
         });
 
       applyFilters(countQuery);
@@ -281,7 +279,7 @@ export class ProblemCategoriesService {
           'p.*',
           trx.raw(`EXISTS (
           SELECT 1 FROM problem_categories c
-          WHERE c.parent_id = p.id AND c.status = 'Open' AND c.is_active = true
+          WHERE c.parent_id = p.id AND c.status = 'Open'
         ) as has_children`),
           trx.raw(
             `(
@@ -293,21 +291,20 @@ export class ProblemCategoriesService {
               SELECT c.id, c.name_uz, c.name_ru, c.name_en, c.parent_id, c.sort, b.depth + 1
               FROM problem_categories c
               JOIN breadcrumb b ON b.parent_id = c.id
-              WHERE c.status = 'Open' AND c.is_active = true
+              WHERE c.status = 'Open' 
             )
             SELECT COALESCE(JSON_AGG(row_to_json(breadcrumb) ORDER BY depth DESC), '[]'::json) FROM breadcrumb
           ) as breadcrumb`,
             [parent_id],
           ),
         )
-        .where({ 'p.parent_id': parent_id, 'p.status': 'Open', 'p.is_active': true });
+        .where({ 'p.parent_id': parent_id, 'p.status': 'Open' });
 
       applyFilters(baseQuery);
 
       const countQuery = trx('problem_categories as p').where({
         'p.parent_id': parent_id,
         'p.status': 'Open',
-        'p.is_active': true,
       });
 
       applyFilters(countQuery);
@@ -358,7 +355,7 @@ export class ProblemCategoriesService {
       if (name_uz || name_ru || name_en) {
         const conflictQuery = trx('problem_categories')
           .whereNot({ id })
-          .andWhere({ status: 'Open', is_active: true })
+          .andWhere({ status: 'Open' })
           .andWhere((qb) => {
             if (name_uz) void qb.orWhere('name_uz', name_uz);
             if (name_ru) void qb.orWhere('name_ru', name_ru);
@@ -386,6 +383,7 @@ export class ProblemCategoriesService {
         name_en: dto.name_en ?? category.name_en,
         parent_id: parentId,
         price: dto.price ?? category.price,
+        is_active: dto.is_active ?? category.is_active,
         estimated_minutes: dto.estimated_minutes ?? category.estimated_minutes,
         updated_at: this.knex.fn.now(),
       };
@@ -405,8 +403,6 @@ export class ProblemCategoriesService {
         message: 'Failed to update problem category',
         location: 'update_problem_category',
       });
-    } finally {
-      await trx.destroy();
     }
   }
   async updateSort(id: string, newSort: number): Promise<{ message: string }> {

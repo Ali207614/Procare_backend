@@ -16,13 +16,13 @@ import { RepairOrderStatusTransition } from 'src/common/types/repair-order-statu
 export class RepairOrderStatusTransitionsController {
   constructor(private readonly service: RepairOrderStatusTransitionsService) {}
 
-  @Post(':id')
+  @Post(':status_id')
   @UseGuards(PermissionsGuard, RepairOrderStatusExistGuard)
   @SetPermissions('repair_order_status_transitions.manage')
   @ApiOperation({ summary: 'Upsert transitions (delete + insert)' })
-  @ApiParam({ name: 'id', description: 'From status ID' })
+  @ApiParam({ name: 'status_id', description: 'From status ID' })
   async upsertTransitions(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('status_id', ParseUUIDPipe) id: string,
     @Body() dto: CreateRepairOrderStatusTransitionDto,
   ): Promise<RepairOrderStatusTransition[]> {
     return this.service.create(id, dto);

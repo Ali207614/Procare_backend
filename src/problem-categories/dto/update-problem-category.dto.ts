@@ -1,5 +1,14 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNumber, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsBoolean,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 export class UpdateProblemCategoryDto {
   @ApiPropertyOptional({ description: 'Problem name in Uzbek', example: 'Ekran sinishi' })
@@ -58,4 +67,9 @@ export class UpdateProblemCategoryDto {
     context: { location: 'estimated_minutes' },
   })
   estimated_minutes?: number;
+
+  @ApiProperty({ example: true, description: 'Whether the category is active' })
+  @IsOptional()
+  @IsBoolean()
+  is_active?: boolean;
 }

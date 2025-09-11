@@ -10,7 +10,8 @@ const knexConfig: Knex.Config = {
   },
   pool: {
     min: 2,
-    max: 10,
+    max: 30,
+    acquireTimeoutMillis: 20000,
   },
 };
 

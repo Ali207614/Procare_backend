@@ -32,7 +32,7 @@ export class PhoneCategoriesService {
           UNION ALL
           SELECT pc.id FROM phone_categories pc
                               JOIN descendants d ON pc.parent_id = d.id
-          WHERE pc.status = 'Open' AND pc.is_active = true
+          WHERE pc.status = 'Open'
         )
         SELECT id FROM descendants
       `,
@@ -85,7 +85,7 @@ export class PhoneCategoriesService {
 
       if (parent_id) {
         const parent = await trx('phone_categories')
-          .where({ id: parent_id, is_active: true, status: 'Open' })
+          .where({ id: parent_id, status: 'Open', is_active: true })
           .first();
         if (!parent) {
           throw new BadRequestException({
@@ -166,13 +166,13 @@ export class PhoneCategoriesService {
     const trx = await this.knex.transaction();
     try {
       const baseQuery = trx('phone_categories as pc')
-        .where({ 'pc.is_active': true, 'pc.status': 'Open' })
+        .where({ 'pc.status': 'Open' })
         .andWhere(parent_id ? { 'pc.parent_id': parent_id } : { 'pc.parent_id': null })
         .select(
           'pc.*',
           trx.raw(`EXISTS (
           SELECT 1 FROM phone_categories c
-          WHERE c.parent_id = pc.id AND c.is_active = true AND c.status = 'Open'
+          WHERE c.parent_id = pc.id  AND c.status = 'Open'
         ) as has_children`),
           trx.raw(`EXISTS (
           SELECT 1 FROM phone_problem_mappings ppm
@@ -190,7 +190,7 @@ export class PhoneCategoriesService {
           SELECT c.id, c.name_uz, c.name_ru, c.name_en, c.parent_id, c.sort, b.depth + 1
           FROM phone_categories c
           JOIN breadcrumb b ON b.parent_id = c.id
-          WHERE c.is_active = true AND c.status = 'Open'
+          WHERE  c.status = 'Open'
         )
         SELECT COALESCE(JSON_AGG(row_to_json(breadcrumb) ORDER BY depth DESC), '[]'::json)
         FROM breadcrumb
@@ -215,7 +215,7 @@ export class PhoneCategoriesService {
         baseQuery.clone().orderBy('pc.sort', 'asc').offset(offset).limit(limit),
 
         trx('phone_categories as pc')
-          .where({ 'pc.is_active': true, 'pc.status': 'Open' })
+          .where({ 'pc.status': 'Open' })
           .andWhere(parent_id ? { 'pc.parent_id': parent_id } : { 'pc.parent_id': null })
           .modify((qb) => {
             if (phone_os_type_id) void qb.andWhere('pc.phone_os_type_id', phone_os_type_id);
@@ -265,8 +265,8 @@ export class PhoneCategoriesService {
         .first();
       if (!category) {
         throw new BadRequestException({
-          message: 'Phone category not found or inactive',
-          location: 'id',
+          message: 'Phone category not found',
+          location: 'phone_category',
         });
       }
 

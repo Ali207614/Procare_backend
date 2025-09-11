@@ -17,7 +17,6 @@ export class LoggerService implements NestLoggerService {
     transports: [
       new transports.Console(),
 
-      // app loglari rotation bilan
       new (transports as any).DailyRotateFile({
         dirname: 'logs',
         filename: 'app-%DATE%.log',

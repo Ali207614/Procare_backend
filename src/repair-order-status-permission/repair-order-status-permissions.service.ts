@@ -5,6 +5,7 @@ import { RedisService } from 'src/common/redis/redis.service';
 import { AssignRepairOrderStatusPermissionsDto } from 'src/repair-order-status-permission/dto/create-repair-order-status-permission.dto';
 import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 import { RepairOrderStatus } from 'src/common/types/repair-order-status.interface';
+import { LoggerService } from 'src/common/logger/logger.service';
 
 @Injectable()
 export class RepairOrderStatusPermissionsService {
@@ -16,6 +17,7 @@ export class RepairOrderStatusPermissionsService {
   constructor(
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,
+    private readonly logger: LoggerService,
   ) {}
 
   async createManyByRole(
@@ -75,7 +77,14 @@ export class RepairOrderStatusPermissionsService {
       };
     } catch (error) {
       await trx.rollback();
-      throw error;
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error(`Failed to assign permissions by role: `);
+      throw new BadRequestException({
+        message: 'Failed to assign permissions',
+        location: 'assign_permissions',
+      });
     }
   }
 
@@ -169,8 +178,11 @@ export class RepairOrderStatusPermissionsService {
       if (error instanceof HttpException) {
         throw error;
       }
-
-      return [];
+      this.logger.error(`Failed to fetch permissions by roles and branch: `);
+      throw new BadRequestException({
+        message: 'Failed to fetch permissions',
+        location: 'fetch_permissions',
+      });
     }
   }
 

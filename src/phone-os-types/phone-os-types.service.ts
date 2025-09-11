@@ -71,8 +71,6 @@ export class PhoneOsTypesService {
         message: 'Failed to create phone OS type',
         location: 'create_phone_os_type',
       });
-    } finally {
-      await trx.destroy();
     }
   }
 

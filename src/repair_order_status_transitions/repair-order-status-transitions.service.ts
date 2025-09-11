@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
 import { InjectKnex } from 'nestjs-knex';
 import { Knex } from 'knex';
 import { CreateRepairOrderStatusTransitionDto } from './dto/create-repair-order-status-transition.dto';
@@ -7,6 +7,7 @@ import { RedisService } from 'src/common/redis/redis.service';
 import { RepairOrderStatusTransition } from 'src/common/types/repair-order-status-transition.interface';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { RepairOrderStatus } from 'src/common/types/repair-order-status.interface';
+import { LoggerService } from 'src/common/logger/logger.service';
 
 @Injectable()
 export class RepairOrderStatusTransitionsService {
@@ -14,6 +15,7 @@ export class RepairOrderStatusTransitionsService {
     @InjectKnex() private readonly knex: Knex,
     private readonly statusService: RepairOrderStatusesService,
     private readonly redisService: RedisService,
+    private readonly logger: LoggerService,
   ) {}
 
   private readonly redisKey = `repair_order_status_transitions:from:`;
@@ -62,7 +64,14 @@ export class RepairOrderStatusTransitionsService {
       return inserted;
     } catch (error) {
       await trx.rollback();
-      throw error;
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error(`Failed to delete status `);
+      throw new BadRequestException({
+        message: 'Failed to upsert transitions',
+        location: 'upsert_transitions',
+      });
     }
   }
 

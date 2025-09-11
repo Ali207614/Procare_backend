@@ -3,7 +3,6 @@ const fs = require('fs');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const dotenv = require('dotenv');
 
-
 const envFile = '.env';
 
 if (fs.existsSync(envFile)) {
@@ -43,3 +42,14 @@ module.exports = {
 // flushall - redis full delete
 
 // npx knex seed:run
+
+// SELECT pid,
+//   usename,
+//   state,
+//   wait_event_type,
+//   wait_event,
+//   query,
+//   backend_start,
+//   state_change
+// FROM pg_stat_activity
+// WHERE datname = current_database();
