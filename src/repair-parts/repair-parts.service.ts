@@ -6,6 +6,7 @@ import { UpdateRepairPartDto } from 'src/repair-parts/dto/update-repair-part.dto
 import { RepairPart } from 'src/common/types/repair-part.interface';
 import { AssignRepairPartsToCategoryDto } from 'src/repair-parts/dto/assign-repair-parts.dto';
 import { PaginationResult } from 'src/common/utils/pagination.util';
+import { FindAllPartsDto } from 'src/repair-parts/dto/find-all.dto';
 
 @Injectable()
 export class RepairPartsService {
@@ -79,21 +80,39 @@ export class RepairPartsService {
     return newPart;
   }
 
-  async findAll(limit = 20, offset = 0, search?: string): Promise<PaginationResult<RepairPart>> {
-    let baseQuery = this.knex<RepairPart>('repair_parts').whereNot('status', 'Deleted');
+  async findAll(query: FindAllPartsDto): Promise<PaginationResult<RepairPart>> {
+    const { limit = 10, offset = 0, search, status, problem_category_ids } = query;
 
-    if (search) {
-      baseQuery = baseQuery.andWhere((qb) => {
+    const baseQuery = this.knex<RepairPart>('repair_parts as rp')
+      .leftJoin('repair_part_assignments as rpa', 'rp.id', 'rpa.repair_part_id')
+      .whereNot('rp.status', 'Deleted');
+
+    if (search && search.length >= 3) {
+      void baseQuery.andWhere((qb) => {
         void qb
-          .whereILike('part_name_uz', `%${search}%`)
-          .orWhereILike('part_name_ru', `%${search}%`)
-          .orWhereILike('part_name_en', `%${search}%`);
+          .whereILike('rp.part_name_uz', `%${search}%`)
+          .orWhereILike('rp.part_name_ru', `%${search}%`)
+          .orWhereILike('rp.part_name_en', `%${search}%`);
+      });
+    }
+
+    if (status) {
+      void baseQuery.andWhere('rp.status', status);
+    }
+
+    if (problem_category_ids?.length) {
+      void baseQuery.andWhere((qb) => {
+        void qb.whereIn('rpa.problem_category_id', problem_category_ids);
       });
     }
 
     const [rows, countResult] = await Promise.all([
-      baseQuery.clone().orderBy('created_at', 'asc').offset(offset).limit(limit),
-      baseQuery.clone().clearSelect().clearOrder().count<{ count: string }[]>('* as count'),
+      baseQuery.clone().select('rp.*').orderBy('rp.created_at', 'desc').offset(offset).limit(limit),
+      baseQuery
+        .clone()
+        .clearSelect()
+        .clearOrder()
+        .countDistinct<{ count: string }[]>('rp.id as count'),
     ]);
 
     return {
@@ -103,7 +122,6 @@ export class RepairPartsService {
       offset,
     };
   }
-
   async findOne(id: string): Promise<RepairPart> {
     const part: RepairPart | undefined = await this.knex('repair_parts')
       .where({ id })

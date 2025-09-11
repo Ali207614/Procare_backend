@@ -21,9 +21,9 @@ import { UpdateRepairPartDto } from 'src/repair-parts/dto/update-repair-part.dto
 import { PermissionsGuard } from 'src/common/guards/permission.guard';
 import { SetPermissions } from 'src/common/decorators/permission-decorator';
 import { AssignRepairPartsToCategoryDto } from 'src/repair-parts/dto/assign-repair-parts.dto';
-import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
+import { FindAllPartsDto } from 'src/repair-parts/dto/find-all.dto';
 
 @ApiTags('Repair parts')
 @ApiBearerAuth()
@@ -62,9 +62,8 @@ export class RepairPartsController {
   @UseInterceptors(PaginationInterceptor)
   @ApiOperation({ summary: 'Get all repair parts' })
   @ApiResponse({ status: 200, description: 'List of all repair parts' })
-  async findAll(@Query() query: PaginationQueryDto): Promise<PaginationResult<RepairPart>> {
-    const { offset, limit, search } = query;
-    return this.repairPartsService.findAll(offset, limit, search);
+  async findAll(@Query() query: FindAllPartsDto): Promise<PaginationResult<RepairPart>> {
+    return this.repairPartsService.findAll(query);
   }
 
   @Get(':id')

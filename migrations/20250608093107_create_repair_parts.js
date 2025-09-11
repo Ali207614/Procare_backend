@@ -9,7 +9,7 @@ exports.up = async function (knex) {
     table.text('description_uz').nullable();
     table.text('description_ru').nullable();
     table.text('description_en').nullable();
-    table.enum('status', ['Open', 'Deleted']).defaultTo('Available');
+    table.enum('status', ['Open', 'Deleted']).defaultTo('Open');
     table.uuid('created_by').nullable().references('id').inTable('admins').onDelete('SET NULL');
     table.timestamp('created_at').defaultTo(knex.fn.now());
     table.timestamp('updated_at').defaultTo(knex.fn.now());
