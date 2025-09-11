@@ -47,6 +47,13 @@ export class RepairOrderStatusTransitionsService {
     try {
       await trx('repair_order_status_transitions').where({ from_status_id }).del();
 
+      if (to_status_ids.length === 0) {
+        await trx.commit();
+        const redisKey = `${this.redisKey}${from_status_id}`;
+        await this.redisService.set(redisKey, [], 3600);
+        return [];
+      }
+
       const inserts = to_status_ids.map((toId) => ({
         from_status_id,
         to_status_id: toId,
