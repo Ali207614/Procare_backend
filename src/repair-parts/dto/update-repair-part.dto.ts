@@ -47,14 +47,4 @@ export class UpdateRepairPartDto {
   @IsString({ context: { location: 'description_en' } })
   @MaxLength(1000, { context: { location: 'description_en' } })
   description_en?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsBoolean({ context: { location: 'is_required' } })
-  is_required?: boolean;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsEnum(['Open', 'Deleted'], { context: { location: 'status' } })
-  status?: string;
 }
