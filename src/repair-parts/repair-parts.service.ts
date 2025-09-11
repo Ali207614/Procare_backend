@@ -58,6 +58,7 @@ export class RepairPartsService {
           .orWhereRaw('LOWER(part_name_ru) = ?', [part_name_ru.toLowerCase()])
           .orWhereRaw('LOWER(part_name_en) = ?', [part_name_en.toLowerCase()]);
       })
+      .andWhere('status', '!=', 'Deleted')
       .first();
 
     if (existingPart) {
