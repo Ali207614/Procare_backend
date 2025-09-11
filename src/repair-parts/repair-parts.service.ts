@@ -5,6 +5,7 @@ import { CreateRepairPartDto } from 'src/repair-parts/dto/create-repair-part.dto
 import { UpdateRepairPartDto } from 'src/repair-parts/dto/update-repair-part.dto';
 import { RepairPart } from 'src/common/types/repair-part.interface';
 import { AssignRepairPartsToCategoryDto } from 'src/repair-parts/dto/assign-repair-parts.dto';
+import { PaginationResult } from 'src/common/utils/pagination.util';
 
 @Injectable()
 export class RepairPartsService {
@@ -78,8 +79,29 @@ export class RepairPartsService {
     return newPart;
   }
 
-  async findAll(): Promise<RepairPart[]> {
-    return this.knex('repair_parts').whereNot('status', 'Deleted').select('*');
+  async findAll(limit = 20, offset = 0, search?: string): Promise<PaginationResult<RepairPart>> {
+    let baseQuery = this.knex<RepairPart>('repair_parts').whereNot('status', 'Deleted');
+
+    if (search) {
+      baseQuery = baseQuery.andWhere((qb) => {
+        void qb
+          .whereILike('part_name_uz', `%${search}%`)
+          .orWhereILike('part_name_ru', `%${search}%`)
+          .orWhereILike('part_name_en', `%${search}%`);
+      });
+    }
+
+    const [rows, countResult] = await Promise.all([
+      baseQuery.clone().orderBy('sort', 'asc').offset(offset).limit(limit),
+      baseQuery.clone().clearSelect().clearOrder().count<{ count: string }[]>('* as count'),
+    ]);
+
+    return {
+      rows,
+      total: Number(countResult[0]?.count ?? 0),
+      limit,
+      offset,
+    };
   }
 
   async findOne(id: string): Promise<RepairPart> {

@@ -1,4 +1,16 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Req,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthenticatedRequest } from 'src/common/types/authenticated-request.type';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
@@ -9,6 +21,9 @@ import { UpdateRepairPartDto } from 'src/repair-parts/dto/update-repair-part.dto
 import { PermissionsGuard } from 'src/common/guards/permission.guard';
 import { SetPermissions } from 'src/common/decorators/permission-decorator';
 import { AssignRepairPartsToCategoryDto } from 'src/repair-parts/dto/assign-repair-parts.dto';
+import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
+import { PaginationResult } from 'src/common/utils/pagination.util';
+import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
 
 @ApiTags('Repair parts')
 @ApiBearerAuth()
@@ -44,10 +59,12 @@ export class RepairPartsController {
   }
 
   @Get()
+  @UseInterceptors(PaginationInterceptor)
   @ApiOperation({ summary: 'Get all repair parts' })
   @ApiResponse({ status: 200, description: 'List of all repair parts' })
-  async findAll(): Promise<RepairPart[]> {
-    return this.repairPartsService.findAll();
+  async findAll(@Query() query: PaginationQueryDto): Promise<PaginationResult<RepairPart>> {
+    const { offset, limit, search } = query;
+    return this.repairPartsService.findAll(offset, limit, search);
   }
 
   @Get(':id')
