@@ -318,6 +318,7 @@ export class RepairOrderStatusesService {
       if (dto.name_uz || dto.name_ru || dto.name_en) {
         const conflict = await trx('repair_order_statuses')
           .whereNot('id', status.id)
+          .andWhere({ status: 'Open' })
           .andWhere((qb) => {
             if (dto.name_uz) void qb.orWhereRaw('LOWER(name_uz) = LOWER(?)', [dto.name_uz]);
             if (dto.name_ru) void qb.orWhereRaw('LOWER(name_ru) = LOWER(?)', [dto.name_ru]);

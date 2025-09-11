@@ -306,6 +306,7 @@ export class BranchesService {
     if (dto.name_uz || dto.name_ru || dto.name_en) {
       const conflict: Branch | undefined = await this.knex('branches')
         .whereNot('id', branch.id)
+        .andWhere('status', '!=', 'Deleted')
         .andWhere((qb) => {
           if (dto.name_uz) void qb.orWhereRaw('LOWER(name_uz) = LOWER(?)', [dto.name_uz]);
           if (dto.name_ru) void qb.orWhereRaw('LOWER(name_ru) = LOWER(?)', [dto.name_ru]);
