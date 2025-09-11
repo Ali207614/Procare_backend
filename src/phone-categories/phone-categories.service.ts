@@ -115,7 +115,8 @@ export class PhoneCategoriesService {
         parent_id: parent_id ?? null,
         phone_os_type_id,
         sort: nextSort,
-        is_active: true,
+        is_active: dto.is_active ?? true,
+        telegram_sticker: dto.telegram_sticker?.trim() || null,
         status: 'Open',
         created_by: adminId,
         created_at: new Date().toISOString(),
@@ -192,7 +193,7 @@ export class PhoneCategoriesService {
           JOIN breadcrumb b ON b.parent_id = c.id
           WHERE  c.status = 'Open'
         )
-        SELECT COALESCE(JSON_AGG(row_to_json(breadcrumb) ORDER BY depth DESC), '[]'::json)
+        SELECT COALESCE(JSON_AGG(row_to_json(breadcrumb) ORDER BY depth DESC), '[]'::json) AS breadcrumb
         FROM breadcrumb
       )`,
                 [parent_id],
