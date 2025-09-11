@@ -92,7 +92,7 @@ export class RepairPartsService {
     }
 
     const [rows, countResult] = await Promise.all([
-      baseQuery.clone().orderBy('sort', 'asc').offset(offset).limit(limit),
+      baseQuery.clone().orderBy('created_at', 'asc').offset(offset).limit(limit),
       baseQuery.clone().clearSelect().clearOrder().count<{ count: string }[]>('* as count'),
     ]);
 
