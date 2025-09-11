@@ -94,6 +94,7 @@ export class ProblemCategoriesService {
             'p.status': 'Open',
             'p.is_active': true,
           })
+          .andWhere('status', 'Open')
           .andWhere(
             (qb: Knex.QueryBuilder) =>
               void qb
