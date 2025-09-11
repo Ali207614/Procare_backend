@@ -154,6 +154,7 @@ export class RepairPartsService {
     if (part_name_uz || part_name_ru || part_name_en) {
       const existingPart: RepairPart | undefined = await this.knex('repair_parts')
         .whereNot('id', id)
+        .whereNot('status', 'Deleted')
         .andWhere((qb) => {
           if (part_name_uz) {
             void qb.orWhereRaw('LOWER(part_name_uz) = ?', [part_name_uz.toLowerCase()]);
