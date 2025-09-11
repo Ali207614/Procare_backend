@@ -398,6 +398,7 @@ export class RepairOrderStatusesService {
       });
     }
   }
+  // TODO : status ochirayotgan status transiond bormi yoki permssion biriktirlganmi shularni tekshirish kerak
 
   async getOrLoadStatusById(statusId: string): Promise<RepairOrderStatus> {
     const redisKey = `${this.redisKeyById}:${statusId}`;
