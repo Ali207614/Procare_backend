@@ -69,6 +69,7 @@ export class RepairPartsService {
       .insert({
         ...createRepairPartDto,
         created_by: createdBy,
+        status: 'Open',
         created_at: this.knex.fn.now(),
         updated_at: this.knex.fn.now(),
       })
