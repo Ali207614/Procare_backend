@@ -74,8 +74,12 @@ export class BranchesController {
   @UseInterceptors(PaginationInterceptor)
   @ApiOperation({ summary: 'Get branches assigned to current admin' })
   @ApiResponse({ status: 200, description: 'List of assigned branches returned' })
-  async findMyBranches(@CurrentAdmin() admin: AdminPayload): Promise<PaginationResult<Branch>> {
-    return this.service.findByAdminId(admin.id);
+  async findMyBranches(
+    @CurrentAdmin() admin: AdminPayload,
+    @Query() query: PaginationQueryDto,
+  ): Promise<PaginationResult<Branch>> {
+    const { offset, limit } = query;
+    return this.service.findByAdminId(admin.id, offset, limit);
   }
 
   @Get('/:branch_id')

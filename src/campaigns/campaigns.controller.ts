@@ -15,7 +15,8 @@ import {
   ApiOperation,
   ApiQuery,
   ApiOkResponse,
-  ApiNotFoundResponse, ApiBearerAuth,
+  ApiNotFoundResponse,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { CampaignsService } from './campaigns.service';
 import { ICampaign } from 'src/common/types/campaign.interface';

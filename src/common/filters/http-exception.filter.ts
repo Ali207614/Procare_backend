@@ -31,7 +31,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let errorType = 'InternalServerError';
 
     if (exception instanceof DatabaseError) {
-      const parsed = parsePgError(exception); // parsed.status, parsed.message, parsed.errorType, etc.
+      const parsed = parsePgError(exception);
       const shortMessage =
         exception instanceof Error ? `${exception.name}: ${exception.message}` : parsed.message;
       const stack = exception instanceof Error ? exception.stack : undefined;

@@ -10,7 +10,6 @@ export class RentalPhoneDevicesService {
   async findAll(dto: FindRentalPhoneDevicesDto): Promise<RentalPhoneDevice[]> {
     const { offset = 0, limit = 20, search, sort_by = 'created_at', sort_order = 'desc' } = dto;
 
-
     const baseQuery = this.knex('rental_phone_devices').where('is_available', true);
 
     if (search) {
