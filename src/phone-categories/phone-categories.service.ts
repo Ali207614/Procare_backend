@@ -317,6 +317,8 @@ export class PhoneCategoriesService {
         name_uz: dto.name_uz,
         name_ru: dto.name_ru,
         name_en: dto.name_en,
+        telegram_sticker: dto.telegram_sticker?.trim() || category.telegram_sticker,
+        is_active: dto.is_active ?? category.is_active,
         updated_at: new Date().toISOString(),
       };
 
