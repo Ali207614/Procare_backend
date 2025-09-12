@@ -19,6 +19,7 @@ export class RepairOrderStatusTransitionsService {
   ) {}
 
   private readonly redisKey = `repair_order_status_transitions:from:`;
+  private readonly redisKeyView = 'status_viewable:';
 
   async create(
     from_status_id: string,
@@ -67,6 +68,9 @@ export class RepairOrderStatusTransitionsService {
 
       const redisKey = `${this.redisKey}${from_status_id}`;
       await this.redisService.set(redisKey, inserted, 3600);
+
+      const cacheKey = `${this.redisKeyView}${branchId}`;
+      await this.redisService.flushByPrefix(cacheKey);
 
       return inserted;
     } catch (error) {
