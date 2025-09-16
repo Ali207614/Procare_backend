@@ -52,20 +52,19 @@ export class ProblemCategoriesService {
           .first();
         if (!parent) {
           throw new BadRequestException({
-            message: 'Parent problem category not found',
+            message: 'Parent problem category not found or inactive',
             location: 'parent_id',
           });
         }
 
         const existing = await trx('problem_categories')
-          .where({ parent_id })
-          .andWhere(
-            (qb: Knex.QueryBuilder) =>
-              void qb
-                .where('name_uz', name_uz)
-                .orWhere('name_ru', name_ru)
-                .orWhere('name_en', name_en),
-          )
+          .where({ parent_id, status: 'Open' })
+          .andWhere((qb: Knex.QueryBuilder) => {
+            void qb
+              .whereRaw('LOWER(name_uz) = LOWER(?)', [name_uz])
+              .orWhereRaw('LOWER(name_ru) = LOWER(?)', [name_ru])
+              .orWhereRaw('LOWER(name_en) = LOWER(?)', [name_en]);
+          })
           .first();
         if (existing) {
           throw new BadRequestException({
@@ -94,14 +93,12 @@ export class ProblemCategoriesService {
             'p.status': 'Open',
             'p.is_active': true,
           })
-          .andWhere('status', 'Open')
-          .andWhere(
-            (qb: Knex.QueryBuilder) =>
-              void qb
-                .where('p.name_uz', name_uz)
-                .orWhere('p.name_ru', name_ru)
-                .orWhere('p.name_en', name_en),
-          )
+          .andWhere((qb: Knex.QueryBuilder) => {
+            void qb
+              .whereRaw('LOWER(p.name_uz) = LOWER(?)', [name_uz])
+              .orWhereRaw('LOWER(p.name_ru) = LOWER(?)', [name_ru])
+              .orWhereRaw('LOWER(p.name_en) = LOWER(?)', [name_en]);
+          })
           .first();
         if (existing) {
           throw new BadRequestException({
@@ -356,9 +353,9 @@ export class ProblemCategoriesService {
           .whereNot({ id })
           .andWhere({ status: 'Open' })
           .andWhere((qb) => {
-            if (name_uz) void qb.orWhere('name_uz', name_uz);
-            if (name_ru) void qb.orWhere('name_ru', name_ru);
-            if (name_en) void qb.orWhere('name_en', name_en);
+            if (name_uz) void qb.orWhereRaw('LOWER(name_uz) = LOWER(?)', [name_uz]);
+            if (name_ru) void qb.orWhereRaw('LOWER(name_ru) = LOWER(?)', [name_ru]);
+            if (name_en) void qb.orWhereRaw('LOWER(name_en) = LOWER(?)', [name_en]);
           });
 
         if (parentId) {
@@ -380,7 +377,6 @@ export class ProblemCategoriesService {
         name_uz: dto.name_uz ?? category.name_uz,
         name_ru: dto.name_ru ?? category.name_ru,
         name_en: dto.name_en ?? category.name_en,
-        parent_id: parentId,
         price: dto.price ?? category.price,
         is_active: dto.is_active ?? category.is_active,
         estimated_minutes: dto.estimated_minutes ?? category.estimated_minutes,

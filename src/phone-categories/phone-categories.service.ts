@@ -271,7 +271,7 @@ export class PhoneCategoriesService {
         });
       }
 
-      let parentId = category.parent_id;
+      let parentId: string | null | undefined = category.parent_id;
       if (typeof parentId === 'string' && parentId.trim() === '') parentId = null;
 
       if (id === parentId) {
