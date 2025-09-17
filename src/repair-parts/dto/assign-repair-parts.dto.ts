@@ -27,7 +27,6 @@ export class AssignRepairPartsToCategoryDto {
     description: 'Array of repair part assignments',
   })
   @IsArray()
-  @ArrayNotEmpty()
   @ValidateNested({ each: true })
   @Type(() => RepairPartAssignmentDto)
   repair_parts!: RepairPartAssignmentDto[];
