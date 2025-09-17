@@ -173,13 +173,14 @@ export class ProblemCategoriesService {
     const trx = await this.knex.transaction();
     try {
       const applyFilters = (query: Knex.QueryBuilder): void => {
-        if (search) {
+        if (search?.trim()) {
+          const searchTerm = `%${search.toLowerCase()}%`;
           void query.andWhere(
             (builder) =>
               void builder
-                .whereILike('p.name_uz', `%${search}%`)
-                .orWhereILike('p.name_ru', `%${search}%`)
-                .orWhereILike('p.name_en', `%${search}%`),
+                .whereRaw('LOWER(pc.name_uz) LIKE ?', [searchTerm])
+                .orWhereRaw('LOWER(pc.name_ru) LIKE ?', [searchTerm])
+                .orWhereRaw('LOWER(pc.name_en) LIKE ?', [searchTerm]),
           );
         }
       };
@@ -261,13 +262,15 @@ export class ProblemCategoriesService {
     const trx = await this.knex.transaction();
     try {
       const applyFilters = (query: Knex.QueryBuilder): void => {
-        if (search) {
+        if (search?.trim()) {
+          const searchTerm = `%${search.toLowerCase()}%`;
+
           void query.andWhere(
             (builder) =>
               void builder
-                .whereILike('p.name_uz', `%${search}%`)
-                .orWhereILike('p.name_ru', `%${search}%`)
-                .orWhereILike('p.name_en', `%${search}%`),
+                .whereRaw('LOWER(pc.name_uz) LIKE ?', [searchTerm])
+                .orWhereRaw('LOWER(pc.name_ru) LIKE ?', [searchTerm])
+                .orWhereRaw('LOWER(pc.name_en) LIKE ?', [searchTerm]),
           );
         }
       };

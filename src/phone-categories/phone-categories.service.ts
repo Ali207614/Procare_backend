@@ -202,13 +202,14 @@ export class PhoneCategoriesService {
         );
 
       if (phone_os_type_id) void baseQuery.andWhere('pc.phone_os_type_id', phone_os_type_id);
-      if (search) {
+      if (search?.trim()) {
+        const searchTerm = `%${search.toLowerCase()}%`;
         void baseQuery.andWhere(
           (builder: Knex.QueryBuilder) =>
             void builder
-              .whereILike('pc.name_uz', `%${search}%`)
-              .orWhereILike('pc.name_ru', `%${search}%`)
-              .orWhereILike('pc.name_en', `%${search}%`),
+              .whereRaw('LOWER(pc.name_uz) LIKE ?', [searchTerm])
+              .orWhereRaw('LOWER(pc.name_ru) LIKE ?', [searchTerm])
+              .orWhereRaw('LOWER(pc.name_en) LIKE ?', [searchTerm]),
         );
       }
 
@@ -220,13 +221,14 @@ export class PhoneCategoriesService {
           .andWhere(parent_id ? { 'pc.parent_id': parent_id } : { 'pc.parent_id': null })
           .modify((qb) => {
             if (phone_os_type_id) void qb.andWhere('pc.phone_os_type_id', phone_os_type_id);
-            if (search) {
+            if (search?.trim()) {
+              const searchTerm = `%${search.toLowerCase()}%`;
               void qb.andWhere(
                 (builder) =>
                   void builder
-                    .whereILike('pc.name_uz', `%${search}%`)
-                    .orWhereILike('pc.name_ru', `%${search}%`)
-                    .orWhereILike('pc.name_en', `%${search}%`),
+                    .whereRaw('LOWER(pc.name_uz) LIKE ?', [searchTerm])
+                    .orWhereRaw('LOWER(pc.name_ru) LIKE ?', [searchTerm])
+                    .orWhereRaw('LOWER(pc.name_en) LIKE ?', [searchTerm]),
               );
             }
           })

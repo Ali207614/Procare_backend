@@ -95,7 +95,7 @@ export class RepairPartsService {
       .leftJoin('repair_part_assignments as rpa', 'rp.id', 'rpa.repair_part_id')
       .whereNot('rp.status', 'Deleted');
 
-    if (search && search.length >= 3) {
+    if (search && search.length) {
       void baseQuery.andWhere((qb) => {
         void qb
           .whereILike('rp.part_name_uz', `%${search}%`)

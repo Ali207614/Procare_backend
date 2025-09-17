@@ -33,7 +33,6 @@ export class FindAllProblemCategoriesDto {
   @ApiPropertyOptional({ description: 'Search term for category names', example: 'Ekran' })
   @IsOptional()
   @IsString({ message: 'Search must be a string', context: { location: 'search' } })
-  @MinLength(3, { message: 'Search term must be at least 3 characters long' })
   @MaxLength(100, { message: 'Search term must be at most 100 characters long' })
   search?: string;
 

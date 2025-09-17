@@ -6,7 +6,6 @@ import {
   IsIn,
   IsInt,
   Min,
-  MinLength,
   MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -16,7 +15,6 @@ export class FindAllAdminsDto {
   @ApiPropertyOptional({ description: 'Search by name, phone, passport, etc.' })
   @IsOptional()
   @IsString()
-  @MinLength(3, { message: 'Search term must be at least 3 characters long' })
   @MaxLength(100, { message: 'Search term must be at most 100 characters long' })
   search?: string;
 
