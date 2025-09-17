@@ -17,7 +17,7 @@ WITH base AS (
                         )
                 ) FILTER (WHERE ro.id IS NOT NULL),
                 '[]'::json
-        ) AS orders
+        ) AS repair_orders
     FROM admins a
              JOIN admin_roles ar ON ar.admin_id = a.id
              JOIN roles r ON r.id = ar.role_id
