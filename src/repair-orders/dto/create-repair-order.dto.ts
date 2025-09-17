@@ -77,17 +77,19 @@ class CommentDto {
 }
 
 class LocationDto {
+  @IsOptional()
   @ApiProperty({ description: 'Latitude coordinate', example: 41.2995 })
   @IsNumber({}, { message: 'Latitude must be a number' })
   @Min(-90, { message: 'Latitude must be between -90 and 90' })
   @Max(90, { message: 'Latitude must be between -90 and 90' })
-  lat!: number;
+  lat?: number;
 
+  @IsOptional()
   @ApiProperty({ description: 'Longitude coordinate', example: 69.2401 })
   @IsNumber({}, { message: 'Longitude must be a number' })
   @Min(-180, { message: 'Longitude must be between -180 and 180' })
   @Max(180, { message: 'Longitude must be between -180 and 180' })
-  long!: number;
+  long?: number;
 
   @ApiProperty({ description: 'Location description', example: 'Main office' })
   @IsString({ message: 'Description must be a string' })

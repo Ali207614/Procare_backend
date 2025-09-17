@@ -20,7 +20,7 @@ export interface RepairOrder {
   priority_level: number;
 
   created_by: string;
-  status: 'Open' | 'Deleted';
+  status: 'Open' | 'Deleted' | 'Closed' | 'Cancelled';
 
   created_at: string; // timestamp
   updated_at: string; // timestamp

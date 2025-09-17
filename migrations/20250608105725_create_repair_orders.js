@@ -37,7 +37,7 @@ exports.up = async function (knex) {
     table.integer('priority_level').notNullable().defaultTo(2);
 
     table.uuid('created_by').notNullable().references('id').inTable('admins').onDelete('RESTRICT');
-    table.enu('status', ['Open', 'Deleted']).defaultTo('Open');
+    table.enu('status', ['Open', 'Deleted','Closed','Cancelled']).defaultTo('Open');
 
     table.timestamp('created_at').defaultTo(knex.fn.now());
     table.timestamp('updated_at').defaultTo(knex.fn.now());

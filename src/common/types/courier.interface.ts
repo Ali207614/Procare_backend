@@ -1,4 +1,4 @@
-interface Courier {
+export interface Courier {
   id: string;
   first_name: string;
   last_name: string;
@@ -6,6 +6,7 @@ interface Courier {
   status: 'Open' | 'Deleted';
   is_active: boolean;
   created_at: string;
+  total: number;
   orders: {
     repair_order_id: string;
     type: 'pickup' | 'delivery';
