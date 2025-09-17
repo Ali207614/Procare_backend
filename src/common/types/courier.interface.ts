@@ -1,3 +1,18 @@
+export interface CourierRepairOrder {
+  repair_order_id: string;
+  type: 'pickup' | 'delivery';
+  status_name_uz: string;
+  status_name_ru: string;
+  status_name_en: string;
+}
+
+export interface CourierBranch {
+  id: string;
+  name_uz: string;
+  name_ru: string;
+  name_en: string;
+}
+
 export interface Courier {
   id: string;
   first_name: string;
@@ -7,11 +22,6 @@ export interface Courier {
   is_active: boolean;
   created_at: string;
   total: number;
-  orders: {
-    repair_order_id: string;
-    type: 'pickup' | 'delivery';
-    status_name_uz: string;
-    status_name_ru: string;
-    status_name_en: string;
-  }[];
+  repair_orders: CourierRepairOrder[];
+  branches: CourierBranch[];
 }

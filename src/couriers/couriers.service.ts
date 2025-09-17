@@ -13,10 +13,12 @@ export class CouriersService {
     search,
     limit = 20,
     offset = 0,
+    branch_id,
   }: {
     search?: string;
     limit?: number;
     offset?: number;
+    branch_id: string;
   }): Promise<PaginationResult<Courier>> {
     const sql = loadSQL('couriers/queries/find-all.sql');
 
@@ -24,13 +26,14 @@ export class CouriersService {
       search: search ?? null,
       limit,
       offset,
+      branch_id,
     });
 
     const rows: Courier[] = result.rows.map((r: Courier) => {
       const { total, ...rest } = r;
       return {
         ...rest,
-        orders: r.orders ?? [],
+        branches: r.branches ?? [],
       };
     });
 

@@ -4,8 +4,18 @@ WITH base AS (
         a.first_name,
         a.last_name,
         a.phone_number,
+        a.status,
         a.is_active,
         a.created_at,
+        COALESCE(
+                JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+    'id', b.id,
+    'name_uz', b.name_uz,
+    'name_ru', b.name_ru,
+    'name_en', b.name_en
+  )) FILTER (WHERE b.id IS NOT NULL),
+                '[]'::json
+        ) AS branches,
         COALESCE(
                 JSON_AGG(
                         JSON_BUILD_OBJECT(
@@ -21,6 +31,8 @@ WITH base AS (
     FROM admins a
              JOIN admin_roles ar ON ar.admin_id = a.id
              JOIN roles r ON r.id = ar.role_id
+             JOIN admin_branches ab ON ab.admin_id = a.id
+             JOIN branches b ON b.id = ab.branch_id
              LEFT JOIN (
         SELECT
             p.courier_id,
@@ -51,6 +63,7 @@ WITH base AS (
     WHERE r.name = 'Courier'
       AND r.status = 'Open'
       AND a.status != 'Deleted'
+    AND ab.branch_id = :branch_id
     AND (
     :search::text IS NULL OR (
     a.first_name ILIKE '%' || :search || '%' OR
@@ -65,13 +78,15 @@ SELECT
     totals.total
 FROM base
          CROSS JOIN (
-    SELECT COUNT(*) AS total
+    SELECT COUNT(DISTINCT a.id) AS total
     FROM admins a
              JOIN admin_roles ar ON ar.admin_id = a.id
              JOIN roles r ON r.id = ar.role_id
+             JOIN admin_branches ab ON ab.admin_id = a.id
     WHERE r.name = 'Courier'
       AND r.status = 'Open'
       AND a.status != 'Deleted'
+      AND ab.branch_id = :branch_id
       AND (
         :search::text IS NULL OR (
           a.first_name ILIKE '%' || :search || '%' OR
