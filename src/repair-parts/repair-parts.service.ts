@@ -95,12 +95,13 @@ export class RepairPartsService {
       .leftJoin('repair_part_assignments as rpa', 'rp.id', 'rpa.repair_part_id')
       .whereNot('rp.status', 'Deleted');
 
-    if (search && search.length) {
+    if (search?.length) {
+      const lowered = search.toLowerCase();
       void baseQuery.andWhere((qb) => {
         void qb
-          .whereILike('rp.part_name_uz', `%${search}%`)
-          .orWhereILike('rp.part_name_ru', `%${search}%`)
-          .orWhereILike('rp.part_name_en', `%${search}%`);
+          .whereRaw('LOWER(rp.part_name_uz) LIKE ?', [`%${lowered}%`])
+          .orWhereRaw('LOWER(rp.part_name_ru) LIKE ?', [`%${lowered}%`])
+          .orWhereRaw('LOWER(rp.part_name_en) LIKE ?', [`%${lowered}%`]);
       });
     }
 
@@ -115,8 +116,11 @@ export class RepairPartsService {
     }
 
     if (exclude_problem_category_ids?.length) {
-      void baseQuery.andWhereNot((qb) => {
-        void qb.whereIn('rpa.problem_category_id', exclude_problem_category_ids);
+      void baseQuery.whereNotExists(function () {
+        void this.select(1)
+          .from('repair_part_assignments as ex')
+          .whereRaw('ex.repair_part_id = rp.id')
+          .whereIn('ex.problem_category_id', exclude_problem_category_ids);
       });
     }
 
@@ -136,6 +140,7 @@ export class RepairPartsService {
       offset,
     };
   }
+
   async findOne(id: string): Promise<RepairPart> {
     const part: RepairPart | undefined = await this.knex('repair_parts')
       .where({ id })

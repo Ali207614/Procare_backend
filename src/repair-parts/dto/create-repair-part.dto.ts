@@ -1,4 +1,4 @@
-import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateRepairPartDto {
@@ -42,9 +42,4 @@ export class CreateRepairPartDto {
   @IsString({ context: { location: 'description_en' } })
   @MaxLength(1000, { context: { location: 'description_en' } })
   description_en?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsEnum(['Open', 'Deleted'], { context: { location: 'status' } })
-  status?: string;
 }
