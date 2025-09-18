@@ -2,11 +2,9 @@ import {
   IsOptional,
   IsString,
   IsArray,
-  IsUUID,
   IsIn,
   IsInt,
   Min,
-  MinLength,
   MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
