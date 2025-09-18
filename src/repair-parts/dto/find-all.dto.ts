@@ -1,30 +1,28 @@
-// src/repair-parts/dto/find-all.dto.ts
-
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
   IsEnum,
-  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
   Min,
   MaxLength,
+  IsInt,
 } from 'class-validator';
 
 export class FindAllPartsDto {
   @ApiPropertyOptional({ example: 10, description: 'How many items to fetch (limit)' })
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @IsInt()
   @Min(1)
   limit?: number = 10;
 
   @ApiPropertyOptional({ example: 0, description: 'Starting index for pagination (offset)' })
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @IsInt()
   @Min(0)
   offset?: number = 0;
 
