@@ -1,6 +1,6 @@
 // src/modules/repair-part-assignments/dto/assign-repair-parts.dto.ts
 
-import { IsArray, ValidateNested, IsUUID, IsBoolean, ArrayNotEmpty } from 'class-validator';
+import { IsArray, ValidateNested, IsUUID, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 

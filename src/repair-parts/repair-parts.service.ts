@@ -35,6 +35,9 @@ export class RepairPartsService {
 
     await this.knex('repair_part_assignments').where({ problem_category_id }).delete();
 
+    if (repair_parts.length === 0) {
+      return;
+    }
     const now = this.knex.fn.now();
     const rowsToInsert = repair_parts.map(({ id, is_required }) => ({
       id: this.knex.raw('gen_random_uuid()'),
