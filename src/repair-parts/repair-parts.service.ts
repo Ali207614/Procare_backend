@@ -128,7 +128,12 @@ export class RepairPartsService {
     }
 
     const [rows, countResult] = await Promise.all([
-      baseQuery.clone().select('rp.*').orderBy('rp.created_at', 'desc').offset(offset).limit(limit),
+      baseQuery
+        .clone()
+        .select('rp.*', 'rpa.is_required')
+        .orderBy('rp.created_at', 'desc')
+        .offset(offset)
+        .limit(limit),
       baseQuery
         .clone()
         .clearSelect()

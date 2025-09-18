@@ -8,7 +8,7 @@ export interface RepairPart {
   description_uz?: string;
   description_ru?: string;
   description_en?: string;
-  is_required: boolean;
+  is_required: boolean | null;
   status: 'Open' | 'Deleted';
   created_by?: string;
   created_at: Date;
