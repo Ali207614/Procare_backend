@@ -1,29 +1,40 @@
-import { IsOptional, IsString, IsEnum, IsNumber } from 'class-validator';
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsString, IsBoolean, IsEnum, IsInt, Min, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class FindRentalPhoneDevicesDto {
-  @ApiPropertyOptional({ description: 'Search by name or code' })
   @IsOptional()
   @IsString()
+  @MaxLength(100, { message: 'Search term must be at most 100 characters long' })
   search?: string;
 
-  @ApiPropertyOptional()
   @IsOptional()
-  @IsNumber()
-  offset?: number;
+  @IsBoolean()
+  @Type(() => Boolean)
+  is_free?: boolean;
 
-  @ApiPropertyOptional()
   @IsOptional()
-  @IsNumber()
-  limit?: number;
+  @IsBoolean()
+  @Type(() => Boolean)
+  is_available?: boolean;
 
-  @ApiPropertyOptional({ enum: ['sort', 'created_at'] })
   @IsOptional()
-  @IsEnum(['sort', 'created_at'])
-  sort_by?: 'sort' | 'created_at';
+  @IsEnum(['UZS', 'USD', 'EUR'])
+  currency?: 'UZS' | 'USD' | 'EUR';
 
-  @ApiPropertyOptional({ enum: ['asc', 'desc'] })
   @IsOptional()
-  @IsEnum(['asc', 'desc'])
-  sort_order?: 'asc' | 'desc';
+  @IsInt()
+  @Type(() => Number)
+  sort?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  @Min(0)
+  offset?: number = 0;
+
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  @Min(1)
+  limit?: number = 20;
 }

@@ -5,8 +5,8 @@ import {
   PERMISSIONS_MODE_KEY,
   PermissionMode,
 } from '../decorators/permission-decorator';
-import { PermissionsService } from '../../permissions/permissions.service';
 import { UserPayload } from 'src/common/types/user-payload.interface';
+import { PermissionsService } from 'src/permissions/permissions.service';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
