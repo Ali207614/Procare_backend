@@ -15,6 +15,9 @@ import { UpdateCampaignDto } from 'src/campaigns/dto/update-campaign.dto';
 import { ITemplate } from 'src/common/types/template.interface';
 import { User } from 'src/common/types/user.interface';
 import { LoggerService } from 'src/common/logger/logger.service';
+import { PaginationResult } from 'src/common/utils/pagination.util';
+import { ICampaignRecipient } from 'src/common/types/campaign-recipient.interface';
+import { FindAllRecipientsDto } from 'src/campaigns/dto/find-all-recipients.dto';
 
 interface AbTestInput {
   template_id: string;
@@ -161,28 +164,71 @@ export class CampaignsService {
     });
   }
 
-  async findAll(filters: FindAllCampaignsDto): Promise<ICampaign[]> {
-    const qb = this.knex('campaigns')
-      .leftJoin('templates', 'campaigns.template_id', 'templates.id')
-      .select('campaigns.*', 'templates.*');
+  async findAll(filters: FindAllCampaignsDto): Promise<PaginationResult<ICampaign>> {
+    const baseQuery = this.knex('campaigns as c')
+      .select(
+        'c.id',
+        'c.template_id',
+        'c.filters',
+        'c.send_type',
+        'c.schedule_at',
+        'c.ab_test',
+        'c.delivery_method',
+        'c.status',
+        'c.job_id',
+        'c.created_at',
+        'c.updated_at',
+        this.knex.raw(`
+        json_build_object(
+          'id', t.id,
+          'title', t.title,
+          'language', t.language,
+          'body', t.body,
+          'variables', t.variables,
+          'status', t.status,
+          'created_by', t.created_by,
+          'used_count', t.used_count,
+          'created_at', t.created_at,
+          'updated_at', t.updated_at
+        ) as template
+      `),
+      )
+      .leftJoin('templates as t', 'c.template_id', 't.id')
+      .modify((qb) => {
+        if (filters.status) void qb.where('c.status', filters.status);
+        if (filters.send_type) void qb.where('c.send_type', filters.send_type);
+        if (filters.delivery_method) void qb.where('c.delivery_method', filters.delivery_method);
+        if (filters.template_id) void qb.where('c.template_id', filters.template_id);
 
-    if (filters.status) void qb.where('campaigns.status', filters.status);
-    if (filters.search) {
-      void qb.where(function () {
-        void this.where('templates.name', 'like', `%${filters.search}%`).orWhereILike(
-          'templates.description',
-          `%${filters.search}%`,
-        );
+        if (filters.schedule_from) void qb.where('c.schedule_at', '>=', filters.schedule_from);
+        if (filters.schedule_to) void qb.where('c.schedule_at', '<=', filters.schedule_to);
+
+        if (filters.search) {
+          void qb.where(function () {
+            void this.whereILike('t.title', `%${filters.search}%`).orWhereILike(
+              't.body',
+              `%${filters.search}%`,
+            );
+          });
+        }
       });
-    }
 
-    return qb.limit(filters.limit).offset(filters.offset);
+    const [{ count }] = await baseQuery
+      .clone()
+      .clearSelect()
+      .count<{ count: string }[]>('* as count');
+    const rows = await baseQuery.limit(filters.limit).offset(filters.offset);
+
+    return {
+      total: Number(count),
+      limit: filters.limit,
+      offset: filters.offset,
+      rows: rows as ICampaign[],
+    };
   }
 
   async findOne(id: string): Promise<ICampaign> {
-    console.log(id);
     const campaign: ICampaign | undefined = await this.knex('campaigns').where('id', id).first();
-    console.log(campaign);
     if (!campaign) {
       throw new NotFoundException({
         message: 'Campaign not found',
@@ -191,6 +237,88 @@ export class CampaignsService {
       });
     }
     return campaign;
+  }
+
+  async findRecipients(
+    campaignId: string,
+    filters: FindAllRecipientsDto,
+  ): Promise<PaginationResult<ICampaignRecipient>> {
+    const baseQuery = this.knex('campaign_recipient as cr')
+      .select(
+        'cr.id',
+        'cr.campaign_id', // 🔑 qo‘shildi
+        'cr.user_id', // 🔑 qo‘shildi
+        'cr.variant_template_id', // 🔑 qo‘shildi
+        'cr.status',
+        'cr.message_id',
+        'cr.sent_at',
+        'cr.delivered_at',
+        'cr.read_at',
+        'cr.error',
+        'cr.created_at',
+        'cr.updated_at',
+        this.knex.raw(`
+        json_build_object(
+          'id', u.id,
+          'first_name', u.first_name,
+          'last_name', u.last_name,
+          'phone_number1', u.phone_number1,
+          'phone_number2', u.phone_number2,
+          'passport_series', u.passport_series,
+          'id_card_number', u.id_card_number,
+          'telegram_username', u.telegram_username,
+          'telegram_chat_id', u.telegram_chat_id,
+          'is_active', u.is_active
+        ) as user
+      `),
+      )
+      .leftJoin('users as u', 'cr.user_id', 'u.id')
+      .where('cr.campaign_id', campaignId);
+
+    if (filters.status) {
+      if (filters.status === 'success') {
+        void baseQuery.whereIn('cr.status', ['sent', 'delivered', 'read']);
+      } else if (filters.status === 'error') {
+        void baseQuery.whereIn('cr.status', ['failed', 'blocked', 'unsubscribed']);
+      } else {
+        void baseQuery.where('cr.status', filters.status);
+      }
+    }
+
+    if (filters.search) {
+      const s = `%${filters.search.toLowerCase()}%`;
+      void baseQuery.andWhere((qb) => {
+        void qb
+          .whereRaw('LOWER(u.first_name) LIKE ?', [s])
+          .orWhereRaw('LOWER(u.last_name) LIKE ?', [s])
+          .orWhereRaw('LOWER(u.phone_number1) LIKE ?', [s])
+          .orWhereRaw('LOWER(u.phone_number2) LIKE ?', [s])
+          .orWhereRaw('LOWER(u.passport_series) LIKE ?', [s])
+          .orWhereRaw('LOWER(u.id_card_number) LIKE ?', [s])
+          .orWhereRaw('LOWER(u.telegram_username) LIKE ?', [s]);
+      });
+    }
+
+    if (filters.sort_by) {
+      void baseQuery.orderBy(`cr.${filters.sort_by}`, filters.sort_order || 'desc');
+    } else {
+      void baseQuery.orderBy('cr.created_at', 'desc');
+    }
+
+    const [{ count }] = await baseQuery
+      .clone()
+      .clearSelect()
+      .clearOrder()
+      .count<{ count: string }[]>('* as count');
+
+    const rows = await baseQuery.limit(filters.limit).offset(filters.offset);
+
+    return {
+      total: Number(count),
+      limit: filters.limit,
+      offset: filters.offset,
+      rows: rows as ICampaignRecipient[],
+    };
   }
 
   async remove(id: string): Promise<void> {
@@ -283,7 +411,8 @@ export class CampaignsService {
     const allowedFilters: (keyof UsersFilterDto)[] = [
       'first_name',
       'last_name',
-      'phone_number',
+      'phone_number1',
+      'phone_number2',
       'passport_series',
       'id_card_number',
       'telegram_username',
@@ -301,7 +430,8 @@ export class CampaignsService {
         [
           'first_name',
           'last_name',
-          'phone_number',
+          'phone_number1',
+          'phone_number2',
           'passport_series',
           'id_card_number',
           'telegram_username',

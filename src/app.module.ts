@@ -66,9 +66,16 @@ import { BranchesController } from 'src/branches/branches.controller';
 import { CampaignsController } from './campaigns/campaigns.controller';
 import { CampaignsModule } from './campaigns/campaigns.module';
 import { TelegramModule } from './telegram/telegram.module';
+import { BullModule } from '@nestjs/bullmq';
 
 @Module({
   imports: [
+    BullModule.forRoot({
+      connection: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: Number(process.env.REDIS_PORT) || 6379,
+      },
+    }),
     SapModule,
     ScheduleModule.forRoot(),
     RentalPhoneDevicesModule,

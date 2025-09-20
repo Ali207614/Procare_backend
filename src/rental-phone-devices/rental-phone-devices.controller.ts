@@ -15,11 +15,12 @@ export class RentalPhoneDevicesController {
 
   @Get()
   @UseInterceptors(PaginationInterceptor)
-  @ApiQuery({ name: 'search', required: false })
-  @ApiQuery({ name: 'offset', required: false })
-  @ApiQuery({ name: 'limit', required: false })
-  @ApiQuery({ name: 'sort_by', required: false, enum: ['sort', 'created_at'] })
-  @ApiQuery({ name: 'sort_order', required: false, enum: ['asc', 'desc'] })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'is_free', required: false, type: Boolean })
+  @ApiQuery({ name: 'is_available', required: false, type: Boolean })
+  @ApiQuery({ name: 'currency', required: false, enum: ['UZS', 'USD', 'EUR'] })
+  @ApiQuery({ name: 'offset', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
   async findAll(
     @Query() dto: FindRentalPhoneDevicesDto,
   ): Promise<PaginationResult<RentalPhoneDevice>> {

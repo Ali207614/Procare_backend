@@ -9,10 +9,10 @@ import {
   UseGuards,
   Query,
   Req,
-  ParseIntPipe,
+  UseInterceptors,
 } from '@nestjs/common';
 import { TemplatesService } from './templates.service';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { PermissionsGuard } from 'src/common/guards/permission.guard';
 import { CreateTemplateDto } from 'src/templates/dto/create-template.dto';
@@ -23,6 +23,9 @@ import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { ITemplate, ITemplateWithHistories } from 'src/common/types/template.interface';
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { AuthenticatedRequest } from 'src/common/types/authenticated-request.type';
+import { FindAllTemplatesDto } from 'src/templates/dto/find-all.dto';
+import { PaginationResult } from 'src/common/utils/pagination.util';
+import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
 
 @ApiTags('Templates')
 @ApiBearerAuth()
@@ -45,36 +48,17 @@ export class TemplatesController {
   }
 
   @Get()
+  @UseInterceptors(PaginationInterceptor)
   @ApiOperation({ summary: 'Get all templates (with pagination and filters)' })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    type: Number,
-    description: 'Number of results (default: 10)',
+  @ApiResponse({
+    status: 200,
+    description: 'List of templates with histories.',
+    type: FindAllTemplatesDto,
   })
-  @ApiQuery({ name: 'offset', required: false, type: Number, description: 'Offset (default: 0)' })
-  @ApiQuery({
-    name: 'status',
-    required: false,
-    enum: ['Draft', 'Open', 'Deleted'],
-    description: 'Filter by status',
-  })
-  @ApiQuery({
-    name: 'language',
-    required: false,
-    enum: ['uz', 'ru', 'en'],
-    description: 'Filter by language',
-  })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search' })
-  @ApiResponse({ status: 200, description: 'List of templates.' })
   async findAll(
-    @Query('limit', new ParseIntPipe({ optional: true })) limit = 10,
-    @Query('offset', new ParseIntPipe({ optional: true })) offset = 0,
-    @Query('status') status?: string,
-    @Query('language') language?: string,
-    @Query('search') search?: string,
-  ): Promise<ITemplateWithHistories[]> {
-    return this.templatesService.findAll({ limit, offset, status, language, search });
+    @Query() dto: FindAllTemplatesDto,
+  ): Promise<PaginationResult<ITemplateWithHistories>> {
+    return this.templatesService.findAll(dto);
   }
 
   @Get(':template_id')

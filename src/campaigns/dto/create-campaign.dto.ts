@@ -20,38 +20,52 @@ export class UsersFilterDto {
   @IsOptional()
   @IsString()
   first_name?: string;
+
   @ApiProperty({ required: false, description: 'Last name' })
   @IsOptional()
   @IsString()
   last_name?: string;
+
   @ApiProperty({ required: false, description: 'Phone number' })
   @IsOptional()
   @IsString()
-  phone_number?: string;
+  phone_number1?: string;
+
+  @ApiProperty({ required: false, description: 'Phone number' })
+  @IsOptional()
+  @IsString()
+  phone_number2?: string;
+
   @ApiProperty({ required: false, description: 'Passport series' })
   @IsOptional()
   @IsString()
   passport_series?: string;
+
   @ApiProperty({ required: false, description: 'Birth date (ISO format)' })
   @IsOptional()
   @IsDateString()
   birth_date?: string;
+
   @ApiProperty({ required: false, description: 'ID card number' })
   @IsOptional()
   @IsString()
   id_card_number?: string;
+
   @ApiProperty({ enum: ['uz', 'ru', 'en'], required: false, description: 'Language' })
   @IsOptional()
   @IsEnum(['uz', 'ru', 'en'])
   language?: 'uz' | 'ru' | 'en';
+
   @ApiProperty({ required: false, description: 'Telegram chat ID' })
   @IsOptional()
   @IsNumber()
   telegram_chat_id?: number;
+
   @ApiProperty({ required: false, description: 'Telegram username' })
   @IsOptional()
   @IsString()
   telegram_username?: string;
+
   @ApiProperty({
     enum: ['telegram_bot', 'employee', 'web', 'app', 'other'],
     required: false,
@@ -60,10 +74,12 @@ export class UsersFilterDto {
   @IsOptional()
   @IsEnum(['telegram_bot', 'employee', 'web', 'app', 'other'])
   source?: 'telegram_bot' | 'employee' | 'web' | 'app' | 'other';
+
   @ApiProperty({ required: false, description: 'Is active' })
   @IsOptional()
   @IsBoolean()
   is_active?: boolean;
+
   @ApiProperty({
     enum: ['Pending', 'Open', 'Deleted', 'Banned'],
     required: false,
@@ -72,10 +88,12 @@ export class UsersFilterDto {
   @IsOptional()
   @IsEnum(['Pending', 'Open', 'Deleted', 'Banned'])
   status?: 'Pending' | 'Open' | 'Deleted' | 'Banned';
+
   @ApiProperty({ required: false, description: 'Created from date (ISO format, >= this date)' })
   @IsOptional()
   @IsDateString()
   created_from?: string;
+
   @ApiProperty({ required: false, description: 'Created to date (ISO format, <= this date)' })
   @IsOptional()
   @IsDateString()

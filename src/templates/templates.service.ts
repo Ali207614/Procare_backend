@@ -9,6 +9,8 @@ import {
   ITemplateWithHistories,
 } from 'src/common/types/template.interface';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
+import { FindAllTemplatesDto } from 'src/templates/dto/find-all.dto';
+import { PaginationResult } from 'src/common/utils/pagination.util';
 
 @Injectable()
 export class TemplatesService {
@@ -33,33 +35,39 @@ export class TemplatesService {
     return template;
   }
 
-  async findAll(filters: {
-    limit: number;
-    offset: number;
-    status?: string;
-    language?: string;
-    search?: string;
-  }): Promise<ITemplateWithHistories[]> {
-    return this.knex('templates')
+  async findAll(dto: FindAllTemplatesDto): Promise<PaginationResult<ITemplateWithHistories>> {
+    const baseQuery = this.knex('templates')
       .select(
         'templates.*',
         this.knex.raw(`
-        COALESCE(
-          (SELECT json_agg(th.* ORDER BY th.updated_at DESC)
-           FROM template_histories th
-           WHERE th.template_id = templates.id),
-          '[]'::json
-        ) AS histories
-      `),
+          COALESCE(
+            (SELECT json_agg(th.* ORDER BY th.updated_at DESC)
+             FROM template_histories th
+             WHERE th.template_id = templates.id),
+            '[]'::json
+          ) AS histories
+        `),
       )
       .modify((qb) => {
-        if (filters.status) void qb.where('status', filters.status);
-        if (filters.language) void qb.where('language', filters.language);
-        if (filters.search)
-          void qb.whereRaw('LOWER(title) LIKE ?', [`%${filters.search.toLowerCase()}%`]);
-      })
-      .limit(filters.limit)
-      .offset(filters.offset);
+        if (dto.status?.length) void qb.whereIn('templates.status', dto.status);
+        if (dto.language) void qb.where('templates.language', dto.language);
+        if (dto.search)
+          void qb.whereRaw('LOWER(templates.title) LIKE ?', [`%${dto.search.toLowerCase()}%`]);
+      });
+
+    const [{ count }] = await baseQuery
+      .clone()
+      .clearSelect()
+      .count<{ count: string }[]>('* as count');
+
+    const rows = await baseQuery.limit(dto.limit).offset(dto.offset);
+
+    return {
+      total: Number(count),
+      limit: dto.limit,
+      offset: dto.offset,
+      rows: rows as ITemplateWithHistories[],
+    };
   }
 
   async findOne(id: string): Promise<ITemplateWithHistories> {

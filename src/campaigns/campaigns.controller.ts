@@ -9,14 +9,15 @@ import {
   Param,
   ValidationPipe,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
-  ApiQuery,
   ApiOkResponse,
   ApiNotFoundResponse,
   ApiBearerAuth,
+  ApiResponse,
 } from '@nestjs/swagger';
 import { CampaignsService } from './campaigns.service';
 import { ICampaign } from 'src/common/types/campaign.interface';
@@ -27,6 +28,10 @@ import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { PermissionsGuard } from 'src/common/guards/permission.guard';
 import { SetPermissions } from 'src/common/decorators/permission-decorator';
+import { PaginationResult } from 'src/common/utils/pagination.util';
+import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
+import { FindAllRecipientsDto } from 'src/campaigns/dto/find-all-recipients.dto';
+import { ICampaignRecipient } from 'src/common/types/campaign-recipient.interface';
 
 @ApiTags('Campaigns')
 @ApiBearerAuth()
@@ -44,13 +49,34 @@ export class CampaignsController {
   }
 
   @Get()
+  @UseInterceptors(PaginationInterceptor)
   @ApiOperation({ summary: 'Get all campaigns with pagination and filters' })
-  @ApiQuery({ name: 'limit', required: false, example: 10 })
-  @ApiQuery({ name: 'offset', required: false, example: 0 })
-  @ApiQuery({ name: 'search', required: false, example: 'daily' })
-  @ApiQuery({ name: 'status', required: false, example: 'active' })
-  async findAll(@Query(ValidationPipe) filters: FindAllCampaignsDto): Promise<ICampaign[]> {
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated list of campaigns',
+    type: FindAllCampaignsDto,
+  })
+  async findAll(
+    @Query(ValidationPipe) filters: FindAllCampaignsDto,
+  ): Promise<PaginationResult<ICampaign>> {
     return this.campaignsService.findAll(filters);
+  }
+
+  @Get(':id/recipients')
+  @UseInterceptors(PaginationInterceptor)
+  @ApiOperation({
+    summary: 'Get campaign recipients (with filters, search, sorting, and pagination)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of campaign recipients with user details',
+    type: FindAllRecipientsDto,
+  })
+  async findRecipients(
+    @Param('id') id: string,
+    @Query(ValidationPipe) filters: FindAllRecipientsDto,
+  ): Promise<PaginationResult<ICampaignRecipient>> {
+    return this.campaignsService.findRecipients(id, filters);
   }
 
   @Get(':campaign_id')

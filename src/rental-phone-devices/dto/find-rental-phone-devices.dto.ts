@@ -24,11 +24,6 @@ export class FindRentalPhoneDevicesDto {
   @IsOptional()
   @IsInt()
   @Type(() => Number)
-  sort?: number;
-
-  @IsOptional()
-  @IsInt()
-  @Type(() => Number)
   @Min(0)
   offset?: number = 0;
 

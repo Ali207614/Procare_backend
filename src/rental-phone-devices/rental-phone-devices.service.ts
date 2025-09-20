@@ -9,7 +9,7 @@ export class RentalPhoneDevicesService {
   constructor(@InjectKnex() private readonly knex: Knex) {}
 
   async findAll(dto: FindRentalPhoneDevicesDto): Promise<PaginationResult<RentalPhoneDevice>> {
-    const { offset = 0, limit = 20, search, is_free, is_available, currency, sort } = dto;
+    const { offset = 0, limit = 20, search, is_free, is_available, currency } = dto;
 
     const baseQuery = this.knex('rental_phone_devices').whereRaw('1=1');
 
@@ -31,11 +31,6 @@ export class RentalPhoneDevicesService {
       void baseQuery.andWhere('currency', currency);
     }
 
-    if (sort !== undefined) {
-      void baseQuery.andWhere('sort', sort);
-    }
-
-    // 🔢 Rows
     const rows = await baseQuery
       .clone()
       .select(
