@@ -10,6 +10,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ToArray } from 'src/common/decorators/to-array.decorator';
 
 export class FindAllAdminsDto {
   @ApiPropertyOptional({ description: 'Search by name, phone, passport, etc.' })
@@ -26,6 +27,7 @@ export class FindAllAdminsDto {
   @IsOptional()
   @IsArray()
   @IsIn(['Open', 'Pending', 'Deleted', 'Banned'], { each: true })
+  @ToArray()
   status?: string[];
 
   @ApiPropertyOptional({
@@ -36,6 +38,7 @@ export class FindAllAdminsDto {
   @IsOptional()
   @IsArray()
   @IsIn(['Open', 'Pending', 'Deleted', 'Banned'], { each: true })
+  @ToArray()
   exclude_status?: string[];
 
   @ApiPropertyOptional({
@@ -46,6 +49,7 @@ export class FindAllAdminsDto {
   @IsOptional()
   @IsArray()
   @IsUUID('all', { each: true })
+  @ToArray()
   branch_ids?: string[];
 
   @ApiPropertyOptional({
@@ -56,6 +60,7 @@ export class FindAllAdminsDto {
   @IsOptional()
   @IsArray()
   @IsUUID('all', { each: true })
+  @ToArray()
   exclude_branch_ids?: string[];
 
   @ApiPropertyOptional({
@@ -66,6 +71,7 @@ export class FindAllAdminsDto {
   @IsOptional()
   @IsArray()
   @IsUUID('all', { each: true })
+  @ToArray()
   role_ids?: string[];
 
   @ApiPropertyOptional({
@@ -76,6 +82,7 @@ export class FindAllAdminsDto {
   @IsOptional()
   @IsArray()
   @IsUUID('all', { each: true })
+  @ToArray()
   exclude_role_ids?: string[];
 
   @ApiPropertyOptional({ description: 'Pagination offset', default: 0 })

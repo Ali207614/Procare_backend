@@ -1,14 +1,7 @@
-import {
-  IsOptional,
-  IsString,
-  IsArray,
-  IsIn,
-  IsInt,
-  Min,
-  MaxLength,
-} from 'class-validator';
+import { IsOptional, IsString, IsArray, IsIn, IsInt, Min, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ToArray } from 'src/common/decorators/to-array.decorator';
 
 export class FindAllUsersDto {
   @ApiPropertyOptional({ description: 'Search by name, phone, passport, etc.' })
@@ -25,6 +18,7 @@ export class FindAllUsersDto {
   @IsOptional()
   @IsArray()
   @IsIn(['Pending', 'Open', 'Deleted', 'Banned'], { each: true })
+  @ToArray()
   status_ids?: string[];
 
   @ApiPropertyOptional({
@@ -35,6 +29,7 @@ export class FindAllUsersDto {
   @IsOptional()
   @IsArray()
   @IsIn(['Pending', 'Open', 'Deleted', 'Banned'], { each: true })
+  @ToArray()
   exclude_status_ids?: string[];
 
   @ApiPropertyOptional({
@@ -45,6 +40,7 @@ export class FindAllUsersDto {
   @IsOptional()
   @IsArray()
   @IsIn(['telegram_bot', 'employee', 'web', 'app', 'other'], { each: true })
+  @ToArray()
   source?: string[];
 
   @ApiPropertyOptional({
@@ -55,6 +51,7 @@ export class FindAllUsersDto {
   @IsOptional()
   @IsArray()
   @IsIn(['telegram_bot', 'employee', 'web', 'app', 'other'], { each: true })
+  @ToArray()
   exclude_source?: string[];
 
   @ApiPropertyOptional({ description: 'Pagination offset', example: 0 })

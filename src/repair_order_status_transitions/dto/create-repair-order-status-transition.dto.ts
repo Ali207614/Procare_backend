@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ArrayNotEmpty, ArrayUnique, IsArray, IsUUID } from 'class-validator';
+import { ArrayUnique, IsArray, IsUUID } from 'class-validator';
 
 export class CreateRepairOrderStatusTransitionDto {
   @ApiProperty({ type: [String], description: 'To status IDs' })
