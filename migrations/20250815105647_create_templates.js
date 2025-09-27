@@ -5,7 +5,9 @@ exports.up = async function (knex) {
     table.string('title').notNullable();
     table.enu('language', ['uz', 'ru', 'en']).defaultTo('uz').notNullable();
     table.text('body').notNullable();
-    table.jsonb('variables').defaultTo(knex.raw("'{}'::jsonb")).nullable();
+
+    table.jsonb('variables').defaultTo(knex.raw("'[]'::jsonb")).nullable();
+
     table.enu('status', ['Draft', 'Open', 'Deleted']).defaultTo('Draft').notNullable();
     table.uuid('created_by').references('id').inTable('admins').onDelete('SET NULL').notNullable();
     table.integer('used_count').defaultTo(0).notNullable();

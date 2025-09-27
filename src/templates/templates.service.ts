@@ -18,8 +18,9 @@ export class TemplatesService {
 
   async create(createTemplateDto: CreateTemplateDto, admin: AdminPayload): Promise<ITemplate> {
     const existing = await this.knex('templates')
-      .whereRaw('LOWER(title) = LOWER(?)', [createTemplateDto.title])
+      .whereRaw('LOWER(title) = LOWER(?)', [createTemplateDto.title.trim()])
       .first();
+
     if (existing) {
       throw new BadRequestException({
         message: 'Template with this title already exists',
@@ -28,7 +29,11 @@ export class TemplatesService {
     }
     const [template]: ITemplate[] = await this.knex('templates')
       .insert({
-        ...createTemplateDto,
+        title: createTemplateDto.title,
+        language: createTemplateDto.language,
+        body: createTemplateDto.body,
+        variables: JSON.stringify(createTemplateDto.variables ?? []),
+        status: createTemplateDto.status,
         created_by: admin.id,
       })
       .returning('*');
@@ -36,28 +41,45 @@ export class TemplatesService {
   }
 
   async findAll(dto: FindAllTemplatesDto): Promise<PaginationResult<ITemplateWithHistories>> {
-    const baseQuery = this.knex('templates')
+    const baseQuery = this.knex('templates as t')
       .select(
-        'templates.*',
+        't.*',
         this.knex.raw(`
-          COALESCE(
-            (SELECT json_agg(th.* ORDER BY th.updated_at DESC)
-             FROM template_histories th
-             WHERE th.template_id = templates.id),
-            '[]'::json
-          ) AS histories
-        `),
+        COALESCE(
+          (
+            SELECT json_agg(th ORDER BY th.version DESC)
+            FROM template_histories th
+            WHERE th.template_id = t.id
+          ),
+          '[]'::json
+        ) AS histories
+      `),
+        this.knex.raw(`
+        json_build_object(
+          'id', a.id,
+          'first_name', a.first_name,
+          'last_name', a.last_name
+        ) as created_by_admin
+      `),
       )
+      .leftJoin('admins as a', 't.created_by', 'a.id')
       .modify((qb) => {
-        if (dto.status?.length) void qb.whereIn('templates.status', dto.status);
-        if (dto.language) void qb.where('templates.language', dto.language);
-        if (dto.search)
-          void qb.whereRaw('LOWER(templates.title) LIKE ?', [`%${dto.search.toLowerCase()}%`]);
-      });
+        if (dto.status?.length) {
+          void qb.whereIn('t.status', dto.status);
+        }
+        if (dto.language) {
+          void qb.where('t.language', dto.language);
+        }
+        if (dto.search) {
+          void qb.whereRaw('LOWER(t.title) LIKE ?', [`%${dto.search.toLowerCase()}%`]);
+        }
+      })
+      .orderBy('t.created_at', 'desc'); // asosiy sort
 
     const [{ count }] = await baseQuery
       .clone()
       .clearSelect()
+      .clearOrder()
       .count<{ count: string }[]>('* as count');
 
     const rows = await baseQuery.limit(dto.limit).offset(dto.offset);
@@ -113,6 +135,7 @@ export class TemplatesService {
           .whereRaw('LOWER(title) = ?', [updateTemplateDto.title.toLowerCase()])
           .whereNot('id', id)
           .first();
+
         if (existing) {
           throw new BadRequestException({
             message: 'Template with this title already exists',
@@ -121,25 +144,36 @@ export class TemplatesService {
         }
       }
 
-      const histories: ITemplateHistory[] = await trx<ITemplateHistory>('template_histories')
+      const lastHistory: ITemplateHistory | undefined = await trx<ITemplateHistory>(
+        'template_histories',
+      )
         .where('template_id', id)
-        .orderBy('updated_at', 'desc');
-      if (histories.length >= 5) {
-        await trx('template_histories')
-          .where('id', histories[histories.length - 1].id)
-          .del();
-      }
+        .orderBy('version', 'desc')
+        .first();
+
+      const newVersion = lastHistory ? lastHistory.version + 1 : 1;
+
       await trx('template_histories').insert({
-        title: updateTemplateDto.title || oldTemplate.title,
-        language: updateTemplateDto.language || oldTemplate.language,
+        title: oldTemplate.title,
+        language: oldTemplate.language,
         template_id: id,
-        version: histories.length + 1,
+        version: newVersion,
         body: oldTemplate.body,
-        variables: oldTemplate.variables,
+        variables: JSON.stringify(oldTemplate.variables ?? []),
         created_by: admin.id,
-        status: updateTemplateDto.status || oldTemplate.status,
+        status: oldTemplate.status,
         updated_at: new Date(),
       });
+
+      const histories: ITemplateHistory[] = await trx<ITemplateHistory>('template_histories')
+        .where('template_id', id)
+        .orderBy('version', 'desc');
+
+      if (histories.length > 5) {
+        const toDelete = histories.slice(5);
+        const idsToDelete = toDelete.map((h) => h.id);
+        await trx('template_histories').whereIn('id', idsToDelete).del();
+      }
 
       await trx('templates')
         .where('id', id)
@@ -147,7 +181,9 @@ export class TemplatesService {
           title: updateTemplateDto.title || oldTemplate.title,
           language: updateTemplateDto.language || oldTemplate.language,
           body: updateTemplateDto.body || oldTemplate.body,
-          variables: updateTemplateDto.variables ?? oldTemplate.variables,
+          variables: updateTemplateDto.variables
+            ? JSON.stringify(updateTemplateDto.variables)
+            : JSON.stringify(oldTemplate.variables),
           status: updateTemplateDto.status || oldTemplate.status,
           updated_at: new Date(),
         });

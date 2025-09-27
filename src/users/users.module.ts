@@ -9,5 +9,6 @@ import { RedisModule } from 'src/common/redis/redis.module';
   imports: [SapModule, PermissionsModule, RedisModule],
   controllers: [UsersController],
   providers: [UsersService],
+  exports: [UsersService],
 })
 export class UsersModule {}

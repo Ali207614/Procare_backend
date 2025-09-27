@@ -4,12 +4,12 @@ import {
   Post,
   Body,
   Param,
-  Put,
   Delete,
   UseGuards,
   Query,
   Req,
   UseInterceptors,
+  Patch,
 } from '@nestjs/common';
 import { TemplatesService } from './templates.service';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
@@ -69,7 +69,7 @@ export class TemplatesController {
     return this.templatesService.findOne(id);
   }
 
-  @Put(':template_id')
+  @Patch(':template_id')
   @UseGuards(PermissionsGuard)
   @SetPermissions('update:template')
   @ApiOperation({ summary: 'Update template and save history' })

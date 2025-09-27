@@ -4,10 +4,10 @@ import { Queue } from 'bull';
 import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
 import { CreateUserDto } from './dto/create-user.dto';
-import { FindAllUsersDto } from './dto/find-all-user.dto';
+import { FindAllUsersDto, HasTelegramFilter } from './dto/find-all-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JoinedRepairOrder, UserWithRepairOrders } from 'src/common/types/repair-order.interface';
-import { User } from 'src/common/types/user.interface';
+import { User, UserListItem } from 'src/common/types/user.interface';
 import { RedisService } from 'src/common/redis/redis.service';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { PaginationResult } from 'src/common/utils/pagination.util';
@@ -117,67 +117,41 @@ export class UsersService {
     return user;
   }
 
-  async findAll(query: FindAllUsersDto): Promise<PaginationResult<User>> {
-    const offset = Number(query.offset) || 0;
-    const limit = Number(query.limit) || 20;
+  async findAll(filters: FindAllUsersDto): Promise<PaginationResult<UserListItem>> {
+    const offset: number = Number(filters.offset) || 0;
+    const limit: number = Number(filters.limit) || 20;
 
-    const baseQuery = this.knex('users');
-
-    if (query.search) {
-      const term = `%${query.search.toLowerCase()}%`;
-      void baseQuery.andWhere(
-        (qb) =>
-          void qb
-            .whereRaw('LOWER(first_name) LIKE ?', [term])
-            .orWhereRaw('LOWER(last_name) LIKE ?', [term])
-            .orWhereRaw('phone_number1 ILIKE ?', [term])
-            .orWhereRaw('phone_number2 ILIKE ?', [term])
-            .orWhereRaw('passport_series ILIKE ?', [term])
-            .orWhereRaw('id_card_number ILIKE ?', [term]),
-      );
-    }
-
-    if (Array.isArray(query.status_ids) && query.status_ids.length > 0) {
-      void baseQuery.whereIn('status', query.status_ids);
-    }
-    if (Array.isArray(query.exclude_status_ids) && query.exclude_status_ids.length > 0) {
-      void baseQuery.whereNotIn('status', query.exclude_status_ids);
-    }
-
-    if (Array.isArray(query.source) && query.source.length > 0) {
-      void baseQuery.whereIn('source', query.source);
-    }
-    if (Array.isArray(query.exclude_source) && query.exclude_source.length > 0) {
-      void baseQuery.whereNotIn('source', query.exclude_source);
-    }
+    const baseQuery = this.buildUserQuery(this.knex, filters);
 
     const [rows, [{ count }]] = await Promise.all([
       baseQuery
         .clone()
         .select(
           'id',
+          'sap_card_code',
           'first_name',
           'last_name',
-          'sap_card_code',
+          'phone_number1',
+          'phone_number2',
+          'phone_verified',
           'passport_series',
           'id_card_number',
           'birth_date',
           'language',
-          'phone_number1',
-          'phone_number2',
           'telegram_chat_id',
           'telegram_username',
-          'created_at',
           'status',
           'is_active',
           'source',
+          'created_at',
+          'updated_at',
           'created_by',
         )
         .orderBy('created_at', 'desc')
         .offset(offset)
         .limit(limit),
 
-      baseQuery.clone().clearSelect().count<{ count: string }[]>('* as count'),
+      baseQuery.clone().clearSelect().clearOrder().count<{ count: string }[]>('* as count'),
     ]);
 
     return {
@@ -233,5 +207,67 @@ export class UsersService {
     await this.redisService.del(`user:${userId}`);
 
     return { message: 'User deleted successfully' };
+  }
+
+  public buildUserQuery(knex: Knex, filters: FindAllUsersDto): Knex.QueryBuilder<User, User[]> {
+    const query = knex<User>('users');
+
+    if (filters.created_at_start && filters.created_at_end) {
+      void query.whereBetween('created_at', [filters.created_at_start, filters.created_at_end]);
+    } else if (filters.created_at_start) {
+      void query.where('created_at', '>=', filters.created_at_start);
+    } else if (filters.created_at_end) {
+      void query.where('created_at', '<=', filters.created_at_end);
+    }
+
+    // search
+    if (filters.search) {
+      const term = `%${filters.search.toLowerCase()}%`;
+      void query.andWhere((qb) => {
+        void qb
+          .whereRaw('LOWER(first_name) LIKE ?', [term])
+          .orWhereRaw('LOWER(last_name) LIKE ?', [term])
+          .orWhereRaw('phone_number1 ILIKE ?', [term])
+          .orWhereRaw('phone_number2 ILIKE ?', [term])
+          .orWhereRaw('passport_series ILIKE ?', [term])
+          .orWhereRaw('id_card_number ILIKE ?', [term])
+          .orWhereRaw('telegram_username ILIKE ?', [term]);
+      });
+    }
+
+    if (filters.status_ids?.length) {
+      void query.whereIn('status', filters.status_ids);
+    }
+    if (filters.exclude_status_ids?.length) {
+      void query.whereNotIn('status', filters.exclude_status_ids);
+    }
+
+    if (filters.source?.length) {
+      void query.whereIn('source', filters.source);
+    }
+    if (filters.exclude_source?.length) {
+      void query.whereNotIn('source', filters.exclude_source);
+    }
+
+    if (filters.has_telegram === HasTelegramFilter.TRUE) {
+      void query.whereNotNull('telegram_chat_id');
+    }
+    if (filters.has_telegram === HasTelegramFilter.FALSE) {
+      void query.whereNull('telegram_chat_id');
+    }
+
+    if (filters.language) {
+      void query.where('language', filters.language);
+    }
+
+    if (filters.birth_date_start && filters.birth_date_end) {
+      void query.whereBetween('birth_date', [filters.birth_date_start, filters.birth_date_end]);
+    } else if (filters.birth_date_start) {
+      void query.where('birth_date', '>=', filters.birth_date_start);
+    } else if (filters.birth_date_end) {
+      void query.where('birth_date', '<=', filters.birth_date_end);
+    }
+
+    return query;
   }
 }

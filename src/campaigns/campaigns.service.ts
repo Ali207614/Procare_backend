@@ -6,7 +6,6 @@ import { InjectKnex } from 'nestjs-knex';
 import { ICampaign } from 'src/common/types/campaign.interface';
 import {
   CreateCampaignDto,
-  UsersFilterDto,
   AbTestConfigDto,
   AbTestVariantDto,
 } from 'src/campaigns/dto/create-campaign.dto';
@@ -18,6 +17,8 @@ import { LoggerService } from 'src/common/logger/logger.service';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { ICampaignRecipient } from 'src/common/types/campaign-recipient.interface';
 import { FindAllRecipientsDto } from 'src/campaigns/dto/find-all-recipients.dto';
+import { FindAllUsersDto } from 'src/users/dto/find-all-user.dto';
+import { UsersService } from 'src/users/users.service';
 
 interface AbTestInput {
   template_id: string;
@@ -29,6 +30,7 @@ export class CampaignsService {
   constructor(
     @InjectQueue('campaigns') private readonly queue: Queue,
     @InjectKnex() private readonly knex: Knex,
+    private readonly userService: UsersService,
     private readonly logger: LoggerService,
   ) {}
 
@@ -217,7 +219,10 @@ export class CampaignsService {
       .clone()
       .clearSelect()
       .count<{ count: string }[]>('* as count');
-    const rows = await baseQuery.limit(filters.limit).offset(filters.offset);
+    const rows = await baseQuery
+      .orderBy('c.created_at', 'desc')
+      .limit(filters.limit)
+      .offset(filters.offset);
 
     return {
       total: Number(count),
@@ -392,69 +397,18 @@ export class CampaignsService {
   private async insertRecipients(
     trx: Knex.Transaction,
     campaignId: string,
-    filters: UsersFilterDto = {},
+    filters: FindAllUsersDto = {},
     abTest: AbTestConfigDto,
   ): Promise<{ id: string }[]> {
-    let query = trx('users').select('id');
+    const users: User[] = await this.userService.buildUserQuery(trx, filters).select('id');
 
-    if (filters.created_from && filters.created_to) {
-      query = query.whereBetween('created_at', [
-        new Date(filters.created_from),
-        new Date(filters.created_to),
-      ]);
-    } else if (filters.created_from) {
-      query = query.where('created_at', '>=', new Date(filters.created_from));
-    } else if (filters.created_to) {
-      query = query.where('created_at', '<=', new Date(filters.created_to));
-    }
-
-    const allowedFilters: (keyof UsersFilterDto)[] = [
-      'first_name',
-      'last_name',
-      'phone_number1',
-      'phone_number2',
-      'passport_series',
-      'id_card_number',
-      'telegram_username',
-      'is_active',
-    ];
-
-    for (const [key, rawValue] of Object.entries(filters)) {
-      if (rawValue === undefined) continue;
-      if (!allowedFilters.includes(key as keyof UsersFilterDto)) continue;
-
-      const value = rawValue as unknown;
-
-      if (
-        typeof value === 'string' &&
-        [
-          'first_name',
-          'last_name',
-          'phone_number1',
-          'phone_number2',
-          'passport_series',
-          'id_card_number',
-          'telegram_username',
-        ].includes(key)
-      ) {
-        query = query.whereILike(key, `%${value}%`);
-      } else if (
-        typeof value === 'boolean' ||
-        typeof value === 'number' ||
-        typeof value === 'string'
-      ) {
-        query = query.where(key, value);
-      }
-    }
-
-    const users: User[] = await query;
     if (!users.length) return [];
 
     const now = new Date();
     let recipients: any[] = [];
 
     if (abTest.enabled && abTest.variants.length) {
-      const shuffled: User[] = users.sort(() => Math.random() - 0.5);
+      const shuffled = users.sort(() => Math.random() - 0.5);
       let start = 0;
       for (const variant of abTest.variants) {
         const count = Math.floor((shuffled.length * variant.percentage) / 100);

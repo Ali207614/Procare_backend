@@ -1,5 +1,15 @@
-import { IsString, IsNotEmpty, IsEnum, IsOptional, MaxLength, MinLength } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsString,
+  IsNotEmpty,
+  IsEnum,
+  IsOptional,
+  MaxLength,
+  MinLength,
+  IsArray,
+  IsIn,
+} from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 export class CreateTemplateDto {
   @ApiProperty({ description: 'Template title (min 3, max 100 characters)' })
@@ -20,9 +30,29 @@ export class CreateTemplateDto {
   @MaxLength(1000, { message: 'Body must be at most 1000 characters long' })
   body!: string;
 
-  @ApiProperty({ description: 'Variables (JSON)', required: false })
+  @ApiPropertyOptional({
+    description: 'List of allowed user fields for template',
+    type: [String],
+    example: ['first_name', 'last_name', 'phone_number1'],
+  })
   @IsOptional()
-  variables?: any;
+  @IsArray({ message: 'Variables must be an array' })
+  @IsIn(
+    [
+      'first_name',
+      'last_name',
+      'phone_number1',
+      'phone_number2',
+      'passport_series',
+      'id_card_number',
+      'birth_date',
+      'telegram_username',
+      'phone_verified',
+    ],
+    { each: true, message: 'Invalid variable key' },
+  )
+  @Type(() => String)
+  variables?: string[];
 
   @ApiProperty({ enum: ['Draft', 'Open', 'Deleted'], description: 'Status' })
   @IsEnum(['Draft', 'Open', 'Deleted'])

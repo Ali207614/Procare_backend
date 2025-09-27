@@ -22,3 +22,26 @@ export interface User {
   updated_at: string;
   created_by: string | null;
 }
+
+export type UserListItem = Pick<
+  User,
+  | 'id'
+  | 'sap_card_code'
+  | 'first_name'
+  | 'last_name'
+  | 'phone_number1'
+  | 'phone_number2'
+  | 'phone_verified'
+  | 'passport_series'
+  | 'birth_date'
+  | 'id_card_number'
+  | 'language'
+  | 'telegram_chat_id'
+  | 'telegram_username'
+  | 'source'
+  | 'status'
+  | 'is_active'
+  | 'created_at'
+  | 'updated_at'
+  | 'created_by'
+>;

@@ -20,7 +20,7 @@ import { SetPermissions } from 'src/common/decorators/permission-decorator';
 import { FindAllUsersDto } from './dto/find-all-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserWithRepairOrders } from 'src/common/types/repair-order.interface';
-import { User } from 'src/common/types/user.interface';
+import { User, UserListItem } from 'src/common/types/user.interface';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
@@ -44,7 +44,7 @@ export class UsersController {
   @Get()
   @UseInterceptors(PaginationInterceptor)
   @ApiOperation({ summary: 'Get all users with search and pagination' })
-  async findAll(@Query() query: FindAllUsersDto): Promise<PaginationResult<User>> {
+  async findAll(@Query() query: FindAllUsersDto): Promise<PaginationResult<UserListItem>> {
     return this.usersService.findAll(query);
   }
 
