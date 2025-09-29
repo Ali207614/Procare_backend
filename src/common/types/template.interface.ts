@@ -3,7 +3,7 @@ export interface ITemplate {
   title: string;
   language: 'uz' | 'ru' | 'en';
   body: string;
-  variables?: Record<string, any>;
+  variables?: string[];
   status: 'Draft' | 'Open' | 'Deleted';
   created_by: string;
   used_count: number;
@@ -16,7 +16,7 @@ export interface ITemplateHistory {
   template_id: string;
   version: number;
   body: string;
-  variables?: Record<string, any>;
+  variables?: string[];
   author_id: string;
   updated_at: Date;
 }

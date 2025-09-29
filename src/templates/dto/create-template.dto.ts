@@ -54,7 +54,7 @@ export class CreateTemplateDto {
   @Type(() => String)
   variables?: string[];
 
-  @ApiProperty({ enum: ['Draft', 'Open', 'Deleted'], description: 'Status' })
-  @IsEnum(['Draft', 'Open', 'Deleted'])
+  @ApiProperty({ enum: ['Draft', 'Open'], description: 'Status' })
+  @IsEnum(['Draft', 'Open'])
   status!: string;
 }

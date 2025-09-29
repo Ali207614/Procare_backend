@@ -89,7 +89,9 @@ export class CampaignsProcessor extends WorkerHost {
             return;
           }
 
-          const res = await this.telegramService.sendMessage(user.telegram_chat_id, template.body);
+          const body = this.renderTemplate(template.body, template.variables, user);
+
+          const res = await this.telegramService.sendMessage(user.telegram_chat_id, body);
           messageId = res.data?.result?.message_id;
         } else if (campaign.delivery_method === 'sms') {
           // 🔜 SMS logikasi
@@ -123,6 +125,17 @@ export class CampaignsProcessor extends WorkerHost {
     });
 
     await this.checkCampaignCompletion(campaignId);
+  }
+
+  private renderTemplate(body: string, variables: string[] | undefined, user: User): string {
+    if (!variables || !variables.length) return body;
+
+    let rendered = body;
+    for (const key of variables) {
+      const value = (user as any)[key] ?? '';
+      rendered = rendered.replace(new RegExp(`{{${key}}}`, 'g'), String(value));
+    }
+    return rendered;
   }
 
   private async markAsFailed(

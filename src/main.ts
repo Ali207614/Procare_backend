@@ -113,7 +113,7 @@ async function bootstrap(): Promise<void> {
 
     const sapQueue = app.get<BullQueue>(getBullToken('sap'));
 
-    const campaignsQueue = app.get<BullMQQueue>(getBullMQToken('campaigns'));
+    const campaignsQueue = app.get<BullMQQueue>('CAMPAIGNS_QUEUE');
     const serverAdapter = new ExpressAdapter();
     serverAdapter.setBasePath('/admin/queues');
 

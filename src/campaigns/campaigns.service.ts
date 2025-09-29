@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Knex } from 'knex';
@@ -28,7 +28,7 @@ interface AbTestInput {
 @Injectable()
 export class CampaignsService {
   constructor(
-    @InjectQueue('campaigns') private readonly queue: Queue,
+    @Inject('CAMPAIGNS_QUEUE') private readonly queue: Queue,
     @InjectKnex() private readonly knex: Knex,
     private readonly userService: UsersService,
     private readonly logger: LoggerService,
