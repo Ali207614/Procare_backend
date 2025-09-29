@@ -5,7 +5,6 @@ import { Type, Transform, TransformFnParams } from 'class-transformer';
 export enum TemplateStatus {
   Draft = 'Draft',
   Open = 'Open',
-  Deleted = 'Deleted',
 }
 
 export enum TemplateLanguage {

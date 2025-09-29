@@ -64,6 +64,7 @@ export class TemplatesService {
       )
       .leftJoin('admins as a', 't.created_by', 'a.id')
       .modify((qb) => {
+        void qb.whereNot('t.status', 'Deleted');
         if (dto.status?.length) {
           void qb.whereIn('t.status', dto.status);
         }
@@ -74,7 +75,7 @@ export class TemplatesService {
           void qb.whereRaw('LOWER(t.title) LIKE ?', [`%${dto.search.toLowerCase()}%`]);
         }
       })
-      .orderBy('t.created_at', 'desc'); // asosiy sort
+      .orderBy('t.created_at', 'desc');
 
     const [{ count }] = await baseQuery
       .clone()
