@@ -65,7 +65,7 @@ export class CampaignsService {
           status = 'scheduled';
         }
 
-        const abTest = await this.prepareAbTest(trx, dto);
+        const abTest: AbTestConfigDto = await this.prepareAbTest(trx, dto);
 
         const [campaign]: ICampaign[] = await trx('campaigns')
           .insert({
@@ -338,7 +338,9 @@ export class CampaignsService {
   }
 
   private async prepareAbTest(trx: Knex.Transaction, dto: AbTestInput): Promise<AbTestConfigDto> {
-    if (!dto.ab_test?.enabled) return { enabled: false, variants: [] };
+    if (!dto.ab_test?.enabled) {
+      return { enabled: false, variants: [] };
+    }
 
     const variants: AbTestVariantDto[] = dto.ab_test.variants || [];
     if (variants.length < 1) {
@@ -365,9 +367,9 @@ export class CampaignsService {
       });
     }
 
-    const activeTemplates: ITemplate[] = await trx('templates')
+    const activeTemplates: ITemplate[] = await trx<ITemplate>('templates')
       .whereIn('id', ids)
-      .andWhere('status', 'active');
+      .andWhere('status', 'Open');
 
     if (activeTemplates.length !== ids.length) {
       throw new BadRequestException({
