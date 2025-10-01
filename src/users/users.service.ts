@@ -213,11 +213,14 @@ export class UsersService {
     const query = knex<User>('users');
 
     if (filters.created_at_start && filters.created_at_end) {
-      void query.whereBetween('created_at', [filters.created_at_start, filters.created_at_end]);
+      void query.whereRaw('DATE(created_at) BETWEEN ? AND ?', [
+        filters.created_at_start,
+        filters.created_at_end,
+      ]);
     } else if (filters.created_at_start) {
-      void query.where('created_at', '>=', filters.created_at_start);
+      void query.whereRaw('DATE(created_at) >= ?', [filters.created_at_start]);
     } else if (filters.created_at_end) {
-      void query.where('created_at', '<=', filters.created_at_end);
+      void query.whereRaw('DATE(created_at) <= ?', [filters.created_at_end]);
     }
 
     // search
@@ -261,11 +264,14 @@ export class UsersService {
     }
 
     if (filters.birth_date_start && filters.birth_date_end) {
-      void query.whereBetween('birth_date', [filters.birth_date_start, filters.birth_date_end]);
+      void query.whereRaw('DATE(birth_date) BETWEEN ? AND ?', [
+        filters.birth_date_start,
+        filters.birth_date_end,
+      ]);
     } else if (filters.birth_date_start) {
-      void query.where('birth_date', '>=', filters.birth_date_start);
+      void query.whereRaw('DATE(birth_date) >= ?', [filters.birth_date_start]);
     } else if (filters.birth_date_end) {
-      void query.where('birth_date', '<=', filters.birth_date_end);
+      void query.whereRaw('DATE(birth_date) <= ?', [filters.birth_date_end]);
     }
 
     return query;
