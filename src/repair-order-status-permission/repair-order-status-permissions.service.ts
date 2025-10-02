@@ -147,7 +147,6 @@ export class RepairOrderStatusPermissionsService {
       const found: RepairOrderStatusPermission[] = cachedResults
         .flat()
         .filter(Boolean) as RepairOrderStatusPermission[];
-
       const missingRoleIds: string[] = roleIds.filter(
         (_, idx: number): boolean => cachedResults[idx] === null,
       );
@@ -219,6 +218,8 @@ export class RepairOrderStatusPermissionsService {
     let allPermissions: RepairOrderStatusPermission[] = [];
     if (!permissions?.length) {
       allPermissions = await this.findByRolesAndBranch(roleIds, branchId);
+    } else {
+      allPermissions = permissions;
     }
 
     const matched: RepairOrderStatusPermission | undefined = allPermissions.find(
