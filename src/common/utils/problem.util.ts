@@ -27,6 +27,7 @@ export async function validateAndInsertProblems(
 ): Promise<void> {
   if (!problems?.length) return;
 
+  // 🔐 permission check
   await checkPermissionsOrThrow(
     admin.roles,
     branchId,
@@ -36,6 +37,7 @@ export async function validateAndInsertProblems(
     allPermissions,
   );
 
+  // 🔍 phone category uchun root problem topish
   const row = await trx('phone_problem_mappings')
     .where({ phone_category_id: phoneCategoryId })
     .first<{ problem_category_id: string }>();
@@ -48,6 +50,7 @@ export async function validateAndInsertProblems(
     });
   }
 
+  // 🔍 allowed problem IDs olish (recursive CTE)
   const rawResult: Array<{ id: string }> = await trx
     .withRecursive('descendants', (qb) => {
       void qb
@@ -98,63 +101,69 @@ export async function validateAndInsertProblems(
     insertedProblems.map((row) => [row.problem_category_id, row.id]),
   );
 
-  // 🔍 Gather all part IDs
+  // 🔍 Gather all part IDs (can be empty)
   const allPartIds = problems.flatMap((p) => p.parts?.map((pt) => pt.id) || []);
   const uniquePartIds = [...new Set(allPartIds)];
 
-  // 🔐 Validate parts in DB
-  const partRows = await trx('repair_parts')
-    .whereIn('id', uniquePartIds)
-    .select('id', 'problem_category_id');
+  if (uniquePartIds.length > 0) {
+    // 🔐 Validate parts assignments
+    const partRows = await trx('repair_part_assignments')
+      .whereIn('repair_part_id', uniquePartIds)
+      .select('repair_part_id', 'problem_category_id');
 
-  const partMap = Object.fromEntries(partRows.map((r) => [r.id, r.problem_category_id]));
+    const partMap = Object.fromEntries(
+      partRows.map((r) => [r.repair_part_id, r.problem_category_id]),
+    );
 
-  const duplicates = allPartIds.filter((id, index, self) => self.indexOf(id) !== index);
-  if (duplicates.length) {
-    throw new BadRequestException({
-      message: 'Some parts are duplicated',
-      location: locationKey,
-      duplicated_part_ids: [...new Set(duplicates)],
-    });
-  }
+    // 🔍 Duplicates check
+    const duplicates = allPartIds.filter((id, index, self) => self.indexOf(id) !== index);
+    if (duplicates.length) {
+      throw new BadRequestException({
+        message: 'Some parts are duplicated',
+        location: locationKey,
+        duplicated_part_ids: [...new Set(duplicates)],
+      });
+    }
 
-  const invalidParts: string[] = [];
-  for (const problem of problems) {
-    const partList = problem.parts || [];
-    for (const part of partList) {
-      if (partMap[part.id] !== problem.problem_category_id) {
-        invalidParts.push(part.id);
+    // 🔍 Invalid parts check
+    const invalidParts: string[] = [];
+    for (const problem of problems) {
+      const partList = problem.parts || [];
+      for (const part of partList) {
+        if (partMap[part.id] !== problem.problem_category_id) {
+          invalidParts.push(part.id);
+        }
       }
     }
-  }
 
-  if (invalidParts.length) {
-    throw new BadRequestException({
-      message: 'Some parts do not belong to the problem category',
-      location: locationKey,
-      invalid_part_ids: [...new Set(invalidParts)],
+    if (invalidParts.length) {
+      throw new BadRequestException({
+        message: 'Some parts do not belong to the problem category',
+        location: locationKey,
+        invalid_part_ids: [...new Set(invalidParts)],
+      });
+    }
+
+    // 🛠️ Insert repair_order_parts
+    const repairOrderPartsData = problems.flatMap((problem) => {
+      const repair_order_problem_id = problemCategoryToIdMap[problem.problem_category_id];
+      return (problem.parts || []).map((part) => ({
+        repair_order_id: orderId,
+        repair_order_initial_problem_id:
+          tableName === 'repair_order_initial_problems' ? repair_order_problem_id : null,
+        repair_order_final_problem_id:
+          tableName === 'repair_order_final_problems' ? repair_order_problem_id : null,
+        repair_part_id: part.id,
+        part_price: part.part_price,
+        quantity: part.quantity,
+        created_by: admin.id,
+        created_at: now,
+        updated_at: now,
+      }));
     });
-  }
 
-  // 🛠️ Insert repair_order_parts
-  const repairOrderPartsData = problems.flatMap((problem) => {
-    const repair_order_problem_id = problemCategoryToIdMap[problem.problem_category_id];
-    return (problem.parts || []).map((part) => ({
-      repair_order_id: orderId,
-      repair_order_initial_problem_id:
-        tableName === 'repair_order_initial_problems' ? repair_order_problem_id : null,
-      repair_order_final_problem_id:
-        tableName === 'repair_order_final_problems' ? repair_order_problem_id : null,
-      repair_part_id: part.id,
-      part_price: part.part_price,
-      quantity: part.quantity,
-      created_by: admin.id,
-      created_at: now,
-      updated_at: now,
-    }));
-  });
-
-  if (repairOrderPartsData.length > 0) {
-    await trx('repair_order_parts').insert(repairOrderPartsData);
+    if (repairOrderPartsData.length > 0) {
+      await trx('repair_order_parts').insert(repairOrderPartsData);
+    }
   }
 }
