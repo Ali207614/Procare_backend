@@ -11,12 +11,14 @@ import { RepairOrderRentalPhone } from 'src/common/types/repair-order-rental-pho
 import { CreateOrUpdateRentalPhoneDto } from 'src/repair-orders/dto/create-or-update-rental-phone.dto';
 import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
+import { LoggerService } from 'src/common/logger/logger.service';
 
 @Injectable()
 export class RentalPhoneUpdaterService {
   constructor(
     private readonly permissionService: RepairOrderStatusPermissionsService,
     private readonly changeLogger: RepairOrderChangeLoggerService,
+    private readonly logger: LoggerService,
     @InjectQueue('sap') private readonly sapQueue: Queue,
     @InjectKnex() private readonly knex: Knex,
   ) {}
@@ -91,13 +93,25 @@ export class RentalPhoneUpdaterService {
 
     const user = await this.knex('users').where({ id: order.user_id }).first();
 
-    if (user?.sap_card_code) {
-      await this.sapQueue.add('create-rental-order', {
-        repair_order_rental_phone_id: inserted.id,
-        cardCode: user.sap_card_code,
-        itemCode: device.code,
-        startDate: now.toISOString().split('T')[0],
-      });
+    if (user.sap_card_code) {
+      try {
+        await this.sapQueue.add('create-rental-order', {
+          repair_order_rental_phone_id: inserted.id,
+          cardCode: user.sap_card_code,
+          itemCode: device.code,
+          startDate: new Date().toISOString().split('T')[0],
+        });
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Unknown error while adding SAP queue job';
+
+        this.logger.error(`Failed to add SAP queue job for rental order: ${message}`);
+
+        throw new BadRequestException({
+          message: 'Failed to create SAP rental order',
+          location: 'sap_queue',
+        });
+      }
     }
 
     await this.changeLogger.logIfChanged(

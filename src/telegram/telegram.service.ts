@@ -16,12 +16,11 @@ export class TelegramService {
 
   async sendMessage(chatId: string | number, text: string): Promise<AxiosResponse<any>> {
     try {
-      const res = await axios.post(`${this.baseUrl}/sendMessage`, {
+      return axios.post(`${this.baseUrl}/sendMessage`, {
         chat_id: chatId,
         text,
         parse_mode: 'HTML',
       });
-      return res;
     } catch (err: any) {
       if (err.response?.status === 429) {
         const retryAfter = err.response.data.parameters?.retry_after || 5;

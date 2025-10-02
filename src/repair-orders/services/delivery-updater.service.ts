@@ -47,9 +47,15 @@ export class DeliveryUpdaterService {
     );
 
     if (delivery?.courier_id) {
-      const courier = await this.knex('admins')
-        .where({ id: delivery.courier_id, is_active: true, status: 'Open' })
-        .first();
+      const courier = await this.knex('admins as a')
+        .join('admin_branches as ab', 'a.id', 'ab.admin_id')
+        .where({
+          'a.id': delivery.courier_id,
+          'a.is_active': true,
+          'a.status': 'Open',
+          'ab.branch_id': order.branch_id,
+        })
+        .first('a.*');
       if (!courier) {
         throw new BadRequestException({
           message: 'Courier not found or inactive',
@@ -110,9 +116,15 @@ export class DeliveryUpdaterService {
     );
 
     if (delivery?.courier_id) {
-      const courier = await this.knex('admins')
-        .where({ id: delivery.courier_id, is_active: true, status: 'Open' })
-        .first();
+      const courier = await this.knex('admins as a')
+        .join('admin_branches as ab', 'a.id', 'ab.admin_id')
+        .where({
+          'a.id': delivery.courier_id,
+          'a.is_active': true,
+          'a.status': 'Open',
+          'ab.branch_id': order.branch_id,
+        })
+        .first('a.*');
       if (!courier) {
         throw new BadRequestException({
           message: 'Courier not found or inactive',

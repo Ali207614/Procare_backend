@@ -17,7 +17,6 @@ import { createBullBoard } from '@bull-board/api';
 import { BullAdapter } from '@bull-board/api/bullAdapter';
 import { ExpressAdapter } from '@bull-board/express';
 import { getQueueToken as getBullToken } from '@nestjs/bull';
-import { getQueueToken as getBullMQToken } from '@nestjs/bullmq';
 import { Queue as BullQueue } from 'bull';
 import { Queue as BullMQQueue } from 'bullmq';
 import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';

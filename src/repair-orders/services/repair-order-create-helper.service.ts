@@ -123,30 +123,25 @@ export class RepairOrderCreateHelperService {
         if (user) await this.redisService.set(userCacheKey, user, 3600);
       }
 
-      if (!user?.sap_card_code) {
-        throw new BadRequestException({
-          message: 'User has no SAP card code. Cannot create rental order.',
-          location: 'user_id',
-        });
-      }
+      if (user?.sap_card_code) {
+        try {
+          await this.sapQueue.add('create-rental-order', {
+            repair_order_rental_phone_id: inserted.id,
+            cardCode: user.sap_card_code,
+            itemCode: device.code,
+            startDate: new Date().toISOString().split('T')[0],
+          });
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : 'Unknown error while adding SAP queue job';
 
-      try {
-        await this.sapQueue.add('create-rental-order', {
-          repair_order_rental_phone_id: inserted.id,
-          cardCode: user.sap_card_code,
-          itemCode: device.code,
-          startDate: new Date().toISOString().split('T')[0],
-        });
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Unknown error while adding SAP queue job';
+          this.logger.error(`Failed to add SAP queue job for rental order: ${message}`);
 
-        this.logger.error(`Failed to add SAP queue job for rental order: ${message}`);
-
-        throw new BadRequestException({
-          message: 'Failed to create SAP rental order',
-          location: 'sap_queue',
-        });
+          throw new BadRequestException({
+            message: 'Failed to create SAP rental order',
+            location: 'sap_queue',
+          });
+        }
       }
 
       this.logger.log(`Inserted rental phone for repair order ${orderId}`);
@@ -402,19 +397,19 @@ export class RepairOrderCreateHelperService {
     if (!dto.pickup) return;
 
     try {
-      this.logger.log(`Inserting pickup details for repair order ${orderId}`);
       if (dto.pickup.courier_id) {
         const courierCacheKey = `${this.redisKeyAdmin}${dto.pickup.courier_id}`;
         let courier = await this.redisService.get(courierCacheKey);
         if (!courier) {
-          courier = await trx('admins')
+          courier = await trx('admins as a')
+            .join('admin_branches as ab', 'a.id', 'ab.admin_id')
             .where({
-              id: dto.pickup.courier_id,
-              is_active: true,
-              status: 'Open',
-              branch_id: branchId,
+              'a.id': dto.pickup.courier_id,
+              'a.is_active': true,
+              'a.status': 'Open',
+              'ab.branch_id': branchId,
             })
-            .first();
+            .first('a.*');
           if (courier) await this.redisService.set(courierCacheKey, courier, 3600);
         }
 
@@ -436,6 +431,7 @@ export class RepairOrderCreateHelperService {
       );
 
       await trx('repair_order_pickups').insert({
+        repair_order_id: orderId,
         ...dto.pickup,
         created_by: admin.id,
         created_at: new Date(),
@@ -471,14 +467,15 @@ export class RepairOrderCreateHelperService {
         const courierCacheKey = `${this.redisKeyAdmin}${dto.delivery.courier_id}`;
         let courier = await this.redisService.get(courierCacheKey);
         if (!courier) {
-          courier = await trx('admins')
+          courier = await trx('admins as a')
+            .join('admin_branches as ab', 'a.id', 'ab.admin_id')
             .where({
-              id: dto.delivery.courier_id,
-              is_active: true,
-              status: 'Open',
-              branch_id: branchId,
+              'a.id': dto.delivery.courier_id,
+              'a.is_active': true,
+              'a.status': 'Open',
+              'ab.branch_id': branchId,
             })
-            .first();
+            .first('a.*');
           if (courier) await this.redisService.set(courierCacheKey, courier, 3600);
         }
 
@@ -500,6 +497,7 @@ export class RepairOrderCreateHelperService {
       );
 
       await trx('repair_order_deliveries').insert({
+        repair_order_id: orderId,
         ...dto.delivery,
         created_by: admin.id,
         created_at: new Date(),

@@ -119,7 +119,6 @@ export class RepairOrdersService {
 
       await trx.commit();
       await this.redisService.flushByPrefix(`${this.table}:${branchId}`);
-      this.logger.log(`Created repair order ${order.id}`);
       return order;
     } catch (err) {
       await trx.rollback();
@@ -139,7 +138,6 @@ export class RepairOrdersService {
   ): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
-      this.logger.log(`Updating repair order ${orderId} by admin ${admin.id}`);
       const order: RepairOrder | undefined = await trx(this.table)
         .where({ id: orderId, status: 'Open' })
         .first();
@@ -224,7 +222,6 @@ export class RepairOrdersService {
 
       await trx.commit();
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
-      this.logger.log(`Updated repair order ${orderId}`);
       return { message: 'Repair order updated successfully' };
     } catch (err) {
       await trx.rollback();
@@ -240,7 +237,6 @@ export class RepairOrdersService {
   ): Promise<Record<string, FreshRepairOrder[]>> {
     const { offset = 0, limit = 20, sort_by = 'sort', sort_order = 'asc' } = query;
 
-    this.logger.log(`Fetching repair orders for admin ${admin.id} in branch ${branchId}`);
     const permissions = await this.permissionService.findByRolesAndBranch(admin.roles, branchId);
     const statusIds = permissions.filter((p) => p.can_view).map((p) => p.status_id);
     if (!statusIds.length) return {};
@@ -248,7 +244,6 @@ export class RepairOrdersService {
     const cacheKey = `${this.table}:${branchId}:${admin.id}:${sort_by}:${sort_order}:${offset}:${limit}`;
     const cached: Record<string, FreshRepairOrder[]> | null = await this.redisService.get(cacheKey);
     if (cached) {
-      this.logger.debug(`Cache hit for repair orders: ${cacheKey}`);
       return cached;
     }
 
@@ -278,14 +273,12 @@ export class RepairOrdersService {
     }
 
     await this.redisService.set(cacheKey, result, 300);
-    this.logger.log(`Fetched ${freshOrders.length} repair orders`);
     return result;
   }
 
   async softDelete(admin: AdminPayload, orderId: string): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
-      this.logger.log(`Soft deleting repair order ${orderId} by admin ${admin.id}`);
       const order: RepairOrder | undefined = await trx(this.table)
         .where({ id: orderId, status: 'Open' })
         .first();
@@ -320,7 +313,6 @@ export class RepairOrdersService {
 
       await trx.commit();
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
-      this.logger.log(`Soft deleted repair order ${orderId}`);
       return { message: 'Repair order deleted successfully' };
     } catch (err) {
       await trx.rollback();
@@ -330,7 +322,6 @@ export class RepairOrdersService {
   }
 
   async findById(admin: AdminPayload, orderId: string): Promise<RepairOrderDetails> {
-    this.logger.log(`Fetching repair order ${orderId} for admin ${admin.id}`);
     const query = loadSQL('repair-orders/queries/find-by-id.sql');
     const result: { rows: RepairOrderDetails[] } = await this.knex.raw(query, { orderId });
     const order = result.rows[0];
@@ -348,7 +339,6 @@ export class RepairOrdersService {
       permissions,
     );
 
-    this.logger.log(`Fetched repair order ${orderId}`);
     return order;
   }
 
@@ -397,7 +387,6 @@ export class RepairOrdersService {
   ): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
-      this.logger.log(`Moving repair order ${orderId} by admin ${admin.id}`);
       const order: RepairOrder | undefined = await trx(this.table)
         .where({ id: orderId, status: 'Open' })
         .first();
@@ -445,7 +434,6 @@ export class RepairOrdersService {
       await this.changeLogger.logMultipleFieldsIfChanged(trx, orderId, logs, admin.id);
       await trx.commit();
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
-      this.logger.log(`Moved repair order ${orderId}`);
       return { message: 'Repair order moved successfully' };
     } catch (err) {
       await trx.rollback();
@@ -461,7 +449,6 @@ export class RepairOrdersService {
   ): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
-      this.logger.log(`Updating sort for repair order ${orderId} by admin ${admin.id}`);
       const order: RepairOrder | undefined = await trx(this.table)
         .where({ id: orderId, status: 'Open' })
         .first();
@@ -505,7 +492,6 @@ export class RepairOrdersService {
 
       await trx.commit();
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
-      this.logger.log(`Updated sort for repair order ${orderId}`);
       return { message: 'Repair order sort updated successfully' };
     } catch (err) {
       await trx.rollback();
