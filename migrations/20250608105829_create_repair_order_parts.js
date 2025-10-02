@@ -11,14 +11,14 @@ exports.up = async function (knex) {
 
     table
       .uuid('repair_order_initial_problem_id')
-      .notNullable()
+      .nullable()
       .references('id')
       .inTable('repair_order_initial_problems')
       .onDelete('CASCADE');
 
     table
       .uuid('repair_order_final_problem_id')
-      .notNullable()
+      .nullable()
       .references('id')
       .inTable('repair_order_final_problems')
       .onDelete('CASCADE');
