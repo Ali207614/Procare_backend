@@ -169,8 +169,7 @@ SELECT
         WHERE c.repair_order_id = ro.id AND c.status = 'Open'
     ), '[]'::json) AS comments,
     COALESCE((
-        SELECT json_agg(
-            jsonb_build_object(
+           select jsonb_build_object(
                 'id', p.id,
                 'lat', p.lat,
                 'long', p.long,
@@ -192,10 +191,10 @@ SELECT
                 'created_at', p.created_at,
                 'updated_at', p.updated_at
             )
-        )
         FROM repair_order_pickups p
         WHERE p.repair_order_id = ro.id AND p.status = 'Open'
-    ), '[]'::json) AS pickups,
+        LIMIT 1
+    ), '{}'::jsonb) AS pickups,
     COALESCE((
         SELECT jsonb_build_object(
             'id', d.id,
@@ -219,7 +218,7 @@ SELECT
             'updated_at', d.updated_at
         )
         FROM repair_order_deliveries d
-        WHERE d.repair_order_id = ro.id
+        WHERE d.repair_order_id = ro.id and d.status = 'Open'
         LIMIT 1
     ), '{}'::jsonb) AS delivery,
     COALESCE((

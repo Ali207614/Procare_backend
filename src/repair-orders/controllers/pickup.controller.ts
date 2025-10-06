@@ -23,20 +23,20 @@ export class PickupController {
     return this.pickupUpdater.create(orderId, dto, admin);
   }
 
-  @Patch()
+  @Patch(':pickup_id')
   async update(
-    @Param('repair_order_id') orderId: string,
+    @Param('pickup_id') pickupId: string,
     @Body() dto: CreateOrUpdatePickupDto,
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<{ message: string } | undefined> {
-    return this.pickupUpdater.update(orderId, dto, admin);
+    return this.pickupUpdater.update(pickupId, dto, admin);
   }
 
-  @Delete()
+  @Delete(':pickup_id')
   async delete(
-    @Param('repair_order_id') orderId: string,
+    @Param('pickup_id') pickup_id: string,
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<{ message: string } | undefined> {
-    return this.pickupUpdater.delete(orderId, admin);
+    return this.pickupUpdater.delete(pickup_id, admin);
   }
 }

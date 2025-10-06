@@ -13,6 +13,7 @@ exports.up = async function (knex) {
     table.decimal('long', 10, 7).notNullable();
     table.string('description').notNullable();
     table.boolean('is_main').defaultTo(false);
+    table.enu('status', ['Open', 'Deleted']).defaultTo('Open');
     table.uuid('courier_id').nullable().references('id').inTable('admins').onDelete('SET NULL');
     table.uuid('created_by').notNullable().references('id').inTable('admins').onDelete('RESTRICT');
 

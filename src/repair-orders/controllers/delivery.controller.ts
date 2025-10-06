@@ -24,20 +24,20 @@ export class DeliveryController {
     return this.deliveryUpdater.create(orderId, dto, admin);
   }
 
-  @Patch()
+  @Patch(':delivery_id')
   async update(
-    @Param('repair_order_id', ParseUUIDPipe) orderId: string,
+    @Param('delivery_id', ParseUUIDPipe) delivery_id: string,
     @Body() dto: CreateOrUpdateDeliveryDto,
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<{ message: string } | undefined> {
-    return this.deliveryUpdater.update(orderId, dto, admin);
+    return this.deliveryUpdater.update(delivery_id, dto, admin);
   }
 
-  @Delete()
+  @Delete(':delivery_id')
   async delete(
-    @Param('repair_order_id') orderId: string,
+    @Param('delivery_id') delivery_id: string,
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<{ message: string } | undefined> {
-    return this.deliveryUpdater.delete(orderId, admin);
+    return this.deliveryUpdater.delete(delivery_id, admin);
   }
 }

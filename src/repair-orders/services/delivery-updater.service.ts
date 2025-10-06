@@ -25,7 +25,7 @@ export class DeliveryUpdaterService {
     if (!delivery) return;
 
     const order: RepairOrder | undefined = await this.knex('repair_orders')
-      .where({ id: orderId })
+      .where({ id: orderId, status: 'Open' })
       .first();
 
     if (!order) {
@@ -87,14 +87,22 @@ export class DeliveryUpdaterService {
   }
 
   async update(
-    orderId: string,
+    deliveryId: string,
     delivery: CreateOrUpdateDeliveryDto,
     admin: AdminPayload,
-  ): Promise<{ message: string } | undefined> {
-    if (!delivery) return;
+  ): Promise<{ message: string }> {
+    const old: RepairOrderDelivery | undefined = await this.knex('repair_order_deliveries')
+      .where({ id: deliveryId, status: 'Open' })
+      .first();
+    if (!old) {
+      throw new BadRequestException({
+        message: 'Delivery not found',
+        location: 'delivery_id',
+      });
+    }
 
-    const order: RepairOrder | undefined = await this.knex('repair_orders')
-      .where({ id: orderId })
+    const order = await this.knex<RepairOrder>('repair_orders')
+      .where({ id: old.repair_order_id })
       .first();
 
     if (!order) {
@@ -104,8 +112,10 @@ export class DeliveryUpdaterService {
       });
     }
 
-    const allPermissions: RepairOrderStatusPermission[] =
-      await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    const allPermissions = await this.permissionService.findByRolesAndBranch(
+      admin.roles,
+      order.branch_id,
+    );
     await this.permissionService.checkPermissionsOrThrow(
       admin.roles,
       order.branch_id,
@@ -125,6 +135,7 @@ export class DeliveryUpdaterService {
           'ab.branch_id': order.branch_id,
         })
         .first('a.*');
+
       if (!courier) {
         throw new BadRequestException({
           message: 'Courier not found or inactive',
@@ -133,34 +144,44 @@ export class DeliveryUpdaterService {
       }
     }
 
-    const old = await this.knex('repair_order_deliveries')
-      .where({ repair_order_id: orderId })
-      .first();
-
-    await this.knex('repair_order_deliveries').where({ repair_order_id: orderId }).delete();
-
     const now = new Date();
-
-    const row = {
-      courier_id: delivery.courier_id,
-      repair_order_id: orderId,
-      lat: delivery.lat,
-      long: delivery.long,
-      description: delivery.description,
-      created_by: admin.id,
-      created_at: now,
+    const updatedRow = {
+      courier_id: delivery?.courier_id ?? old.courier_id,
+      lat: delivery.lat ?? old.lat,
+      long: delivery.long ?? old.long,
+      description: delivery.description ?? old.description,
       updated_at: now,
+      updated_by: admin.id,
     };
 
-    await this.knex('repair_order_deliveries').insert(row);
-    await this.changeLogger.logIfChanged(this.knex, orderId, 'delivery', old, row, admin.id);
+    await this.knex('repair_order_deliveries').where({ id: deliveryId }).update(updatedRow);
+
+    await this.changeLogger.logIfChanged(
+      this.knex,
+      old.repair_order_id,
+      'delivery',
+      old,
+      updatedRow,
+      admin.id,
+    );
 
     return { message: '✅ Delivery updated' };
   }
 
-  async delete(orderId: string, admin: AdminPayload): Promise<{ message: string } | undefined> {
-    const order: RepairOrder | undefined = await this.knex<RepairOrder>('repair_orders')
-      .where({ id: orderId })
+  async delete(deliveryId: string, admin: AdminPayload): Promise<{ message: string }> {
+    const old: RepairOrderDelivery | undefined = await this.knex('repair_order_deliveries')
+      .where({ id: deliveryId, status: 'Open' })
+      .first();
+
+    if (!old) {
+      throw new BadRequestException({
+        message: 'Delivery not found',
+        location: 'delivery_id',
+      });
+    }
+
+    const order = await this.knex<RepairOrder>('repair_orders')
+      .where({ id: old.repair_order_id })
       .first();
 
     if (!order) {
@@ -170,26 +191,33 @@ export class DeliveryUpdaterService {
       });
     }
 
-    const allPermissions: RepairOrderStatusPermission[] =
-      await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    const allPermissions = await this.permissionService.findByRolesAndBranch(
+      admin.roles,
+      order.branch_id,
+    );
     await this.permissionService.checkPermissionsOrThrow(
       admin.roles,
       order.branch_id,
       order.status_id,
-      ['can_pickup_manage'],
+      ['can_delivery_manage'],
       'repair_order_delivery',
       allPermissions,
     );
 
-    const old = await this.knex('repair_order_deliveries')
-      .where({ repair_order_id: orderId })
-      .first();
+    await this.knex('repair_order_deliveries').where({ id: deliveryId, status: 'Open' }).update({
+      status: 'Deleted',
+      updated_at: this.knex.fn.now(),
+      updated_by: admin.id,
+    });
 
-    if (!old) return;
-
-    await this.knex('repair_order_deliveries').where({ repair_order_id: orderId }).delete();
-
-    await this.changeLogger.logIfChanged(this.knex, orderId, 'delivery', old, null, admin.id);
+    await this.changeLogger.logIfChanged(
+      this.knex,
+      old.repair_order_id,
+      'delivery',
+      old,
+      null,
+      admin.id,
+    );
 
     return { message: '🗑️ Delivery deleted' };
   }

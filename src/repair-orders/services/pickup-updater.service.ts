@@ -86,14 +86,25 @@ export class PickupUpdaterService {
   }
 
   async update(
-    orderId: string,
-    pickup: any,
+    pickupId: string,
+    pickup: CreateOrUpdatePickupDto,
     admin: AdminPayload,
-  ): Promise<{ message: string } | undefined> {
-    if (!pickup) return;
+  ): Promise<{ message: string }> {
+    const old: RepairOrderPickup | undefined = await this.knex<RepairOrderPickup>(
+      'repair_order_pickups',
+    )
+      .where({ id: pickupId, status: 'Open' })
+      .first();
+
+    if (!old) {
+      throw new BadRequestException({
+        message: 'Pickup not found',
+        location: 'pickup_id',
+      });
+    }
 
     const order: RepairOrder | undefined = await this.knex('repair_orders')
-      .where({ id: orderId })
+      .where({ id: old.repair_order_id })
       .first();
 
     if (!order) {
@@ -103,14 +114,16 @@ export class PickupUpdaterService {
       });
     }
 
-    const allPermissions: RepairOrderStatusPermission[] =
-      await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    const allPermissions = await this.permissionService.findByRolesAndBranch(
+      admin.roles,
+      order.branch_id,
+    );
     await this.permissionService.checkPermissionsOrThrow(
       admin.roles,
       order.branch_id,
       order.status_id,
       ['can_pickup_manage'],
-      'repair_order_delivery',
+      'repair_order_pickup',
       allPermissions,
     );
 
@@ -124,6 +137,7 @@ export class PickupUpdaterService {
           'ab.branch_id': order.branch_id,
         })
         .first('a.*');
+
       if (!courier) {
         throw new BadRequestException({
           message: 'Courier not found or inactive',
@@ -132,31 +146,46 @@ export class PickupUpdaterService {
       }
     }
 
-    const old = await this.knex('repair_order_pickups').where({ repair_order_id: orderId }).first();
-    if (!old) return;
-
-    await this.knex('repair_order_pickups').where({ repair_order_id: orderId }).delete();
-
     const now = new Date();
-    const row = {
-      courier_id: pickup?.courier_id,
-      repair_order_id: orderId,
-      lat: pickup.lat,
-      long: pickup.long,
-      description: pickup.description,
-      created_by: admin.id,
-      created_at: now,
+    const updatedRow = {
+      courier_id: pickup?.courier_id ?? old.courier_id,
+      lat: pickup.lat ?? old.lat,
+      long: pickup.long ?? old.long,
+      description: pickup.description ?? old.description,
       updated_at: now,
+      updated_by: admin.id,
     };
 
-    await this.knex('repair_order_pickups').insert(row);
-    await this.changeLogger.logIfChanged(this.knex, orderId, 'pickup', old, row, admin.id);
+    await this.knex('repair_order_pickups').where({ id: pickupId }).update(updatedRow);
+
+    await this.changeLogger.logIfChanged(
+      this.knex,
+      old.repair_order_id,
+      'pickup',
+      old,
+      updatedRow,
+      admin.id,
+    );
+
     return { message: '✅ Pickup updated' };
   }
 
-  async delete(orderId: string, admin: AdminPayload): Promise<{ message: string } | undefined> {
-    const order: RepairOrder | undefined = await this.knex<RepairOrder>('repair_orders')
-      .where({ id: orderId })
+  async delete(pickupId: string, admin: AdminPayload): Promise<{ message: string }> {
+    const old: RepairOrderPickup | undefined = await this.knex<RepairOrderPickup>(
+      'repair_order_pickups',
+    )
+      .where({ id: pickupId, status: 'Open' })
+      .first();
+
+    if (!old) {
+      throw new BadRequestException({
+        message: 'Pickup not found',
+        location: 'pickup_id',
+      });
+    }
+
+    const order: RepairOrder | undefined = await this.knex('repair_orders')
+      .where({ id: old.repair_order_id })
       .first();
 
     if (!order) {
@@ -166,24 +195,33 @@ export class PickupUpdaterService {
       });
     }
 
-    const allPermissions: RepairOrderStatusPermission[] =
-      await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    const allPermissions = await this.permissionService.findByRolesAndBranch(
+      admin.roles,
+      order.branch_id,
+    );
     await this.permissionService.checkPermissionsOrThrow(
       admin.roles,
       order.branch_id,
       order.status_id,
       ['can_pickup_manage'],
-      'repair_order_delivery',
+      'repair_order_pickup',
       allPermissions,
     );
 
-    const old = await this.knex('repair_order_pickups').where({ repair_order_id: orderId }).first();
+    await this.knex('repair_order_pickups').where({ id: pickupId, status: 'Open' }).update({
+      status: 'Deleted',
+      updated_at: this.knex.fn.now(),
+      updated_by: admin.id,
+    });
 
-    if (!old) return;
-
-    await this.knex('repair_order_pickups').where({ repair_order_id: orderId }).delete();
-
-    await this.changeLogger.logIfChanged(this.knex, orderId, 'pickup', old, null, admin.id);
+    await this.changeLogger.logIfChanged(
+      this.knex,
+      old.repair_order_id,
+      'pickup',
+      old,
+      null,
+      admin.id,
+    );
 
     return { message: '🗑️ Pickup deleted' };
   }
