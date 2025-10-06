@@ -246,7 +246,7 @@ export class RepairOrdersService {
       return {};
     }
 
-    const cacheKey = `${this.table}${branchId}:${admin.id}:${sort_by}:${sort_order}:${offset}:${limit}`;
+    const cacheKey = `${this.table}:${branchId}:${admin.id}:${sort_by}:${sort_order}:${offset}:${limit}`;
     const cached: Record<string, FreshRepairOrder[]> | null = await this.redisService.get(cacheKey);
     console.log(cached, ' bu cahed');
     if (cached) {
