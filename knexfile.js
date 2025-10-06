@@ -1,6 +1,5 @@
-import fs from 'fs';
-import dotenv from 'dotenv';
-
+const fs = require('fs');
+const dotenv = require('dotenv');
 const envFile = '.env';
 
 if (fs.existsSync(envFile)) {
