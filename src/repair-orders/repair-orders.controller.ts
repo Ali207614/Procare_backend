@@ -16,8 +16,7 @@ import { CreateRepairOrderDto } from './dto/create-repair-order.dto';
 import { UpdateRepairOrderDto } from './dto/update-repair-order.dto';
 import { BranchExistGuard } from 'src/common/guards/branch-exist.guard';
 import { RepairOrderStatusExistGuard } from 'src/common/guards/repair-order-status-exist.guard';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { PaginationQuery } from 'src/common/types/pagination-query.interface';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { MoveRepairOrderDto } from './dto/move-repair-order.dto';
 import { UpdateRepairOrderSortDto } from './dto/update-repair-order-sort.dto';
@@ -29,6 +28,7 @@ import {
   RepairOrder,
   RepairOrderDetails,
 } from 'src/common/types/repair-order.interface';
+import { FindAllRepairOrdersQueryDto } from 'src/repair-orders/dto/find-all-repair-orders.dto';
 
 @ApiTags('Repair Orders')
 @ApiBearerAuth()
@@ -61,15 +61,10 @@ export class RepairOrdersController {
 
   @Get()
   @UseGuards(BranchExistGuard)
-  @ApiQuery({ name: 'offset', required: false })
-  @ApiQuery({ name: 'limit', required: false })
-  @ApiQuery({ name: 'sort_by', enum: ['sort', 'priority', 'created_at'], required: false })
-  @ApiQuery({ name: 'sort_order', enum: ['asc', 'desc'], required: false })
   @ApiOperation({ summary: 'Get all repair orders by branchId (can_view only)' })
-  @ApiQuery({ name: 'branch_id', description: 'Branch ID', required: true })
   findAllByBranch(
     @Req() req: AuthenticatedRequest,
-    @Query() query: PaginationQuery,
+    @Query() query: FindAllRepairOrdersQueryDto,
   ): Promise<Record<string, FreshRepairOrder[]>> {
     return this.service.findAllByAdminBranch(req.admin, req.branch.id, query);
   }

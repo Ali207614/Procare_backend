@@ -14,7 +14,6 @@ exports.up = async function (knex) {
     table.string('description').notNullable();
     table.boolean('is_main').defaultTo(false);
     table.uuid('courier_id').nullable().references('id').inTable('admins').onDelete('SET NULL');
-    table.enu('status', ['Open', 'Deleted']).defaultTo('Open');
     table.uuid('created_by').notNullable().references('id').inTable('admins').onDelete('RESTRICT');
 
     table.timestamp('created_at').defaultTo(knex.fn.now());

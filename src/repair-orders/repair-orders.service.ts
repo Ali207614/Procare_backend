@@ -3,7 +3,6 @@ import { InjectKnex } from 'nestjs-knex';
 import { Knex } from 'knex';
 import { getNextSortValue } from 'src/common/utils/sort.util';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
-import { PaginationQuery } from 'src/common/types/pagination-query.interface';
 import { RedisService } from 'src/common/redis/redis.service';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
 import {
@@ -21,6 +20,7 @@ import { LoggerService } from 'src/common/logger/logger.service';
 import { CreateRepairOrderDto } from 'src/repair-orders/dto/create-repair-order.dto';
 import { UpdateRepairOrderDto } from 'src/repair-orders/dto/update-repair-order.dto';
 import { MoveRepairOrderDto } from 'src/repair-orders/dto/move-repair-order.dto';
+import { FindAllRepairOrdersQueryDto } from 'src/repair-orders/dto/find-all-repair-orders.dto';
 
 @Injectable()
 export class RepairOrdersService {
@@ -233,47 +233,54 @@ export class RepairOrdersService {
   async findAllByAdminBranch(
     admin: AdminPayload,
     branchId: string,
-    query: PaginationQuery,
+    query: FindAllRepairOrdersQueryDto,
   ): Promise<Record<string, FreshRepairOrder[]>> {
-    const { offset = 0, limit = 20, sort_by = 'sort', sort_order = 'asc' } = query;
+    const { offset, limit, sort_by, sort_order } = query;
 
-    const permissions = await this.permissionService.findByRolesAndBranch(admin.roles, branchId);
-    const statusIds = permissions.filter((p) => p.can_view).map((p) => p.status_id);
-    if (!statusIds.length) return {};
+    // 1️⃣ Admin uchun ko‘rish mumkin bo‘lgan statuslarni olish
+    const permissions: RepairOrderStatusPermission[] =
+      await this.permissionService.findByRolesAndBranch(admin.roles, branchId);
 
-    const cacheKey = `${this.table}:${branchId}:${admin.id}:${sort_by}:${sort_order}:${offset}:${limit}`;
+    const statusIds: string[] = permissions.filter((p) => p.can_view).map((p) => p.status_id);
+
+    if (!statusIds.length) {
+      return {};
+    }
+
+    const cacheKey = `${this.table}${branchId}:${admin.id}:${sort_by}:${sort_order}:${offset}:${limit}`;
     const cached: Record<string, FreshRepairOrder[]> | null = await this.redisService.get(cacheKey);
+    console.log(cached, ' bu cahed');
     if (cached) {
       return cached;
     }
 
-    const freshOrders = await this.knex<FreshRepairOrder>('repair_orders as ro')
-      .leftJoin('users as u', 'ro.user_id', 'u.id')
-      .leftJoin('repair_order_pickups as p', 'ro.id', 'p.repair_order_id')
-      .leftJoin('repair_order_deliveries as d', 'ro.id', 'd.repair_order_id')
-      .leftJoin('phone_categories as pc', 'ro.phone_category_id', 'pc.id')
-      .select(
-        'ro.*',
-        'u.first_name as client_first_name',
-        'u.last_name as client_last_name',
-        'u.phone_number as client_phone_number',
-        'p.description as pickup_description',
-        'd.description as delivery_description',
-        'pc.name_uz as phone_name',
-      )
-      .where({ 'ro.branch_id': branchId, 'ro.status': 'Open' })
-      .whereIn('ro.status_id', statusIds)
-      .orderBy('ro.status_id')
-      .orderBy(`ro.${sort_by}`, sort_order);
+    const orderClause = `ORDER BY ro.status_id, ro.${sort_by} ${sort_order.toUpperCase()}`;
 
-    const result: Record<string, FreshRepairOrder[]> = {};
-    for (const statusId of statusIds) {
-      const filtered = freshOrders.filter((o) => o.status_id === statusId);
-      result[statusId] = filtered.slice(offset, offset + limit);
+    const querySql = loadSQL('repair-orders/queries/find-all-by-admin-branch.sql').replace(
+      '/*ORDER_CLAUSE*/',
+      orderClause,
+    );
+
+    try {
+      const freshOrders: FreshRepairOrder[] = await this.knex
+        .raw(querySql, { branchId, statusIds, limit, offset })
+        .then((r) => r.rows as FreshRepairOrder[]);
+      console.log(freshOrders);
+      const result: Record<string, FreshRepairOrder[]> = {};
+      for (const statusId of statusIds) {
+        result[statusId] = freshOrders.filter(
+          (o: FreshRepairOrder) => o.repair_order_status.id === statusId,
+        );
+      }
+
+      await this.redisService.set(cacheKey, result, 1800);
+
+      return result;
+    } catch (error) {
+      this.logger.error(`Failed to get all repair orders:`);
+      if (error instanceof HttpException) throw error;
+      throw error;
     }
-
-    await this.redisService.set(cacheKey, result, 300);
-    return result;
   }
 
   async softDelete(admin: AdminPayload, orderId: string): Promise<{ message: string }> {
@@ -322,24 +329,32 @@ export class RepairOrdersService {
   }
 
   async findById(admin: AdminPayload, orderId: string): Promise<RepairOrderDetails> {
-    const query = loadSQL('repair-orders/queries/find-by-id.sql');
-    const result: { rows: RepairOrderDetails[] } = await this.knex.raw(query, { orderId });
-    const order = result.rows[0];
+    try {
+      const query = loadSQL('repair-orders/queries/find-by-id.sql');
+      const result: { rows: RepairOrderDetails[] } = await this.knex.raw(query, { orderId });
+      const order: RepairOrderDetails = result.rows[0];
 
-    if (!order) throw new NotFoundException('Repair order not found');
+      if (!order) throw new NotFoundException('Repair order not found');
 
-    const permissions: RepairOrderStatusPermission[] =
-      await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
-    await this.permissionService.checkPermissionsOrThrow(
-      admin.roles,
-      order.branch_id,
-      order.status_id,
-      ['can_view'],
-      'repair_order_view',
-      permissions,
-    );
+      const permissions: RepairOrderStatusPermission[] =
+        await this.permissionService.findByRolesAndBranch(admin.roles, order.branch.id);
+      await this.permissionService.checkPermissionsOrThrow(
+        admin.roles,
+        order.branch.id,
+        order.repair_order_status.id,
+        ['can_view'],
+        'repair_order_view',
+        permissions,
+      );
 
-    return order;
+      return order;
+    } catch (err) {
+      if (err instanceof HttpException) {
+        throw err;
+      }
+      this.logger.error(`Failed to get one repair order:`);
+      throw err;
+    }
   }
 
   async sendStatusChangeNotification(
