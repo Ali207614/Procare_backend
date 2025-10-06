@@ -235,9 +235,8 @@ export class RepairOrdersService {
     branchId: string,
     query: FindAllRepairOrdersQueryDto,
   ): Promise<Record<string, FreshRepairOrder[]>> {
-    const { offset, limit, sort_by, sort_order } = query;
+    const { offset, limit, sort_by = 'sort', sort_order = 'asc' } = query;
 
-    // 1️⃣ Admin uchun ko‘rish mumkin bo‘lgan statuslarni olish
     const permissions: RepairOrderStatusPermission[] =
       await this.permissionService.findByRolesAndBranch(admin.roles, branchId);
 
