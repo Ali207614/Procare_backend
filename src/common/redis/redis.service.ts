@@ -3,9 +3,18 @@ import Redis from 'ioredis';
 import * as lz4 from 'lz4';
 import { LoggerService } from 'src/common/logger/logger.service';
 
+type JsonValue = unknown;
+
+enum StoredFormat {
+  RAW = 'RAW:', // siqilmagan JSON (string)
+  LZ4 = 'LZ4:', // LZ4 siqilgan, base64 qilingan
+}
+
 @Injectable()
 export class RedisService {
   private readonly prefix = process.env.REDIS_PREFIX || 'procare';
+  // kichkina payloadlarni siqmaslik uchun pragmatik threshold
+  private readonly rawThreshold = 100; // bytes (JSON uzunligiga qaraladi)
 
   constructor(
     @Inject('REDIS_CLIENT') private readonly client: Redis | null,
@@ -23,67 +32,90 @@ export class RedisService {
     }
 
     try {
+      const s = this.client.status; // 'connecting' | 'ready' | 'end' | 'wait' | ...
+      if (s !== 'ready') {
+        // ioredis v5: connect(): Promise<void>
+        // ioredis v4: connect(): Promise<Redis>
+        await (this.client as any).connect?.();
+      }
       if (this.client.status !== 'ready') {
-        await this.client.connect();
+        this.logger.warn(`⚠️ Redis not ready (status=${this.client.status}), skipping`);
+        return false;
       }
       return true;
     } catch (err) {
-      this.logger.warn('⚠️ Redis connection failed, skipping operation');
+      this.logger.warn(`⚠️ Redis connection failed: ${(err as Error).message}`);
       return false;
     }
   }
 
-  async set(key: string, value: unknown, ttlSeconds = 3600): Promise<void> {
+  /**
+   * Saqlash:
+   * - kichik JSON → RAW: + json
+   * - katta JSON → LZ4: + base64(lz4.encode(Buffer(json)))
+   */
+  async set(key: string, value: JsonValue, ttlSeconds = 3600): Promise<void> {
     if (!(await this.ensureConnected())) return;
 
     try {
       const json = JSON.stringify(value);
       const originalSize = Buffer.byteLength(json, 'utf8');
 
-      let dataToStore: string;
-      if (json.length < 100) {
-        // RAW: → bu oddiy string JSON (siqilmagan).
-        // LZ4: → bu Base64 qilingan LZ4 siqilgan string.
-        dataToStore = 'RAW:' + json;
-        console.log(
-          `[Redis SET] key=${key} | RAW | size=${originalSize} bytes (~${(originalSize / 1024).toFixed(2)} KB)`,
+      let payload: string;
+      if (json.length < this.rawThreshold) {
+        payload = StoredFormat.RAW + json;
+        this.logger.log(
+          `[Redis SET] key=${key} | RAW | size=${originalSize}B (~${(originalSize / 1024).toFixed(
+            2,
+          )} KB)`,
         );
       } else {
-        const compressed = lz4.encode(json);
+        const jsonBuf = Buffer.from(json, 'utf8');
+        const compressed = lz4.encode(jsonBuf); // <-- Buffer kiritildi
         const compressedSize = compressed.length;
-        dataToStore = 'LZ4:' + compressed.toString('base64');
 
-        console.log(
-          `[Redis SET] key=${key} | LZ4 | original=${originalSize} bytes (~${(originalSize / 1024).toFixed(2)} KB)` +
-            ` | compressed=${compressedSize} bytes (~${(compressedSize / 1024).toFixed(2)} KB)` +
-            ` | ratio=${((compressedSize / originalSize) * 100).toFixed(1)}%`,
+        payload = StoredFormat.LZ4 + compressed.toString('base64');
+        this.logger.log(
+          `[Redis SET] key=${key} | LZ4 | original=${originalSize}B (~${(
+            originalSize / 1024
+          ).toFixed(2)} KB) | compressed=${compressedSize}B (~${(compressedSize / 1024).toFixed(
+            2,
+          )} KB) | ratio=${((compressedSize / originalSize) * 100).toFixed(1)}%`,
         );
       }
 
-      await this.client!.set(this.buildKey(key), dataToStore, 'EX', ttlSeconds);
+      await this.client!.set(this.buildKey(key), payload, 'EX', ttlSeconds);
     } catch (err) {
       this.handleError(err, `Redis SET error for key=${key}`);
     }
   }
 
-  async get<T = unknown>(key: string): Promise<T | null> {
+  /**
+   * O‘qish:
+   * - RAW: prefiks → oddiy JSON
+   * - LZ4: prefiks → base64 → Buffer → lz4.decode → JSON
+   */
+  async get<T = JsonValue>(key: string): Promise<T | null> {
     if (!(await this.ensureConnected())) return null;
 
     try {
       const data = await this.client!.get(this.buildKey(key));
       if (!data) return null;
 
-      let decompressed: string;
-      if (data.startsWith('RAW:')) {
-        decompressed = data.slice(4); // oddiy JSON
-      } else if (data.startsWith('LZ4:')) {
-        const buffer = Buffer.from(data.slice(4), 'base64');
-        decompressed = lz4.decode(buffer).toString('utf8');
-      } else {
-        throw new Error('Unknown data format');
+      if (data.startsWith(StoredFormat.RAW)) {
+        const json = data.slice(StoredFormat.RAW.length);
+        return JSON.parse(json) as T;
       }
 
-      return JSON.parse(decompressed) as T;
+      if (data.startsWith(StoredFormat.LZ4)) {
+        const b64 = data.slice(StoredFormat.LZ4.length);
+        const buf = Buffer.from(b64, 'base64');
+        const decodedBuf = lz4.decode(buf);
+        const json = decodedBuf.toString('utf8');
+        return JSON.parse(json) as T;
+      }
+
+      throw new Error('Unknown data format prefix');
     } catch (err) {
       this.handleError(err, `Redis GET error for key=${key}`);
       return null;
@@ -92,7 +124,6 @@ export class RedisService {
 
   async del(key: string): Promise<void> {
     if (!(await this.ensureConnected())) return;
-
     try {
       await this.client!.del(this.buildKey(key));
     } catch (err) {
@@ -100,18 +131,28 @@ export class RedisService {
     }
   }
 
-  async flushByPrefix(pattern: string): Promise<void> {
+  /**
+   * Prefiks bo‘yicha tozalash (SCAN asosida).
+   * Katta setlarda COUNT bilan bosqichma-bosqich yuradi.
+   */
+  async flushByPrefix(pattern: string, scanCount = 500): Promise<void> {
     if (!(await this.ensureConnected())) return;
 
     try {
       const fullPattern = this.buildKey(`${pattern}*`);
       let cursor = '0';
       do {
-        const [nextCursor, keys] = await this.client!.scan(cursor, 'MATCH', fullPattern);
+        const [nextCursor, keys] = await this.client!.scan(
+          cursor,
+          'MATCH',
+          fullPattern,
+          'COUNT',
+          scanCount,
+        );
+        cursor = nextCursor;
         if (keys.length > 0) {
           await this.client!.del(...keys);
         }
-        cursor = nextCursor;
       } while (cursor !== '0');
     } catch (err) {
       this.handleError(err, `Redis FLUSH error for pattern=${pattern}`);
@@ -119,10 +160,7 @@ export class RedisService {
   }
 
   private handleError(error: unknown, context: string): void {
-    if (error instanceof Error) {
-      this.logger.error(`${context}: ${error.message}`);
-    } else {
-      this.logger.error(`${context}: ${String(error)}`);
-    }
+    const msg = error instanceof Error ? error.message : String(error);
+    this.logger.error(`${context}: ${msg}`);
   }
 }

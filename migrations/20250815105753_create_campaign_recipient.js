@@ -20,7 +20,7 @@ exports.up = async function (knex) {
     table.bigInteger('message_id').nullable();
 
     table
-      .enu('status', ['pending', 'sent', 'delivered', 'read', 'failed', 'blocked', 'unsubscribed'])
+      .enu('status', ['pending','processing', 'sent', 'delivered', 'read', 'failed', 'blocked', 'unsubscribed'])
       .defaultTo('pending')
       .notNullable();
 
@@ -30,6 +30,10 @@ exports.up = async function (knex) {
     table.text('error').nullable();
     table.timestamp('created_at').defaultTo(knex.fn.now());
     table.timestamp('updated_at').defaultTo(knex.fn.now());
+
+    table.index(['campaign_id', 'status'], 'idx_campaign_recipient_campaign_status');
+    table.index(['user_id'], 'idx_campaign_recipient_user');
+    table.index(['created_at'], 'idx_campaign_recipient_created_at');
   });
 };
 
