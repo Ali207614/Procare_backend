@@ -5,22 +5,20 @@ import { TelegramService } from 'src/telegram/telegram.service';
 import { User } from 'src/common/types/user.interface';
 import { ITemplate } from 'src/common/types/template.interface';
 import { ICampaignRecipient } from 'src/common/types/campaign-recipient.interface';
-import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
+import { Injectable } from '@nestjs/common';
 
 function escapeHtml(s: string): string {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-@Processor('campaigns')
-export class CampaignsProcessor extends WorkerHost {
+@Injectable()
+export class CampaignsJobHandler {
   constructor(
     @InjectKnex() private readonly knex: Knex,
     private readonly logger: LoggerService,
     private readonly telegramService: TelegramService,
-  ) {
-    super();
-  }
+  ) {}
 
   async process(job: Job<{ campaignId: string; recipientId: string }>): Promise<void> {
     if (job.name !== 'send_message') {

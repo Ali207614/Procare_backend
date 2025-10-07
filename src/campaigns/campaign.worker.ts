@@ -1,34 +1,42 @@
 import 'dotenv/config';
-console.log('[worker] file loaded'); // <- 0
-
 import { NestFactory } from '@nestjs/core';
+import { Worker } from 'bullmq';
 import { WorkerAppModule } from 'src/campaigns/worker-app.module';
+import { CampaignsJobHandler } from 'src/campaigns/campaigns.job-handler';
 
 async function bootstrap(): Promise<void> {
-  try {
-    console.log('[worker] bootstrap start'); // <- 1
+  const app = await NestFactory.createApplicationContext(WorkerAppModule, {
+    logger: ['log', 'warn', 'error'],
+  });
 
-    const app = await NestFactory.createApplicationContext(WorkerAppModule, {
-      logger: ['log', 'warn', 'error'],
-    });
+  const handler: CampaignsJobHandler = app.get(CampaignsJobHandler);
 
-    console.log('[worker] Nest context created'); // <- 2
+  const worker = new Worker('campaigns', async (job) => handler.process(job), {
+    connection: {
+      host: process.env.REDIS_HOST || 'localhost',
+      port: Number(process.env.REDIS_PORT) || 6379,
+    },
+    limiter: { max: 20, duration: 1000 },
+    // concurrency: 50,
+  });
+  console.log(
+    '[WORKER] DB_* =',
+    process.env.DB_HOST,
+    process.env.DB_PORT,
+    process.env.DB_USER,
+    process.env.DB_NAME,
+  );
 
-    // Agar LoggerService bo'lsa, ko'rsatamiz (ixtiyoriy)
-    try {
-      const logger = app.get<any>('LoggerService');
-      logger?.log?.('🧵 Campaigns worker started. Listening to "campaigns" queue...');
-    } catch {
-      console.log('[worker] LoggerService not resolved (ok for test)');
-    }
+  worker.on('ready', () => console.log(`[WORKER] ready`));
+  worker.on('error', (e) => console.error(`[WORKER] error`, e));
+  worker.on('completed', (job) => console.log(`[WORKER] completed ${job.id}`));
+  worker.on('failed', (job, err) => console.error(`[WORKER] failed ${job?.id}`, err));
 
-    console.log('[worker] entering keep-alive'); // <- 3
-    // processni tirik ushlab turish
-    await new Promise(() => {});
-  } catch (e) {
-    console.error('❌ Worker bootstrap failed:', e);
-    process.exit(1);
-  }
+  console.log('📨 Campaigns Worker started with limiter 20/s …');
+  await new Promise(() => {}); // keep alive
 }
 
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('❌ Worker bootstrap failed:', err);
+  process.exit(1);
+});

@@ -18,6 +18,7 @@ import { ICampaignRecipient } from 'src/common/types/campaign-recipient.interfac
 import { FindAllRecipientsDto } from 'src/campaigns/dto/find-all-recipients.dto';
 import { FindAllUsersDto } from 'src/users/dto/find-all-user.dto';
 import { UsersService } from 'src/users/users.service';
+import { InjectQueue } from '@nestjs/bullmq';
 
 interface AbTestInput {
   template_id: string;
