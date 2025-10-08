@@ -301,7 +301,7 @@ export class AdminsService {
       const isSelf = currentAdmin.id === target.id;
       const permissions = await this.permissionsService.getPermissions(currentAdmin.id);
 
-      const canEditOthers = permissions.includes('admin.manage.edit');
+      const canEditOthers = permissions.includes('admin.manage.update');
       const canEditOwnBasic = permissions.includes('admin.profile.edit.basic');
       const canEditOwnSensitive = permissions.includes('admin.profile.edit.sensitive');
 

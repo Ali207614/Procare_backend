@@ -95,9 +95,14 @@ exports.seed = async function (knex) {
     { id: '00000000-0000-0000-0000-000000000066', name: 'campaign.pause', description: 'Kampaniyani to‘xtatish' },
     { id: '00000000-0000-0000-0000-000000000067', name: 'campaign.resume', description: 'Kampaniyani davom ettirish' },
 
-    // 🔒 Ruxsatlar
     { id: '00000000-0000-0000-0000-000000000069', name: 'permission.view', description: 'Ruxsatlarni ko‘rish' },
+
+    { id: '00000000-0000-0000-0000-000000000070', name: 'repair.order.status.create', description: 'Status yaratish huquqi' },
+    { id: '00000000-0000-0000-0000-000000000071', name: 'repair.order.status.view', description: "Statuslarni ko'rish huquqi" },
+    { id: '00000000-0000-0000-0000-000000000072', name: 'repair.order.status.update', description: "Status o'zgartirish huquqi" },
+    { id: '00000000-0000-0000-0000-000000000073', name: 'repair.order.status.delete', description: "Status o'chirish huquqi" },
   ];
+
 
   for (const perm of permissions) {
     await knex('permissions').insert({

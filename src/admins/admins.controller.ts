@@ -62,7 +62,7 @@ export class AdminsController {
 
   @Patch(':id')
   @UseGuards(PermissionsGuard)
-  @SetPermissions('admin.manage.edit', 'admin.profile.edit.basic', 'admin.profile.edit.sensitive')
+  @SetPermissions('admin.manage.update', 'admin.profile.edit.basic', 'admin.profile.edit.sensitive')
   @ApiParam({ name: 'id', description: 'Admin ID' })
   @ApiOperation({ summary: 'Update admin data' })
   async update(

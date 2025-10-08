@@ -32,7 +32,7 @@ export class PhoneOsTypesController {
 
   @Post()
   @UseGuards(PermissionsGuard)
-  @SetPermissions('phone-os-type.create')
+  @SetPermissions('phone.os.create')
   @ApiOperation({ summary: 'Create new phone OS type' })
   @ApiResponse({ status: 201, description: 'Phone OS type created successfully' })
   async create(
@@ -45,7 +45,7 @@ export class PhoneOsTypesController {
   @Get()
   @UseGuards(PermissionsGuard)
   @UseInterceptors(PaginationInterceptor)
-  @SetPermissions('phone-os-type.view')
+  @SetPermissions('phone.os.view')
   @ApiOperation({ summary: 'Get all phone OS types (from Redis or DB)' })
   async findAll(): Promise<PaginationResult<PhoneOsType>> {
     return this.service.findAll();
@@ -53,7 +53,7 @@ export class PhoneOsTypesController {
 
   @Patch(':id')
   @UseGuards(PermissionsGuard)
-  @SetPermissions('phone-os-type.update')
+  @SetPermissions('phone.os.update')
   @ApiOperation({ summary: 'Update phone OS type' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -64,7 +64,7 @@ export class PhoneOsTypesController {
 
   @Delete(':id')
   @UseGuards(PermissionsGuard)
-  @SetPermissions('phone-os-type.delete')
+  @SetPermissions('phone.os.delete')
   @ApiOperation({ summary: 'Soft delete phone OS type' })
   async delete(@Param('id', ParseUUIDPipe) id: string): Promise<{ message: string }> {
     return this.service.delete(id);

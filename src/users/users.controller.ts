@@ -35,7 +35,7 @@ export class UsersController {
 
   @Post()
   @UseGuards(PermissionsGuard)
-  @SetPermissions('user.manage.create')
+  @SetPermissions('user.create')
   @ApiOperation({ summary: 'Create new user' })
   async create(@Body() dto: CreateUserDto, @CurrentAdmin() admin: AdminPayload): Promise<User> {
     return this.usersService.create(dto, admin);
@@ -50,7 +50,7 @@ export class UsersController {
 
   @Patch(':id')
   @UseGuards(PermissionsGuard)
-  @SetPermissions('user.manage.update')
+  @SetPermissions('user.update')
   @ApiOperation({ summary: 'Update user' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -61,7 +61,7 @@ export class UsersController {
 
   @Delete(':id')
   @UseGuards(PermissionsGuard)
-  @SetPermissions('user.manage.delete')
+  @SetPermissions('user.delete')
   @ApiOperation({ summary: 'Soft delete user' })
   async delete(@Param('id', ParseUUIDPipe) id: string): Promise<{ message: string }> {
     return this.usersService.delete(id);

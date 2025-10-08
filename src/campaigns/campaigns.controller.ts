@@ -42,7 +42,7 @@ export class CampaignsController {
 
   @Post()
   @UseGuards(PermissionsGuard)
-  @SetPermissions('create:campaign')
+  @SetPermissions('campaign.create')
   @ApiOperation({ summary: 'Create a new campaign' })
   async create(@Body(ValidationPipe) createCampaignDto: CreateCampaignDto): Promise<ICampaign> {
     return this.campaignsService.create(createCampaignDto);
@@ -90,7 +90,7 @@ export class CampaignsController {
   @ApiOperation({ summary: 'Update a campaign by ID' })
   @ApiNotFoundResponse({ description: 'Campaign not found' })
   @UseGuards(PermissionsGuard)
-  @SetPermissions('update:campaign')
+  @SetPermissions('campaign.update')
   async update(
     @Param('campaign_id', ParseUUIDPipe) id: string,
     @Body(ValidationPipe) updateCampaignDto: UpdateCampaignDto,
@@ -103,7 +103,7 @@ export class CampaignsController {
   @ApiOkResponse()
   @ApiNotFoundResponse({ description: 'Campaign not found' })
   @UseGuards(PermissionsGuard)
-  @SetPermissions('delete:campaign')
+  @SetPermissions('campaign.delete')
   async remove(@Param('campaign_id', ParseUUIDPipe) id: string): Promise<void> {
     return this.campaignsService.remove(id);
   }

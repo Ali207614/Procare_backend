@@ -34,7 +34,7 @@ export class RepairPartsController {
 
   @Post()
   @UseGuards(PermissionsGuard)
-  @SetPermissions('repair_part.create')
+  @SetPermissions('repair.part.create')
   @ApiOperation({ summary: 'Create a new repair part' })
   @ApiResponse({ status: 201, description: 'Repair part successfully created' })
   @ApiResponse({ status: 400, description: 'Validation failed or part already exists' })
@@ -47,7 +47,7 @@ export class RepairPartsController {
 
   @Put('assignments')
   @UseGuards(PermissionsGuard)
-  @SetPermissions('repair_part.assign_problem')
+  @SetPermissions('repair.part.assign')
   @ApiOperation({ summary: 'Assign or update repair parts for a problem category' })
   @ApiResponse({ status: 200, description: 'Repair part assignments successfully updated' })
   @ApiResponse({ status: 400, description: 'Validation failed or part IDs are invalid' })
@@ -76,7 +76,7 @@ export class RepairPartsController {
 
   @Put(':id')
   @UseGuards(PermissionsGuard)
-  @SetPermissions('repair_part.update')
+  @SetPermissions('repair.part.update')
   @ApiOperation({ summary: 'Update an existing repair part' })
   @ApiResponse({ status: 200, description: 'Repair part successfully updated' })
   @ApiResponse({ status: 400, description: 'Validation failed or part name is duplicated' })
@@ -90,7 +90,7 @@ export class RepairPartsController {
 
   @Delete(':id')
   @UseGuards(PermissionsGuard)
-  @SetPermissions('repair_part.delete')
+  @SetPermissions('repair.part.delete')
   @ApiOperation({ summary: 'Delete a repair part by ID' })
   @ApiResponse({ status: 200, description: 'Repair part successfully deleted (soft delete)' })
   @ApiResponse({ status: 404, description: 'Repair part not found' })

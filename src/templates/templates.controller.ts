@@ -36,7 +36,7 @@ export class TemplatesController {
 
   @Post()
   @UseGuards(PermissionsGuard)
-  @SetPermissions('create:template')
+  @SetPermissions('template.create')
   @ApiOperation({ summary: 'Create a new template' })
   @ApiResponse({ status: 201, description: 'Template created.' })
   @ApiResponse({ status: 400, description: 'Invalid data.' })
@@ -71,7 +71,7 @@ export class TemplatesController {
 
   @Patch(':template_id')
   @UseGuards(PermissionsGuard)
-  @SetPermissions('update:template')
+  @SetPermissions('template.update')
   @ApiOperation({ summary: 'Update template and save history' })
   @ApiResponse({ status: 200, description: 'Updated.' })
   async update(
@@ -84,7 +84,7 @@ export class TemplatesController {
 
   @Delete(':template_id')
   @UseGuards(PermissionsGuard)
-  @SetPermissions('delete:template')
+  @SetPermissions('template.delete')
   @ApiOperation({ summary: 'Delete template' })
   @ApiResponse({ status: 200, description: 'Deleted.' })
   async remove(@Param('template_id', ParseUUIDPipe) id: string): Promise<{ message: string }> {

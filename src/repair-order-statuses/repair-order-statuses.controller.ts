@@ -50,7 +50,7 @@ export class RepairOrderStatusesController {
 
   @Post()
   @UseGuards(PermissionsGuard)
-  @SetPermissions('repair_order_status.create')
+  @SetPermissions('repair.order.status.create')
   @ApiOperation({ summary: 'Create a new repair order status' })
   async create(
     @Req() req: AuthenticatedRequest,
@@ -73,7 +73,7 @@ export class RepairOrderStatusesController {
 
   @Patch(':status_id/sort')
   @UseGuards(PermissionsGuard, RepairOrderStatusExistGuard)
-  @SetPermissions('repair_order_status.update')
+  @SetPermissions('repair.order.status.update')
   @ApiOperation({ summary: 'Update status sort order' })
   @ApiParam({ name: 'status_id', description: 'Status ID (UUID)' })
   async updateSort(
@@ -85,7 +85,7 @@ export class RepairOrderStatusesController {
 
   @Patch(':status_id')
   @UseGuards(PermissionsGuard, RepairOrderStatusExistGuard)
-  @SetPermissions('repair_order_status.update')
+  @SetPermissions('repair.order.status.update')
   @ApiOperation({ summary: 'Update repair order status by ID' })
   @ApiParam({ name: 'status_id', description: 'Status ID (UUID)' })
   async update(
@@ -97,7 +97,7 @@ export class RepairOrderStatusesController {
 
   @Delete(':status_id')
   @UseGuards(PermissionsGuard, RepairOrderStatusExistGuard)
-  @SetPermissions('repair_order_status.delete')
+  @SetPermissions('repair.order.status.delete')
   @ApiOperation({ summary: 'Soft delete repair order status by ID' })
   @ApiParam({ name: 'status_id', description: 'Status ID (UUID)' })
   async delete(@Req() req: AuthenticatedRequest): Promise<{ message: string }> {

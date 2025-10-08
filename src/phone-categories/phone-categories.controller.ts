@@ -42,7 +42,7 @@ export class PhoneCategoriesController {
 
   @Post()
   @UseGuards(PermissionsGuard)
-  @SetPermissions('phone-category.create')
+  @SetPermissions('phone.category.create')
   @ApiOperation({ summary: 'Create new phone category' })
   @ApiResponse({ status: 201, description: 'Phone category created successfully' })
   @ApiResponse({ status: 400, description: 'Validation failed' })
@@ -69,7 +69,7 @@ export class PhoneCategoriesController {
 
   @Patch(':id/sort')
   @UseGuards(PermissionsGuard)
-  @SetPermissions('phone-category.update')
+  @SetPermissions('phone.category.update')
   @ApiOperation({ summary: 'Update branch sort order' })
   @ApiParam({ name: 'id', description: 'phone-category ID' })
   @ApiResponse({ status: 200, description: 'Sort updated' })
@@ -83,7 +83,7 @@ export class PhoneCategoriesController {
 
   @Patch(':id')
   @UseGuards(PermissionsGuard)
-  @SetPermissions('phone-category.update')
+  @SetPermissions('phone.category.update')
   @ApiOperation({ summary: 'Update phone-category by ID' })
   @ApiParam({ name: 'id', description: 'phone-category ID (UUID)' })
   @ApiResponse({ status: 200, description: 'phone-category updated successfully' })
@@ -97,7 +97,7 @@ export class PhoneCategoriesController {
 
   @Delete(':id')
   @UseGuards(PermissionsGuard)
-  @SetPermissions('phone-category.delete')
+  @SetPermissions('phone.category.delete')
   @ApiOperation({ summary: 'Delete phone-category by ID (soft delete)' })
   @ApiParam({ name: 'id', description: 'phone-category ID (UUID)' })
   async delete(@Param('id', ParseUUIDPipe) id: string): Promise<{ message: string }> {

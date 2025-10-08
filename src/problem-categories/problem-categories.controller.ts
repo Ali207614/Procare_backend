@@ -37,7 +37,7 @@ export class ProblemCategoriesController {
 
   @Post()
   @UseGuards(PermissionsGuard)
-  @SetPermissions('problem-category.create')
+  @SetPermissions('problem.category.create')
   @ApiOperation({ summary: 'Create new problem category' })
   @ApiResponse({ status: 201, description: 'Problem category created successfully' })
   @ApiResponse({ status: 400, description: 'Validation failed' })
@@ -74,7 +74,7 @@ export class ProblemCategoriesController {
 
   @Patch(':id')
   @UseGuards(PermissionsGuard)
-  @SetPermissions('problem-category.update')
+  @SetPermissions('problem.category.update')
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProblemCategoryDto,
@@ -84,7 +84,7 @@ export class ProblemCategoriesController {
 
   @Patch(':id/sort')
   @UseGuards(PermissionsGuard)
-  @SetPermissions('problem-category.update')
+  @SetPermissions('problem.category.update')
   async updateSort(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProblemCategorySortDto,
@@ -94,7 +94,7 @@ export class ProblemCategoriesController {
 
   @Delete(':id')
   @UseGuards(PermissionsGuard)
-  @SetPermissions('problem-category.delete')
+  @SetPermissions('problem.category.delete')
   async delete(@Param('id', ParseUUIDPipe) id: string): Promise<{ message: string }> {
     return this.service.delete(id);
   }
