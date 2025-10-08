@@ -19,7 +19,7 @@ export class RepairOrderStatusPermissionsController {
 
   @Put('bulk-assign')
   @UseGuards(PermissionsGuard, BranchExistGuard)
-  @SetPermissions('repair_order_status_permissions.manage')
+  @SetPermissions('repair.status.permission')
   @ApiOperation({ summary: 'Bulk assign or update permissions to multiple admins' })
   async bulkAssign(
     @Body() dto: AssignRepairOrderStatusPermissionsDto,
