@@ -39,7 +39,7 @@ export class RepairOrderStatusesController {
   @Get()
   @UseGuards(PermissionsGuard, BranchExistGuard)
   @UseInterceptors(PaginationInterceptor)
-  @SetPermissions('repair_order_status.view')
+  @SetPermissions('repair.order.status.view')
   @ApiOperation({ summary: 'Get all statuses for admin panel' })
   @ApiQuery({ name: 'branch_id', required: true })
   async getAll(
