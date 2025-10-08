@@ -11,6 +11,8 @@ import { UpdateRoleDto } from './dto/update-role.dto';
 import { Permission } from 'src/common/types/permission.interface';
 import { Role } from 'src/common/types/role.interface';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
+import { PaginationResult } from 'src/common/utils/pagination.util';
+import { FindAllRolesDto } from 'src/roles/dto/find-all-roles.dto';
 
 export interface RoleWithPermissions extends Role {
   permissions: Permission[];
@@ -25,72 +27,149 @@ export class RolesService {
   ) {}
 
   async create(dto: CreateRoleDto, adminId: string): Promise<Role> {
-    const existing = await this.knex('roles')
-      .whereRaw('LOWER(name) = ?', dto.name.toLowerCase())
-      .andWhere({ status: 'Open' })
-      .first();
+    return this.knex.transaction(async (trx) => {
+      const existing = await trx('roles')
+        .whereRaw('LOWER(name) = ?', dto.name.toLowerCase())
+        .andWhere({ status: 'Open' })
+        .first();
 
-    if (existing) {
-      throw new BadRequestException({
-        message: 'Role name already exists',
-        location: 'role_name',
-      });
-    }
-
-    if (dto.permission_ids?.length) {
-      const foundPermissions: Permission[] = await this.knex('permissions')
-        .whereIn('id', dto.permission_ids)
-        .andWhere({ is_active: true, status: 'Open' });
-
-      if (foundPermissions.length !== dto.permission_ids.length) {
+      if (existing) {
         throw new BadRequestException({
-          message: 'Some permission IDs are invalid or inactive',
-          location: 'permission_ids',
+          message: 'Role name already exists',
+          location: 'role_name',
         });
       }
-    }
 
-    const [role]: Role[] = await this.knex('roles')
-      .insert({
-        name: dto.name,
-        created_by: adminId,
-      })
-      .returning('*');
+      // 2️⃣ Permission ID-larni tekshirish
+      if (dto.permission_ids?.length) {
+        const foundPermissions: Permission[] = await trx('permissions')
+          .whereIn('id', dto.permission_ids)
+          .andWhere({ is_active: true, status: 'Open' });
 
-    if (dto.permission_ids?.length) {
-      const mappings = dto.permission_ids.map((permission_id) => ({
-        role_id: role.id,
-        permission_id,
-      }));
+        if (foundPermissions.length !== dto.permission_ids.length) {
+          throw new BadRequestException({
+            message: 'Some permission IDs are invalid or inactive',
+            location: 'permission_ids',
+          });
+        }
+      }
 
-      await this.knex('role_permissions').insert(mappings);
-    }
+      const [role]: Role[] = await trx('roles')
+        .insert({
+          name: dto.name,
+          created_by: adminId,
+        })
+        .returning('*');
 
-    return role;
+      if (dto.permission_ids?.length) {
+        const mappings = dto.permission_ids.map((permission_id) => ({
+          role_id: role.id,
+          permission_id,
+        }));
+
+        await trx('role_permissions').insert(mappings);
+      }
+
+      return role;
+    });
   }
 
-  async findAll(): Promise<Role[]> {
-    return this.knex('roles').where({ status: 'Open' });
+  async findAll(dto: FindAllRolesDto): Promise<PaginationResult<Role>> {
+    const { search, is_active, is_protected, limit = 20, offset = 0 } = dto;
+
+    const baseQuery = this.knex('roles as r')
+      .leftJoin('admins as a', 'r.created_by', 'a.id')
+      .where('r.status', 'Open')
+      .modify((qb) => {
+        if (search) {
+          void qb.andWhereRaw('LOWER(r.name) LIKE ?', [`%${search.toLowerCase()}%`]);
+        }
+        if (typeof is_active === 'boolean') {
+          void qb.andWhere('r.is_active', is_active);
+        }
+        if (typeof is_protected === 'boolean') {
+          void qb.andWhere('r.is_protected', is_protected);
+        }
+      });
+
+    const [rows, [{ count }]] = await Promise.all([
+      baseQuery
+        .clone()
+        .select(
+          'r.id',
+          'r.name',
+          'r.is_active',
+          'r.is_protected',
+          'r.status',
+          'r.created_at',
+          'r.updated_at',
+          this.knex.raw(`
+          COALESCE(
+            jsonb_build_object(
+              'first_name', a.first_name,
+              'last_name', a.last_name,
+              'phone_number', a.phone_number
+            ),
+            '{}'::jsonb
+          ) as created_by_admin
+        `),
+        )
+        .orderBy('r.created_at', 'desc')
+        .limit(limit)
+        .offset(offset),
+
+      baseQuery.clone().count('* as count'),
+    ]);
+
+    return {
+      rows,
+      total: Number(count),
+      limit,
+      offset,
+    };
   }
 
   async findOne(id: string): Promise<RoleWithPermissions> {
-    const role: Role | undefined = await this.knex('roles').where({ id, status: 'Open' }).first();
+    const role = await this.knex('roles as r')
+      .select(
+        'r.id',
+        'r.name',
+        'r.is_active',
+        'r.is_protected',
+        'r.status',
+        'r.created_at',
+        'r.updated_at',
+        this.knex.raw(`
+        COALESCE(
+          jsonb_build_object(
+            'first_name', a.first_name,
+            'last_name', a.last_name,
+            'phone_number', a.phone_number
+          ),
+          '{}'::jsonb
+        ) as created_by_admin
+      `),
+      )
+      .leftJoin('admins as a', 'r.created_by', 'a.id')
+      .where('r.id', id)
+      .andWhere('r.status', 'Open')
+      .first();
 
     if (!role) {
       throw new NotFoundException({
         message: 'Role not found',
-        location: 'role_not_found',
+        location: 'role_id',
       });
     }
 
-    const permissions = await this.knex('role_permissions as rp')
+    const permissions: Permission[] = await this.knex<Permission>('role_permissions as rp')
       .join('permissions as p', 'rp.permission_id', 'p.id')
-      .select('p.id', 'p.name')
+      .select('p.id', 'p.name', 'p.description')
       .where('rp.role_id', id)
       .andWhere('p.status', 'Open');
-
+    const typedRole: Role = role as Role;
     return {
-      ...role,
+      ...typedRole,
       permissions,
     };
   }

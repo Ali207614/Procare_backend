@@ -7,6 +7,7 @@ SELECT
     ro.pickup_method,
     ro.sort,
     ro.priority,
+    ro.ccreated_at,
     COALESCE((jsonb_build_object(
             'id', u.id,
             'first_name', u.first_name,

@@ -1,9 +1,20 @@
-import { Controller, Post, Get, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  UseGuards,
+  Query,
+  UseInterceptors,
+} from '@nestjs/common';
 import { RolesService } from './roles.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { SetPermissions } from 'src/common/decorators/permission-decorator';
-import { ApiTags, ApiOperation, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiParam, ApiBearerAuth, ApiOkResponse } from '@nestjs/swagger';
 import { PermissionsGuard } from 'src/common/guards/permission.guard';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
@@ -11,6 +22,9 @@ import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { Role } from 'src/common/types/role.interface';
 import { Permission } from 'src/common/types/permission.interface';
+import { FindAllRolesDto } from 'src/roles/dto/find-all-roles.dto';
+import { PaginationResult } from 'src/common/utils/pagination.util';
+import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
 
 export interface RoleWithPermissions extends Role {
   permissions: Permission[];
@@ -33,10 +47,15 @@ export class RolesController {
 
   @Get()
   @UseGuards(PermissionsGuard)
+  @UseInterceptors(PaginationInterceptor)
   @SetPermissions('role.view')
-  @ApiOperation({ summary: 'Get all roles' })
-  async findAll(): Promise<Role[]> {
-    return this.service.findAll();
+  @ApiOperation({ summary: 'Get all roles (with filters and pagination)' })
+  @ApiOkResponse({
+    description: 'List of roles with pagination metadata',
+    isArray: false,
+  })
+  async findAll(@Query() dto: FindAllRolesDto): Promise<PaginationResult<Role>> {
+    return this.service.findAll(dto);
   }
 
   @Get(':id')

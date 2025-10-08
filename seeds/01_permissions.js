@@ -10,326 +10,93 @@ exports.seed = async function (knex) {
   await knex('permissions').del();
 
   const permissions = [
-    // Profile permissions
+    // 👤 Admin profili
+    { id: '00000000-0000-0000-0000-000000000002', name: 'admin.profile.edit.basic', description: 'Profilni tahrirlash' },
+    { id: '00000000-0000-0000-0000-000000000003', name: 'admin.profile.edit.sensitive', description: 'Maxfiy maʼlumot tahriri' },
 
-    {
-      id: '00000000-0000-0000-0000-000000000002',
-      name: 'admin.profile.edit.basic',
-      description: 'Profil umumiy maydonlarini tahrirlash huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000003',
-      name: 'admin.profile.edit.sensitive',
-      description: 'Profil maxfiy maʼlumotlarini tahrirlash huquqi',
-    },
+    // 👥 Admin boshqaruvi
+    { id: '00000000-0000-0000-0000-000000000004', name: 'admin.manage.view', description: 'Adminlarni ko‘rish' },
+    { id: '00000000-0000-0000-0000-000000000005', name: 'admin.manage.create', description: 'Admin yaratish' },
+    { id: '00000000-0000-0000-0000-000000000006', name: 'admin.manage.update', description: 'Adminni tahrirlash' },
+    { id: '00000000-0000-0000-0000-000000000007', name: 'admin.manage.delete', description: 'Adminni o‘chirish' },
+    { id: '00000000-0000-0000-0000-000000000008', name: 'admin.manage.ban', description: 'Adminni bloklash' },
 
-    // Manage permissions
-    {
-      id: '00000000-0000-0000-0000-000000000004',
-      name: 'admin.manage.view',
-      description: 'Boshqa adminlarni ko‘rish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000005',
-      name: 'admin.manage.create',
-      description: 'Admin yaratish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000006',
-      name: 'admin.manage.edit',
-      description: 'Adminni o‘zgartirish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000007',
-      name: 'admin.manage.delete',
-      description: 'Adminni o‘chirish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000008',
-      name: 'admin.manage.ban',
-      description: 'Adminni bloklash huquqi',
-    },
+    // 🏷 Statuslar
+    { id: '00000000-0000-0000-0000-000000000009', name: 'status.view', description: 'Statuslarni ko‘rish' },
+    { id: '00000000-0000-0000-0000-000000000010', name: 'status.create', description: 'Status yaratish' },
+    { id: '00000000-0000-0000-0000-000000000011', name: 'status.update', description: 'Statusni tahrirlash' },
+    { id: '00000000-0000-0000-0000-000000000012', name: 'status.delete', description: 'Statusni o‘chirish' },
 
-    // Status permissions
-    {
-      id: '00000000-0000-0000-0000-000000000009',
-      name: 'status.view',
-      description: 'Statuslarni ko‘rish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000010',
-      name: 'status.create',
-      description: 'Status yaratish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000011',
-      name: 'status.update',
-      description: 'Statusni o‘zgartirish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000012',
-      name: 'status.delete',
-      description: 'Statusni o‘chirish huquqi',
-    },
+    // 🧩 Status ruxsatlari
+    { id: '00000000-0000-0000-0000-000000000013', name: 'status.permission.view', description: 'Ruxsatni ko‘rish' },
+    { id: '00000000-0000-0000-0000-000000000014', name: 'status.permission.create', description: 'Ruxsat yaratish' },
+    { id: '00000000-0000-0000-0000-000000000015', name: 'status.permission.update', description: 'Ruxsatni tahrirlash' },
+    { id: '00000000-0000-0000-0000-000000000016', name: 'status.permission.delete', description: 'Ruxsatni o‘chirish' },
 
-    // Status Permission
-    {
-      id: '00000000-0000-0000-0000-000000000013',
-      name: 'status_permission.view',
-      description: 'Status permissionlarni ko‘rish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000014',
-      name: 'status_permission.create',
-      description: 'Status permission yaratish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000015',
-      name: 'status_permission.update',
-      description: 'Status permissionni o‘zgartirish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000016',
-      name: 'status_permission.delete',
-      description: 'Status permissionni o‘chirish huquqi',
-    },
+    // 🧱 Rollar
+    { id: '00000000-0000-0000-0000-000000000021', name: 'role.view', description: 'Rollarni ko‘rish' },
+    { id: '00000000-0000-0000-0000-000000000022', name: 'role.create', description: 'Rol yaratish' },
+    { id: '00000000-0000-0000-0000-000000000023', name: 'role.update', description: 'Rolni tahrirlash' },
+    { id: '00000000-0000-0000-0000-000000000024', name: 'role.delete', description: 'Rolni o‘chirish' },
 
-    // Role CRUD
-    {
-      id: '00000000-0000-0000-0000-000000000021',
-      name: 'role.view',
-      description: 'Rollarni ko‘rish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000022',
-      name: 'role.create',
-      description: 'Role yaratish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000023',
-      name: 'role.update',
-      description: 'Roleni o‘zgartirish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000024',
-      name: 'role.delete',
-      description: 'Roleni o‘chirish huquqi',
-    },
+    // 🏢 Filiallar
+    { id: '00000000-0000-0000-0000-000000000025', name: 'branch.view', description: 'Filiallarni ko‘rish' },
+    { id: '00000000-0000-0000-0000-000000000026', name: 'branch.create', description: 'Filial yaratish' },
+    { id: '00000000-0000-0000-0000-000000000027', name: 'branch.update', description: 'Filialni tahrirlash' },
+    { id: '00000000-0000-0000-0000-000000000028', name: 'branch.delete', description: 'Filialni o‘chirish' },
+    { id: '00000000-0000-0000-0000-000000000068', name: 'branch.assign.admins', description: 'Filialga admin biriktirish' },
 
-    // Branch CRUD
-    {
-      id: '00000000-0000-0000-0000-000000000025',
-      name: 'branch.view',
-      description: 'Filiallarni ko‘rish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000026',
-      name: 'branch.create',
-      description: 'Filial yaratish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000027',
-      name: 'branch.update',
-      description: 'Filialni o‘zgartirish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000028',
-      name: 'branch.delete',
-      description: 'Filialni o‘chirish huquqi',
-    },
+    // 📱 Telefon kategoriyalari
+    { id: '00000000-0000-0000-0000-000000000033', name: 'phone.category.view', description: 'Telefonlarni ko‘rish' },
+    { id: '00000000-0000-0000-0000-000000000034', name: 'phone.category.create', description: 'Telefon yaratish' },
+    { id: '00000000-0000-0000-0000-000000000035', name: 'phone.category.update', description: 'Telefonni tahrirlash' },
+    { id: '00000000-0000-0000-0000-000000000036', name: 'phone.category.delete', description: 'Telefonni o‘chirish' },
 
-    // Phone CRUD
-    {
-      id: '00000000-0000-0000-0000-000000000033',
-      name: 'phone-category.view',
-      description: 'Telefonlarni ko‘rish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000034',
-      name: 'phone-category.create',
-      description: 'Telefon yaratish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000035',
-      name: 'phone-category.update',
-      description: 'Telefonni o‘zgartirish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000036',
-      name: 'phone-category.delete',
-      description: 'Telefonni o‘chirish huquqi',
-    },
+    // ⚙️ Muammo kategoriyalari
+    { id: '00000000-0000-0000-0000-000000000037', name: 'problem.category.view', description: 'Muammolarni ko‘rish' },
+    { id: '00000000-0000-0000-0000-000000000038', name: 'problem.category.create', description: 'Muammo yaratish' },
+    { id: '00000000-0000-0000-0000-000000000039', name: 'problem.category.update', description: 'Muammoni tahrirlash' },
+    { id: '00000000-0000-0000-0000-000000000040', name: 'problem.category.delete', description: 'Muammoni o‘chirish' },
 
-    // Problem CRUD
-    {
-      id: '00000000-0000-0000-0000-000000000037',
-      name: 'problem-category.view',
-      description: 'Muammolarni ko‘rish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000038',
-      name: 'problem-category.create',
-      description: 'Muammo yaratish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000039',
-      name: 'problem-category.update',
-      description: 'Muammoni o‘zgartirish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000040',
-      name: 'problem-category.delete',
-      description: 'Muammoni o‘chirish huquqi',
-    },
+    // 🔗 Telefon–Muammo bog‘lash
+    { id: '00000000-0000-0000-0000-000000000041', name: 'phone.problem.link', description: 'Telefonni bog‘lash' },
+    { id: '00000000-0000-0000-0000-000000000042', name: 'phone.problem.unlink', description: 'Telefonni ajratish' },
 
-    {
-      id: '00000000-0000-0000-0000-000000000041',
-      name: 'phone-problem-mapping.create',
-      description: 'Telefon va muomolarni bog‘lash',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000042',
-      name: 'phone-problem-mapping.delete',
-      description: 'Telefon va muomolarni o‘chirish',
-    },
+    // 🧠 OS turlari
+    { id: '00000000-0000-0000-0000-000000000043', name: 'phone.os.view', description: 'OS turlarini ko‘rish' },
+    { id: '00000000-0000-0000-0000-000000000044', name: 'phone.os.create', description: 'OS turi yaratish' },
+    { id: '00000000-0000-0000-0000-000000000045', name: 'phone.os.update', description: 'OS turini tahrirlash' },
+    { id: '00000000-0000-0000-0000-000000000046', name: 'phone.os.delete', description: 'OS turini o‘chirish' },
 
-    {
-      id: '00000000-0000-0000-0000-000000000043',
-      name: 'phone-os-type.view',
-      description: 'Telefon os type ko‘rish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000044',
-      name: 'phone-os-type.create',
-      description: 'Telefon os type yaratish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000045',
-      name: 'phone-os-type.update',
-      description: 'Telefon os type o‘zgartirish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000046',
-      name: 'phone-os-type.delete',
-      description: 'Telefon os type o‘chirish',
-    },
+    // 🔄 Status o‘tishlari
+    { id: '00000000-0000-0000-0000-000000000051', name: 'repair.status.transition', description: 'Status o‘tish boshqaruvi' },
+    { id: '00000000-0000-0000-0000-000000000052', name: 'repair.status.permission', description: 'Status ruxsat boshqaruvi' },
 
-    {
-      id: '00000000-0000-0000-0000-000000000047',
-      name: 'repair_order_status.create',
-      description: 'Branch Status ko‘rish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000048',
-      name: 'repair_order_status.view',
-      description: 'Branch Status yaratish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000049',
-      name: 'repair_order_status.update',
-      description: 'Branch Status o‘zgartirish huquqi',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000050',
-      name: 'repair_order_status.delete',
-      description: 'Branch Status o‘chirish',
-    },
+    // 👥 Foydalanuvchilar
+    { id: '00000000-0000-0000-0000-000000000053', name: 'user.create', description: 'Foydalanuvchi yaratish' },
+    { id: '00000000-0000-0000-0000-000000000054', name: 'user.update', description: 'Foydalanuvchini tahrirlash' },
+    { id: '00000000-0000-0000-0000-000000000055', name: 'user.delete', description: 'Foydalanuvchini o‘chirish' },
 
-    {
-      id: '00000000-0000-0000-0000-000000000051',
-      name: 'repair_order_status_transitions.manage',
-      description: 'Branch Status Transition manage',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000052',
-      name: 'repair_order_status_permissions.manage',
-      description: 'Branch Status Permssions manage',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000053',
-      name: 'user.manage.create',
-      description: 'User create',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000054',
-      name: 'user.manage.update',
-      description: 'User update',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000055',
-      name: 'user.manage.delete',
-      description: 'User delete',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000056',
-      name: 'repair_part.create',
-      description: 'Repair part manage',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000057',
-      name: 'repair_part.update',
-      description: 'Repair part manage',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000058',
-      name: 'repair_part.delete',
-      description: 'Repair part manage',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000059',
-      name: 'repair_part.assign_problem',
-      description: 'Repair part manage',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000060',
-      name: 'create:template',
-      description: 'Create Template',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000061',
-      name: 'update:template',
-      description: 'Update Template',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000062',
-      name: 'delete:template',
-      description: 'Delete Template',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000063',
-      name: 'create:campaign',
-      description: 'Create campaign',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000064',
-      name: 'update:campaign',
-      description: 'Update campaign',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000065',
-      name: 'delete:campaign',
-      description: 'Delete campaign',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000066',
-      name: 'pause:campaign',
-      description: 'Pause campaign',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000067',
-      name: 'resume:campaign',
-      description: 'Resume campaign',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000068',
-      name: 'branch.assign_admins',
-      description: 'Branch Assign',
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000069',
-      name: 'permission.view',
-      description: 'Permissions view',
-    },
+    // 🧰 Ta’mir qismlari
+    { id: '00000000-0000-0000-0000-000000000056', name: 'repair.part.create', description: 'Qism yaratish' },
+    { id: '00000000-0000-0000-0000-000000000057', name: 'repair.part.update', description: 'Qismni tahrirlash' },
+    { id: '00000000-0000-0000-0000-000000000058', name: 'repair.part.delete', description: 'Qismni o‘chirish' },
+    { id: '00000000-0000-0000-0000-000000000059', name: 'repair.part.assign', description: 'Qismni biriktirish' },
+
+    // 🧾 Shablonlar
+    { id: '00000000-0000-0000-0000-000000000060', name: 'template.create', description: 'Shablon yaratish' },
+    { id: '00000000-0000-0000-0000-000000000061', name: 'template.update', description: 'Shablonni tahrirlash' },
+    { id: '00000000-0000-0000-0000-000000000062', name: 'template.delete', description: 'Shablonni o‘chirish' },
+
+    // 📣 Kampaniyalar
+    { id: '00000000-0000-0000-0000-000000000063', name: 'campaign.create', description: 'Kampaniya yaratish' },
+    { id: '00000000-0000-0000-0000-000000000064', name: 'campaign.update', description: 'Kampaniyani tahrirlash' },
+    { id: '00000000-0000-0000-0000-000000000065', name: 'campaign.delete', description: 'Kampaniyani o‘chirish' },
+    { id: '00000000-0000-0000-0000-000000000066', name: 'campaign.pause', description: 'Kampaniyani to‘xtatish' },
+    { id: '00000000-0000-0000-0000-000000000067', name: 'campaign.resume', description: 'Kampaniyani davom ettirish' },
+
+    // 🔒 Ruxsatlar
+    { id: '00000000-0000-0000-0000-000000000069', name: 'permission.view', description: 'Ruxsatlarni ko‘rish' },
   ];
 
   for (const perm of permissions) {
