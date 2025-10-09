@@ -48,7 +48,6 @@ export class RepairOrdersController {
   }
 
   @Patch(':repair_order_id')
-  @UseGuards(BranchExistGuard, RepairOrderStatusExistGuard)
   @ApiOperation({ summary: 'Update repair order' })
   @ApiParam({ name: 'repair_order_id', description: 'Repair Order ID' })
   update(
@@ -92,7 +91,6 @@ export class RepairOrdersController {
   }
 
   @Patch(':repair_order_id/sort')
-  @UseGuards(RepairOrderStatusExistGuard)
   @ApiOperation({ summary: 'Update status sort order' })
   @ApiParam({ name: 'repair_order_id', description: 'Status ID (UUID)' })
   async updateSort(
