@@ -18,7 +18,7 @@ export class RepairOrderStatusTransitionsController {
 
   @Post(':status_id')
   @UseGuards(PermissionsGuard, RepairOrderStatusExistGuard)
-  @SetPermissions('repair_order_status_transitions.manage')
+  @SetPermissions('repair.status.transition')
   @ApiOperation({ summary: 'Upsert transitions (delete + insert)' })
   @ApiParam({ name: 'status_id', description: 'From status ID' })
   async upsertTransitions(
