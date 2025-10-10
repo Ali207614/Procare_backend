@@ -1,11 +1,27 @@
-import { IsOptional, IsBooleanString, IsNumberString } from 'class-validator';
+import { IsOptional, IsNumberString, IsEnum } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform, TransformFnParams } from 'class-transformer';
+import { EnumBooleanString } from 'src/roles/dto/find-all-roles.dto';
 
 export class FindNotificationsDto {
-  @ApiPropertyOptional({ description: 'O‘qilganmi?', example: 'false' })
+  @ApiPropertyOptional({
+    description: 'Filter by read status (true/false)',
+    enum: EnumBooleanString,
+    example: EnumBooleanString.TRUE,
+  })
   @IsOptional()
-  @IsBooleanString()
-  is_read?: string;
+  @IsEnum(EnumBooleanString, { message: 'Filter must be true or false' })
+  @Transform(({ value }: TransformFnParams) => {
+    if (typeof value === 'string') {
+      const lower = value.toLowerCase();
+      if (lower === 'true') return EnumBooleanString.TRUE;
+      if (lower === 'false') return EnumBooleanString.FALSE;
+
+      return value;
+    }
+    return value as EnumBooleanString;
+  })
+  is_read?: EnumBooleanString;
 
   @ApiPropertyOptional({ description: 'Sahifa raqami', example: '1' })
   @IsOptional()

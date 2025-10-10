@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcrypt');
 
+
 exports.seed = async function (knex) {
   await knex('users').del();
 

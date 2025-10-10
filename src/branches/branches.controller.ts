@@ -24,7 +24,6 @@ import {
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
-import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
 import { PermissionsGuard } from 'src/common/guards/permission.guard';
 import { SetPermissions } from 'src/common/decorators/permission-decorator';
 import { UpdateBranchSortDto } from './dto/update-branch-sort.dto';
@@ -37,6 +36,7 @@ import { AssignAdminsDto } from 'src/branches/dto/assign-admins.dto';
 import { RemoveAdminsDto } from 'src/branches/dto/remove-admins.dto';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
+import { FindBranchDto } from 'src/branches/dto/find-branch.dto';
 
 @ApiTags('Branches')
 @ApiBearerAuth()
@@ -65,7 +65,7 @@ export class BranchesController {
   @ApiQuery({ name: 'limit', required: false, example: 10 })
   @ApiQuery({ name: 'search', required: false, example: 'main' })
   @ApiResponse({ status: 200, description: 'List of branches returned' })
-  async findAll(@Query() query: PaginationQueryDto): Promise<PaginationResult<Branch>> {
+  async findAll(@Query() query: FindBranchDto): Promise<PaginationResult<Branch>> {
     const { offset, limit, search } = query;
     return this.service.findAll(offset, limit, search);
   }
@@ -76,7 +76,7 @@ export class BranchesController {
   @ApiResponse({ status: 200, description: 'List of assigned branches returned' })
   async findMyBranches(
     @CurrentAdmin() admin: AdminPayload,
-    @Query() query: PaginationQueryDto,
+    @Query() query: FindBranchDto,
   ): Promise<PaginationResult<Branch>> {
     const { offset, limit } = query;
     return this.service.findByAdminId(admin.id, offset, limit);

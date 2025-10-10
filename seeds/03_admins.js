@@ -1,8 +1,9 @@
-// seeds/20250904101000_create_admins.js
 const { v4: uuidv4 } = require('uuid');
 
 exports.seed = async function (knex) {
   await knex('admin_roles').del();
+  await knex('campaigns').del();
+  await knex('templates').del();
   await knex('admins').del();
 
   const superAdminId = '00000000-0000-0000-0000-000000000000';

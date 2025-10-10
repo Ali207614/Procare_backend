@@ -18,7 +18,7 @@ exports.up = async function (knex) {
     table.string('id_card_number');
     table.string('language').defaultTo('uz');
 
-    table.bigInteger('telegram_chat_id').unique().nullable();
+    table.bigInteger('telegram_chat_id').nullable();
     table.string('telegram_username').nullable();
 
     table

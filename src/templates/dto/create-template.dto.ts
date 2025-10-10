@@ -33,7 +33,17 @@ export class CreateTemplateDto {
   @ApiPropertyOptional({
     description: 'List of allowed user fields for template',
     type: [String],
-    example: ['first_name', 'last_name', 'phone_number1'],
+    example: [
+      'first_name',
+      'last_name',
+      'phone_number1',
+      'phone_number2',
+      'passport_series',
+      'id_card_number',
+      'birth_date',
+      'telegram_username',
+      'phone_verified',
+    ],
   })
   @IsOptional()
   @IsArray({ message: 'Variables must be an array' })

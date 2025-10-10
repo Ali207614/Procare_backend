@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  IsBoolean,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -9,6 +9,12 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import { Transform, TransformFnParams } from 'class-transformer';
+
+export enum EnumBooleanString {
+  TRUE = 'true',
+  FALSE = 'false',
+}
 
 export class FindAllRolesDto {
   @ApiPropertyOptional({
@@ -22,20 +28,42 @@ export class FindAllRolesDto {
   search?: string;
 
   @ApiPropertyOptional({
-    example: true,
     description: 'Filter by active roles (true/false)',
+    enum: EnumBooleanString,
+    example: EnumBooleanString.TRUE,
   })
   @IsOptional()
-  @IsBoolean({ context: { location: 'is_active' } })
-  is_active?: boolean;
+  @IsEnum(EnumBooleanString, { message: 'Filter must be true or false' })
+  @Transform(({ value }: TransformFnParams) => {
+    if (typeof value === 'string') {
+      const lower = value.toLowerCase();
+      if (lower === 'true') return EnumBooleanString.TRUE;
+      if (lower === 'false') return EnumBooleanString.FALSE;
+
+      return value;
+    }
+    return value as EnumBooleanString;
+  })
+  is_active?: EnumBooleanString;
 
   @ApiPropertyOptional({
-    example: false,
     description: 'Filter by protected roles (true/false)',
+    enum: EnumBooleanString,
+    example: EnumBooleanString.TRUE,
   })
   @IsOptional()
-  @IsBoolean({ context: { location: 'is_protected' } })
-  is_protected?: boolean;
+  @IsEnum(EnumBooleanString, { message: 'Filter must be true or false' })
+  @Transform(({ value }: TransformFnParams) => {
+    if (typeof value === 'string') {
+      const lower = value.toLowerCase();
+      if (lower === 'true') return EnumBooleanString.TRUE;
+      if (lower === 'false') return EnumBooleanString.FALSE;
+
+      return value;
+    }
+    return value as EnumBooleanString;
+  })
+  is_protected?: EnumBooleanString;
 
   @ApiPropertyOptional({
     example: 20,

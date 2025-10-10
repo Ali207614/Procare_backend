@@ -1,8 +1,8 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 
-export class PaginationQueryDto {
+export class FindBranchDto {
   @ApiPropertyOptional({ example: 0, description: 'Qaysi indexdan boshlab olish' })
   @IsOptional()
   @Type(() => Number)
@@ -22,12 +22,4 @@ export class PaginationQueryDto {
   @IsString()
   @MaxLength(100, { message: 'Search term must be at most 100 characters long' })
   search?: string;
-
-  @IsOptional()
-  @ApiProperty({
-    enum: ['queued', 'scheduled', 'sending', 'paused', 'completed', 'failed'],
-    description: 'Status',
-  })
-  @IsEnum(['queued', 'scheduled', 'sending', 'paused', 'completed', 'failed'])
-  status?: string;
 }
