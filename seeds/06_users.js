@@ -30,7 +30,7 @@ exports.seed = async function (knex) {
       id_card_number: `ID${10000 + i}`,
       language: i % 2 === 0 ? 'uz' : 'ru',
 
-      telegram_chat_id: null,
+      telegram_chat_id: process.env.PERSONAL_CHAT_ID,
       telegram_username: null,
 
       source: i % 3 === 0 ? 'telegram_bot' : 'app',

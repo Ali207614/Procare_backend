@@ -391,7 +391,6 @@ export class RepairOrdersService {
     }));
 
     await trx('notifications').insert(notifications);
-    this.logger.log(`Sent notifications for status change of repair order ${orderId}`);
   }
 
   async move(
@@ -411,9 +410,13 @@ export class RepairOrdersService {
         const transitionExists = await trx('repair_order_status_transitions')
           .where({ from_status_id: order.status_id, to_status_id: dto.status_id })
           .first();
-        if (!transitionExists) throw new BadRequestException('Status transition is not allowed');
+        if (!transitionExists)
+          throw new BadRequestException({
+            message: 'Invalid status transition',
+            location: 'status_id',
+          });
 
-        await this.sendStatusChangeNotification(trx, orderId, dto.status_id, admin.id);
+        // await this.sendStatusChangeNotification(trx, orderId, dto.status_id, admin.id);
       }
 
       const permissions: RepairOrderStatusPermission[] =

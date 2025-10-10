@@ -126,7 +126,6 @@ async function bootstrap(): Promise<void> {
   let campaignsQueue: BullMQQueue;
   try {
     campaignsQueue = app.get<BullMQQueue>('CAMPAIGNS_QUEUE');
-    logger.log('[BullBoard] CAMPAIGNS_QUEUE provider topildi (DI).');
   } catch {
     logger.warn('[BullBoard] CAMPAIGNS_QUEUE provider topilmadi. UI-only instansiya yaratamiz.');
     campaignsQueue = new BullMQQueue('campaigns', {
