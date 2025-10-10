@@ -368,7 +368,7 @@ export class RepairOrdersService {
     const permissionedAdmins: RepairOrderStatusPermission[] = await trx(
       'repair_order_status_permissions',
     )
-      .select('admin_id', 'role_id')
+      .select('role_id')
       .where({ status_id: newStatusId, branch_id: order.branch_id, can_notification: true });
 
     if (!permissionedAdmins.length) return;
@@ -404,7 +404,8 @@ export class RepairOrdersService {
       const order: RepairOrder | undefined = await trx(this.table)
         .where({ id: orderId, status: 'Open' })
         .first();
-      if (!order) throw new NotFoundException('Repair order not found');
+      if (!order)
+        throw new NotFoundException({ message: 'Order not found', location: 'repair_order' });
 
       if (dto.status_id !== order.status_id) {
         const transitionExists = await trx('repair_order_status_transitions')
