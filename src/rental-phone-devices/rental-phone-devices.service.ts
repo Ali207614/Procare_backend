@@ -3,6 +3,7 @@ import { InjectKnex, Knex } from 'nestjs-knex';
 import { FindRentalPhoneDevicesDto } from './dto/find-rental-phone-devices.dto';
 import { RentalPhoneDevice } from 'src/common/types/rental-phone-device.interface';
 import { PaginationResult } from 'src/common/utils/pagination.util';
+import { EnumBooleanString } from 'src/roles/dto/find-all-roles.dto';
 
 @Injectable()
 export class RentalPhoneDevicesService {
@@ -19,12 +20,16 @@ export class RentalPhoneDevicesService {
       });
     }
 
-    if (is_free !== undefined) {
-      void baseQuery.andWhere('is_free', is_free);
+    if (is_free === EnumBooleanString.TRUE) {
+      void baseQuery.andWhere('is_free', true);
+    } else if (is_free === EnumBooleanString.FALSE) {
+      void baseQuery.andWhere('is_free', false);
     }
 
-    if (is_available !== undefined) {
-      void baseQuery.andWhere('is_available', is_available);
+    if (is_available === EnumBooleanString.TRUE) {
+      void baseQuery.andWhere('is_available', true);
+    } else if (is_available === EnumBooleanString.FALSE) {
+      void baseQuery.andWhere('is_available', false);
     }
 
     if (currency) {

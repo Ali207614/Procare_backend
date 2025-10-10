@@ -12,7 +12,8 @@ import { Permission } from 'src/common/types/permission.interface';
 import { Role } from 'src/common/types/role.interface';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { PaginationResult } from 'src/common/utils/pagination.util';
-import { FindAllRolesDto } from 'src/roles/dto/find-all-roles.dto';
+import { EnumBooleanString, FindAllRolesDto } from 'src/roles/dto/find-all-roles.dto';
+import { HasTelegramFilter } from 'src/users/dto/find-all-user.dto';
 
 export interface RoleWithPermissions extends Role {
   permissions: Permission[];
@@ -84,11 +85,17 @@ export class RolesService {
         if (search) {
           void qb.andWhereRaw('LOWER(r.name) LIKE ?', [`%${search.toLowerCase()}%`]);
         }
-        if (typeof is_active === 'boolean') {
-          void qb.andWhere('r.is_active', is_active);
+
+        if (is_active === EnumBooleanString.TRUE) {
+          void qb.andWhere('r.is_active', true);
+        } else if (is_active === EnumBooleanString.FALSE) {
+          void qb.andWhere('r.is_active', false);
         }
-        if (typeof is_protected === 'boolean') {
-          void qb.andWhere('r.is_protected', is_protected);
+
+        if (is_protected === EnumBooleanString.TRUE) {
+          void qb.andWhere('r.is_protected', true);
+        } else if (is_protected === EnumBooleanString.FALSE) {
+          void qb.andWhere('r.is_protected', false);
         }
       });
 
