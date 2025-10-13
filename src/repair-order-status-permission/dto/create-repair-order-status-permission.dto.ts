@@ -47,4 +47,6 @@ export class AssignRepairOrderStatusPermissionsDto {
   @ApiProperty({ required: false }) @IsOptional() @IsBoolean() can_delivery_manage?: boolean;
   @ApiProperty({ required: false }) @IsOptional() @IsBoolean() can_view_payments?: boolean;
   @ApiProperty({ required: false }) @IsOptional() @IsBoolean() can_view_history?: boolean;
+  @ApiProperty({ required: false }) @IsOptional() @IsBoolean() can_manage_rental_phone?: boolean;
+  @ApiProperty({ required: false }) @IsOptional() @IsBoolean() can_user_manage?: boolean;
 }
