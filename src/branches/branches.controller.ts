@@ -132,7 +132,7 @@ export class BranchesController {
 
   @Post(':branch_id/admins')
   @UseGuards(PermissionsGuard, BranchExistGuard)
-  @SetPermissions('branch.assign_admins')
+  @SetPermissions('branch.assign.admins')
   @ApiOperation({ summary: 'Assign admins to branch' })
   @ApiParam({ name: 'branch_id', description: 'Branch ID (UUID)' })
   @ApiResponse({ status: 201, description: 'Admins assigned successfully' })
@@ -147,7 +147,7 @@ export class BranchesController {
 
   @Delete(':branch_id/admins')
   @UseGuards(PermissionsGuard, BranchExistGuard)
-  @SetPermissions('branch.assign_admins')
+  @SetPermissions('branch.assign.admins')
   @ApiOperation({ summary: 'Remove admins from branch' })
   @ApiParam({ name: 'branch_id', description: 'Branch ID (UUID)' })
   @ApiResponse({ status: 200, description: 'Admins removed successfully' })
