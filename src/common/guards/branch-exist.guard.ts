@@ -37,9 +37,7 @@ export class BranchExistGuard implements CanActivate {
     const redisKey = `${this.redisKeyPrefix}${branchId}`;
     let branch = await this.redisService.get(redisKey);
     if (!branch) {
-      branch = await this.knex('branches')
-        .where({ id: branchId, is_active: true, status: 'Open' })
-        .first();
+      branch = await this.knex('branches').where({ id: branchId, status: 'Open' }).first();
 
       if (!branch) {
         throw new NotFoundException({
