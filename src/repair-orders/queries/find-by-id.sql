@@ -174,13 +174,13 @@ SELECT
         ), '{}'::jsonb),
         'repair_order_status', COALESCE((
             SELECT jsonb_build_object(
-                'id', a2.id,
-                'first_name', a2.first_name,
-                'last_name', a2.last_name,
-                'phone_number', a2.phone_number
+                'id', s.id,
+                'name_uz', s.name_uz,
+                'name_ru', s.name_ru,
+                'name_en', s.name_en
             )
-            FROM admins a2
-            WHERE a2.id = c.status_by
+            FROM repair_order_statuses s
+            WHERE s.id = c.status_by
             LIMIT 1
         ), '{}'::jsonb),
         'created_at', c.created_at,
