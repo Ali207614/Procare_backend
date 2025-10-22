@@ -37,8 +37,7 @@ export async function validateAndInsertProblems(
     allPermissions,
   );
 
-  // 🔍 phone category uchun root problem topish
-  const row = await trx('phone_problem_mappings')
+  const row: { problem_category_id: string } = await trx('phone_problem_mappings')
     .where({ phone_category_id: phoneCategoryId })
     .first<{ problem_category_id: string }>();
 
@@ -50,7 +49,6 @@ export async function validateAndInsertProblems(
     });
   }
 
-  // 🔍 allowed problem IDs olish (recursive CTE)
   const rawResult: Array<{ id: string }> = await trx
     .withRecursive('descendants', (qb) => {
       void qb
@@ -67,9 +65,13 @@ export async function validateAndInsertProblems(
     .select('id')
     .from('descendants');
 
-  const allowedProblemIds = rawResult.map((r) => r.id);
-  const submittedProblemIds = problems.map((p) => p.problem_category_id);
-  const invalidProblemIds = submittedProblemIds.filter((id) => !allowedProblemIds.includes(id));
+  const allowedProblemIds: string[] = rawResult.map((r: { id: string }) => r.id);
+  const submittedProblemIds: string[] = problems.map(
+    (p: ProblemWithParts) => p.problem_category_id,
+  );
+  const invalidProblemIds: string[] = submittedProblemIds.filter(
+    (id: string) => !allowedProblemIds.includes(id),
+  );
 
   if (invalidProblemIds.length) {
     throw new BadRequestException({
@@ -81,7 +83,6 @@ export async function validateAndInsertProblems(
 
   const now = new Date();
 
-  // 🛠️ Insert problems
   const problemInsertData = problems.map((p) => ({
     repair_order_id: orderId,
     problem_category_id: p.problem_category_id,
@@ -101,12 +102,12 @@ export async function validateAndInsertProblems(
     insertedProblems.map((row) => [row.problem_category_id, row.id]),
   );
 
-  // 🔍 Gather all part IDs (can be empty)
-  const allPartIds = problems.flatMap((p) => p.parts?.map((pt) => pt.id) || []);
-  const uniquePartIds = [...new Set(allPartIds)];
+  const allPartIds: string[] = problems.flatMap(
+    (p: ProblemWithParts) => p.parts?.map((pt) => pt.id) || [],
+  );
+  const uniquePartIds: string[] = [...new Set(allPartIds)];
 
   if (uniquePartIds.length > 0) {
-    // 🔐 Validate parts assignments
     const partRows = await trx('repair_part_assignments')
       .whereIn('repair_part_id', uniquePartIds)
       .select('repair_part_id', 'problem_category_id');
@@ -115,7 +116,6 @@ export async function validateAndInsertProblems(
       partRows.map((r) => [r.repair_part_id, r.problem_category_id]),
     );
 
-    // 🔍 Duplicates check
     const duplicates = allPartIds.filter((id, index, self) => self.indexOf(id) !== index);
     if (duplicates.length) {
       throw new BadRequestException({
@@ -125,7 +125,6 @@ export async function validateAndInsertProblems(
       });
     }
 
-    // 🔍 Invalid parts check
     const invalidParts: string[] = [];
     for (const problem of problems) {
       const partList = problem.parts || [];
@@ -144,7 +143,6 @@ export async function validateAndInsertProblems(
       });
     }
 
-    // 🛠️ Insert repair_order_parts
     const repairOrderPartsData = problems.flatMap((problem) => {
       const repair_order_problem_id = problemCategoryToIdMap[problem.problem_category_id];
       return (problem.parts || []).map((part) => ({

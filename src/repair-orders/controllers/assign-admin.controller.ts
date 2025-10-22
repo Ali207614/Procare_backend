@@ -6,6 +6,7 @@ import { AssignAdminsDto } from '../dto/assign-admin.dto';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
+import { RemoveAdminDto } from 'src/repair-orders/dto/remove-admin.dto';
 
 @ApiTags('Repair Orders Assign Admin')
 @ApiBearerAuth()
@@ -32,5 +33,15 @@ export class AssignAdminController {
   ): Promise<{ message: string }> {
     await this.assignAdminUpdater.delete(orderId, adminId, admin);
     return { message: '🗑️ Admin removed from order' };
+  }
+
+  @Delete()
+  async removeAdmins(
+    @Param('repair_order_id', ParseUUIDPipe) orderId: string,
+    @Body() dto: RemoveAdminDto,
+    @CurrentAdmin() admin: AdminPayload,
+  ): Promise<{ message: string }> {
+    await this.assignAdminUpdater.deleteMany(orderId, dto, admin);
+    return { message: `🗑️ ${dto.admin_ids.length} admins removed from order` };
   }
 }

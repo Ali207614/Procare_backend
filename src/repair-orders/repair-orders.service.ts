@@ -248,7 +248,6 @@ export class RepairOrdersService {
 
     const cacheKey = `${this.table}:${branchId}:${admin.id}:${sort_by}:${sort_order}:${offset}:${limit}`;
     const cached: Record<string, FreshRepairOrder[]> | null = await this.redisService.get(cacheKey);
-    console.log(cached, ' bu cahed');
     if (cached) {
       return cached;
     }
@@ -264,7 +263,6 @@ export class RepairOrdersService {
       const freshOrders: FreshRepairOrder[] = await this.knex
         .raw(querySql, { branchId, statusIds, limit, offset })
         .then((r) => r.rows as FreshRepairOrder[]);
-      console.log(freshOrders);
       const result: Record<string, FreshRepairOrder[]> = {};
       for (const statusId of statusIds) {
         result[statusId] = freshOrders.filter(
@@ -333,7 +331,8 @@ export class RepairOrdersService {
       const result: { rows: RepairOrderDetails[] } = await this.knex.raw(query, { orderId });
       const order: RepairOrderDetails = result.rows[0];
 
-      if (!order) throw new NotFoundException('Repair order not found');
+      if (!order)
+        throw new NotFoundException({ message: 'Order not found', location: 'repair_order' });
 
       const permissions: RepairOrderStatusPermission[] =
         await this.permissionService.findByRolesAndBranch(admin.roles, order.branch.id);

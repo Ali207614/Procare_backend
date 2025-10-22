@@ -248,5 +248,5 @@ FROM repair_orders ro
     LEFT JOIN branches b ON ro.branch_id = b.id
     LEFT JOIN phone_categories pc ON ro.phone_category_id = pc.id
     LEFT JOIN repair_order_statuses s ON ro.status_id = s.id
-WHERE ro.id = :orderId AND ro.status != 'Deleted'
+WHERE ro.id = :orderId
     LIMIT 1;
