@@ -156,19 +156,40 @@ SELECT
         LEFT JOIN problem_categories pc_fp ON fp.problem_category_id = pc_fp.id
         WHERE fp.repair_order_id = ro.id
     ), '[]'::json) AS final_problems,
-    COALESCE((
-        SELECT json_agg(jsonb_build_object(
-            'id', c.id,
-            'text', c.text,
-            'status', c.status,
-            'created_by', c.created_by,
-            'status_by', c.status_by,
-            'created_at', c.created_at,
-            'updated_at', c.updated_at
-        ))
-        FROM repair_order_comments c
-        WHERE c.repair_order_id = ro.id AND c.status = 'Open'
-    ), '[]'::json) AS comments,
+  COALESCE((
+    SELECT json_agg(jsonb_build_object(
+        'id', c.id,
+        'text', c.text,
+        'status', c.status,
+        'created_by_admin', COALESCE((
+            SELECT jsonb_build_object(
+                'id', a1.id,
+                'first_name', a1.first_name,
+                'last_name', a1.last_name,
+                'phone_number', a1.phone_number
+            )
+            FROM admins a1
+            WHERE a1.id = c.created_by
+            LIMIT 1
+        ), '{}'::jsonb),
+        'repair_order_status', COALESCE((
+            SELECT jsonb_build_object(
+                'id', a2.id,
+                'first_name', a2.first_name,
+                'last_name', a2.last_name,
+                'phone_number', a2.phone_number
+            )
+            FROM admins a2
+            WHERE a2.id = c.status_by
+            LIMIT 1
+        ), '{}'::jsonb),
+        'created_at', c.created_at,
+        'updated_at', c.updated_at
+    ))
+    FROM repair_order_comments c
+    WHERE c.repair_order_id = ro.id
+      AND c.status = 'Open'
+), '[]'::json) AS comments,
     COALESCE((
            select jsonb_build_object(
                 'id', p.id,
