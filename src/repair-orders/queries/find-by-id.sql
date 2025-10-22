@@ -34,7 +34,17 @@ SELECT
         'id', s.id,
         'name_uz', s.name_uz,
         'name_ru', s.name_ru,
-        'name_en', s.name_en
+        'name_en', s.name_en,
+        'transitions', COALESCE((
+                SELECT json_agg(
+                    jsonb_build_object(
+                        'id', t.id,
+                        'to_status_id', t.to_status_id
+                    )
+                )
+                FROM repair_order_status_transitions t
+                WHERE t.from_status_id = s.id
+            ), '[]'::json)
     )), '{}'::jsonb) AS repair_order_status,
     COALESCE((jsonb_build_object(
         'id', b.id,
