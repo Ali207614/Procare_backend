@@ -1,6 +1,6 @@
 import { IsArray, ArrayNotEmpty, ArrayUnique, IsUUID } from 'class-validator';
 
-export class RemoveAdminDto {
+export class RemoveAdminsDto {
   @IsArray()
   @ArrayNotEmpty()
   @ArrayUnique()

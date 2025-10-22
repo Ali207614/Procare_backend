@@ -1,12 +1,12 @@
 import { Controller, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
 import { CommentUpdaterService } from '../services/comment-updater.service';
-import { CreateCommentDto } from '../dto/create-comment.dto';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { RepairOrderComment } from 'src/common/types/repair-order-comment.interface';
+import { CreateCommentDto } from '../dto/create-comment.dto';
 
 @ApiTags('Repair Orders Comment')
 @ApiBearerAuth()

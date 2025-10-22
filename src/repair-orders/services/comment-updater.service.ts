@@ -7,6 +7,7 @@ import { RepairOrderComment } from 'src/common/types/repair-order-comment.interf
 import { RepairOrder } from 'src/common/types/repair-order.interface';
 import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
+import { CreateCommentDto } from '../dto/create-comment.dto';
 
 @Injectable()
 export class CommentUpdaterService {
@@ -16,10 +17,9 @@ export class CommentUpdaterService {
     private readonly changeLogger: RepairOrderChangeLoggerService,
   ) {}
 
-  // 🟢 CREATE COMMENT (with trx)
   async create(
     orderId: string,
-    comments: { text: string }[],
+    comments: CreateCommentDto[],
     admin: AdminPayload,
   ): Promise<RepairOrderComment | undefined> {
     if (!comments?.length) return;
@@ -68,7 +68,6 @@ export class CommentUpdaterService {
     });
   }
 
-  // 🟡 UPDATE COMMENT (with trx)
   async update(
     commentId: string,
     newText: string,
