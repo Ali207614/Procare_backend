@@ -30,22 +30,28 @@ SELECT
         'name_ru', pc.name_ru,
         'name_en', pc.name_en
     )), '{}'::jsonb) AS phone_category,
-    COALESCE((jsonb_build_object(
+    COALESCE((
+    jsonb_build_object(
         'id', s.id,
         'name_uz', s.name_uz,
         'name_ru', s.name_ru,
         'name_en', s.name_en,
         'transitions', COALESCE((
-                SELECT json_agg(
-                    jsonb_build_object(
-                        'id', t.id,
-                        'to_status_id', t.to_status_id
-                    )
+            SELECT json_agg(
+                jsonb_build_object(
+                    'id', t.to_status_id,
+                    'name_uz', s2.name_uz,
+                    'name_ru', s2.name_ru,
+                    'name_en', s2.name_en
                 )
-                FROM repair_order_status_transitions t
-                WHERE t.from_status_id = s.id
-            ), '[]'::json)
-    )), '{}'::jsonb) AS repair_order_status,
+            )
+            FROM repair_order_status_transitions t
+            INNER JOIN repair_order_statuses s2
+                ON s2.id = t.to_status_id
+            WHERE t.from_status_id = s.id
+        ), '[]'::json)
+    )
+), '{}'::jsonb) AS repair_order_status,
     COALESCE((jsonb_build_object(
         'id', b.id,
         'name_uz', b.name_uz,
