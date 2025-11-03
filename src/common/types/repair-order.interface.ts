@@ -206,6 +206,7 @@ export interface FreshRepairOrder {
     updated_at: string | null;
   };
 }
+
 export interface RepairOrderDetails {
   id: string;
   number_id: number;
@@ -393,24 +394,33 @@ export interface JoinedRepairOrder {
   delivery_method: 'Self' | 'Delivery';
   pickup_method: 'Self' | 'Pickup';
   priority: 'Low' | 'Medium' | 'High' | 'Highest';
-  status: 'Open' | 'Deleted';
-  created_at: string; // yoki Date
+  status: 'Open' | 'Deleted' | 'Closed' | 'Cancelled';
+  created_at: string;
 
-  // Branch info
-  branch_name_uz: string | null;
-  branch_name_ru: string | null;
-  branch_name_en: string | null;
+  branch: {
+    id: string | null;
+    name_uz: string | null;
+    name_ru: string | null;
+    name_en: string | null;
+  };
 
-  // Phone category info
-  phone_name_uz: string | null;
-  phone_name_ru: string | null;
-  phone_name_en: string | null;
+  phone_category: {
+    id: string | null;
+    name_uz: string | null;
+    name_ru: string | null;
+    name_en: string | null;
+  };
 
-  // Status info
-  status_name_uz: string | null;
-  status_name_ru: string | null;
-  status_name_en: string | null;
+  repair_order_status: {
+    id: string | null;
+    name_uz: string | null;
+    name_ru: string | null;
+    name_en: string | null;
+    color: string | null;
+    bg_color: string | null;
+  };
 }
+
 
 export interface UserWithRepairOrders extends User {
   repair_orders: JoinedRepairOrder[];

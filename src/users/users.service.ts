@@ -6,7 +6,7 @@ import { InjectKnex } from 'nestjs-knex';
 import { CreateUserDto } from './dto/create-user.dto';
 import { FindAllUsersDto, HasTelegramFilter } from './dto/find-all-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { JoinedRepairOrder, UserWithRepairOrders } from 'src/common/types/repair-order.interface';
+import { UserWithRepairOrders } from 'src/common/types/repair-order.interface';
 import { User, UserListItem } from 'src/common/types/user.interface';
 import { RedisService } from 'src/common/redis/redis.service';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
@@ -30,8 +30,7 @@ export class UsersService {
       });
     }
 
-    const repairOrders: JoinedRepairOrder[] = await this.knex('repair_orders as ro')
-      .leftJoin('users as u', 'ro.user_id', 'u.id')
+    const repairOrdersRaw = await this.knex('repair_orders as ro')
       .leftJoin('branches as b', 'ro.branch_id', 'b.id')
       .leftJoin('phone_categories as pc', 'ro.phone_category_id', 'pc.id')
       .leftJoin('repair_order_statuses as s', 'ro.status_id', 's.id')
@@ -44,18 +43,63 @@ export class UsersService {
         'ro.priority',
         'ro.status',
         'ro.created_at',
+
+        // === Branch ===
+        'b.id as branch_id',
         'b.name_uz as branch_name_uz',
         'b.name_ru as branch_name_ru',
         'b.name_en as branch_name_en',
+
+        // === Phone Category ===
+        'pc.id as phone_category_id',
         'pc.name_uz as phone_name_uz',
         'pc.name_ru as phone_name_ru',
         'pc.name_en as phone_name_en',
+
+        // === Status ===
+        's.id as status_id',
         's.name_uz as status_name_uz',
         's.name_ru as status_name_ru',
         's.name_en as status_name_en',
+        's.color as status_color',
+        's.bg_color as status_bg_color',
       )
-      .where('u.id', userId)
+      .where('ro.user_id', userId)
       .orderBy('ro.created_at', 'desc');
+
+    const repairOrders = repairOrdersRaw.map((row) => ({
+      id: row.id,
+      total: row.total,
+      imei: row.imei,
+      delivery_method: row.delivery_method,
+      pickup_method: row.pickup_method,
+      priority: row.priority,
+      status: row.status,
+      created_at: row.created_at,
+
+      branch: {
+        id: row.branch_id,
+        name_uz: row.branch_name_uz,
+        name_ru: row.branch_name_ru,
+        name_en: row.branch_name_en,
+      },
+
+      phone_category: {
+        id: row.phone_category_id,
+        name_uz: row.phone_name_uz,
+        name_ru: row.phone_name_ru,
+        name_en: row.phone_name_en,
+      },
+
+      repair_order_status: {
+        id: row.status_id,
+        name_uz: row.status_name_uz,
+        name_ru: row.status_name_ru,
+        name_en: row.status_name_en,
+        color: row.status_color,
+        bg_color: row.status_bg_color,
+      },
+    }));
 
     return {
       ...user,
