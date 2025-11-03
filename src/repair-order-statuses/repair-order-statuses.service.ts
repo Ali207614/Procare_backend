@@ -61,26 +61,30 @@ export class RepairOrderStatusesService {
         branchId = branch.id;
       }
 
-      const existing = await trx<RepairOrderStatus>('repair_order_statuses')
+      const existing: RepairOrderStatus | undefined = await trx<RepairOrderStatus>(
+        'repair_order_statuses',
+      )
         .where({ branch_id: branchId })
-        .andWhere(
-          (qb: Knex.QueryBuilder) =>
-            void qb
-              .whereILike('name_uz', dto.name_uz)
-              .orWhereILike('name_ru', dto.name_ru)
-              .orWhereILike('name_en', dto.name_en),
-        )
         .andWhereNot({ status: 'Deleted' })
+        .andWhere((qb) => {
+          void qb
+            .whereRaw('LOWER(name_uz) = LOWER(?)', [dto.name_uz])
+            .orWhereRaw('LOWER(name_ru) = LOWER(?)', [dto.name_ru])
+            .orWhereRaw('LOWER(name_en) = LOWER(?)', [dto.name_en]);
+        })
         .first();
-      if (existing)
+
+      if (existing) {
         throw new BadRequestException({
-          message: 'Status name already exists in this branch',
+          message: 'Status name already exists in this branch (any language)',
           location: 'name_conflict',
         });
+      }
 
       const nextSort = await getNextSortValue(trx, 'repair_order_statuses', {
         where: { branch_id: branchId },
       });
+
       const insertData: Partial<RepairOrderStatus> = {
         name_uz: dto.name_uz,
         name_ru: dto.name_ru,
@@ -300,9 +304,9 @@ export class RepairOrderStatusesService {
         });
       }
 
-      const branchId = dto.branch_id;
+      const branchId: string | undefined = dto.branch_id;
       if (branchId) {
-        const branch = await trx<Branch>('branches')
+        const branch: Branch | undefined = await trx<Branch>('branches')
           .where({ id: branchId, status: 'Open' })
           .first();
         if (!branch)
@@ -333,9 +337,11 @@ export class RepairOrderStatusesService {
       }
 
       const updateData: Partial<RepairOrderStatus> = {
-        name_uz: dto.name_uz,
-        name_ru: dto.name_ru,
-        name_en: dto.name_en,
+        name_uz: dto.name_uz || status.name_uz,
+        name_ru: dto.name_ru || status.name_ru,
+        name_en: dto.name_en || status.name_en,
+        bg_color: dto.bg_color || status.bg_color,
+        color: dto.color || status.color,
         branch_id: dto.branch_id,
         is_active: dto.is_active,
         can_user_view: dto.can_user_view,

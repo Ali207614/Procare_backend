@@ -36,6 +36,8 @@ SELECT
         'name_uz', s.name_uz,
         'name_ru', s.name_ru,
         'name_en', s.name_en,
+        'color', s.color,
+        'bg_color', s.bg_color,
         'transitions', COALESCE((
             SELECT json_agg(
                 jsonb_build_object(
