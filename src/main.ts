@@ -1,33 +1,33 @@
 // src/main.ts
-import './config/env-loader';
 import { webcrypto } from 'node:crypto';
+import './config/env-loader';
 if (!(globalThis as any).crypto) {
   (globalThis as any).crypto = webcrypto;
 }
 
+import { BadRequestException, ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
-import { AppModule } from './app.module';
-import { ValidationPipe, ClassSerializerInterceptor, BadRequestException } from '@nestjs/common';
-import helmet from 'helmet';
 import compression from 'compression';
+import helmet from 'helmet';
+import { AppModule } from './app.module';
 
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { LoggerService } from './common/logger/logger.service';
 import { SanitizationPipe } from './common/pipe/sanitization.pipe';
 import { extractError } from './common/utils/validation.util';
-import { LoggerService } from './common/logger/logger.service';
 
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import basicAuth from 'express-basic-auth';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { Application as ExpressApp } from 'express';
+import basicAuth from 'express-basic-auth';
 
 // Bull v3 (bull)
+import { BullAdapter } from '@bull-board/api/bullAdapter';
 import { getQueueToken as getBullToken } from '@nestjs/bull';
 import { Queue as BullQueue } from 'bull';
-import { BullAdapter } from '@bull-board/api/bullAdapter';
 
 // BullMQ
-import { Queue as BullMQQueue } from 'bullmq';
 import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
+import { Queue as BullMQQueue } from 'bullmq';
 
 // Bull Board UI
 import { createBullBoard } from '@bull-board/api';
@@ -38,7 +38,7 @@ async function bootstrap(): Promise<void> {
   const logger = new LoggerService();
 
   const GLOBAL_PREFIX = 'api/v1';
-  const HOST = process.env.HOST || '127.0.0.1';
+  const HOST = process.env.HOST || '0.0.0.0';
   const PORT = Number(process.env.PORT) || 5001;
 
   // CORS
@@ -115,13 +115,6 @@ async function bootstrap(): Promise<void> {
   SwaggerModule.setup(`${GLOBAL_PREFIX}/docs`, app, swaggerDoc);
 
   // -------- Bull Board wiring --------
-  // 1) Bull (v3) queue — sap
-  let sapQueue: BullQueue | undefined;
-  try {
-    sapQueue = app.get<BullQueue>(getBullToken('sap'));
-  } catch {
-    logger.warn('[BullBoard] sap Bull queue DI orqali topilmadi (optional).');
-  }
 
   let campaignsQueue: BullMQQueue;
   try {
@@ -140,7 +133,6 @@ async function bootstrap(): Promise<void> {
   serverAdapter.setBasePath('/admin/queues');
 
   const queuesAdapters = [
-    ...(sapQueue ? [new BullAdapter(sapQueue)] : []),
     new BullMQAdapter(campaignsQueue),
   ];
 

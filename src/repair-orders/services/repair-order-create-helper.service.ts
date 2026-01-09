@@ -1,6 +1,4 @@
-import { InjectQueue } from '@nestjs/bull';
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
-import { Queue } from 'bull';
 import type { Knex } from 'knex';
 import { NotificationService } from 'src/notification/notification.service';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
@@ -24,7 +22,6 @@ export class RepairOrderCreateHelperService {
     private readonly notificationService: NotificationService,
     private readonly redisService: RedisService,
     private readonly logger: LoggerService,
-    @InjectQueue('sap') private readonly sapQueue: Queue,
   ) {}
 
   async flushCacheByPrefix(prefix: string, id?: string): Promise<void> {
@@ -123,26 +120,7 @@ export class RepairOrderCreateHelperService {
         if (user) await this.redisService.set(userCacheKey, user, 3600);
       }
 
-      if (user?.sap_card_code) {
-        try {
-          await this.sapQueue.add('create-rental-order', {
-            repair_order_rental_phone_id: inserted.id,
-            cardCode: user.sap_card_code,
-            itemCode: device.code,
-            startDate: new Date().toISOString().split('T')[0],
-          });
-        } catch (err) {
-          const message =
-            err instanceof Error ? err.message : 'Unknown error while adding SAP queue job';
-
-          this.logger.error(`Failed to add SAP queue job for rental order: ${message}`);
-
-          throw new BadRequestException({
-            message: 'Failed to create SAP rental order',
-            location: 'sap_queue',
-          });
-        }
-      }
+      // SAP integration removed
 
       this.logger.log(`Inserted rental phone for repair order ${orderId}`);
     } catch (err: unknown) {

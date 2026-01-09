@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios, { AxiosResponse } from 'axios';
+import 'dotenv/config';
 
 @Injectable()
 export class TelegramService {
@@ -8,6 +9,8 @@ export class TelegramService {
 
   constructor() {
     const token = process.env.TELEGRAM_BOT_TOKEN;
+    console.log('TelegramService initialized with token:', token ? '****' : 'undefined');
+
     if (!token) {
       throw new Error('TELEGRAM_BOT_TOKEN is not defined');
     }

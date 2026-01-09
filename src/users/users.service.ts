@@ -1,6 +1,4 @@
-import { InjectQueue } from '@nestjs/bull';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Queue } from 'bull';
 import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -16,7 +14,6 @@ import { PaginationResult } from 'src/common/utils/pagination.util';
 export class UsersService {
   constructor(
     @InjectKnex() private readonly knex: Knex,
-    @InjectQueue('sap') private readonly sapQueue: Queue,
     private readonly redisService: RedisService,
   ) {}
 
@@ -142,21 +139,7 @@ export class UsersService {
       })
       .returning('*');
 
-    await this.sapQueue.add(
-      'create-bp',
-      {
-        userId: user.id,
-        cardName: `${user.first_name} ${user.last_name}`,
-        phone: user.phone_number1,
-      },
-      {
-        attempts: 5,
-        backoff: {
-          type: 'exponential',
-          delay: 30000,
-        },
-      },
-    );
+    // SAP integration removed
 
     return user;
   }

@@ -1,8 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { RepairOrderChangeLoggerService } from './repair-order-change-logger.service';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
 import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
 import { RepairOrder } from 'src/common/types/repair-order.interface';
@@ -19,7 +17,6 @@ export class RentalPhoneUpdaterService {
     private readonly permissionService: RepairOrderStatusPermissionsService,
     private readonly changeLogger: RepairOrderChangeLoggerService,
     private readonly logger: LoggerService,
-    @InjectQueue('sap') private readonly sapQueue: Queue,
     @InjectKnex() private readonly knex: Knex,
   ) {}
 
@@ -93,26 +90,7 @@ export class RentalPhoneUpdaterService {
 
     const user = await this.knex('users').where({ id: order.user_id }).first();
 
-    if (user.sap_card_code) {
-      try {
-        await this.sapQueue.add('create-rental-order', {
-          repair_order_rental_phone_id: inserted.id,
-          cardCode: user.sap_card_code,
-          itemCode: device.code,
-          startDate: new Date().toISOString().split('T')[0],
-        });
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Unknown error while adding SAP queue job';
-
-        this.logger.error(`Failed to add SAP queue job for rental order: ${message}`);
-
-        throw new BadRequestException({
-          message: 'Failed to create SAP rental order',
-          location: 'sap_queue',
-        });
-      }
-    }
+    // SAP integration removed
 
     await this.changeLogger.logIfChanged(
       this.knex,
@@ -238,11 +216,7 @@ export class RentalPhoneUpdaterService {
       .where({ id: existing.id })
       .update({ status: 'Cancelled', updated_at: new Date() });
 
-    if (existing.sap_order_id) {
-      await this.sapQueue.add('cancel-rental-order', {
-        sap_order_id: existing.sap_order_id,
-      });
-    }
+    // SAP integration removed
 
     await this.changeLogger.logIfChanged(
       this.knex,
