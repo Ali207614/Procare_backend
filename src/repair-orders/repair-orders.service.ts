@@ -406,7 +406,7 @@ export class RepairOrdersService {
         throw new NotFoundException({ message: 'Order not found', location: 'repair_order' });
 
       if (dto.status_id !== order.status_id) {
-        const transitionExists = await trx('repair_order_status_transitions')
+        const transitionExists = await trx('repair-order-status-transitions')
           .where({ from_status_id: order.status_id, to_status_id: dto.status_id })
           .first();
         if (!transitionExists)

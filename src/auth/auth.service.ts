@@ -53,7 +53,7 @@ export class AuthService {
       });
     }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code: string = Math.floor(100000 + Math.random() * 900000).toString();
     console.log('Verification code:', code);
 
     await this.redisService.set(`verify:${dto.phone_number}`, code, 300); // 5 min TTL
