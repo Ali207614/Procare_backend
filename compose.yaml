@@ -13,14 +13,37 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      db-seed:
+        condition: service_completed_successfully
     networks:
       - procare_network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5001/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5001/api/v1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  db-seed:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: procare_db_seed
+    env_file: .env
+    environment:
+      - NODE_ENV=development
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASS=${DB_PASS:-password}
+      - DB_NAME=${DB_NAME:-procare}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: npm run db:setup
+    networks:
+      - procare_network
+    restart: "no"
 
   postgres:
     image: postgres:16-alpine
@@ -48,7 +71,7 @@ services:
     image: redis:alpine
     container_name: procare_redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:

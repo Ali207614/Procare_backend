@@ -19,6 +19,11 @@
     "typeRoots": ["./src/types","./node_modules/@types",],
     "baseUrl": "./",
     "paths": {
+      "@common/*": ["src/common/*"],
+      "@modules/*": ["src/modules/*"],
+      "@config/*": ["src/config/*"],
+      "@utils/*": ["src/utils/*"],
+      "@types/*": ["src/types/*"],
       "src/*": ["src/*"]
     }
   },
