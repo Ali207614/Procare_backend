@@ -39,3 +39,6 @@ lerna-debug.log*
 .env
 .env.local
 .claude/
+CLAUDE.md
+ProCare_Backend_API.postman_collection.json
+.claude/settings.local.json

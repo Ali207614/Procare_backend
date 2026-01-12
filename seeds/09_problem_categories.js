@@ -331,7 +331,7 @@ exports.seed = async function (knex) {
       sort: category.sort,
       is_active: true,
       status: 'Open',
-      created_by: '00000000-0000-0000-0000-000000000001', // Super admin
+      created_by: '00000000-0000-0000-0000-000000000000', // Super admin
       created_at: knex.fn.now(),
       updated_at: knex.fn.now(),
     });

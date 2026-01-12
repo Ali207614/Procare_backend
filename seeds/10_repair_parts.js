@@ -289,17 +289,16 @@ exports.seed = async function (knex) {
   for (const part of repairParts) {
     await knex('repair_parts').insert({
       id: part.id,
-      name_uz: part.name_uz,
-      name_ru: part.name_ru,
-      name_en: part.name_en,
-      cost_price: part.cost_price,
-      selling_price: part.selling_price,
-      quantity_in_stock: part.quantity_in_stock,
-      min_quantity_threshold: part.min_quantity_threshold,
-      sort: part.sort,
-      is_active: true,
+      part_name_uz: part.name_uz,
+      part_name_ru: part.name_ru,
+      part_name_en: part.name_en,
+      part_price: part.selling_price,
+      quantity: part.quantity_in_stock,
+      description_uz: `${part.name_uz} uchun ehtiyot qism`,
+      description_ru: `Запчасть для ${part.name_ru}`,
+      description_en: `Spare part for ${part.name_en}`,
       status: 'Open',
-      created_by: '00000000-0000-0000-0000-000000000001', // Super admin
+      created_by: '00000000-0000-0000-0000-000000000000', // Super admin
       created_at: knex.fn.now(),
       updated_at: knex.fn.now(),
     });

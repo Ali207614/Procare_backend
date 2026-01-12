@@ -18,7 +18,7 @@ export class RepairOrderStatusTransitionsService {
     private readonly logger: LoggerService,
   ) {}
 
-  private readonly redisKey = `repair_order_status_transitions:from:`;
+  private readonly redisKey = `repair-order-status-transitions:from:`;
   private readonly redisKeyView = 'status_viewable:';
 
   async create(
@@ -46,7 +46,7 @@ export class RepairOrderStatusTransitionsService {
     const trx = await this.knex.transaction();
 
     try {
-      await trx('repair_order_status_transitions').where({ from_status_id }).del();
+      await trx('repair-order-status-transitions').where({ from_status_id }).del();
 
       if (to_status_ids.length === 0) {
         await trx.commit();
@@ -60,7 +60,7 @@ export class RepairOrderStatusTransitionsService {
         to_status_id: toId,
       }));
 
-      const inserted: RepairOrderStatusTransition[] = await trx('repair_order_status_transitions')
+      const inserted: RepairOrderStatusTransition[] = await trx('repair-order-status-transitions')
         .insert(inserts)
         .returning('*');
 
@@ -87,6 +87,6 @@ export class RepairOrderStatusTransitionsService {
   }
 
   async findAll(): Promise<RepairOrderStatusTransition[]> {
-    return this.knex('repair_order_status_transitions').select('*').orderBy('created_at', 'desc');
+    return this.knex('repair-order-status-transitions').select('*').orderBy('created_at', 'desc');
   }
 }

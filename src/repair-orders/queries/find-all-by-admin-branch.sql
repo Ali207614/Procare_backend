@@ -1,3 +1,4 @@
+
 SELECT
     ro.id,
     ro.number_id,
@@ -52,7 +53,7 @@ SELECT
                         'to_status_id', t.to_status_id
                     )
                 )
-                FROM repair_order_status_transitions t
+                FROM repair-order-status-transitions t
                 WHERE t.from_status_id = s.id
             ), '[]'::json)
         ),
@@ -69,8 +70,8 @@ SELECT
         '{}'::jsonb
     ) AS branch,
 
-    /* === Assigned Admins === */
-    COALESCE((
+/* === Assigned Admins === */
+COALESCE((
         SELECT json_agg(
             jsonb_build_object(
                 'id', aa.admin_id,
@@ -118,4 +119,4 @@ WHERE ro.branch_id = :branchId
 
 /*ORDER_CLAUSE*/
 
-    LIMIT :limit OFFSET :offset;
+LIMIT :limit OFFSET :offset;

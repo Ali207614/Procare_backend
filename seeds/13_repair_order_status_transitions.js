@@ -1,5 +1,5 @@
 exports.seed = async function (knex) {
-  await knex('repair_order_status_transitions').del();
+  await knex('repair-order-status-transitions').del();
 
   // Get all repair order statuses to create transitions between them
   const statuses = await knex('repair_order_statuses')
@@ -16,7 +16,23 @@ exports.seed = async function (knex) {
     return acc;
   }, {});
 
+  // Track transitions to avoid duplicates
+  const existingTransitions = new Set();
   let transitionId = 1;
+
+  // Helper function to insert transition if unique
+  async function insertTransition(fromId, toId) {
+    const key = `${fromId}-${toId}`;
+    if (!existingTransitions.has(key)) {
+      await knex('repair-order-status-transitions').insert({
+        id: `60000000-0000-0000-0000-${String(transitionId).padStart(12, '0')}`,
+        from_status_id: fromId,
+        to_status_id: toId,
+      });
+      existingTransitions.add(key);
+      transitionId++;
+    }
+  }
 
   // Create transitions for each branch
   for (const [branchId, branchStatuses] of Object.entries(statusesByBranch)) {
@@ -28,17 +44,7 @@ exports.seed = async function (knex) {
       // Don't create transitions to/from completed or cancelled statuses
       if (currentStatus.type !== 'Completed' && currentStatus.type !== 'Cancelled' &&
           nextStatus.type !== 'Completed' && nextStatus.type !== 'Cancelled') {
-        await knex('repair_order_status_transitions').insert({
-          id: `60000000-0000-0000-0000-${String(transitionId).padStart(12, '0')}`,
-          from_status_id: currentStatus.id,
-          to_status_id: nextStatus.id,
-          is_active: true,
-          status: 'Open',
-          created_by: '00000000-0000-0000-0000-000000000001', // Super admin
-          created_at: knex.fn.now(),
-          updated_at: knex.fn.now(),
-        });
-        transitionId++;
+        await insertTransition(currentStatus.id, nextStatus.id);
       }
     }
 
@@ -50,17 +56,7 @@ exports.seed = async function (knex) {
       // Don't create transitions from completed or cancelled statuses
       if (currentStatus.type !== 'Completed' && currentStatus.type !== 'Cancelled' &&
           prevStatus.type !== 'Completed' && prevStatus.type !== 'Cancelled') {
-        await knex('repair_order_status_transitions').insert({
-          id: `60000000-0000-0000-0000-${String(transitionId).padStart(12, '0')}`,
-          from_status_id: currentStatus.id,
-          to_status_id: prevStatus.id,
-          is_active: true,
-          status: 'Open',
-          created_by: '00000000-0000-0000-0000-000000000001', // Super admin
-          created_at: knex.fn.now(),
-          updated_at: knex.fn.now(),
-        });
-        transitionId++;
+        await insertTransition(currentStatus.id, prevStatus.id);
       }
     }
 
@@ -73,32 +69,12 @@ exports.seed = async function (knex) {
         // Allow transition to "Completed" only from "Ready" or "Out for Delivery"
         if (completionStatus.type === 'Completed' &&
             (workflowStatus.sort === 7 || workflowStatus.sort === 8)) { // Ready or Out for Delivery
-          await knex('repair_order_status_transitions').insert({
-            id: `60000000-0000-0000-0000-${String(transitionId).padStart(12, '0')}`,
-            from_status_id: workflowStatus.id,
-            to_status_id: completionStatus.id,
-            is_active: true,
-            status: 'Open',
-            created_by: '00000000-0000-0000-0000-000000000001', // Super admin
-            created_at: knex.fn.now(),
-            updated_at: knex.fn.now(),
-          });
-          transitionId++;
+          await insertTransition(workflowStatus.id, completionStatus.id);
         }
 
         // Allow transition to "Cancelled" from any workflow status
         if (completionStatus.type === 'Cancelled') {
-          await knex('repair_order_status_transitions').insert({
-            id: `60000000-0000-0000-0000-${String(transitionId).padStart(12, '0')}`,
-            from_status_id: workflowStatus.id,
-            to_status_id: completionStatus.id,
-            is_active: true,
-            status: 'Open',
-            created_by: '00000000-0000-0000-0000-000000000001', // Super admin
-            created_at: knex.fn.now(),
-            updated_at: knex.fn.now(),
-          });
-          transitionId++;
+          await insertTransition(workflowStatus.id, completionStatus.id);
         }
       }
     }
@@ -110,33 +86,13 @@ exports.seed = async function (knex) {
       // Can transition from these special statuses to cancellation
       const cancelledStatus = branchStatuses.find(s => s.type === 'Cancelled');
       if (cancelledStatus) {
-        await knex('repair_order_status_transitions').insert({
-          id: `60000000-0000-0000-0000-${String(transitionId).padStart(12, '0')}`,
-          from_status_id: specialStatus.id,
-          to_status_id: cancelledStatus.id,
-          is_active: true,
-          status: 'Open',
-          created_by: '00000000-0000-0000-0000-000000000001', // Super admin
-          created_at: knex.fn.now(),
-          updated_at: knex.fn.now(),
-        });
-        transitionId++;
+        await insertTransition(specialStatus.id, cancelledStatus.id);
       }
 
       // Can transition to these special statuses from most workflow statuses
       for (const workflowStatus of workflowStatuses) {
         if (workflowStatus.id !== specialStatus.id && workflowStatus.sort <= 6) { // Up to Testing phase
-          await knex('repair_order_status_transitions').insert({
-            id: `60000000-0000-0000-0000-${String(transitionId).padStart(12, '0')}`,
-            from_status_id: workflowStatus.id,
-            to_status_id: specialStatus.id,
-            is_active: true,
-            status: 'Open',
-            created_by: '00000000-0000-0000-0000-000000000001', // Super admin
-            created_at: knex.fn.now(),
-            updated_at: knex.fn.now(),
-          });
-          transitionId++;
+          await insertTransition(workflowStatus.id, specialStatus.id);
         }
       }
     }

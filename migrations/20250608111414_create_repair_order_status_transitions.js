@@ -1,5 +1,5 @@
 exports.up = async function (knex) {
-  await knex.schema.createTable('repair_order_status_transitions', (table) => {
+  await knex.schema.createTable('repair-order-status-transitions', (table) => {
     table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
 
     table
@@ -24,5 +24,5 @@ exports.up = async function (knex) {
 };
 
 exports.down = async function (knex) {
-  await knex.schema.dropTableIfExists('repair_order_status_transitions');
+  await knex.schema.dropTableIfExists('repair-order-status-transitions');
 };

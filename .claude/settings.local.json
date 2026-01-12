@@ -1,7 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(docker compose:*)"
+      "Bash(for f in *.js.disabled)"
     ],
     "deny": [],
     "ask": []

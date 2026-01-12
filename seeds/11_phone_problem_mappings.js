@@ -370,11 +370,6 @@ exports.seed = async function (knex) {
       id: mapping.id,
       phone_category_id: mapping.phone_category_id,
       problem_category_id: mapping.problem_category_id,
-      is_active: true,
-      status: 'Open',
-      created_by: '00000000-0000-0000-0000-000000000001', // Super admin
-      created_at: knex.fn.now(),
-      updated_at: knex.fn.now(),
     });
   }
 };

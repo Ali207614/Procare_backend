@@ -203,7 +203,7 @@ export class RepairOrderStatusesService {
       const [statuses, countResult, transitionsRaw] = await Promise.all([
         baseQuery.clone().orderBy('sort', 'asc').offset(offset).limit(limit),
         baseQuery.clone().count<{ count: string }[]>('* as count'),
-        trx<RepairOrderStatusTransition>('repair_order_status_transitions').whereIn(
+        trx<RepairOrderStatusTransition>('repair-order-status-transitions').whereIn(
           'from_status_id',
           viewableIds,
         ),

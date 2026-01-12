@@ -33,10 +33,10 @@ services:
     environment:
       - NODE_ENV=development
       - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASS=${DB_PASS:-password}
-      - DB_NAME=${DB_NAME:-procare}
+      - ${DB_PORT}
+      - ${DB_USER}
+      - ${DB_PASS}
+      - ${DB_NAME}
     depends_on:
       postgres:
         condition: service_healthy
@@ -94,4 +94,3 @@ volumes:
 networks:
   procare_network:
     driver: bridge
-

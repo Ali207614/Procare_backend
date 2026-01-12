@@ -47,7 +47,7 @@ SELECT
                     'name_en', s2.name_en
                 )
             )
-            FROM repair_order_status_transitions t
+            FROM repair-order-status-transitions t
             INNER JOIN repair_order_statuses s2
                 ON s2.id = t.to_status_id
             WHERE t.from_status_id = s.id
