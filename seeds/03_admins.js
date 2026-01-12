@@ -28,21 +28,34 @@ exports.seed = async function (knex) {
     updated_at: knex.fn.now(),
   };
 
+  // Realistic admin names
+  const adminFirstNames = [
+    'Akmal', 'Malika', 'Bobur', 'Nigora', 'Sardor', 'Feruza', 'Jasur', 'Dilnoza',
+    'Aziz', 'Madina', 'Rustam', 'Gulnora', 'Shahzod', 'Nilufar', 'Temur', 'Zarina',
+    'Farhod', 'Sevara', 'Bekzod', 'Kamola',
+  ];
+  
+  const adminLastNames = [
+    'Karimov', 'Toshmatova', 'Rashidov', 'Saidova', 'Alimov', 'Normatova', 'Nazarov', 'Yusupova',
+    'Toshmatov', 'Karimova', 'Rashidova', 'Saidov', 'Alimova', 'Normatov', 'Nazarova', 'Yusupov',
+    'Abdullayev', 'Rahimova', 'Ismoilov', 'Xasanova',
+  ];
+
   const admins = [superAdmin];
 
   for (let i = 1; i <= 19; i++) {
     admins.push({
       id: uuidv4(),
-      first_name: `Admin${i}`,
-      last_name: `User${i}`,
+      first_name: adminFirstNames[(i - 1) % adminFirstNames.length],
+      last_name: adminLastNames[(i - 1) % adminLastNames.length],
       is_protected: false,
-      phone_number: `+9989012345${String(i).padStart(2, '0')}`,
+      phone_number: `+99890${String(1234567 + i).slice(-7)}`,
       phone_verified: true,
-      password: '$2a$10$EHzpy4lcLj0mZ/pkji./5uyz8f.WFoXiCdN1aK',
-      passport_series: `AB${1000000 + i}`,
-      birth_date: new Date(`1990-01-${String((i % 28) + 1).padStart(2, '0')}`),
-      hire_date: new Date(`2021-01-${String((i % 28) + 1).padStart(2, '0')}`),
-      id_card_number: `${9000000000 + i}`,
+      password: '$2a$10$EHzpy4lcLj0mZ/pkji./5uyz8f.WFoXiCd9DXdrXMt3rV5GF8KNzK', // 1111
+      passport_series: `AB${String(1000000 + i).slice(-7)}`,
+      birth_date: new Date(1985 + (i % 15), (i % 12), (i % 28) + 1),
+      hire_date: new Date(2020 + (i % 4), (i % 12), (i % 28) + 1),
+      id_card_number: `${String(3000000000 + i).slice(-10)}`,
       language: i % 2 === 0 ? 'uz' : 'ru',
       is_active: true,
       status: 'Open',

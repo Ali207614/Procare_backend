@@ -239,6 +239,130 @@ exports.seed = async function (knex) {
       phone_category_id: '10000000-0000-0000-0000-000000000051', // X100 Pro
       problem_category_id: '20000000-0000-0000-0000-000000000032', // Mikrofon ishlamaydi
     },
+    {
+      id: '40000000-0000-0000-0000-000000000043',
+      phone_category_id: '10000000-0000-0000-0000-000000000051', // X100 Pro
+      problem_category_id: '20000000-0000-0000-0000-000000000041', // Kamera ochilmaydi
+    },
+
+    // Additional iPhone 15 Plus mappings
+    {
+      id: '40000000-0000-0000-0000-000000000044',
+      phone_category_id: '10000000-0000-0000-0000-000000000005', // iPhone 15 Plus
+      problem_category_id: '20000000-0000-0000-0000-000000000011', // Ekran singan
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000045',
+      phone_category_id: '10000000-0000-0000-0000-000000000005', // iPhone 15 Plus
+      problem_category_id: '20000000-0000-0000-0000-000000000021', // Batareya tez tugaydi
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000046',
+      phone_category_id: '10000000-0000-0000-0000-000000000005', // iPhone 15 Plus
+      problem_category_id: '20000000-0000-0000-0000-000000000051', // Zaryadlanmaydi
+    },
+
+    // Additional iPhone 13 Pro Max mappings
+    {
+      id: '40000000-0000-0000-0000-000000000047',
+      phone_category_id: '10000000-0000-0000-0000-000000000009', // iPhone 13 Pro Max
+      problem_category_id: '20000000-0000-0000-0000-000000000012', // Ekran qora
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000048',
+      phone_category_id: '10000000-0000-0000-0000-000000000009', // iPhone 13 Pro Max
+      problem_category_id: '20000000-0000-0000-0000-000000000013', // Sensorli ekran ishlamaydi
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000049',
+      phone_category_id: '10000000-0000-0000-0000-000000000009', // iPhone 13 Pro Max
+      problem_category_id: '20000000-0000-0000-0000-000000000031', // Ovoz chiqmaydi
+    },
+
+    // Additional Samsung Galaxy S24+ mappings
+    {
+      id: '40000000-0000-0000-0000-000000000050',
+      phone_category_id: '10000000-0000-0000-0000-000000000022', // Galaxy S24+
+      problem_category_id: '20000000-0000-0000-0000-000000000011', // Ekran singan
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000051',
+      phone_category_id: '10000000-0000-0000-0000-000000000022', // Galaxy S24+
+      problem_category_id: '20000000-0000-0000-0000-000000000022', // Batareya almashtirish
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000052',
+      phone_category_id: '10000000-0000-0000-0000-000000000022', // Galaxy S24+
+      problem_category_id: '20000000-0000-0000-0000-000000000061', // WiFi ishlamaydi
+    },
+
+    // Additional Samsung Galaxy S23 Ultra mappings
+    {
+      id: '40000000-0000-0000-0000-000000000053',
+      phone_category_id: '10000000-0000-0000-0000-000000000024', // Galaxy S23 Ultra
+      problem_category_id: '20000000-0000-0000-0000-000000000011', // Ekran singan
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000054',
+      phone_category_id: '10000000-0000-0000-0000-000000000024', // Galaxy S23 Ultra
+      problem_category_id: '20000000-0000-0000-0000-000000000014', // Ekranda chiziqlar
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000055',
+      phone_category_id: '10000000-0000-0000-0000-000000000024', // Galaxy S23 Ultra
+      problem_category_id: '20000000-0000-0000-0000-000000000041', // Kamera ochilmaydi
+    },
+
+    // Additional Samsung Galaxy A34 mappings
+    {
+      id: '40000000-0000-0000-0000-000000000056',
+      phone_category_id: '10000000-0000-0000-0000-000000000026', // Galaxy A34
+      problem_category_id: '20000000-0000-0000-0000-000000000011', // Ekran singan
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000057',
+      phone_category_id: '10000000-0000-0000-0000-000000000026', // Galaxy A34
+      problem_category_id: '20000000-0000-0000-0000-000000000021', // Batareya tez tugaydi
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000058',
+      phone_category_id: '10000000-0000-0000-0000-000000000026', // Galaxy A34
+      problem_category_id: '20000000-0000-0000-0000-000000000071', // Telefon sekin ishlaydi
+    },
+
+    // Additional Oppo Reno 11 Pro mappings
+    {
+      id: '40000000-0000-0000-0000-000000000059',
+      phone_category_id: '10000000-0000-0000-0000-000000000042', // Reno 11 Pro
+      problem_category_id: '20000000-0000-0000-0000-000000000011', // Ekran singan
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000060',
+      phone_category_id: '10000000-0000-0000-0000-000000000042', // Reno 11 Pro
+      problem_category_id: '20000000-0000-0000-0000-000000000042', // Kamera xira
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000061',
+      phone_category_id: '10000000-0000-0000-0000-000000000042', // Reno 11 Pro
+      problem_category_id: '20000000-0000-0000-0000-000000000051', // Zaryadlanmaydi
+    },
+
+    // Additional Vivo V30 Pro mappings
+    {
+      id: '40000000-0000-0000-0000-000000000062',
+      phone_category_id: '10000000-0000-0000-0000-000000000052', // V30 Pro
+      problem_category_id: '20000000-0000-0000-0000-000000000011', // Ekran singan
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000063',
+      phone_category_id: '10000000-0000-0000-0000-000000000052', // V30 Pro
+      problem_category_id: '20000000-0000-0000-0000-000000000033', // Karnay buzilgan
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000064',
+      phone_category_id: '10000000-0000-0000-0000-000000000052', // V30 Pro
+      problem_category_id: '20000000-0000-0000-0000-000000000062', // Bluetooth ishlamaydi
+    },
   ];
 
   for (const mapping of mappings) {
