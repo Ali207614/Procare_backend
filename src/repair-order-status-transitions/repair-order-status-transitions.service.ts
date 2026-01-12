@@ -18,7 +18,7 @@ export class RepairOrderStatusTransitionsService {
     private readonly logger: LoggerService,
   ) {}
 
-  private readonly redisKey = `repair_order_status_transitions:from:`;
+  private readonly redisKey = `repair-order-status-transitions:from:`;
   private readonly redisKeyView = 'status_viewable:';
 
   async create(

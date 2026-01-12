@@ -1,6 +1,5 @@
 export interface User {
   id: string;
-  sap_card_code: string | null;
   first_name: string;
   last_name: string;
   phone_number1: string | null;
@@ -26,7 +25,6 @@ export interface User {
 export type UserListItem = Pick<
   User,
   | 'id'
-  | 'sap_card_code'
   | 'first_name'
   | 'last_name'
   | 'phone_number1'

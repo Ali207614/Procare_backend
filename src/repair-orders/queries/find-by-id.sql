@@ -47,7 +47,7 @@ SELECT
                     'name_en', s2.name_en
                 )
             )
-            FROM repair_order_status_transitions t
+            FROM repair-order-status-transitions t
             INNER JOIN repair_order_statuses s2
                 ON s2.id = t.to_status_id
             WHERE t.from_status_id = s.id
@@ -264,8 +264,7 @@ SELECT
     COALESCE((
         SELECT jsonb_build_object(
             'id', rp.id,
-            'rental_phone_device_id', rp.rental_phone_device_id,
-            'sap_order_id', rp.sap_order_id,
+            'rental_phone_id', rp.rental_phone_id,
             'is_free', rp.is_free,
             'price', rp.price,
             'currency', rp.currency,

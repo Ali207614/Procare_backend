@@ -20,11 +20,6 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { Application as ExpressApp } from 'express';
 import basicAuth from 'express-basic-auth';
 
-// Bull v3 (bull)
-import { BullAdapter } from '@bull-board/api/bullAdapter';
-import { getQueueToken as getBullToken } from '@nestjs/bull';
-import { Queue as BullQueue } from 'bull';
-
 // BullMQ
 import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { Queue as BullMQQueue } from 'bullmq';
@@ -132,9 +127,7 @@ async function bootstrap(): Promise<void> {
   const serverAdapter = new ExpressAdapter();
   serverAdapter.setBasePath('/admin/queues');
 
-  const queuesAdapters = [
-    new BullMQAdapter(campaignsQueue),
-  ];
+  const queuesAdapters = [new BullMQAdapter(campaignsQueue)];
 
   createBullBoard({
     queues: queuesAdapters,

@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(docker compose:*)"
+      "Bash(git show:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

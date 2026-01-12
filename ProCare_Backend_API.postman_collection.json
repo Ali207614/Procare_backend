@@ -1,0 +1,2313 @@
+{
+  "info": {
+    "name": "ProCare Backend API",
+    "description": "Complete API collection for ProCare phone repair service backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5001/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "deviceId",
+      "value": "90000000-0000-0000-0000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "repairOrderId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "01. Authentication",
+      "item": [
+        {
+          "name": "Send Verification Code",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+998901234567\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/admin/send-code",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "admin", "send-code"]
+            }
+          }
+        },
+        {
+          "name": "Verify Code",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+998901234567\",\n  \"code\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/admin/verify-code",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "admin", "verify-code"]
+            }
+          }
+        },
+        {
+          "name": "Register Admin",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"phoneNumber\": \"+998901234567\",\n  \"password\": \"password123\",\n  \"confirmPassword\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/admin/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "admin", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('accessToken', response.data.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+998901234567\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/admin/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "admin", "login"]
+            }
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+998901234567\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/admin/forgot-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "admin", "forgot-password"]
+            }
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+998901234567\",\n  \"resetCode\": \"123456\",\n  \"newPassword\": \"newpassword123\",\n  \"confirmPassword\": \"newpassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/admin/reset-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "admin", "reset-password"]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/admin/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "admin", "logout"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02. Admins Management",
+      "item": [
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admins/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["admins", "me"]
+            }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"oldPassword\": \"oldpassword123\",\n  \"newPassword\": \"newpassword123\",\n  \"confirmPassword\": \"newpassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admins/change-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["admins", "change-password"]
+            }
+          }
+        },
+        {
+          "name": "Create Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Jane\",\n  \"lastName\": \"Smith\",\n  \"phoneNumber\": \"+998901234568\",\n  \"password\": \"password123\",\n  \"roles\": [\"role-uuid\"],\n  \"branches\": [\"branch-uuid\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admins",
+              "host": ["{{baseUrl}}"],
+              "path": ["admins"]
+            }
+          }
+        },
+        {
+          "name": "Get All Admins",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admins?offset=0&limit=10&search=john",
+              "host": ["{{baseUrl}}"],
+              "path": ["admins"],
+              "query": [
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "search",
+                  "value": "john"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Admin",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Updated Name\",\n  \"lastName\": \"Updated Last\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admins/{{adminId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admins", "{{adminId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Admin",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admins/{{adminId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admins", "{{adminId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03. Users Management",
+      "item": [
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Customer\",\n  \"lastName\": \"Test\",\n  \"phoneNumber1\": \"+998901234569\",\n  \"phoneNumber2\": \"+998901234570\",\n  \"customerCode\": \"CUST001\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"]
+            }
+          }
+        },
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users?offset=0&limit=10&search=customer",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"],
+              "query": [
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "search",
+                  "value": "customer"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{userId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Updated Customer\",\n  \"lastName\": \"Updated Test\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{userId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{userId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04. Branches Management",
+      "item": [
+        {
+          "name": "Create Branch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nameUz\": \"Toshkent filiali\",\n  \"nameRu\": \"Ташкентский филиал\",\n  \"nameEn\": \"Tashkent Branch\",\n  \"addressUz\": \"Toshkent shahar\",\n  \"addressRu\": \"город Ташкент\",\n  \"addressEn\": \"Tashkent city\",\n  \"lat\": 41.2995,\n  \"long\": 69.2401,\n  \"supportPhone\": \"+998712345678\",\n  \"workStartTime\": \"09:00\",\n  \"workEndTime\": \"18:00\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/branches",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches"]
+            }
+          }
+        },
+        {
+          "name": "Get All Branches",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/branches?offset=0&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches"],
+              "query": [
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Viewable Branches",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/branches/viewable",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches", "viewable"]
+            }
+          }
+        },
+        {
+          "name": "Get Branch by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/branches/{{branchId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches", "{{branchId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Branch",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nameUz\": \"Yangilangan filial\",\n  \"nameRu\": \"Обновленный филиал\",\n  \"nameEn\": \"Updated Branch\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/branches/{{branchId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches", "{{branchId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Branch Sort",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sort\": 2\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/branches/{{branchId}}/sort",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches", "{{branchId}}", "sort"]
+            }
+          }
+        },
+        {
+          "name": "Delete Branch",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/branches/{{branchId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches", "{{branchId}}"]
+            }
+          }
+        },
+        {
+          "name": "Assign Admins to Branch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"adminIds\": [\"admin-uuid-1\", \"admin-uuid-2\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/branches/{{branchId}}/admins",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches", "{{branchId}}", "admins"]
+            }
+          }
+        },
+        {
+          "name": "Remove Admins from Branch",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"adminIds\": [\"admin-uuid-1\", \"admin-uuid-2\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/branches/{{branchId}}/admins",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches", "{{branchId}}", "admins"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05. Repair Orders",
+      "item": [
+        {
+          "name": "Create Repair Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"user-uuid\",\n  \"phoneCategory\": \"phone-category-uuid\",\n  \"imei\": \"123456789012345\",\n  \"deliveryMethod\": \"Self\",\n  \"pickupMethod\": \"Self\",\n  \"problems\": [\"problem-uuid-1\"],\n  \"parts\": [{\n    \"repairPartId\": \"part-uuid\",\n    \"quantity\": 1,\n    \"price\": 100000\n  }]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/repair-orders?branchId={{branchId}}&statusId={{statusId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["repair-orders"],
+              "query": [
+                {
+                  "key": "branchId",
+                  "value": "{{branchId}}"
+                },
+                {
+                  "key": "statusId",
+                  "value": "{{statusId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get All Repair Orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/repair-orders?branchId={{branchId}}&offset=0&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["repair-orders"],
+              "query": [
+                {
+                  "key": "branchId",
+                  "value": "{{branchId}}"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Repair Order by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/repair-orders/{{repairOrderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["repair-orders", "{{repairOrderId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Repair Order",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"statusId\": \"new-status-uuid\",\n  \"total\": 150000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/repair-orders/{{repairOrderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["repair-orders", "{{repairOrderId}}"]
+            }
+          }
+        },
+        {
+          "name": "Move Repair Order",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"statusId\": \"status-uuid\",\n  \"sort\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/repair-orders/{{repairOrderId}}/move",
+              "host": ["{{baseUrl}}"],
+              "path": ["repair-orders", "{{repairOrderId}}", "move"]
+            }
+          }
+        },
+        {
+          "name": "Update Sort Order",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sort\": 2\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/repair-orders/{{repairOrderId}}/sort",
+              "host": ["{{baseUrl}}"],
+              "path": ["repair-orders", "{{repairOrderId}}", "sort"]
+            }
+          }
+        },
+        {
+          "name": "Delete Repair Order",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/repair-orders/{{repairOrderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["repair-orders", "{{repairOrderId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06. Repair Orders - Sub Resources",
+      "item": [
+        {
+          "name": "Rental Phone",
+          "item": [
+            {
+              "name": "Create Rental Phone",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rentalPhoneDeviceId\": \"device-uuid\",\n  \"isFree\": false,\n  \"price\": 50000,\n  \"currency\": \"UZS\",\n  \"rentedAt\": \"2024-01-15\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/repair-orders/{{repairOrderId}}/rental-phone",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["repair-orders", "{{repairOrderId}}", "rental-phone"]
+                }
+              }
+            },
+            {
+              "name": "Update Rental Phone",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"Returned\",\n  \"returnedAt\": \"2024-01-20\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/repair-orders/{{repairOrderId}}/rental-phone",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["repair-orders", "{{repairOrderId}}", "rental-phone"]
+                }
+              }
+            },
+            {
+              "name": "Cancel Rental Phone",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/repair-orders/{{repairOrderId}}/rental-phone",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["repair-orders", "{{repairOrderId}}", "rental-phone"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Comments",
+          "item": [
+            {
+              "name": "Create Comment",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"text\": \"Customer contacted about repair progress\",\n  \"statusBy\": \"status-uuid\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/repair-orders/{{repairOrderId}}/comments",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["repair-orders", "{{repairOrderId}}", "comments"]
+                }
+              }
+            },
+            {
+              "name": "Update Comment",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"text\": \"Updated comment text\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/comments/{{commentId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["comments", "{{commentId}}"]
+                }
+              }
+            },
+            {
+              "name": "Delete Comment",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/comments/{{commentId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["comments", "{{commentId}}"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pickup & Delivery",
+          "item": [
+            {
+              "name": "Create Pickup",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"lat\": 41.2995,\n  \"long\": 69.2401,\n  \"description\": \"Customer address for pickup\",\n  \"isMain\": true,\n  \"courierId\": \"courier-uuid\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/repair-orders/{{repairOrderId}}/pickup",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["repair-orders", "{{repairOrderId}}", "pickup"]
+                }
+              }
+            },
+            {
+              "name": "Update Pickup",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Updated pickup location\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/repair-orders/{{repairOrderId}}/pickup/{{pickupId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["repair-orders", "{{repairOrderId}}", "pickup", "{{pickupId}}"]
+                }
+              }
+            },
+            {
+              "name": "Delete Pickup",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/repair-orders/{{repairOrderId}}/pickup/{{pickupId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["repair-orders", "{{repairOrderId}}", "pickup", "{{pickupId}}"]
+                }
+              }
+            },
+            {
+              "name": "Create Delivery",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"lat\": 41.2995,\n  \"long\": 69.2401,\n  \"description\": \"Customer address for delivery\",\n  \"isMain\": true,\n  \"courierId\": \"courier-uuid\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/repair-orders/{{repairOrderId}}/delivery",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["repair-orders", "{{repairOrderId}}", "delivery"]
+                }
+              }
+            },
+            {
+              "name": "Update Delivery",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Updated delivery location\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/repair-orders/{{repairOrderId}}/delivery/{{deliveryId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["repair-orders", "{{repairOrderId}}", "delivery", "{{deliveryId}}"]
+                }
+              }
+            },
+            {
+              "name": "Delete Delivery",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/repair-orders/{{repairOrderId}}/delivery/{{deliveryId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["repair-orders", "{{repairOrderId}}", "delivery", "{{deliveryId}}"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin Assignment",
+          "item": [
+            {
+              "name": "Assign Admins",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"adminIds\": [\"admin-uuid-1\", \"admin-uuid-2\"]\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/repair-orders/{{repairOrderId}}/assign-admins",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["repair-orders", "{{repairOrderId}}", "assign-admins"]
+                }
+              }
+            },
+            {
+              "name": "Remove Multiple Admins",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"adminIds\": [\"admin-uuid-1\", \"admin-uuid-2\"]\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/repair-orders/{{repairOrderId}}/assign-admins",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["repair-orders", "{{repairOrderId}}", "assign-admins"]
+                }
+              }
+            },
+            {
+              "name": "Remove Specific Admin",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/repair-orders/{{repairOrderId}}/assign-admins/{{adminId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["repair-orders", "{{repairOrderId}}", "assign-admins", "{{adminId}}"]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07. Campaigns",
+      "item": [
+        {
+          "name": "Create Campaign",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"templateId\": \"template-uuid\",\n  \"filters\": {\n    \"branchIds\": [\"branch-uuid\"]\n  },\n  \"sendType\": \"now\",\n  \"deliveryMethod\": \"bot\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/campaigns",
+              "host": ["{{baseUrl}}"],
+              "path": ["campaigns"]
+            }
+          }
+        },
+        {
+          "name": "Get All Campaigns",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/campaigns?offset=0&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["campaigns"],
+              "query": [
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Campaign by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/{{campaignId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["campaigns", "{{campaignId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Campaign Recipients",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/{{campaignId}}/recipients?offset=0&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["campaigns", "{{campaignId}}", "recipients"],
+              "query": [
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Campaign",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"filters\": {\n    \"updatedFilter\": \"value\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/{{campaignId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["campaigns", "{{campaignId}}"]
+            }
+          }
+        },
+        {
+          "name": "Pause Campaign",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/{{campaignId}}/pause",
+              "host": ["{{baseUrl}}"],
+              "path": ["campaigns", "{{campaignId}}", "pause"]
+            }
+          }
+        },
+        {
+          "name": "Resume Campaign",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/{{campaignId}}/resume",
+              "host": ["{{baseUrl}}"],
+              "path": ["campaigns", "{{campaignId}}", "resume"]
+            }
+          }
+        },
+        {
+          "name": "Delete Campaign",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/{{campaignId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["campaigns", "{{campaignId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "08. Notifications",
+      "item": [
+        {
+          "name": "Get My Notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications?offset=0&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications"],
+              "query": [
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark Notification as Read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/{{notificationId}}/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "{{notificationId}}", "read"]
+            }
+          }
+        },
+        {
+          "name": "Mark All Notifications as Read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/read-all",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "read-all"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "09. Permissions",
+      "item": [
+        {
+          "name": "Get All Permissions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/permissions?offset=0&limit=10&search=admin",
+              "host": ["{{baseUrl}}"],
+              "path": ["permissions"],
+              "query": [
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "search",
+                  "value": "admin"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Roles",
+      "item": [
+        {
+          "name": "Create Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Manager\",\n  \"permissionIds\": [\"permission-uuid-1\", \"permission-uuid-2\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/roles",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles"]
+            }
+          }
+        },
+        {
+          "name": "Get All Roles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles?offset=0&limit=10&search=manager",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles"],
+              "query": [
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "search",
+                  "value": "manager"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Role by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles/{{roleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "{{roleId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Role",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Senior Manager\",\n  \"permissionIds\": [\"permission-uuid-1\", \"permission-uuid-2\", \"permission-uuid-3\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/roles/{{roleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "{{roleId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Role",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles/{{roleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "{{roleId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Phone Categories",
+      "item": [
+        {
+          "name": "Create Phone Category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nameUz\": \"iPhone 15\",\n  \"nameRu\": \"iPhone 15\",\n  \"nameEn\": \"iPhone 15\",\n  \"phoneOsTypeId\": \"ios-uuid\",\n  \"parentId\": \"parent-category-uuid\",\n  \"telegramSticker\": \"sticker_file_id\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/phone-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["phone-categories"]
+            }
+          }
+        },
+        {
+          "name": "Get Phone Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/phone-categories?parentId={{parentId}}&phoneOsTypeId={{osTypeId}}&offset=0&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["phone-categories"],
+              "query": [
+                {
+                  "key": "parentId",
+                  "value": "{{parentId}}"
+                },
+                {
+                  "key": "phoneOsTypeId",
+                  "value": "{{osTypeId}}"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Phone Category",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nameUz\": \"iPhone 15 Pro\",\n  \"nameRu\": \"iPhone 15 Pro\",\n  \"nameEn\": \"iPhone 15 Pro\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/phone-categories/{{phoneCategoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["phone-categories", "{{phoneCategoryId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Phone Category Sort",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sort\": 2\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/phone-categories/{{phoneCategoryId}}/sort",
+              "host": ["{{baseUrl}}"],
+              "path": ["phone-categories", "{{phoneCategoryId}}", "sort"]
+            }
+          }
+        },
+        {
+          "name": "Delete Phone Category",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/phone-categories/{{phoneCategoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["phone-categories", "{{phoneCategoryId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. Phone OS Types",
+      "item": [
+        {
+          "name": "Create Phone OS Type",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nameUz\": \"Android\",\n  \"nameRu\": \"Android\",\n  \"nameEn\": \"Android\",\n  \"sort\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/phone-os-types",
+              "host": ["{{baseUrl}}"],
+              "path": ["phone-os-types"]
+            }
+          }
+        },
+        {
+          "name": "Get All Phone OS Types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/phone-os-types",
+              "host": ["{{baseUrl}}"],
+              "path": ["phone-os-types"]
+            }
+          }
+        },
+        {
+          "name": "Update Phone OS Type",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nameUz\": \"Android OS\",\n  \"nameRu\": \"Android OS\",\n  \"nameEn\": \"Android OS\",\n  \"sort\": 2\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/phone-os-types/{{osTypeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["phone-os-types", "{{osTypeId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Phone OS Type",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/phone-os-types/{{osTypeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["phone-os-types", "{{osTypeId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. Repair Parts",
+      "item": [
+        {
+          "name": "Create Repair Part",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"partNameUz\": \"Ekran\",\n  \"partNameRu\": \"Экран\",\n  \"partNameEn\": \"Screen\",\n  \"partPrice\": 500000,\n  \"quantity\": 10,\n  \"descriptionUz\": \"iPhone ekrani\",\n  \"descriptionRu\": \"Экран iPhone\",\n  \"descriptionEn\": \"iPhone screen\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/repair-parts",
+              "host": ["{{baseUrl}}"],
+              "path": ["repair-parts"]
+            }
+          }
+        },
+        {
+          "name": "Get All Repair Parts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/repair-parts?offset=0&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["repair-parts"],
+              "query": [
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Repair Part by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/repair-parts/{{repairPartId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["repair-parts", "{{repairPartId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Repair Part",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"partNameUz\": \"Yangi ekran\",\n  \"partNameRu\": \"Новый экран\",\n  \"partNameEn\": \"New Screen\",\n  \"partPrice\": 600000,\n  \"quantity\": 15\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/repair-parts/{{repairPartId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["repair-parts", "{{repairPartId}}"]
+            }
+          }
+        },
+        {
+          "name": "Assign Parts to Problem Category",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"problemCategoryId\": \"problem-category-uuid\",\n  \"parts\": [{\n    \"repairPartId\": \"repair-part-uuid\",\n    \"isRequired\": true\n  }]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/repair-parts/assignments",
+              "host": ["{{baseUrl}}"],
+              "path": ["repair-parts", "assignments"]
+            }
+          }
+        },
+        {
+          "name": "Delete Repair Part",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/repair-parts/{{repairPartId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["repair-parts", "{{repairPartId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. Templates",
+      "item": [
+        {
+          "name": "Create Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Welcome Message\",\n  \"language\": \"uz\",\n  \"body\": \"Salom {{name}}, xush kelibsiz!\",\n  \"variables\": [\"name\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/templates",
+              "host": ["{{baseUrl}}"],
+              "path": ["templates"]
+            }
+          }
+        },
+        {
+          "name": "Get All Templates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/templates?offset=0&limit=10&language=uz",
+              "host": ["{{baseUrl}}"],
+              "path": ["templates"],
+              "query": [
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "language",
+                  "value": "uz"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Template by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/templates/{{templateId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["templates", "{{templateId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Template",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Welcome Message\",\n  \"body\": \"Salom {{name}}, bizga xush kelibsiz!\",\n  \"status\": \"Open\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/templates/{{templateId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["templates", "{{templateId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Template",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/templates/{{templateId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["templates", "{{templateId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "15. Repair Order Statuses",
+      "item": [
+        {
+          "name": "Create Repair Order Status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nameUz\": \"Yangi\",\n  \"nameRu\": \"Новый\",\n  \"nameEn\": \"New\",\n  \"branchId\": \"branch-uuid\",\n  \"bgColor\": \"#3498db\",\n  \"color\": \"#ffffff\",\n  \"sort\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/repair-order-statuses",
+              "host": ["{{baseUrl}}"],
+              "path": ["repair-order-statuses"]
+            }
+          }
+        },
+        {
+          "name": "Get All Statuses (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/repair-order-statuses?branchId={{branchId}}&offset=0&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["repair-order-statuses"],
+              "query": [
+                {
+                  "key": "branchId",
+                  "value": "{{branchId}}"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Viewable Statuses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/repair-order-statuses/viewable?branchId={{branchId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["repair-order-statuses", "viewable"],
+              "query": [
+                {
+                  "key": "branchId",
+                  "value": "{{branchId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Repair Order Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nameUz\": \"Jarayonda\",\n  \"nameRu\": \"В процессе\",\n  \"nameEn\": \"In Progress\",\n  \"bgColor\": \"#f39c12\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/repair-order-statuses/{{statusId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["repair-order-statuses", "{{statusId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Status Sort Order",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sort\": 2\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/repair-order-statuses/{{statusId}}/sort",
+              "host": ["{{baseUrl}}"],
+              "path": ["repair-order-statuses", "{{statusId}}", "sort"]
+            }
+          }
+        },
+        {
+          "name": "Delete Repair Order Status",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/repair-order-statuses/{{statusId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["repair-order-statuses", "{{statusId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "16. Other Endpoints",
+      "item": [
+        {
+          "name": "Repair Order Status Transitions",
+          "item": [
+            {
+              "name": "Upsert Status Transitions",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"toStatusIds\": [\"status-uuid-1\", \"status-uuid-2\"]\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/repair-order-status-transitions/{{statusId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["repair-order-status-transitions", "{{statusId}}"]
+                }
+              }
+            },
+            {
+              "name": "Get All Transitions",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/repair-order-status-transitions",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["repair-order-status-transitions"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Couriers",
+          "item": [
+            {
+              "name": "Get All Couriers",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/couriers?offset=0&limit=10&search=courier",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["couriers"],
+                  "query": [
+                    {
+                      "key": "offset",
+                      "value": "0"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "10"
+                    },
+                    {
+                      "key": "search",
+                      "value": "courier"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Features",
+          "item": [
+            {
+              "name": "Get All Features (Public)",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/features",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["features"]
+                }
+              }
+            },
+            {
+              "name": "Get Feature by Key (Public)",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/features/system.operational",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["features", "system.operational"]
+                }
+              }
+            },
+            {
+              "name": "Update Feature",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"isActive\": false\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/features/system.operational",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["features", "system.operational"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rental Phone Devices",
+          "item": [
+            {
+              "name": "Get All Rental Phone Devices",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/rental-phones?search=Samsung&brand=Samsung&status=Available&condition=Good&is_available=true&min_price=10000&max_price=100000&currency=UZS&offset=0&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["rental-phones"],
+                  "query": [
+                    {
+                      "key": "search",
+                      "value": "Samsung",
+                      "description": "Search by name, brand, model, code, or IMEI"
+                    },
+                    {
+                      "key": "brand",
+                      "value": "Samsung",
+                      "description": "Filter by brand"
+                    },
+                    {
+                      "key": "status",
+                      "value": "Available",
+                      "description": "Available|Rented|Maintenance|Lost|Damaged|Retired"
+                    },
+                    {
+                      "key": "condition",
+                      "value": "Good",
+                      "description": "Excellent|Good|Fair|Poor"
+                    },
+                    {
+                      "key": "is_available",
+                      "value": "true",
+                      "description": "Filter by availability"
+                    },
+                    {
+                      "key": "min_price",
+                      "value": "10000",
+                      "description": "Minimum daily rent price"
+                    },
+                    {
+                      "key": "max_price",
+                      "value": "100000",
+                      "description": "Maximum daily rent price"
+                    },
+                    {
+                      "key": "currency",
+                      "value": "UZS",
+                      "description": "UZS|USD|EUR"
+                    },
+                    {
+                      "key": "offset",
+                      "value": "0",
+                      "description": "Pagination offset"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20",
+                      "description": "Pagination limit"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Available Devices",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/rental-phones/available",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["rental-phones", "available"]
+                }
+              }
+            },
+            {
+              "name": "Get Device Statistics",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/rental-phones/statistics",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["rental-phones", "statistics"]
+                }
+              }
+            },
+            {
+              "name": "Get Devices by Brand",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/rental-phones/brands/Samsung",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["rental-phones", "brands", "Samsung"]
+                }
+              }
+            },
+            {
+              "name": "Get Device by Code",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/rental-phones/code/RD001",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["rental-phones", "code", "RD001"]
+                }
+              }
+            },
+            {
+              "name": "Get Device by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/rental-phones/{{deviceId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["rental-phones", "{{deviceId}}"]
+                }
+              }
+            },
+            {
+              "name": "Create Rental Phone Device",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"code\": \"RD012\",\n  \"name\": \"Samsung Galaxy A54\",\n  \"brand\": \"Samsung\",\n  \"model\": \"Galaxy A54\",\n  \"imei\": \"351756061523460\",\n  \"serial_number\": \"R2J505X0ABG\",\n  \"color\": \"Awesome Blue\",\n  \"storage_capacity\": \"128GB\",\n  \"is_free\": false,\n  \"daily_rent_price\": 45000,\n  \"deposit_amount\": 280000,\n  \"currency\": \"UZS\",\n  \"is_available\": true,\n  \"status\": \"Available\",\n  \"condition\": \"Excellent\",\n  \"quantity\": 2,\n  \"quantity_available\": 2,\n  \"notes\": \"Latest Samsung mid-range phone with great camera\",\n  \"specifications\": \"{\\\"ram\\\":\\\"8GB\\\",\\\"camera\\\":\\\"50MP+12MP+5MP\\\",\\\"battery\\\":\\\"5000mAh\\\",\\\"os\\\":\\\"Android 13\\\"}\",\n  \"sort\": 10\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/rental-phones",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["rental-phones"]
+                }
+              }
+            },
+            {
+              "name": "Update Rental Phone Device",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Samsung Galaxy A54 5G\",\n  \"daily_rent_price\": 50000,\n  \"deposit_amount\": 300000,\n  \"condition\": \"Good\",\n  \"notes\": \"Updated pricing and condition after inspection\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/rental-phones/{{deviceId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["rental-phones", "{{deviceId}}"]
+                }
+              }
+            },
+            {
+              "name": "Update Device Quantity",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"quantityChange\": -1\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/rental-phones/{{deviceId}}/quantity",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["rental-phones", "{{deviceId}}", "quantity"]
+                }
+              }
+            },
+            {
+              "name": "Delete Rental Phone Device",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/rental-phones/{{deviceId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["rental-phones", "{{deviceId}}"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Problem Categories",
+          "item": [
+            {
+              "name": "Create Problem Category",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nameUz\": \"Ekran buzilishi\",\n  \"nameRu\": \"Повреждение экрана\",\n  \"nameEn\": \"Screen damage\",\n  \"parentId\": \"parent-problem-uuid\",\n  \"price\": 200000,\n  \"estimatedMinutes\": 60\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/problem-categories",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["problem-categories"]
+                }
+              }
+            },
+            {
+              "name": "Get Problem Categories",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/problem-categories?phoneCategoryId={{phoneCategoryId}}&parentId={{parentId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["problem-categories"],
+                  "query": [
+                    {
+                      "key": "phoneCategoryId",
+                      "value": "{{phoneCategoryId}}"
+                    },
+                    {
+                      "key": "parentId",
+                      "value": "{{parentId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Update Problem Category",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nameUz\": \"Yangilangan muammo\",\n  \"price\": 250000,\n  \"estimatedMinutes\": 90\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/problem-categories/{{problemCategoryId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["problem-categories", "{{problemCategoryId}}"]
+                }
+              }
+            },
+            {
+              "name": "Update Problem Category Sort",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sort\": 3\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/problem-categories/{{problemCategoryId}}/sort",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["problem-categories", "{{problemCategoryId}}", "sort"]
+                }
+              }
+            },
+            {
+              "name": "Delete Problem Category",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/problem-categories/{{problemCategoryId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["problem-categories", "{{problemCategoryId}}"]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
