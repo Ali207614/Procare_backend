@@ -57,13 +57,6 @@ export class CreateUserDto {
   @IsString({ context: { location: 'language' } })
   language?: string;
 
-  @ApiProperty({ example: 'C000123', required: false, description: 'SAP card code' })
-  @IsOptional()
-  @IsString({ context: { location: 'sap_card_code' } })
-  @MinLength(1, { context: { location: 'sap_card_code' } })
-  @MaxLength(30, { context: { location: 'sap_card_code' } })
-  sap_card_code?: string;
-
   @ApiProperty({ example: 'password123', required: false, description: 'Password' })
   @IsOptional()
   @IsString({ context: { location: 'password' } })

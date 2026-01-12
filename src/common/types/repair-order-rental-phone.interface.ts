@@ -1,8 +1,7 @@
 export interface RepairOrderRentalPhone {
   id: string;
   repair_order_id: string;
-  rental_phone_device_id: string;
-  sap_order_id: string | null;
+  rental_phone_id: string;
   is_free: boolean | null;
   price: string | null;
   currency: 'UZS' | 'USD' | 'EUR' | null;

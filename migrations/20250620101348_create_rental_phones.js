@@ -10,7 +10,7 @@ exports.up = async function (knex) {
     table.enu('currency', ['UZS', 'USD', 'EUR']).nullable();
 
     table.boolean('is_available').notNullable().defaultTo(true);
-    table.boolean('is_synced_from_sap').notNullable().defaultTo(false);
+    table.boolean('is_synced_external').notNullable().defaultTo(false);
     table.text('notes').nullable();
     table.integer('sort').defaultTo(1).notNullable();
 

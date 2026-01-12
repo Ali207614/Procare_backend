@@ -107,11 +107,11 @@ class LocationDto {
 
 class RentalPhoneDto {
   @ApiProperty({
-    description: 'Rental phone device ID',
+    description: 'Rental phone ID',
     example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec',
   })
-  @IsUUID('all', { message: 'Invalid rental phone device ID' })
-  rental_phone_device_id!: string;
+  @IsUUID('all', { message: 'Invalid rental phone ID' })
+  rental_phone_id!: string;
 
   @ApiPropertyOptional({ description: 'Indicates if the rental phone is free', example: true })
   @IsOptional()

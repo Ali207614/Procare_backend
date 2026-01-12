@@ -12,9 +12,9 @@ import {
 } from 'class-validator';
 
 export class CreateOrUpdateRentalPhoneDto {
-  @ApiProperty({ description: 'ID of the rental phone device' })
-  @IsUUID('all', { context: { location: 'rental_phone_device_id' } })
-  rental_phone_device_id!: string;
+  @ApiProperty({ description: 'ID of the rental phone' })
+  @IsUUID('all', { context: { location: 'rental_phone_id' } })
+  rental_phone_id!: string;
 
   @ApiPropertyOptional({ description: 'Whether the rental is free (true = no price)' })
   @IsOptional()

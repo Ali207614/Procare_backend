@@ -1,0 +1,190 @@
+exports.seed = async function (knex) {
+  await knex('rental_phones').del();
+
+  const rentalPhones = [
+    // Basic rental phones for different branches
+    {
+      id: '80000000-0000-0000-0000-000000000001',
+      brand: 'Samsung',
+      model: 'Galaxy A14',
+      imei: '351756061523456',
+      serial_number: 'R2J505X0ABC',
+      condition: 'Good',
+      daily_rent_price: 25000, // 25,000 som per day
+      status: 'Available',
+      notes: 'Basic rental phone for customers',
+    },
+    {
+      id: '80000000-0000-0000-0000-000000000002',
+      brand: 'Samsung',
+      model: 'Galaxy A14',
+      imei: '351756061523457',
+      serial_number: 'R2J505X0ABD',
+      condition: 'Good',
+      daily_rent_price: 25000,
+      status: 'Available',
+      notes: 'Basic rental phone for customers',
+    },
+    {
+      id: '80000000-0000-0000-0000-000000000003',
+      brand: 'Samsung',
+      model: 'Galaxy A24',
+      imei: '351756061523458',
+      serial_number: 'R2J505X0ABE',
+      condition: 'Excellent',
+      daily_rent_price: 35000, // 35,000 som per day
+      status: 'Available',
+      notes: 'Mid-range rental phone',
+    },
+    {
+      id: '80000000-0000-0000-0000-000000000004',
+      brand: 'Samsung',
+      model: 'Galaxy A24',
+      imei: '351756061523459',
+      serial_number: 'R2J505X0ABF',
+      condition: 'Good',
+      daily_rent_price: 35000,
+      status: 'Available',
+      notes: 'Mid-range rental phone',
+    },
+    {
+      id: '80000000-0000-0000-0000-000000000005',
+      brand: 'Xiaomi',
+      model: 'Redmi Note 12',
+      imei: '861536051234567',
+      serial_number: '2112BRA4EG123',
+      condition: 'Good',
+      daily_rent_price: 30000, // 30,000 som per day
+      status: 'Available',
+      notes: 'Popular rental phone model',
+    },
+    {
+      id: '80000000-0000-0000-0000-000000000006',
+      brand: 'Xiaomi',
+      model: 'Redmi Note 12',
+      imei: '861536051234568',
+      serial_number: '2112BRA4EG124',
+      condition: 'Excellent',
+      daily_rent_price: 30000,
+      status: 'Available',
+      notes: 'Popular rental phone model',
+    },
+    {
+      id: '80000000-0000-0000-0000-000000000007',
+      brand: 'iPhone',
+      model: 'iPhone 12',
+      imei: '353095111234567',
+      serial_number: 'C02A1B2CDEFG',
+      condition: 'Excellent',
+      daily_rent_price: 80000, // 80,000 som per day
+      status: 'Available',
+      notes: 'Premium rental phone',
+    },
+    {
+      id: '80000000-0000-0000-0000-000000000008',
+      brand: 'iPhone',
+      model: 'iPhone 12',
+      imei: '353095111234568',
+      serial_number: 'C02A1B2CDEFH',
+      condition: 'Good',
+      daily_rent_price: 80000,
+      status: 'Available',
+      notes: 'Premium rental phone',
+    },
+    {
+      id: '80000000-0000-0000-0000-000000000009',
+      brand: 'Samsung',
+      model: 'Galaxy A34',
+      imei: '351756061523460',
+      serial_number: 'R2J505X0ABG',
+      condition: 'Good',
+      daily_rent_price: 40000, // 40,000 som per day
+      status: 'Available',
+      notes: 'Good quality rental phone',
+    },
+    {
+      id: '80000000-0000-0000-0000-000000000010',
+      brand: 'Samsung',
+      model: 'Galaxy A34',
+      imei: '351756061523461',
+      serial_number: 'R2J505X0ABH',
+      condition: 'Excellent',
+      daily_rent_price: 40000,
+      status: 'Available',
+      notes: 'Good quality rental phone',
+    },
+    {
+      id: '80000000-0000-0000-0000-000000000011',
+      brand: 'Xiaomi',
+      model: 'POCO X5 Pro',
+      imei: '861536051234569',
+      serial_number: '2112BRA4EG125',
+      condition: 'Good',
+      daily_rent_price: 45000, // 45,000 som per day
+      status: 'Available',
+      notes: 'Gaming focused rental phone',
+    },
+    {
+      id: '80000000-0000-0000-0000-000000000012',
+      brand: 'Xiaomi',
+      model: 'POCO X5 Pro',
+      imei: '861536051234570',
+      serial_number: '2112BRA4EG126',
+      condition: 'Excellent',
+      daily_rent_price: 45000,
+      status: 'Available',
+      notes: 'Gaming focused rental phone',
+    },
+    {
+      id: '80000000-0000-0000-0000-000000000013',
+      brand: 'Oppo',
+      model: 'A78',
+      imei: '862471051234567',
+      serial_number: 'CPH2565ABC123',
+      condition: 'Good',
+      daily_rent_price: 35000, // 35,000 som per day
+      status: 'Available',
+      notes: 'Reliable rental phone',
+    },
+    {
+      id: '80000000-0000-0000-0000-000000000014',
+      brand: 'Vivo',
+      model: 'Y36',
+      imei: '867764051234567',
+      serial_number: 'V2250ABC123',
+      condition: 'Good',
+      daily_rent_price: 32000, // 32,000 som per day
+      status: 'Available',
+      notes: 'Stylish rental phone',
+    },
+    {
+      id: '80000000-0000-0000-0000-000000000015',
+      brand: 'Samsung',
+      model: 'Galaxy A14',
+      imei: '351756061523462',
+      serial_number: 'R2J505X0ABI',
+      condition: 'Fair',
+      daily_rent_price: 20000, // 20,000 som per day (lower price due to condition)
+      status: 'Maintenance',
+      notes: 'Needs minor repair, screen has small scratch',
+    },
+  ];
+
+  for (const phone of rentalPhones) {
+    await knex('rental_phones').insert({
+      id: phone.id,
+      brand: phone.brand,
+      model: phone.model,
+      imei: phone.imei,
+      serial_number: phone.serial_number,
+      condition: phone.condition,
+      daily_rent_price: phone.daily_rent_price,
+      status: phone.status,
+      notes: phone.notes,
+      is_active: true,
+      created_by: '00000000-0000-0000-0000-000000000001', // Super admin
+      created_at: knex.fn.now(),
+      updated_at: knex.fn.now(),
+    });
+  }
+};

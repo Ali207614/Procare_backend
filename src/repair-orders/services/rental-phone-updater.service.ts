@@ -4,7 +4,7 @@ import { RepairOrderChangeLoggerService } from './repair-order-change-logger.ser
 import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
 import { RepairOrder } from 'src/common/types/repair-order.interface';
-import { RentalPhoneDevice } from 'src/common/types/rental-phone-device.interface';
+import { RentalPhone } from 'src/common/types/rental-phone.interface';
 import { RepairOrderRentalPhone } from 'src/common/types/repair-order-rental-phone.interface';
 import { CreateOrUpdateRentalPhoneDto } from 'src/repair-orders/dto/create-or-update-rental-phone.dto';
 import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
@@ -58,14 +58,14 @@ export class RentalPhoneUpdaterService {
       });
     }
 
-    const device: RentalPhoneDevice | undefined = await this.knex('rental_phone_devices')
-      .where({ id: rental.rental_phone_device_id })
+    const device: RentalPhone | undefined = await this.knex('rental_phone_devices')
+      .where({ id: rental.rental_phone_id, status: 'Available', is_active: true })
       .first();
 
     if (!device) {
       throw new BadRequestException({
-        message: 'Rental phone device not found',
-        location: 'rental_phone.rental_phone_device_id',
+        message: 'Rental phone not found',
+        location: 'rental_phone.rental_phone_id',
       });
     }
 
@@ -74,7 +74,7 @@ export class RentalPhoneUpdaterService {
     const [inserted]: RepairOrderRentalPhone[] = await this.knex('repair_order_rental_phones')
       .insert({
         repair_order_id: orderId,
-        rental_phone_device_id: rental.rental_phone_device_id,
+        rental_phone_id: rental.rental_phone_id,
         is_free: rental.is_free ?? null,
         price: rental.price ?? null,
         currency: rental.currency ?? 'UZS',
@@ -90,7 +90,7 @@ export class RentalPhoneUpdaterService {
 
     const user = await this.knex('users').where({ id: order.user_id }).first();
 
-    // SAP integration removed
+    // External system integration removed
 
     await this.changeLogger.logIfChanged(
       this.knex,
@@ -145,11 +145,10 @@ export class RentalPhoneUpdaterService {
       });
     }
 
-    if (existing.rental_phone_device_id !== rental.rental_phone_device_id) {
+    if (existing.rental_phone_id !== rental.rental_phone_id) {
       throw new BadRequestException({
-        message:
-          'Cannot change rental phone device after assignment. Please cancel and create again.',
-        location: 'rental_phone.rental_phone_device_id',
+        message: 'Cannot change rental phone after assignment. Please cancel and create again.',
+        location: 'rental_phone.rental_phone_id',
       });
     }
 
@@ -216,7 +215,7 @@ export class RentalPhoneUpdaterService {
       .where({ id: existing.id })
       .update({ status: 'Cancelled', updated_at: new Date() });
 
-    // SAP integration removed
+    // External system integration removed
 
     await this.changeLogger.logIfChanged(
       this.knex,

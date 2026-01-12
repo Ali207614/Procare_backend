@@ -41,9 +41,6 @@ import { PhoneOsTypesService } from './phone-os-types/phone-os-types.service';
 import { ProblemCategoriesController } from './problem-categories/problem-categories.controller';
 import { ProblemCategoriesModule } from './problem-categories/problem-categories.module';
 import { ProblemCategoriesService } from './problem-categories/problem-categories.service';
-import { RentalPhoneDevicesController } from './rental-phone-devices/rental-phone-devices.controller';
-import { RentalPhoneDevicesModule } from './rental-phone-devices/rental-phone-devices.module';
-import { RentalPhoneDevicesService } from './rental-phone-devices/rental-phone-devices.service';
 import { RepairOrderStatusPermissionsController } from './repair-order-status-permission/repair-order-status-permissions.controller';
 import { RepairOrderStatusPermissionsModule } from './repair-order-status-permission/repair-order-status-permissions.module';
 import { RepairOrderStatusPermissionsService } from './repair-order-status-permission/repair-order-status-permissions.service';
@@ -56,6 +53,7 @@ import { RepairPartsController } from './repair-parts/repair-parts.controller';
 import { RepairPartsModule } from './repair-parts/repair-parts.module';
 import { RepairOrderStatusTransitionsModule } from './repair_order_status_transitions/repair-order-status-transitions.module';
 import { RepairOrderStatusTransitionsService } from './repair_order_status_transitions/repair-order-status-transitions.service';
+import { RentalPhoneDevicesModule } from './rental-phone-devices/rental-phone-devices.module';
 import { RolesController } from './roles/roles.controller';
 import { RolesModule } from './roles/roles.module';
 import { RolesService } from './roles/roles.service';
@@ -75,7 +73,6 @@ import { UsersService } from './users/users.service';
       },
     }),
     ScheduleModule.forRoot(),
-    RentalPhoneDevicesModule,
     CouriersModule,
     UsersModule,
     NotificationModule,
@@ -96,6 +93,7 @@ import { UsersService } from './users/users.service';
     AuthModule,
     AdminsModule,
     RepairPartsModule,
+    RentalPhoneDevicesModule,
     ConfigModule,
     TemplatesModule,
     CampaignsModule,
@@ -108,7 +106,6 @@ import { UsersService } from './users/users.service';
     BranchesController,
     RolesController,
     RepairOrderStatusesController,
-    RentalPhoneDevicesController,
     RepairOrderStatusPermissionsController,
     ProblemCategoriesController,
     PhoneCategoriesController,
@@ -121,7 +118,6 @@ import { UsersService } from './users/users.service';
   providers: [
     RepairPartsService,
     RepairOrdersService,
-    RentalPhoneDevicesService,
     PermissionsService,
     CouriersService,
     NotificationService,

@@ -119,7 +119,6 @@ export class UsersService {
 
     const [user]: User[] = await this.knex<User>('users')
       .insert({
-        sap_card_code: dto.sap_card_code || null,
         first_name: dto.first_name,
         last_name: dto.last_name,
         phone_number1: dto.phone_number1 ?? null,
@@ -139,7 +138,7 @@ export class UsersService {
       })
       .returning('*');
 
-    // SAP integration removed
+    // External system integration removed
 
     return user;
   }
@@ -155,7 +154,7 @@ export class UsersService {
         .clone()
         .select(
           'id',
-          'sap_card_code',
+          'customer_code',
           'first_name',
           'last_name',
           'phone_number1',

@@ -88,8 +88,7 @@ SELECT
     COALESCE((
         SELECT jsonb_build_object(
             'id', rp.id,
-            'rental_phone_device_id', rp.rental_phone_device_id,
-            'sap_order_id', rp.sap_order_id,
+            'rental_phone_id', rp.rental_phone_id,
             'is_free', rp.is_free,
             'price', rp.price,
             'currency', rp.currency,

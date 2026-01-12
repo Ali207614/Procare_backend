@@ -17,7 +17,7 @@ exports.seed = async function (knex) {
 
     users.push({
       id: uuidv4(),
-      sap_card_code: null,
+      customer_code: null,
       first_name: `FirstName${i}`,
       last_name: `LastName${i}`,
       phone_number1: phone1+'00',

@@ -235,7 +235,24 @@ export class RepairOrdersService {
     branchId: string,
     query: FindAllRepairOrdersQueryDto,
   ): Promise<Record<string, FreshRepairOrder[]>> {
-    const { offset, limit, sort_by = 'sort', sort_order = 'asc' } = query;
+    const {
+      offset,
+      limit,
+      sort_by = 'sort',
+      sort_order = 'asc',
+      // Filters
+      source_types,
+      priorities,
+      customer_name,
+      phone_number,
+      device_model,
+      order_number,
+      delivery_methods,
+      pickup_methods,
+      assigned_admin_ids,
+      date_from,
+      date_to,
+    } = query;
 
     const permissions: RepairOrderStatusPermission[] =
       await this.permissionService.findByRolesAndBranch(admin.roles, branchId);
@@ -246,23 +263,125 @@ export class RepairOrdersService {
       return {};
     }
 
-    const cacheKey = `${this.table}:${branchId}:${admin.id}:${sort_by}:${sort_order}:${offset}:${limit}`;
+    // Build filter hash for cache key
+    const filterHash = JSON.stringify({
+      source_types,
+      priorities,
+      customer_name,
+      phone_number,
+      device_model,
+      order_number,
+      delivery_methods,
+      pickup_methods,
+      assigned_admin_ids,
+      date_from,
+      date_to,
+    });
+
+    const cacheKey = `${this.table}:${branchId}:${admin.id}:${sort_by}:${sort_order}:${offset}:${limit}:${Buffer.from(filterHash).toString('base64')}`;
     const cached: Record<string, FreshRepairOrder[]> | null = await this.redisService.get(cacheKey);
     if (cached) {
       return cached;
     }
 
+    // Build dynamic WHERE conditions
+    const whereConditions: string[] = [];
+    const queryParams: any = { branchId, statusIds, limit, offset };
+
+    // Filter by source types (assuming we add source_type field)
+    if (source_types?.length) {
+      whereConditions.push(`ro.source_type = ANY(:sourceTypes)`);
+      queryParams.sourceTypes = source_types;
+    }
+
+    // Filter by priorities
+    if (priorities?.length) {
+      whereConditions.push(`ro.priority = ANY(:priorities)`);
+      queryParams.priorities = priorities;
+    }
+
+    // Filter by customer name
+    if (customer_name) {
+      whereConditions.push(
+        `(LOWER(u.first_name || ' ' || u.last_name) LIKE LOWER(:customerName) OR LOWER(u.first_name) LIKE LOWER(:customerName) OR LOWER(u.last_name) LIKE LOWER(:customerName))`,
+      );
+      queryParams.customerName = `%${customer_name}%`;
+    }
+
+    // Filter by phone number
+    if (phone_number) {
+      whereConditions.push(
+        `(u.phone_number1 LIKE :phoneNumber OR u.phone_number2 LIKE :phoneNumber)`,
+      );
+      queryParams.phoneNumber = `%${phone_number}%`;
+    }
+
+    // Filter by device model
+    if (device_model) {
+      whereConditions.push(
+        `LOWER(pc.name_uz) LIKE LOWER(:deviceModel) OR LOWER(pc.name_ru) LIKE LOWER(:deviceModel) OR LOWER(pc.name_en) LIKE LOWER(:deviceModel)`,
+      );
+      queryParams.deviceModel = `%${device_model}%`;
+    }
+
+    // Filter by order number
+    if (order_number) {
+      whereConditions.push(`ro.number_id::text LIKE :orderNumber`);
+      queryParams.orderNumber = `%${order_number}%`;
+    }
+
+    // Filter by delivery methods
+    if (delivery_methods?.length) {
+      whereConditions.push(`ro.delivery_method = ANY(:deliveryMethods)`);
+      queryParams.deliveryMethods = delivery_methods;
+    }
+
+    // Filter by pickup methods
+    if (pickup_methods?.length) {
+      whereConditions.push(`ro.pickup_method = ANY(:pickupMethods)`);
+      queryParams.pickupMethods = pickup_methods;
+    }
+
+    // Filter by assigned admin IDs
+    if (assigned_admin_ids?.length) {
+      whereConditions.push(
+        `EXISTS (SELECT 1 FROM repair_order_assign_admins aa WHERE aa.repair_order_id = ro.id AND aa.admin_id = ANY(:assignedAdminIds))`,
+      );
+      queryParams.assignedAdminIds = assigned_admin_ids;
+    }
+
+    // Filter by date range
+    if (date_from) {
+      whereConditions.push(`ro.created_at >= :dateFrom`);
+      queryParams.dateFrom = date_from;
+    }
+
+    if (date_to) {
+      whereConditions.push(`ro.created_at <= :dateTo`);
+      queryParams.dateTo = date_to;
+    }
+
     const orderClause = `ORDER BY ro.status_id, ro.${sort_by} ${sort_order.toUpperCase()}`;
 
-    const querySql = loadSQL('repair-orders/queries/find-all-by-admin-branch.sql').replace(
+    let querySql = loadSQL('repair-orders/queries/find-all-by-admin-branch.sql').replace(
       '/*ORDER_CLAUSE*/',
       orderClause,
     );
 
+    // Add dynamic filters to the WHERE clause
+    if (whereConditions.length > 0) {
+      const additionalWhere = whereConditions.join(' AND ');
+      querySql = querySql.replace(
+        'AND ro.status_id = ANY(:statusIds)',
+        `AND ro.status_id = ANY(:statusIds) AND ${additionalWhere}`,
+      );
+    }
+
     try {
       const freshOrders: FreshRepairOrder[] = await this.knex
-        .raw(querySql, { branchId, statusIds, limit, offset })
+        .raw(querySql, queryParams)
         .then((r) => r.rows as FreshRepairOrder[]);
+
       const result: Record<string, FreshRepairOrder[]> = {};
       for (const statusId of statusIds) {
         result[statusId] = freshOrders.filter(
@@ -274,7 +393,7 @@ export class RepairOrdersService {
 
       return result;
     } catch (error) {
-      this.logger.error(`Failed to get all repair orders:`);
+      this.logger.error(`Failed to get all repair orders:`, (error as Error)?.stack);
       if (error instanceof HttpException) throw error;
       throw error;
     }
