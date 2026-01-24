@@ -15,28 +15,122 @@
       }
     ]
   },
-  "variable": [
-    {
-      "key": "baseUrl",
-      "value": "http://localhost:5001/api/v1",
-      "type": "string"
-    },
-    {
-      "key": "accessToken",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "deviceId",
-      "value": "90000000-0000-0000-0000-000000000001",
-      "type": "string"
-    },
-    {
-      "key": "repairOrderId",
-      "value": "",
-      "type": "string"
-    }
-  ],
+ "variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5001/api/v1",
+			"type": "string",
+			"description": "Base URL for ProCare Backend API"
+		},
+		{
+			"key": "admin_phone",
+			"value": "+998903367448",
+			"type": "string",
+			"description": "Admin phone number for login"
+		},
+		{
+			"key": "admin_password",
+			"value": "1111",
+			"type": "string",
+			"description": "Admin password for login"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string",
+			"description": "JWT access token (auto-populated after login)"
+		},
+		{
+			"key": "admin_id",
+			"value": "",
+			"type": "string",
+			"description": "Current admin ID (auto-populated after login)"
+		},
+		{
+			"key": "created_user_id",
+			"value": "",
+			"type": "string",
+			"description": "ID of recently created user"
+		},
+		{
+			"key": "branch_id",
+			"value": "",
+			"type": "string",
+			"description": "Branch ID (auto-populated from branches list)"
+		},
+		{
+			"key": "phone_category_id",
+			"value": "",
+			"type": "string",
+			"description": "Phone category ID (auto-populated from categories list)"
+		},
+		{
+			"key": "problem_category_id",
+			"value": "",
+			"type": "string",
+			"description": "Problem category ID (auto-populated from categories list)"
+		},
+		{
+			"key": "rental_device_id",
+			"value": "",
+			"type": "string",
+			"description": "Rental device ID (auto-populated from devices list)"
+		},
+		{
+			"key": "repair_order_id",
+			"value": "",
+			"type": "string",
+			"description": "Current repair order ID"
+		},
+		{
+			"key": "initial_mapping_id",
+			"value": "",
+			"type": "string",
+			"description": "Initial problem mapping ID"
+		},
+		{
+			"key": "final_mapping_id",
+			"value": "",
+			"type": "string",
+			"description": "Final problem mapping ID"
+		},
+		{
+			"key": "attachment_id",
+			"value": "",
+			"type": "string",
+			"description": "Attachment ID"
+		},
+		{
+			"key": "rental_phone_id",
+			"value": "",
+			"type": "string",
+			"description": "Rental phone assignment ID"
+		},
+		{
+			"key": "random_phone",
+			"value": "",
+			"type": "string",
+			"description": "Dynamically generated phone number"
+		},
+		{
+			"key": "random_imei",
+			"value": "",
+			"type": "string",
+			"description": "Dynamically generated IMEI"
+		},
+		{
+			"key": "delivery_time",
+			"value": "",
+			"type": "string",
+			"description": "Dynamically generated delivery time"
+		},
+		{
+			"key": "pickup_time",
+			"value": "",
+			"type": "string",
+			"description": "Dynamically generated pickup time"
+		}
+	],
   "item": [
     {
       "name": "01. Authentication",

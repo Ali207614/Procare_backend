@@ -7,6 +7,9 @@ import { RepairOrder } from 'src/common/types/repair-order.interface';
 import { RentalPhone } from 'src/common/types/rental-phone.interface';
 import { RepairOrderRentalPhone } from 'src/common/types/repair-order-rental-phone.interface';
 import { CreateOrUpdateRentalPhoneDto } from 'src/repair-orders/dto/create-or-update-rental-phone.dto';
+import { UpdateRentalPhoneDto } from 'src/repair-orders/dto/update-rental-phone.dto';
+import { v4 as uuidv4 } from 'uuid';
+import { NotFoundException } from '@nestjs/common';
 import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { LoggerService } from 'src/common/logger/logger.service';
@@ -225,5 +228,90 @@ export class RentalPhoneUpdaterService {
       null,
       admin.id,
     );
+  }
+
+  async updateRentalPhone(repairOrderId: string, rentalPhoneId: string, updateDto: UpdateRentalPhoneDto, admin: AdminPayload) {
+    const order: RepairOrder | undefined = await this.knex('repair_orders')
+      .where({ id: repairOrderId, status: 'Open' })
+      .first();
+
+    if (!order) {
+      throw new NotFoundException('Repair order not found');
+    }
+
+    const allPermissions: RepairOrderStatusPermission[] =
+      await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      order.branch_id,
+      order.status_id,
+      ['can_pickup_manage'],
+      'repair_order_delivery',
+      allPermissions,
+    );
+
+    const existingRental = await this.knex('repair_order_rental_phones')
+      .where({ id: rentalPhoneId, repair_order_id: repairOrderId })
+      .first();
+
+    if (!existingRental) {
+      throw new NotFoundException('Rental phone not found');
+    }
+
+    const updateFields: any = {};
+    if (updateDto.rental_phone_device_id !== undefined) updateFields.rental_phone_device_id = updateDto.rental_phone_device_id;
+    if (updateDto.is_free !== undefined) updateFields.is_free = updateDto.is_free;
+    if (updateDto.rental_price !== undefined) updateFields.rental_price = updateDto.rental_price;
+    if (updateDto.price_per_day !== undefined) updateFields.price_per_day = updateDto.price_per_day;
+
+    if (Object.keys(updateFields).length === 0) {
+      throw new BadRequestException('No valid fields to update');
+    }
+
+    updateFields.updated_at = new Date();
+
+    const updated = await this.knex('repair_order_rental_phones')
+      .where({ id: rentalPhoneId })
+      .update(updateFields)
+      .returning('*');
+
+    await this.changeLogger.logChange(repairOrderId, 'rental_phone_updated', updateDto, admin.id);
+    return updated[0];
+  }
+
+  async removeRentalPhone(repairOrderId: string, rentalPhoneId: string, admin: AdminPayload) {
+    const order: RepairOrder | undefined = await this.knex('repair_orders')
+      .where({ id: repairOrderId, status: 'Open' })
+      .first();
+
+    if (!order) {
+      throw new NotFoundException('Repair order not found');
+    }
+
+    const allPermissions: RepairOrderStatusPermission[] =
+      await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      order.branch_id,
+      order.status_id,
+      ['can_pickup_manage'],
+      'repair_order_delivery',
+      allPermissions,
+    );
+
+    const deleted = await this.knex('repair_order_rental_phones')
+      .where({ id: rentalPhoneId, repair_order_id: repairOrderId })
+      .del()
+      .returning('*');
+
+    if (!deleted.length) {
+      throw new NotFoundException('Rental phone not found');
+    }
+
+    await this.changeLogger.logChange(repairOrderId, 'rental_phone_removed', {
+      rental_phone_id: rentalPhoneId
+    }, admin.id);
+
+    return { message: 'Rental phone removed successfully' };
   }
 }
