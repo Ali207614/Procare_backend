@@ -232,7 +232,7 @@ export class RentalPhoneUpdaterService {
 
   async updateRentalPhone(repairOrderId: string, rentalPhoneId: string, updateDto: UpdateRentalPhoneDto, admin: AdminPayload) {
     const order: RepairOrder | undefined = await this.knex('repair_orders')
-      .where({ id: repairOrderId, status: 'Open' })
+      .where({ id: repairOrderId })
       .first();
 
     if (!order) {
@@ -259,9 +259,9 @@ export class RentalPhoneUpdaterService {
     }
 
     const updateFields: any = {};
-    if (updateDto.rental_phone_device_id !== undefined) updateFields.rental_phone_device_id = updateDto.rental_phone_device_id;
+    if (updateDto.rental_phone_device_id !== undefined) updateFields.rental_phone_id = updateDto.rental_phone_device_id;
     if (updateDto.is_free !== undefined) updateFields.is_free = updateDto.is_free;
-    if (updateDto.rental_price !== undefined) updateFields.rental_price = updateDto.rental_price;
+    if (updateDto.rental_price !== undefined) updateFields.price = updateDto.rental_price;
     if (updateDto.price_per_day !== undefined) updateFields.price_per_day = updateDto.price_per_day;
 
     if (Object.keys(updateFields).length === 0) {
@@ -281,7 +281,7 @@ export class RentalPhoneUpdaterService {
 
   async removeRentalPhone(repairOrderId: string, rentalPhoneId: string, admin: AdminPayload) {
     const order: RepairOrder | undefined = await this.knex('repair_orders')
-      .where({ id: repairOrderId, status: 'Open' })
+      .where({ id: repairOrderId })
       .first();
 
     if (!order) {

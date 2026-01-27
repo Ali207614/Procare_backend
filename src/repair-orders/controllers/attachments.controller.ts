@@ -1,9 +1,10 @@
-import { Controller, Post, Get, Delete, Param, Body, UseGuards, UseInterceptors, UploadedFile, Req, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Param, Body, UseGuards, UseInterceptors, UploadedFile, ParseUUIDPipe } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { AttachmentsService } from '../services/attachments.service';
-import { AuthenticatedRequest } from 'src/common/types/authenticated-request.type';
+import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
 
 @ApiTags('Repair Order Attachments')
 @ApiBearerAuth()
@@ -20,9 +21,9 @@ export class AttachmentsController {
     @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
     @UploadedFile() file: Express.Multer.File,
     @Body() body: { description?: string },
-    @Req() req: AuthenticatedRequest,
+    @CurrentAdmin() admin: AdminPayload,
   ) {
-    return this.attachmentsService.uploadAttachment(repairOrderId, file, body.description, req.admin);
+    return this.attachmentsService.uploadAttachment(repairOrderId, file, body.description, admin);
   }
 
   @Get(':repair_order_id/attachments')
@@ -30,9 +31,9 @@ export class AttachmentsController {
   @ApiParam({ name: 'repair_order_id', description: 'Repair Order ID' })
   async getAttachments(
     @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
-    @Req() req: AuthenticatedRequest,
+    @CurrentAdmin() admin: AdminPayload,
   ) {
-    return this.attachmentsService.getAttachments(repairOrderId, req.admin);
+    return this.attachmentsService.getAttachments(repairOrderId, admin);
   }
 
   @Delete(':repair_order_id/attachments/:attachment_id')
@@ -42,8 +43,8 @@ export class AttachmentsController {
   async deleteAttachment(
     @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
     @Param('attachment_id', ParseUUIDPipe) attachmentId: string,
-    @Req() req: AuthenticatedRequest,
+    @CurrentAdmin() admin: AdminPayload,
   ) {
-    return this.attachmentsService.deleteAttachment(repairOrderId, attachmentId, req.admin);
+    return this.attachmentsService.deleteAttachment(repairOrderId, attachmentId, admin);
   }
 }

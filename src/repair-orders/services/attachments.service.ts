@@ -5,6 +5,7 @@ import * as path from 'path';
 import * as fs from 'fs/promises';
 import { RepairOrderChangeLoggerService } from './repair-order-change-logger.service';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
 
 @Injectable()
 export class AttachmentsService {
@@ -14,12 +15,12 @@ export class AttachmentsService {
     private readonly permissionService: RepairOrderStatusPermissionsService,
   ) {}
 
-  async uploadAttachment(repairOrderId: string, file: Express.Multer.File, description: string, admin: any) {
+  async uploadAttachment(repairOrderId: string, file: Express.Multer.File, description: string, admin: AdminPayload) {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
 
-    const order = await this.knex('repair_orders').where({ id: repairOrderId, status: 'Open' }).first();
+    const order = await this.knex('repair_orders').where({ id: repairOrderId }).first();
     if (!order) {
       throw new NotFoundException('Repair order not found');
     }
@@ -76,8 +77,8 @@ export class AttachmentsService {
     return attachment[0];
   }
 
-  async getAttachments(repairOrderId: string, admin: any) {
-    const order = await this.knex('repair_orders').where({ id: repairOrderId, status: 'Open' }).first();
+  async getAttachments(repairOrderId: string, admin: AdminPayload) {
+    const order = await this.knex('repair_orders').where({ id: repairOrderId }).first();
     if (!order) {
       throw new NotFoundException('Repair order not found');
     }
@@ -97,8 +98,8 @@ export class AttachmentsService {
       .orderBy('created_at', 'desc');
   }
 
-  async deleteAttachment(repairOrderId: string, attachmentId: string, admin: any) {
-    const order = await this.knex('repair_orders').where({ id: repairOrderId, status: 'Open' }).first();
+  async deleteAttachment(repairOrderId: string, attachmentId: string, admin: AdminPayload) {
+    const order = await this.knex('repair_orders').where({ id: repairOrderId }).first();
     if (!order) {
       throw new NotFoundException('Repair order not found');
     }
