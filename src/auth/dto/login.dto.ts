@@ -2,14 +2,14 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsPhoneNumber, MinLength, MaxLength, Matches } from 'class-validator';
 
 export class LoginDto {
-  @ApiProperty({ example: '+998901234567', description: 'Phone number' })
+  @ApiProperty({ example: '+998903367448', description: 'Phone number' })
   @IsPhoneNumber('UZ', {
     context: { location: 'invalid_phone' },
   })
   @Matches(/^\+998[0-9]{9}$/, { message: 'Invalid phone number format' })
   phone_number!: string;
 
-  @ApiProperty({ example: '111', description: 'Password' })
+  @ApiProperty({ example: '1111', description: 'Password' })
   @IsString({
     context: { location: 'invalid_password' },
   })

@@ -21,6 +21,16 @@ import { CreateRepairOrderDto } from 'src/repair-orders/dto/create-repair-order.
 import { UpdateRepairOrderDto } from 'src/repair-orders/dto/update-repair-order.dto';
 import { MoveRepairOrderDto } from 'src/repair-orders/dto/move-repair-order.dto';
 import { FindAllRepairOrdersQueryDto } from 'src/repair-orders/dto/find-all-repair-orders.dto';
+import {
+  UpdateClientInfoDto,
+  UpdateProductDto,
+  UpdateProblemDto,
+  CreateInitialMappingDto,
+  UpdateMappingDto,
+  TransferBranchDto
+} from './dto';
+import { v4 as uuidv4 } from 'uuid';
+import { ForbiddenException } from '@nestjs/common';
 
 @Injectable()
 export class RepairOrdersService {
@@ -235,7 +245,24 @@ export class RepairOrdersService {
     branchId: string,
     query: FindAllRepairOrdersQueryDto,
   ): Promise<Record<string, FreshRepairOrder[]>> {
-    const { offset, limit, sort_by = 'sort', sort_order = 'asc' } = query;
+    const {
+      offset,
+      limit,
+      sort_by = 'sort',
+      sort_order = 'asc',
+      // Filters
+      source_types,
+      priorities,
+      customer_name,
+      phone_number,
+      device_model,
+      order_number,
+      delivery_methods,
+      pickup_methods,
+      assigned_admin_ids,
+      date_from,
+      date_to,
+    } = query;
 
     const permissions: RepairOrderStatusPermission[] =
       await this.permissionService.findByRolesAndBranch(admin.roles, branchId);
@@ -246,23 +273,125 @@ export class RepairOrdersService {
       return {};
     }
 
-    const cacheKey = `${this.table}:${branchId}:${admin.id}:${sort_by}:${sort_order}:${offset}:${limit}`;
+    // Build filter hash for cache key
+    const filterHash = JSON.stringify({
+      source_types,
+      priorities,
+      customer_name,
+      phone_number,
+      device_model,
+      order_number,
+      delivery_methods,
+      pickup_methods,
+      assigned_admin_ids,
+      date_from,
+      date_to,
+    });
+
+    const cacheKey = `${this.table}:${branchId}:${admin.id}:${sort_by}:${sort_order}:${offset}:${limit}:${Buffer.from(filterHash).toString('base64')}`;
     const cached: Record<string, FreshRepairOrder[]> | null = await this.redisService.get(cacheKey);
     if (cached) {
       return cached;
     }
 
+    // Build dynamic WHERE conditions
+    const whereConditions: string[] = [];
+    const queryParams: any = { branchId, statusIds, limit, offset };
+
+    // Filter by source types (assuming we add source_type field)
+    if (source_types?.length) {
+      whereConditions.push(`ro.source_type = ANY(:sourceTypes)`);
+      queryParams.sourceTypes = source_types;
+    }
+
+    // Filter by priorities
+    if (priorities?.length) {
+      whereConditions.push(`ro.priority = ANY(:priorities)`);
+      queryParams.priorities = priorities;
+    }
+
+    // Filter by customer name
+    if (customer_name) {
+      whereConditions.push(
+        `(LOWER(u.first_name || ' ' || u.last_name) LIKE LOWER(:customerName) OR LOWER(u.first_name) LIKE LOWER(:customerName) OR LOWER(u.last_name) LIKE LOWER(:customerName))`,
+      );
+      queryParams.customerName = `%${customer_name}%`;
+    }
+
+    // Filter by phone number
+    if (phone_number) {
+      whereConditions.push(
+        `(u.phone_number1 LIKE :phoneNumber OR u.phone_number2 LIKE :phoneNumber)`,
+      );
+      queryParams.phoneNumber = `%${phone_number}%`;
+    }
+
+    // Filter by device model
+    if (device_model) {
+      whereConditions.push(
+        `LOWER(pc.name_uz) LIKE LOWER(:deviceModel) OR LOWER(pc.name_ru) LIKE LOWER(:deviceModel) OR LOWER(pc.name_en) LIKE LOWER(:deviceModel)`,
+      );
+      queryParams.deviceModel = `%${device_model}%`;
+    }
+
+    // Filter by order number
+    if (order_number) {
+      whereConditions.push(`ro.number_id::text LIKE :orderNumber`);
+      queryParams.orderNumber = `%${order_number}%`;
+    }
+
+    // Filter by delivery methods
+    if (delivery_methods?.length) {
+      whereConditions.push(`ro.delivery_method = ANY(:deliveryMethods)`);
+      queryParams.deliveryMethods = delivery_methods;
+    }
+
+    // Filter by pickup methods
+    if (pickup_methods?.length) {
+      whereConditions.push(`ro.pickup_method = ANY(:pickupMethods)`);
+      queryParams.pickupMethods = pickup_methods;
+    }
+
+    // Filter by assigned admin IDs
+    if (assigned_admin_ids?.length) {
+      whereConditions.push(
+        `EXISTS (SELECT 1 FROM repair_order_assign_admins aa WHERE aa.repair_order_id = ro.id AND aa.admin_id = ANY(:assignedAdminIds))`,
+      );
+      queryParams.assignedAdminIds = assigned_admin_ids;
+    }
+
+    // Filter by date range
+    if (date_from) {
+      whereConditions.push(`ro.created_at >= :dateFrom`);
+      queryParams.dateFrom = date_from;
+    }
+
+    if (date_to) {
+      whereConditions.push(`ro.created_at <= :dateTo`);
+      queryParams.dateTo = date_to;
+    }
+
     const orderClause = `ORDER BY ro.status_id, ro.${sort_by} ${sort_order.toUpperCase()}`;
 
-    const querySql = loadSQL('repair-orders/queries/find-all-by-admin-branch.sql').replace(
+    let querySql = loadSQL('repair-orders/queries/find-all-by-admin-branch.sql').replace(
       '/*ORDER_CLAUSE*/',
       orderClause,
     );
 
+    // Add dynamic filters to the WHERE clause
+    if (whereConditions.length > 0) {
+      const additionalWhere = whereConditions.join(' AND ');
+      querySql = querySql.replace(
+        'AND ro.status_id = ANY(:statusIds)',
+        `AND ro.status_id = ANY(:statusIds) AND ${additionalWhere}`,
+      );
+    }
+
     try {
       const freshOrders: FreshRepairOrder[] = await this.knex
-        .raw(querySql, { branchId, statusIds, limit, offset })
+        .raw(querySql, queryParams)
         .then((r) => r.rows as FreshRepairOrder[]);
+
       const result: Record<string, FreshRepairOrder[]> = {};
       for (const statusId of statusIds) {
         result[statusId] = freshOrders.filter(
@@ -274,7 +403,7 @@ export class RepairOrdersService {
 
       return result;
     } catch (error) {
-      this.logger.error(`Failed to get all repair orders:`);
+      this.logger.error(`Failed to get all repair orders:`, (error as Error)?.stack);
       if (error instanceof HttpException) throw error;
       throw error;
     }
@@ -514,6 +643,363 @@ export class RepairOrdersService {
       await trx.rollback();
       this.logger.error(`Failed to update sort for repair order ${orderId}`);
       throw err;
+    }
+  }
+
+  async updateClientInfo(repairOrderId: string, updateDto: UpdateClientInfoDto, admin: any) {
+    const order = await this.knex(this.table).where({ id: repairOrderId, status: 'Open' }).first();
+    if (!order) {
+      throw new NotFoundException('Repair order not found');
+    }
+
+    const permissions = await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      order.branch_id,
+      order.status_id,
+      ['can_update'],
+      'repair_order_update',
+      permissions,
+    );
+
+    const updateFields: any = {};
+    if (updateDto.first_name !== undefined) updateFields.first_name = updateDto.first_name;
+    if (updateDto.last_name !== undefined) updateFields.last_name = updateDto.last_name;
+    if (updateDto.phone !== undefined) updateFields.phone = updateDto.phone;
+    if (updateDto.email !== undefined) updateFields.email = updateDto.email;
+
+    if (Object.keys(updateFields).length === 0) {
+      throw new BadRequestException('No valid fields to update');
+    }
+
+    updateFields.updated_at = new Date();
+
+    const result = await this.knex(this.table)
+      .where({ id: repairOrderId })
+      .update(updateFields)
+      .returning('*');
+
+    await this.changeLogger.logChange(repairOrderId, 'client_info_updated', updateDto, admin.id);
+    await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
+
+    return result[0];
+  }
+
+  async updateProduct(repairOrderId: string, updateDto: UpdateProductDto, admin: any) {
+    const order = await this.knex(this.table).where({ id: repairOrderId, status: 'Open' }).first();
+    if (!order) {
+      throw new NotFoundException('Repair order not found');
+    }
+
+    const permissions = await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      order.branch_id,
+      order.status_id,
+      ['can_update'],
+      'repair_order_update',
+      permissions,
+    );
+
+    if (updateDto.phone_category_id) {
+      const phoneCategory = await this.knex('phone_categories')
+        .where({ id: updateDto.phone_category_id, status: 'Open' })
+        .whereNull('parent_id')
+        .first();
+
+      if (!phoneCategory) {
+        throw new BadRequestException('Invalid phone category');
+      }
+    }
+
+    const updateFields: any = {};
+    if (updateDto.phone_category_id !== undefined) updateFields.phone_category_id = updateDto.phone_category_id;
+    if (updateDto.imei !== undefined) updateFields.imei = updateDto.imei;
+
+    if (Object.keys(updateFields).length === 0) {
+      throw new BadRequestException('No valid fields to update');
+    }
+
+    updateFields.updated_at = new Date();
+
+    const updated = await this.knex(this.table)
+      .where({ id: repairOrderId })
+      .update(updateFields)
+      .returning('*');
+
+    await this.changeLogger.logChange(repairOrderId, 'product_updated', updateDto, admin.id);
+    await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
+
+    return updated[0];
+  }
+
+  async updateProblem(repairOrderId: string, problemId: string, updateDto: UpdateProblemDto, admin: any) {
+    const order = await this.knex(this.table).where({ id: repairOrderId, status: 'Open' }).first();
+    if (!order) {
+      throw new NotFoundException('Repair order not found');
+    }
+
+    const existingProblem = await this.knex('repair_order_problems')
+      .where({ id: problemId, repair_order_id: repairOrderId })
+      .first();
+
+    if (!existingProblem) {
+      throw new NotFoundException('Problem not found');
+    }
+
+    const permissions = await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      order.branch_id,
+      order.status_id,
+      ['can_update'],
+      'repair_order_update',
+      permissions,
+    );
+
+    const trx = await this.knex.transaction();
+    try {
+      const updateFields: any = {};
+      if (updateDto.problem_category_id !== undefined) updateFields.problem_category_id = updateDto.problem_category_id;
+      if (updateDto.price !== undefined) updateFields.price = updateDto.price;
+      if (updateDto.estimated_minutes !== undefined) updateFields.estimated_minutes = updateDto.estimated_minutes;
+
+      if (Object.keys(updateFields).length > 0) {
+        updateFields.updated_at = new Date();
+
+        await trx('repair_order_problems')
+          .where({ id: problemId })
+          .update(updateFields);
+      }
+
+      if (updateDto.parts !== undefined) {
+        await trx('repair_order_problem_parts').where({ repair_order_problem_id: problemId }).del();
+
+        if (updateDto.parts.length > 0) {
+          const partsData = updateDto.parts.map(partId => ({
+            id: uuidv4(),
+            repair_order_problem_id: problemId,
+            part_id: partId,
+            created_at: new Date(),
+            updated_at: new Date()
+          }));
+
+          await trx('repair_order_problem_parts').insert(partsData);
+        }
+      }
+
+      await trx.commit();
+      await this.changeLogger.logChange(repairOrderId, 'problem_updated', updateDto, admin.id);
+      await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
+
+      return { message: 'Problem updated successfully' };
+    } catch (error) {
+      await trx.rollback();
+      throw error;
+    }
+  }
+
+  async createInitialMapping(repairOrderId: string, createDto: CreateInitialMappingDto, admin: any) {
+    const order = await this.knex(this.table).where({ id: repairOrderId, status: 'Open' }).first();
+    if (!order) {
+      throw new NotFoundException('Repair order not found');
+    }
+
+    const permissions = await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      order.branch_id,
+      order.status_id,
+      ['can_update'],
+      'repair_order_update',
+      permissions,
+    );
+
+    const mapping = await this.knex('repair_order_initial_problem_mappings')
+      .insert({
+        id: uuidv4(),
+        repair_order_id: repairOrderId,
+        ...createDto,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .returning('*');
+
+    await this.changeLogger.logChange(repairOrderId, 'initial_mapping_created', createDto, admin.id);
+    await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
+    return mapping[0];
+  }
+
+  async updateInitialMapping(repairOrderId: string, mappingId: string, updateDto: UpdateMappingDto, admin: any) {
+    const order = await this.knex(this.table).where({ id: repairOrderId, status: 'Open' }).first();
+    if (!order) {
+      throw new NotFoundException('Repair order not found');
+    }
+
+    const permissions = await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      order.branch_id,
+      order.status_id,
+      ['can_update'],
+      'repair_order_update',
+      permissions,
+    );
+
+    const updateFields: any = {};
+    if (updateDto.problem_category_id !== undefined) updateFields.problem_category_id = updateDto.problem_category_id;
+    if (updateDto.description !== undefined) updateFields.description = updateDto.description;
+
+    if (Object.keys(updateFields).length === 0) {
+      throw new BadRequestException('No valid fields to update');
+    }
+
+    updateFields.updated_at = new Date();
+
+    const updated = await this.knex('repair_order_initial_problem_mappings')
+      .where({ id: mappingId, repair_order_id: repairOrderId })
+      .update(updateFields)
+      .returning('*');
+
+    if (!updated.length) {
+      throw new NotFoundException('Initial mapping not found');
+    }
+
+    await this.changeLogger.logChange(repairOrderId, 'initial_mapping_updated', updateDto, admin.id);
+    await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
+    return updated[0];
+  }
+
+  async createFinalMapping(repairOrderId: string, createDto: CreateInitialMappingDto, admin: any) {
+    const order = await this.knex(this.table).where({ id: repairOrderId, status: 'Open' }).first();
+    if (!order) {
+      throw new NotFoundException('Repair order not found');
+    }
+
+    const permissions = await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      order.branch_id,
+      order.status_id,
+      ['can_update'],
+      'repair_order_update',
+      permissions,
+    );
+
+    const mapping = await this.knex('repair_order_final_problem_mappings')
+      .insert({
+        id: uuidv4(),
+        repair_order_id: repairOrderId,
+        ...createDto,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .returning('*');
+
+    await this.changeLogger.logChange(repairOrderId, 'final_mapping_created', createDto, admin.id);
+    await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
+    return mapping[0];
+  }
+
+  async updateFinalMapping(repairOrderId: string, mappingId: string, updateDto: UpdateMappingDto, admin: any) {
+    const order = await this.knex(this.table).where({ id: repairOrderId, status: 'Open' }).first();
+    if (!order) {
+      throw new NotFoundException('Repair order not found');
+    }
+
+    const permissions = await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      order.branch_id,
+      order.status_id,
+      ['can_update'],
+      'repair_order_update',
+      permissions,
+    );
+
+    const updateFields: any = {};
+    if (updateDto.problem_category_id !== undefined) updateFields.problem_category_id = updateDto.problem_category_id;
+    if (updateDto.description !== undefined) updateFields.description = updateDto.description;
+
+    if (Object.keys(updateFields).length === 0) {
+      throw new BadRequestException('No valid fields to update');
+    }
+
+    updateFields.updated_at = new Date();
+
+    const updated = await this.knex('repair_order_final_problem_mappings')
+      .where({ id: mappingId, repair_order_id: repairOrderId })
+      .update(updateFields)
+      .returning('*');
+
+    if (!updated.length) {
+      throw new NotFoundException('Final mapping not found');
+    }
+
+    await this.changeLogger.logChange(repairOrderId, 'final_mapping_updated', updateDto, admin.id);
+    await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
+    return updated[0];
+  }
+
+  async transferBranch(repairOrderId: string, transferDto: TransferBranchDto, admin: any) {
+    const order = await this.knex(this.table).where({ id: repairOrderId, status: 'Open' }).first();
+    if (!order) {
+      throw new NotFoundException('Repair order not found');
+    }
+
+    const currentPermissions = await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    await this.permissionService.checkPermissionsOrThrow(
+      admin.roles,
+      order.branch_id,
+      order.status_id,
+      ['can_update'],
+      'repair_order_update',
+      currentPermissions,
+    );
+
+    const newBranch = await this.knex('branches')
+      .where({ id: transferDto.new_branch_id, status: 'Open' })
+      .first();
+
+    if (!newBranch) {
+      throw new BadRequestException('Invalid or inactive branch');
+    }
+
+    const hasPermission = await this.knex('admin_branches')
+      .where({
+        admin_id: admin.id,
+        branch_id: transferDto.new_branch_id
+      })
+      .first();
+
+    if (!hasPermission) {
+      throw new ForbiddenException('No permission to transfer to this branch');
+    }
+
+    const trx = await this.knex.transaction();
+    try {
+      const updated = await trx(this.table)
+        .where({ id: repairOrderId })
+        .update({
+          branch_id: transferDto.new_branch_id,
+          updated_at: new Date()
+        })
+        .returning('*');
+
+      await this.changeLogger.logChange(repairOrderId, 'branch_transferred', {
+        old_branch_id: order.branch_id,
+        new_branch_id: transferDto.new_branch_id
+      }, admin.id);
+
+      await trx.commit();
+
+      await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
+      await this.redisService.flushByPrefix(`${this.table}:${transferDto.new_branch_id}`);
+
+      return updated[0];
+    } catch (error) {
+      await trx.rollback();
+      throw error;
     }
   }
 }

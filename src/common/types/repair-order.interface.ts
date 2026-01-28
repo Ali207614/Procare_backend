@@ -192,8 +192,7 @@ export interface FreshRepairOrder {
   };
   rental_phone: {
     id: string | null;
-    rental_phone_device_id: string | null;
-    sap_order_id: string | null;
+    rental_phone_id: string | null;
     is_free: boolean | null;
     price: string | null;
     currency: 'UZS' | 'USD' | 'EUR' | null;
@@ -372,8 +371,7 @@ export interface RepairOrderDetails {
   };
   rental_phone: {
     id: string | null;
-    rental_phone_device_id: string | null;
-    sap_order_id: string | null;
+    rental_phone_id: string | null;
     is_free: boolean | null;
     price: string | null;
     currency: 'UZS' | 'USD' | 'EUR' | null;
@@ -420,7 +418,6 @@ export interface JoinedRepairOrder {
     bg_color: string | null;
   };
 }
-
 
 export interface UserWithRepairOrders extends User {
   repair_orders: JoinedRepairOrder[];

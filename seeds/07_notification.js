@@ -149,5 +149,48 @@ exports.seed = async function (knex) {
     },
   ];
 
+  // Add more notifications for other admins
+  if (admins.length > 1) {
+    for (let i = 1; i < Math.min(admins.length, 5); i++) {
+      const adminNotifications = [
+        {
+          id: uuidv4(),
+          admin_id: admins[i].id,
+          title: 'Yangi buyurtma',
+          message: `Yangi ta'mir buyurtmasi qabul qilindi - RO-2025-${String(100 + i).padStart(3, '0')}`,
+          type: 'info',
+          is_read: false,
+          meta: { order_id: `RO-2025-${String(100 + i).padStart(3, '0')}`, event: 'created' },
+          created_at: new Date(now.getTime() - i * 1000 * 60 * 15),
+          updated_at: new Date(now.getTime() - i * 1000 * 60 * 15),
+        },
+        {
+          id: uuidv4(),
+          admin_id: admins[i].id,
+          title: 'Buyurtma yangilandi',
+          message: `Buyurtma RO-2025-${String(100 + i).padStart(3, '0')} holati o'zgardi`,
+          type: 'info',
+          is_read: i % 2 === 0,
+          meta: { order_id: `RO-2025-${String(100 + i).padStart(3, '0')}`, event: 'updated' },
+          created_at: new Date(now.getTime() - i * 1000 * 60 * 30),
+          updated_at: new Date(now.getTime() - i * 1000 * 60 * 30),
+          read_at: i % 2 === 0 ? new Date(now.getTime() - i * 1000 * 60 * 25) : null,
+        },
+        {
+          id: uuidv4(),
+          admin_id: admins[i].id,
+          title: 'Qismlar yetib keldi',
+          message: `Buyurtma RO-2025-${String(100 + i).padStart(3, '0')} uchun qismlar yetib keldi`,
+          type: 'success',
+          is_read: false,
+          meta: { order_id: `RO-2025-${String(100 + i).padStart(3, '0')}`, event: 'parts_arrived' },
+          created_at: new Date(now.getTime() - i * 1000 * 60 * 45),
+          updated_at: new Date(now.getTime() - i * 1000 * 60 * 45),
+        },
+      ];
+      notifications.push(...adminNotifications);
+    }
+  }
+
   await knex('notifications').insert(notifications);
 };

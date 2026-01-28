@@ -10,6 +10,7 @@ import { CommentController } from './controllers/comment.controller';
 import { DeliveryController } from './controllers/delivery.controller';
 import { PickupController } from './controllers/pickup.controller';
 import { RentalPhoneController } from './controllers/rental-phone.controller';
+import { AttachmentsController } from './controllers/attachments.controller';
 import { RepairOrdersController } from './repair-orders.controller';
 import { RepairOrdersService } from './repair-orders.service';
 import { AssignAdminUpdaterService } from './services/assign-admin-updater.service';
@@ -21,6 +22,7 @@ import { PickupUpdaterService } from './services/pickup-updater.service';
 import { RentalPhoneUpdaterService } from './services/rental-phone-updater.service';
 import { RepairOrderChangeLoggerService } from './services/repair-order-change-logger.service';
 import { RepairOrderCreateHelperService } from './services/repair-order-create-helper.service';
+import { AttachmentsService } from './services/attachments.service';
 
 @Module({
   imports: [
@@ -37,6 +39,7 @@ import { RepairOrderCreateHelperService } from './services/repair-order-create-h
     DeliveryController,
     PickupController,
     RentalPhoneController,
+    AttachmentsController,
   ],
   providers: [
     AssignAdminUpdaterService,
@@ -50,6 +53,7 @@ import { RepairOrderCreateHelperService } from './services/repair-order-create-h
     RentalPhoneUpdaterService,
     NotificationGateway,
     RepairOrdersService,
+    AttachmentsService,
   ],
   exports: [
     AssignAdminUpdaterService,

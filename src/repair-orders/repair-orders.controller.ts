@@ -29,6 +29,14 @@ import {
   RepairOrderDetails,
 } from 'src/common/types/repair-order.interface';
 import { FindAllRepairOrdersQueryDto } from 'src/repair-orders/dto/find-all-repair-orders.dto';
+import {
+  UpdateClientInfoDto,
+  UpdateProductDto,
+  UpdateProblemDto,
+  CreateInitialMappingDto,
+  UpdateMappingDto,
+  TransferBranchDto
+} from './dto';
 
 @ApiTags('Repair Orders')
 @ApiBearerAuth()
@@ -109,5 +117,99 @@ export class RepairOrdersController {
     @Req() req: AuthenticatedRequest,
   ): Promise<{ message: string }> {
     return this.service.softDelete(req.admin, repairOrderId);
+  }
+
+  @Patch(':repair_order_id/client')
+  @ApiOperation({ summary: 'Update client information' })
+  @ApiParam({ name: 'repair_order_id', description: 'Repair Order ID' })
+  updateClientInfo(
+    @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
+    @Body() updateClientDto: UpdateClientInfoDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any> {
+    return this.service.updateClientInfo(repairOrderId, updateClientDto, req.admin);
+  }
+
+  @Patch(':repair_order_id/product')
+  @ApiOperation({ summary: 'Update product information' })
+  @ApiParam({ name: 'repair_order_id', description: 'Repair Order ID' })
+  updateProduct(
+    @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
+    @Body() updateDto: UpdateProductDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any> {
+    return this.service.updateProduct(repairOrderId, updateDto, req.admin);
+  }
+
+  @Patch(':repair_order_id/problems/:problem_id')
+  @ApiOperation({ summary: 'Update problem details' })
+  @ApiParam({ name: 'repair_order_id', description: 'Repair Order ID' })
+  @ApiParam({ name: 'problem_id', description: 'Problem ID' })
+  updateProblem(
+    @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
+    @Param('problem_id', ParseUUIDPipe) problemId: string,
+    @Body() updateDto: UpdateProblemDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any> {
+    return this.service.updateProblem(repairOrderId, problemId, updateDto, req.admin);
+  }
+
+  @Post(':repair_order_id/initial-mapping')
+  @ApiOperation({ summary: 'Create initial problem mapping' })
+  @ApiParam({ name: 'repair_order_id', description: 'Repair Order ID' })
+  createInitialMapping(
+    @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
+    @Body() createDto: CreateInitialMappingDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any> {
+    return this.service.createInitialMapping(repairOrderId, createDto, req.admin);
+  }
+
+  @Patch(':repair_order_id/initial-mapping/:mapping_id')
+  @ApiOperation({ summary: 'Update initial problem mapping' })
+  @ApiParam({ name: 'repair_order_id', description: 'Repair Order ID' })
+  @ApiParam({ name: 'mapping_id', description: 'Mapping ID' })
+  updateInitialMapping(
+    @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
+    @Param('mapping_id', ParseUUIDPipe) mappingId: string,
+    @Body() updateDto: UpdateMappingDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any> {
+    return this.service.updateInitialMapping(repairOrderId, mappingId, updateDto, req.admin);
+  }
+
+  @Post(':repair_order_id/final-mapping')
+  @ApiOperation({ summary: 'Create final problem mapping' })
+  @ApiParam({ name: 'repair_order_id', description: 'Repair Order ID' })
+  createFinalMapping(
+    @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
+    @Body() createDto: CreateInitialMappingDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any> {
+    return this.service.createFinalMapping(repairOrderId, createDto, req.admin);
+  }
+
+  @Patch(':repair_order_id/final-mapping/:mapping_id')
+  @ApiOperation({ summary: 'Update final problem mapping' })
+  @ApiParam({ name: 'repair_order_id', description: 'Repair Order ID' })
+  @ApiParam({ name: 'mapping_id', description: 'Mapping ID' })
+  updateFinalMapping(
+    @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
+    @Param('mapping_id', ParseUUIDPipe) mappingId: string,
+    @Body() updateDto: UpdateMappingDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any> {
+    return this.service.updateFinalMapping(repairOrderId, mappingId, updateDto, req.admin);
+  }
+
+  @Patch(':repair_order_id/transfer-branch')
+  @ApiOperation({ summary: 'Transfer repair order to different branch' })
+  @ApiParam({ name: 'repair_order_id', description: 'Repair Order ID' })
+  transferBranch(
+    @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
+    @Body() transferDto: TransferBranchDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any> {
+    return this.service.transferBranch(repairOrderId, transferDto, req.admin);
   }
 }

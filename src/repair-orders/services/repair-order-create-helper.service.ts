@@ -8,12 +8,12 @@ import { RedisService } from 'src/common/redis/redis.service';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 import { User } from 'src/common/types/user.interface';
-import { RentalPhoneDevice } from 'src/common/types/rental-phone-device.interface';
+import { RentalPhone } from 'src/common/types/rental-phone.interface';
 import { LoggerService } from 'src/common/logger/logger.service';
 
 @Injectable()
 export class RepairOrderCreateHelperService {
-  private readonly redisKeyRentalPhoneDevice = 'rental_phone_device:';
+  private readonly redisKeyRentalPhoneDevice = 'rental_phone:';
   private readonly redisKeyUser = 'user:';
   private readonly redisKeyAdmin = 'admin:';
 
@@ -68,20 +68,20 @@ export class RepairOrderCreateHelperService {
       );
 
       const phone = dto.rental_phone;
-      const cacheKey = `${this.redisKeyRentalPhoneDevice}${phone.rental_phone_device_id}`;
-      let device: RentalPhoneDevice | null = await this.redisService.get(cacheKey);
+      const cacheKey = `${this.redisKeyRentalPhoneDevice}${phone.rental_phone_id}`;
+      let device: RentalPhone | null = await this.redisService.get(cacheKey);
 
       if (!device) {
         device = await trx('rental_phone_devices')
-          .where({ id: phone.rental_phone_device_id, is_available: true })
+          .where({ id: phone.rental_phone_id, status: 'Available', is_active: true })
           .first();
         if (device) await this.redisService.set(cacheKey, device, 3600);
       }
 
       if (!device) {
         throw new BadRequestException({
-          message: 'Rental phone device not found or unavailable',
-          location: 'rental_phone.rental_phone_device_id',
+          message: 'Rental phone not found or unavailable',
+          location: 'rental_phone.rental_phone_id',
         });
       }
 
@@ -95,7 +95,7 @@ export class RepairOrderCreateHelperService {
       const [inserted] = await trx('repair_order_rental_phones')
         .insert({
           repair_order_id: orderId,
-          rental_phone_device_id: phone.rental_phone_device_id,
+          rental_phone_id: phone.rental_phone_id,
           is_free: phone.is_free ?? null,
           price: phone.price ?? null,
           currency: phone.currency ?? 'UZS',
@@ -110,8 +110,8 @@ export class RepairOrderCreateHelperService {
         .returning('*');
 
       await trx('rental_phone_devices')
-        .where({ id: phone.rental_phone_device_id })
-        .update({ is_available: false, updated_at: new Date() });
+        .where({ id: phone.rental_phone_id })
+        .update({ status: 'Rented', updated_at: new Date() });
 
       const userCacheKey = `${this.redisKeyUser}${dto.user_id}`;
       let user: User | null | undefined = await this.redisService.get(userCacheKey);
@@ -120,7 +120,7 @@ export class RepairOrderCreateHelperService {
         if (user) await this.redisService.set(userCacheKey, user, 3600);
       }
 
-      // SAP integration removed
+      // External system integration removed
 
       this.logger.log(`Inserted rental phone for repair order ${orderId}`);
     } catch (err: unknown) {

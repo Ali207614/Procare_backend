@@ -16,7 +16,7 @@ exports.up = async function (knex) {
       .inTable('rental_phone_devices')
       .onDelete('RESTRICT');
 
-    table.string('sap_order_id').nullable();
+    table.string('external_order_id').nullable();
 
     table.boolean('is_free').nullable();
     table.decimal('price', 12, 2).nullable();
