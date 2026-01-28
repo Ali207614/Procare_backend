@@ -9,12 +9,12 @@ export class UpdateRentalPhoneDto {
   @IsBoolean()
   is_free?: boolean;
 
-  @ValidateIf(o => !o.is_free)
+  @ValidateIf((o) => !o.is_free)
   @IsNumber()
   @Min(0)
   rental_price?: number;
 
-  @ValidateIf(o => !o.is_free)
+  @ValidateIf((o) => !o.is_free)
   @IsNumber()
   @Min(0)
   price_per_day?: number;

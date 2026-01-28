@@ -230,7 +230,12 @@ export class RentalPhoneUpdaterService {
     );
   }
 
-  async updateRentalPhone(repairOrderId: string, rentalPhoneId: string, updateDto: UpdateRentalPhoneDto, admin: AdminPayload) {
+  async updateRentalPhone(
+    repairOrderId: string,
+    rentalPhoneId: string,
+    updateDto: UpdateRentalPhoneDto,
+    admin: AdminPayload,
+  ) {
     const order: RepairOrder | undefined = await this.knex('repair_orders')
       .where({ id: repairOrderId })
       .first();
@@ -259,7 +264,8 @@ export class RentalPhoneUpdaterService {
     }
 
     const updateFields: any = {};
-    if (updateDto.rental_phone_device_id !== undefined) updateFields.rental_phone_id = updateDto.rental_phone_device_id;
+    if (updateDto.rental_phone_device_id !== undefined)
+      updateFields.rental_phone_id = updateDto.rental_phone_device_id;
     if (updateDto.is_free !== undefined) updateFields.is_free = updateDto.is_free;
     if (updateDto.rental_price !== undefined) updateFields.price = updateDto.rental_price;
     if (updateDto.price_per_day !== undefined) updateFields.price_per_day = updateDto.price_per_day;
@@ -308,9 +314,14 @@ export class RentalPhoneUpdaterService {
       throw new NotFoundException('Rental phone not found');
     }
 
-    await this.changeLogger.logChange(repairOrderId, 'rental_phone_removed', {
-      rental_phone_id: rentalPhoneId
-    }, admin.id);
+    await this.changeLogger.logChange(
+      repairOrderId,
+      'rental_phone_removed',
+      {
+        rental_phone_id: rentalPhoneId,
+      },
+      admin.id,
+    );
 
     return { message: 'Rental phone removed successfully' };
   }

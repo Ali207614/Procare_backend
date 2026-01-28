@@ -141,7 +141,10 @@ export class RentalPhoneDevicesService {
   }
 
   async findByCode(code: string): Promise<RentalPhoneDevice | null> {
-    return (await this.knex(this.table).where('code', code).where('is_active', true).first()) as RentalPhoneDevice | null;
+    return (await this.knex(this.table)
+      .where('code', code)
+      .where('is_active', true)
+      .first()) as RentalPhoneDevice | null;
   }
 
   async create(dto: CreateRentalPhoneDeviceDto): Promise<RentalPhoneDevice> {

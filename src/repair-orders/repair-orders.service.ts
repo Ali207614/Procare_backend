@@ -27,7 +27,7 @@ import {
   UpdateProblemDto,
   CreateInitialMappingDto,
   UpdateMappingDto,
-  TransferBranchDto
+  TransferBranchDto,
 } from './dto';
 import { v4 as uuidv4 } from 'uuid';
 import { ForbiddenException } from '@nestjs/common';
@@ -652,7 +652,10 @@ export class RepairOrdersService {
       throw new NotFoundException('Repair order not found');
     }
 
-    const permissions = await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    const permissions = await this.permissionService.findByRolesAndBranch(
+      admin.roles,
+      order.branch_id,
+    );
     await this.permissionService.checkPermissionsOrThrow(
       admin.roles,
       order.branch_id,
@@ -691,7 +694,10 @@ export class RepairOrdersService {
       throw new NotFoundException('Repair order not found');
     }
 
-    const permissions = await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    const permissions = await this.permissionService.findByRolesAndBranch(
+      admin.roles,
+      order.branch_id,
+    );
     await this.permissionService.checkPermissionsOrThrow(
       admin.roles,
       order.branch_id,
@@ -713,7 +719,8 @@ export class RepairOrdersService {
     }
 
     const updateFields: any = {};
-    if (updateDto.phone_category_id !== undefined) updateFields.phone_category_id = updateDto.phone_category_id;
+    if (updateDto.phone_category_id !== undefined)
+      updateFields.phone_category_id = updateDto.phone_category_id;
     if (updateDto.imei !== undefined) updateFields.imei = updateDto.imei;
 
     if (Object.keys(updateFields).length === 0) {
@@ -733,7 +740,12 @@ export class RepairOrdersService {
     return updated[0];
   }
 
-  async updateProblem(repairOrderId: string, problemId: string, updateDto: UpdateProblemDto, admin: any) {
+  async updateProblem(
+    repairOrderId: string,
+    problemId: string,
+    updateDto: UpdateProblemDto,
+    admin: any,
+  ) {
     const order = await this.knex(this.table).where({ id: repairOrderId, status: 'Open' }).first();
     if (!order) {
       throw new NotFoundException('Repair order not found');
@@ -747,7 +759,10 @@ export class RepairOrdersService {
       throw new NotFoundException('Problem not found');
     }
 
-    const permissions = await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    const permissions = await this.permissionService.findByRolesAndBranch(
+      admin.roles,
+      order.branch_id,
+    );
     await this.permissionService.checkPermissionsOrThrow(
       admin.roles,
       order.branch_id,
@@ -760,28 +775,28 @@ export class RepairOrdersService {
     const trx = await this.knex.transaction();
     try {
       const updateFields: any = {};
-      if (updateDto.problem_category_id !== undefined) updateFields.problem_category_id = updateDto.problem_category_id;
+      if (updateDto.problem_category_id !== undefined)
+        updateFields.problem_category_id = updateDto.problem_category_id;
       if (updateDto.price !== undefined) updateFields.price = updateDto.price;
-      if (updateDto.estimated_minutes !== undefined) updateFields.estimated_minutes = updateDto.estimated_minutes;
+      if (updateDto.estimated_minutes !== undefined)
+        updateFields.estimated_minutes = updateDto.estimated_minutes;
 
       if (Object.keys(updateFields).length > 0) {
         updateFields.updated_at = new Date();
 
-        await trx('repair_order_problems')
-          .where({ id: problemId })
-          .update(updateFields);
+        await trx('repair_order_problems').where({ id: problemId }).update(updateFields);
       }
 
       if (updateDto.parts !== undefined) {
         await trx('repair_order_problem_parts').where({ repair_order_problem_id: problemId }).del();
 
         if (updateDto.parts.length > 0) {
-          const partsData = updateDto.parts.map(partId => ({
+          const partsData = updateDto.parts.map((partId) => ({
             id: uuidv4(),
             repair_order_problem_id: problemId,
             part_id: partId,
             created_at: new Date(),
-            updated_at: new Date()
+            updated_at: new Date(),
           }));
 
           await trx('repair_order_problem_parts').insert(partsData);
@@ -799,13 +814,20 @@ export class RepairOrdersService {
     }
   }
 
-  async createInitialMapping(repairOrderId: string, createDto: CreateInitialMappingDto, admin: any) {
+  async createInitialMapping(
+    repairOrderId: string,
+    createDto: CreateInitialMappingDto,
+    admin: any,
+  ) {
     const order = await this.knex(this.table).where({ id: repairOrderId, status: 'Open' }).first();
     if (!order) {
       throw new NotFoundException('Repair order not found');
     }
 
-    const permissions = await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    const permissions = await this.permissionService.findByRolesAndBranch(
+      admin.roles,
+      order.branch_id,
+    );
     await this.permissionService.checkPermissionsOrThrow(
       admin.roles,
       order.branch_id,
@@ -821,22 +843,35 @@ export class RepairOrdersService {
         repair_order_id: repairOrderId,
         ...createDto,
         created_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
       })
       .returning('*');
 
-    await this.changeLogger.logChange(repairOrderId, 'initial_mapping_created', createDto, admin.id);
+    await this.changeLogger.logChange(
+      repairOrderId,
+      'initial_mapping_created',
+      createDto,
+      admin.id,
+    );
     await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
     return mapping[0];
   }
 
-  async updateInitialMapping(repairOrderId: string, mappingId: string, updateDto: UpdateMappingDto, admin: any) {
+  async updateInitialMapping(
+    repairOrderId: string,
+    mappingId: string,
+    updateDto: UpdateMappingDto,
+    admin: any,
+  ) {
     const order = await this.knex(this.table).where({ id: repairOrderId, status: 'Open' }).first();
     if (!order) {
       throw new NotFoundException('Repair order not found');
     }
 
-    const permissions = await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    const permissions = await this.permissionService.findByRolesAndBranch(
+      admin.roles,
+      order.branch_id,
+    );
     await this.permissionService.checkPermissionsOrThrow(
       admin.roles,
       order.branch_id,
@@ -847,7 +882,8 @@ export class RepairOrdersService {
     );
 
     const updateFields: any = {};
-    if (updateDto.problem_category_id !== undefined) updateFields.problem_category_id = updateDto.problem_category_id;
+    if (updateDto.problem_category_id !== undefined)
+      updateFields.problem_category_id = updateDto.problem_category_id;
     if (updateDto.description !== undefined) updateFields.description = updateDto.description;
 
     if (Object.keys(updateFields).length === 0) {
@@ -865,7 +901,12 @@ export class RepairOrdersService {
       throw new NotFoundException('Initial mapping not found');
     }
 
-    await this.changeLogger.logChange(repairOrderId, 'initial_mapping_updated', updateDto, admin.id);
+    await this.changeLogger.logChange(
+      repairOrderId,
+      'initial_mapping_updated',
+      updateDto,
+      admin.id,
+    );
     await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
     return updated[0];
   }
@@ -876,7 +917,10 @@ export class RepairOrdersService {
       throw new NotFoundException('Repair order not found');
     }
 
-    const permissions = await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    const permissions = await this.permissionService.findByRolesAndBranch(
+      admin.roles,
+      order.branch_id,
+    );
     await this.permissionService.checkPermissionsOrThrow(
       admin.roles,
       order.branch_id,
@@ -892,7 +936,7 @@ export class RepairOrdersService {
         repair_order_id: repairOrderId,
         ...createDto,
         created_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
       })
       .returning('*');
 
@@ -901,13 +945,21 @@ export class RepairOrdersService {
     return mapping[0];
   }
 
-  async updateFinalMapping(repairOrderId: string, mappingId: string, updateDto: UpdateMappingDto, admin: any) {
+  async updateFinalMapping(
+    repairOrderId: string,
+    mappingId: string,
+    updateDto: UpdateMappingDto,
+    admin: any,
+  ) {
     const order = await this.knex(this.table).where({ id: repairOrderId, status: 'Open' }).first();
     if (!order) {
       throw new NotFoundException('Repair order not found');
     }
 
-    const permissions = await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    const permissions = await this.permissionService.findByRolesAndBranch(
+      admin.roles,
+      order.branch_id,
+    );
     await this.permissionService.checkPermissionsOrThrow(
       admin.roles,
       order.branch_id,
@@ -918,7 +970,8 @@ export class RepairOrdersService {
     );
 
     const updateFields: any = {};
-    if (updateDto.problem_category_id !== undefined) updateFields.problem_category_id = updateDto.problem_category_id;
+    if (updateDto.problem_category_id !== undefined)
+      updateFields.problem_category_id = updateDto.problem_category_id;
     if (updateDto.description !== undefined) updateFields.description = updateDto.description;
 
     if (Object.keys(updateFields).length === 0) {
@@ -947,7 +1000,10 @@ export class RepairOrdersService {
       throw new NotFoundException('Repair order not found');
     }
 
-    const currentPermissions = await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    const currentPermissions = await this.permissionService.findByRolesAndBranch(
+      admin.roles,
+      order.branch_id,
+    );
     await this.permissionService.checkPermissionsOrThrow(
       admin.roles,
       order.branch_id,
@@ -968,7 +1024,7 @@ export class RepairOrdersService {
     const hasPermission = await this.knex('admin_branches')
       .where({
         admin_id: admin.id,
-        branch_id: transferDto.new_branch_id
+        branch_id: transferDto.new_branch_id,
       })
       .first();
 
@@ -982,14 +1038,19 @@ export class RepairOrdersService {
         .where({ id: repairOrderId })
         .update({
           branch_id: transferDto.new_branch_id,
-          updated_at: new Date()
+          updated_at: new Date(),
         })
         .returning('*');
 
-      await this.changeLogger.logChange(repairOrderId, 'branch_transferred', {
-        old_branch_id: order.branch_id,
-        new_branch_id: transferDto.new_branch_id
-      }, admin.id);
+      await this.changeLogger.logChange(
+        repairOrderId,
+        'branch_transferred',
+        {
+          old_branch_id: order.branch_id,
+          new_branch_id: transferDto.new_branch_id,
+        },
+        admin.id,
+      );
 
       await trx.commit();
 
