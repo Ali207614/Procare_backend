@@ -6,6 +6,7 @@ import * as fs from 'fs/promises';
 import { RepairOrderChangeLoggerService } from './repair-order-change-logger.service';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
+import { RepairOrder } from 'src/common/types/repair-order.interface';
 
 @Injectable()
 export class AttachmentsService {
@@ -25,7 +26,9 @@ export class AttachmentsService {
       throw new BadRequestException('No file uploaded');
     }
 
-    const order = await this.knex('repair_orders').where({ id: repairOrderId }).first();
+    const order: RepairOrder | undefined = await this.knex('repair_orders')
+      .where({ id: repairOrderId })
+      .first();
     if (!order) {
       throw new NotFoundException('Repair order not found');
     }
@@ -91,7 +94,9 @@ export class AttachmentsService {
   }
 
   async getAttachments(repairOrderId: string, admin: AdminPayload) {
-    const order = await this.knex('repair_orders').where({ id: repairOrderId }).first();
+    const order: RepairOrder | undefined = await this.knex('repair_orders')
+      .where({ id: repairOrderId })
+      .first();
     if (!order) {
       throw new NotFoundException('Repair order not found');
     }
@@ -115,7 +120,9 @@ export class AttachmentsService {
   }
 
   async deleteAttachment(repairOrderId: string, attachmentId: string, admin: AdminPayload) {
-    const order = await this.knex('repair_orders').where({ id: repairOrderId }).first();
+    const order: RepairOrder | undefined = await this.knex('repair_orders')
+      .where({ id: repairOrderId })
+      .first();
     if (!order) {
       throw new NotFoundException('Repair order not found');
     }
@@ -142,7 +149,7 @@ export class AttachmentsService {
     }
 
     try {
-      await fs.unlink(attachment.file_path);
+      await fs.unlink(String(attachment.file_path));
     } catch (error) {
       console.warn('Failed to delete file from filesystem:', error);
     }

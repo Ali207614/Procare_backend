@@ -8,7 +8,6 @@ import { RentalPhone } from 'src/common/types/rental-phone.interface';
 import { RepairOrderRentalPhone } from 'src/common/types/repair-order-rental-phone.interface';
 import { CreateOrUpdateRentalPhoneDto } from 'src/repair-orders/dto/create-or-update-rental-phone.dto';
 import { UpdateRentalPhoneDto } from 'src/repair-orders/dto/update-rental-phone.dto';
-import { v4 as uuidv4 } from 'uuid';
 import { NotFoundException } from '@nestjs/common';
 import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
@@ -91,7 +90,7 @@ export class RentalPhoneUpdaterService {
       })
       .returning('*');
 
-    const user = await this.knex('users').where({ id: order.user_id }).first();
+    // User details could be fetched here if needed for external integrations
 
     // External system integration removed
 
@@ -263,7 +262,7 @@ export class RentalPhoneUpdaterService {
       throw new NotFoundException('Rental phone not found');
     }
 
-    const updateFields: any = {};
+    const updateFields: Partial<RepairOrderRentalPhone> = {};
     if (updateDto.rental_phone_device_id !== undefined)
       updateFields.rental_phone_id = updateDto.rental_phone_device_id;
     if (updateDto.is_free !== undefined) updateFields.is_free = updateDto.is_free;
@@ -281,8 +280,13 @@ export class RentalPhoneUpdaterService {
       .update(updateFields)
       .returning('*');
 
-    await this.changeLogger.logChange(repairOrderId, 'rental_phone_updated', updateDto, admin.id);
-    return updated[0];
+    await this.changeLogger.logChange(
+      repairOrderId,
+      'rental_phone_updated',
+      updateFields,
+      admin.id,
+    );
+    return updated[0] as RepairOrderRentalPhone;
   }
 
   async removeRentalPhone(repairOrderId: string, rentalPhoneId: string, admin: AdminPayload) {

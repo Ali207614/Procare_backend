@@ -11,13 +11,14 @@ export class LoggerService implements NestLoggerService {
       format.errors({ stack: true }),
       format.printf(({ level, message, timestamp, stack }) => {
         const msg = typeof message === 'string' ? message : JSON.stringify(message);
-        return `[${timestamp}] ${level.toUpperCase()}: ${msg}${stack ? `\n${stack}` : ''}`;
+        const stackStr = stack ? String(stack) : '';
+        return `[${timestamp}] ${level.toUpperCase()}: ${msg}${stackStr ? `\n${stackStr}` : ''}`;
       }),
     ),
     transports: [
       new transports.Console(),
 
-      new (transports as any).DailyRotateFile({
+      new (transports as typeof transports & { DailyRotateFile: any }).DailyRotateFile({
         dirname: 'logs',
         filename: 'app-%DATE%.log',
         datePattern: 'YYYY-MM-DD',
@@ -27,7 +28,7 @@ export class LoggerService implements NestLoggerService {
         level: 'info',
       }),
 
-      new (transports as any).DailyRotateFile({
+      new (transports as typeof transports & { DailyRotateFile: any }).DailyRotateFile({
         dirname: 'logs',
         filename: 'error-%DATE%.log',
         datePattern: 'YYYY-MM-DD',

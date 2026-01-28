@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
-import { Worker } from 'bullmq';
+import { Worker, Job } from 'bullmq';
 import { WorkerAppModule } from 'src/campaigns/worker-app.module';
 import { CampaignsJobHandler } from 'src/campaigns/campaigns.job-handler';
 
@@ -11,14 +11,18 @@ async function bootstrap(): Promise<void> {
 
   const handler: CampaignsJobHandler = app.get(CampaignsJobHandler);
 
-  const worker = new Worker('campaigns', async (job) => handler.process(job), {
-    connection: {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: Number(process.env.REDIS_PORT) || 6379,
+  const worker = new Worker(
+    'campaigns',
+    async (job: Job<{ campaignId: string; recipientId: string }>) => handler.process(job),
+    {
+      connection: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: Number(process.env.REDIS_PORT) || 6379,
+      },
+      limiter: { max: 20, duration: 1000 },
+      // concurrency: 50,
     },
-    limiter: { max: 20, duration: 1000 },
-    // concurrency: 50,
-  });
+  );
   console.log(
     '[WORKER] DB_* =',
     process.env.DB_HOST,
