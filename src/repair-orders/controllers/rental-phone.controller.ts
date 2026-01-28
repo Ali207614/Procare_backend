@@ -57,7 +57,7 @@ export class RentalPhoneController {
     @Param('rental_phone_id', ParseUUIDPipe) rentalPhoneId: string,
     @Body() updateDto: UpdateRentalPhoneDto,
     @CurrentAdmin() admin: AdminPayload,
-  ): Promise<{ message: string }> {
+  ): Promise<RepairOrderRentalPhone> {
     return this.rentalPhoneUpdater.updateRentalPhone(
       repairOrderId,
       rentalPhoneId,

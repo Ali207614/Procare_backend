@@ -3,7 +3,7 @@ export { UpdateRepairOrderDto } from './update-repair-order.dto';
 export { FindAllRepairOrdersQueryDto } from './find-all-repair-orders.dto';
 export { MoveRepairOrderDto } from './move-repair-order.dto';
 export { UpdateRepairOrderSortDto } from './update-repair-order-sort.dto';
-export { AssignAdminDto } from './assign-admin.dto';
+export { AssignAdminsDto } from './assign-admin.dto';
 export { RemoveAdminsDto } from './remove-admins.dto';
 export { CreateCommentDto } from './create-comment.dto';
 export { CreateOrUpdateDeliveryDto } from './create-or-update-delivery.dto';

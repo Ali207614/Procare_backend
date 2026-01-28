@@ -18,6 +18,6 @@ export class UpdateProblemDto {
   @IsOptional()
   @IsArray()
   @ArrayUnique()
-  @IsUUID({}, { each: true })
+  @IsUUID(undefined, { each: true })
   parts?: string[];
 }

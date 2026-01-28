@@ -34,7 +34,12 @@ export class AttachmentsController {
     @Body() body: { description?: string },
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<unknown> {
-    return this.attachmentsService.uploadAttachment(repairOrderId, file, body.description, admin);
+    return this.attachmentsService.uploadAttachment(
+      repairOrderId,
+      file,
+      body.description || '',
+      admin,
+    );
   }
 
   @Get(':repair_order_id/attachments')

@@ -170,7 +170,7 @@ export class RepairOrdersService {
       for (const field of fieldsToCheck) {
         const dtoFieldValue = dto[field as keyof UpdateRepairOrderDto];
         if (dtoFieldValue !== undefined && dtoFieldValue !== order[field]) {
-          updatedFields[field] = dtoFieldValue as RepairOrder[typeof field];
+          (updatedFields as any)[field] = dtoFieldValue;
           logFields.push({ key: field, oldVal: order[field], newVal: dtoFieldValue });
         }
       }
