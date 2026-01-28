@@ -33,7 +33,7 @@ export class AttachmentsController {
     @UploadedFile() file: Express.Multer.File,
     @Body() body: { description?: string },
     @CurrentAdmin() admin: AdminPayload,
-  ) {
+  ): Promise<unknown> {
     return this.attachmentsService.uploadAttachment(repairOrderId, file, body.description, admin);
   }
 
@@ -43,7 +43,7 @@ export class AttachmentsController {
   async getAttachments(
     @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
     @CurrentAdmin() admin: AdminPayload,
-  ) {
+  ): Promise<unknown[]> {
     return this.attachmentsService.getAttachments(repairOrderId, admin);
   }
 
@@ -55,7 +55,7 @@ export class AttachmentsController {
     @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
     @Param('attachment_id', ParseUUIDPipe) attachmentId: string,
     @CurrentAdmin() admin: AdminPayload,
-  ) {
+  ): Promise<{ message: string }> {
     return this.attachmentsService.deleteAttachment(repairOrderId, attachmentId, admin);
   }
 }

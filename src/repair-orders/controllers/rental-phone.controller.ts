@@ -57,7 +57,7 @@ export class RentalPhoneController {
     @Param('rental_phone_id', ParseUUIDPipe) rentalPhoneId: string,
     @Body() updateDto: UpdateRentalPhoneDto,
     @CurrentAdmin() admin: AdminPayload,
-  ): Promise<any> {
+  ): Promise<{ message: string }> {
     return this.rentalPhoneUpdater.updateRentalPhone(
       repairOrderId,
       rentalPhoneId,
@@ -71,7 +71,7 @@ export class RentalPhoneController {
     @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
     @Param('rental_phone_id', ParseUUIDPipe) rentalPhoneId: string,
     @CurrentAdmin() admin: AdminPayload,
-  ): Promise<any> {
+  ): Promise<{ message: string }> {
     return this.rentalPhoneUpdater.removeRentalPhone(repairOrderId, rentalPhoneId, admin);
   }
 }

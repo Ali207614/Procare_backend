@@ -92,7 +92,7 @@ export class RepairOrderCreateHelperService {
         });
       }
 
-      const [inserted] = await trx('repair_order_rental_phones')
+      await trx('repair_order_rental_phones')
         .insert({
           repair_order_id: orderId,
           rental_phone_id: phone.rental_phone_id,

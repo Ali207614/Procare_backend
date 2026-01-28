@@ -21,7 +21,7 @@ export class AttachmentsService {
     file: Express.Multer.File,
     description: string,
     admin: AdminPayload,
-  ) {
+  ): Promise<unknown> {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
@@ -90,10 +90,10 @@ export class AttachmentsService {
       admin.id,
     );
 
-    return attachment[0];
+    return attachment[0] as unknown;
   }
 
-  async getAttachments(repairOrderId: string, admin: AdminPayload) {
+  async getAttachments(repairOrderId: string, admin: AdminPayload): Promise<unknown[]> {
     const order: RepairOrder | undefined = await this.knex('repair_orders')
       .where({ id: repairOrderId })
       .first();
@@ -119,7 +119,11 @@ export class AttachmentsService {
       .orderBy('created_at', 'desc');
   }
 
-  async deleteAttachment(repairOrderId: string, attachmentId: string, admin: AdminPayload) {
+  async deleteAttachment(
+    repairOrderId: string,
+    attachmentId: string,
+    admin: AdminPayload,
+  ): Promise<{ message: string }> {
     const order: RepairOrder | undefined = await this.knex('repair_orders')
       .where({ id: repairOrderId })
       .first();

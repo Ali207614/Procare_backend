@@ -234,7 +234,7 @@ export class RentalPhoneUpdaterService {
     rentalPhoneId: string,
     updateDto: UpdateRentalPhoneDto,
     admin: AdminPayload,
-  ) {
+  ): Promise<RepairOrderRentalPhone> {
     const order: RepairOrder | undefined = await this.knex('repair_orders')
       .where({ id: repairOrderId })
       .first();
@@ -266,14 +266,14 @@ export class RentalPhoneUpdaterService {
     if (updateDto.rental_phone_device_id !== undefined)
       updateFields.rental_phone_id = updateDto.rental_phone_device_id;
     if (updateDto.is_free !== undefined) updateFields.is_free = updateDto.is_free;
-    if (updateDto.rental_price !== undefined) updateFields.price = updateDto.rental_price;
-    if (updateDto.price_per_day !== undefined) updateFields.price_per_day = updateDto.price_per_day;
+    if (updateDto.rental_price !== undefined)
+      updateFields.price = updateDto.rental_price.toString();
 
     if (Object.keys(updateFields).length === 0) {
       throw new BadRequestException('No valid fields to update');
     }
 
-    updateFields.updated_at = new Date();
+    updateFields.updated_at = new Date().toISOString();
 
     const updated = await this.knex('repair_order_rental_phones')
       .where({ id: rentalPhoneId })
@@ -289,7 +289,11 @@ export class RentalPhoneUpdaterService {
     return updated[0] as RepairOrderRentalPhone;
   }
 
-  async removeRentalPhone(repairOrderId: string, rentalPhoneId: string, admin: AdminPayload) {
+  async removeRentalPhone(
+    repairOrderId: string,
+    rentalPhoneId: string,
+    admin: AdminPayload,
+  ): Promise<{ message: string }> {
     const order: RepairOrder | undefined = await this.knex('repair_orders')
       .where({ id: repairOrderId })
       .first();
