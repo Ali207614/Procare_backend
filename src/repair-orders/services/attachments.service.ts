@@ -6,6 +6,7 @@ import * as fs from 'fs/promises';
 import { RepairOrderChangeLoggerService } from './repair-order-change-logger.service';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
+import { RepairOrder } from 'src/common/types/repair-order.interface';
 
 @Injectable()
 export class AttachmentsService {
@@ -15,17 +16,27 @@ export class AttachmentsService {
     private readonly permissionService: RepairOrderStatusPermissionsService,
   ) {}
 
-  async uploadAttachment(repairOrderId: string, file: Express.Multer.File, description: string, admin: AdminPayload) {
+  async uploadAttachment(
+    repairOrderId: string,
+    file: Express.Multer.File,
+    description: string,
+    admin: AdminPayload,
+  ): Promise<unknown> {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
 
-    const order = await this.knex('repair_orders').where({ id: repairOrderId }).first();
+    const order: RepairOrder | undefined = await this.knex('repair_orders')
+      .where({ id: repairOrderId })
+      .first();
     if (!order) {
       throw new NotFoundException('Repair order not found');
     }
 
-    const permissions = await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    const permissions = await this.permissionService.findByRolesAndBranch(
+      admin.roles,
+      order.branch_id,
+    );
     await this.permissionService.checkPermissionsOrThrow(
       admin.roles,
       order.branch_id,
@@ -65,25 +76,35 @@ export class AttachmentsService {
         description: description || null,
         uploaded_by: admin.id,
         created_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
       })
       .returning('*');
 
-    await this.changeLogger.logChange(repairOrderId, 'attachment_uploaded', {
-      file_name: file.originalname,
-      description
-    }, admin.id);
+    await this.changeLogger.logChange(
+      repairOrderId,
+      'attachment_uploaded',
+      {
+        file_name: file.originalname,
+        description,
+      },
+      admin.id,
+    );
 
-    return attachment[0];
+    return attachment[0] as unknown;
   }
 
-  async getAttachments(repairOrderId: string, admin: AdminPayload) {
-    const order = await this.knex('repair_orders').where({ id: repairOrderId }).first();
+  async getAttachments(repairOrderId: string, admin: AdminPayload): Promise<unknown[]> {
+    const order: RepairOrder | undefined = await this.knex('repair_orders')
+      .where({ id: repairOrderId })
+      .first();
     if (!order) {
       throw new NotFoundException('Repair order not found');
     }
 
-    const permissions = await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    const permissions = await this.permissionService.findByRolesAndBranch(
+      admin.roles,
+      order.branch_id,
+    );
     await this.permissionService.checkPermissionsOrThrow(
       admin.roles,
       order.branch_id,
@@ -98,13 +119,22 @@ export class AttachmentsService {
       .orderBy('created_at', 'desc');
   }
 
-  async deleteAttachment(repairOrderId: string, attachmentId: string, admin: AdminPayload) {
-    const order = await this.knex('repair_orders').where({ id: repairOrderId }).first();
+  async deleteAttachment(
+    repairOrderId: string,
+    attachmentId: string,
+    admin: AdminPayload,
+  ): Promise<{ message: string }> {
+    const order: RepairOrder | undefined = await this.knex('repair_orders')
+      .where({ id: repairOrderId })
+      .first();
     if (!order) {
       throw new NotFoundException('Repair order not found');
     }
 
-    const permissions = await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+    const permissions = await this.permissionService.findByRolesAndBranch(
+      admin.roles,
+      order.branch_id,
+    );
     await this.permissionService.checkPermissionsOrThrow(
       admin.roles,
       order.branch_id,
@@ -123,18 +153,21 @@ export class AttachmentsService {
     }
 
     try {
-      await fs.unlink(attachment.file_path);
+      await fs.unlink(String(attachment.file_path));
     } catch (error) {
       console.warn('Failed to delete file from filesystem:', error);
     }
 
-    await this.knex('repair_order_attachments')
-      .where({ id: attachmentId })
-      .del();
+    await this.knex('repair_order_attachments').where({ id: attachmentId }).del();
 
-    await this.changeLogger.logChange(repairOrderId, 'attachment_deleted', {
-      file_name: attachment.original_name
-    }, admin.id);
+    await this.changeLogger.logChange(
+      repairOrderId,
+      'attachment_deleted',
+      {
+        file_name: attachment.original_name,
+      },
+      admin.id,
+    );
 
     return { message: 'Attachment deleted successfully' };
   }

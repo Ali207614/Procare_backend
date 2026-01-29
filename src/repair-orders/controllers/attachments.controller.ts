@@ -1,4 +1,15 @@
-import { Controller, Post, Get, Delete, Param, Body, UseGuards, UseInterceptors, UploadedFile, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Delete,
+  Param,
+  Body,
+  UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiParam } from '@nestjs/swagger';
@@ -22,8 +33,13 @@ export class AttachmentsController {
     @UploadedFile() file: Express.Multer.File,
     @Body() body: { description?: string },
     @CurrentAdmin() admin: AdminPayload,
-  ) {
-    return this.attachmentsService.uploadAttachment(repairOrderId, file, body.description, admin);
+  ): Promise<unknown> {
+    return this.attachmentsService.uploadAttachment(
+      repairOrderId,
+      file,
+      body.description || '',
+      admin,
+    );
   }
 
   @Get(':repair_order_id/attachments')
@@ -32,7 +48,7 @@ export class AttachmentsController {
   async getAttachments(
     @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
     @CurrentAdmin() admin: AdminPayload,
-  ) {
+  ): Promise<unknown[]> {
     return this.attachmentsService.getAttachments(repairOrderId, admin);
   }
 
@@ -44,7 +60,7 @@ export class AttachmentsController {
     @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
     @Param('attachment_id', ParseUUIDPipe) attachmentId: string,
     @CurrentAdmin() admin: AdminPayload,
-  ) {
+  ): Promise<{ message: string }> {
     return this.attachmentsService.deleteAttachment(repairOrderId, attachmentId, admin);
   }
 }

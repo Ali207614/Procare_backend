@@ -1,4 +1,13 @@
-import { Controller, Post, Patch, Delete, Param, Body, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  UseGuards,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { RentalPhoneUpdaterService } from '../services/rental-phone-updater.service';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
@@ -48,8 +57,13 @@ export class RentalPhoneController {
     @Param('rental_phone_id', ParseUUIDPipe) rentalPhoneId: string,
     @Body() updateDto: UpdateRentalPhoneDto,
     @CurrentAdmin() admin: AdminPayload,
-  ): Promise<any> {
-    return this.rentalPhoneUpdater.updateRentalPhone(repairOrderId, rentalPhoneId, updateDto, admin);
+  ): Promise<RepairOrderRentalPhone> {
+    return this.rentalPhoneUpdater.updateRentalPhone(
+      repairOrderId,
+      rentalPhoneId,
+      updateDto,
+      admin,
+    );
   }
 
   @Delete(':rental_phone_id')
@@ -57,7 +71,7 @@ export class RentalPhoneController {
     @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
     @Param('rental_phone_id', ParseUUIDPipe) rentalPhoneId: string,
     @CurrentAdmin() admin: AdminPayload,
-  ): Promise<any> {
+  ): Promise<{ message: string }> {
     return this.rentalPhoneUpdater.removeRentalPhone(repairOrderId, rentalPhoneId, admin);
   }
 }
