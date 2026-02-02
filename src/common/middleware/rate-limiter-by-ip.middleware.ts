@@ -40,7 +40,7 @@ export class RateLimiterByIpMiddleware implements NestMiddleware {
       ...(isRedisAvailable
         ? {
             store: new RedisStore({
-              sendCommand: (...args: [string, ...string[]]) => {
+              sendCommand: (...args: [string, ...string[]]): Promise<RedisReply> => {
                 if (!this.redisClient) {
                   this.logger.warn('⚠️ Redis not available during sendCommand');
                   return Promise.resolve('' as RedisReply); // fallback
@@ -49,7 +49,7 @@ export class RateLimiterByIpMiddleware implements NestMiddleware {
               },
             }),
           }
-        : (() => {
+        : ((): Record<string, never> => {
             this.logger.warn('⚠️ Redis is not connected. Rate limiting will use MemoryStore.');
             return {};
           })()),

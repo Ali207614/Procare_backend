@@ -6,7 +6,7 @@ import { Transform, TransformFnParams } from 'class-transformer';
  * - Agar string bo‘lsa, massivga o‘rab qaytaradi
  * - Aks holda bo‘sh massiv qaytaradi
  */
-export function ToArray() {
+export function ToArray(): PropertyDecorator {
   return Transform(({ value }: TransformFnParams): string[] => {
     if (Array.isArray(value)) return value as string[];
     if (typeof value === 'string') return [value];

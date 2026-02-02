@@ -1,4 +1,4 @@
-export function extractDefinedFields<T extends Record<string, any>>(
+export function extractDefinedFields<T extends Record<string, unknown>>(
   dto: T,
   allowedFields: (keyof T)[],
 ): Partial<T> {

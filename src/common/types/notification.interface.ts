@@ -8,7 +8,7 @@ export interface Notification {
   type: 'info' | 'success' | 'warning' | 'error' | 'custom';
 
   is_read: boolean;
-  meta: Record<string, any> | null;
+  meta: Record<string, unknown> | null;
 
   read_at: Date | null;
   created_at: Date;
@@ -19,7 +19,7 @@ export interface NotificationPayload {
   title: string;
   message: string;
   type?: 'info' | 'success' | 'warning' | 'error' | 'custom';
-  meta?: Record<string, any>;
+  meta?: Record<string, unknown>;
 }
 
 export interface BroadcastMessage<M = unknown> {

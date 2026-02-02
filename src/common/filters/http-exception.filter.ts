@@ -16,7 +16,7 @@ interface ErrorResponse {
 export class HttpExceptionFilter implements ExceptionFilter {
   constructor(private readonly logger: LoggerService) {}
 
-  catch(exception: unknown, host: ArgumentsHost) {
+  catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
@@ -52,8 +52,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (typeof exceptionResponse === 'string') {
       message = exceptionResponse;
     } else if (typeof exceptionResponse === 'object') {
-      const res: any = exceptionResponse;
-      message = res.message || message;
+      const res = exceptionResponse as ErrorResponse;
+      message = res.message?.toString() || message;
       errorType =
         res.error ?? (exception instanceof HttpException ? exception.name : 'InternalServerError');
 

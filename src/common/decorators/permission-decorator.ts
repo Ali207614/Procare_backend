@@ -5,11 +5,11 @@ export const PERMISSIONS_MODE_KEY = 'permissions_mode';
 
 export type PermissionMode = 'OR' | 'AND';
 
-export const SetPermissions = (...permissions: string[]) => {
+export const SetPermissions = (...permissions: string[]): ReturnType<typeof SetMetadata> => {
   return SetMetadata(PERMISSIONS_KEY, permissions);
 };
 
-export const SetAllPermissions = (...permissions: string[]) => {
+export const SetAllPermissions = (...permissions: string[]): ReturnType<typeof applyDecorators> => {
   return applyDecorators(
     SetMetadata(PERMISSIONS_KEY, permissions),
     SetMetadata(PERMISSIONS_MODE_KEY, 'AND'),

@@ -1,14 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsOptional,
-  IsString,
-  IsUUID,
-  IsInt,
-  Min,
-  Max,
-  MaxLength,
-  MinLength,
-} from 'class-validator';
+import { IsOptional, IsString, IsUUID, IsInt, Min, Max, MaxLength } from 'class-validator';
 
 export class FindAllProblemCategoriesDto {
   @ApiPropertyOptional({

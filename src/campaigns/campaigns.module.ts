@@ -25,7 +25,7 @@ import { PermissionsModule } from 'src/permissions/permissions.module';
     {
       provide: 'CAMPAIGNS_QUEUE',
       inject: [ConfigService],
-      useFactory: (config: ConfigService) =>
+      useFactory: (config: ConfigService): Queue =>
         new Queue('campaigns', {
           connection: {
             host: config.get<string>('REDIS_HOST') || 'localhost',

@@ -13,7 +13,6 @@ import { Role } from 'src/common/types/role.interface';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { EnumBooleanString, FindAllRolesDto } from 'src/roles/dto/find-all-roles.dto';
-import { HasTelegramFilter } from 'src/users/dto/find-all-user.dto';
 
 export interface RoleWithPermissions extends Role {
   permissions: Permission[];

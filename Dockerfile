@@ -16,7 +16,9 @@ COPY package*.json ./
 
 FROM base as deps
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci --omit=dev
+    npm ci && \
+    npm prune --production
+
 
 FROM base as build
 RUN --mount=type=cache,target=/root/.npm \

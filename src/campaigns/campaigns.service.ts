@@ -18,7 +18,6 @@ import { ICampaignRecipient } from 'src/common/types/campaign-recipient.interfac
 import { FindAllRecipientsDto } from 'src/campaigns/dto/find-all-recipients.dto';
 import { FindAllUsersDto } from 'src/users/dto/find-all-user.dto';
 import { UsersService } from 'src/users/users.service';
-import { InjectQueue } from '@nestjs/bullmq';
 
 interface AbTestInput {
   template_id: string;
@@ -407,7 +406,15 @@ export class CampaignsService {
     if (!users.length) return [];
 
     const now = new Date();
-    let recipients: any[] = [];
+    interface RecipientRecord {
+      campaign_id: string;
+      user_id: string;
+      status: string;
+      variant_template_id?: string;
+      created_at: Date;
+      updated_at: Date;
+    }
+    let recipients: RecipientRecord[] = [];
 
     if (abTest.enabled && abTest.variants.length) {
       const shuffled = users.sort(() => Math.random() - 0.5);
