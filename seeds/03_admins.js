@@ -7,13 +7,14 @@ exports.seed = async function (knex) {
   await knex('admins').del();
 
   const superAdminId = '00000000-0000-0000-0000-000000000000';
+  const superAdmin2Id = '00000000-0000-0000-0000-000000000001';
   const superAdminRoleId = '00000000-0000-0000-0000-000000000000';
 
   const superAdmin = {
     id: superAdminId,
     first_name: 'Super',
     last_name: 'Admin',
-    is_protected: true, // SuperAdmin himoyalangan bo‘lishi kerak
+    is_protected: true,
     phone_number: '+998903367448',
     phone_verified: true,
     password: '$2a$10$EHzpy4lcLj0mZ/pkji./5uyz8f.WFoXiCd9DXdrXMt3rV5GF8KNzK', // 1111
@@ -21,6 +22,25 @@ exports.seed = async function (knex) {
     birth_date: new Date('1990-01-01'),
     hire_date: new Date('2020-01-01'),
     id_card_number: '1234567890',
+    language: 'uz',
+    is_active: true,
+    status: 'Open',
+    created_at: knex.fn.now(),
+    updated_at: knex.fn.now(),
+  };
+
+  const superAdmin2 = {
+    id: superAdmin2Id,
+    first_name: 'Shohabbos',
+    last_name: 'Urinov',
+    is_protected: true,
+    phone_number: '+998974556162',
+    phone_verified: true,
+    password: '$2a$10$EHzpy4lcLj0mZ/pkji./5uyz8f.WFoXiCd9DXdrXMt3rV5GF8KNzK', // 1111
+    passport_series: 'AA7654321',
+    birth_date: new Date('1995-01-01'),
+    hire_date: new Date('2024-01-01'),
+    id_card_number: '9876543210',
     language: 'uz',
     is_active: true,
     status: 'Open',
@@ -41,7 +61,7 @@ exports.seed = async function (knex) {
     'Abdullayev', 'Rahimova', 'Ismoilov', 'Xasanova',
   ];
 
-  const admins = [superAdmin];
+  const admins = [superAdmin, superAdmin2];
 
   for (let i = 1; i <= 19; i++) {
     admins.push({
@@ -66,8 +86,8 @@ exports.seed = async function (knex) {
 
   await knex('admins').insert(admins);
 
-  await knex('admin_roles').insert({
-    admin_id: superAdminId,
-    role_id: superAdminRoleId,
-  });
+  await knex('admin_roles').insert([
+    { admin_id: superAdminId, role_id: superAdminRoleId },
+    { admin_id: superAdmin2Id, role_id: superAdminRoleId },
+  ]);
 };
