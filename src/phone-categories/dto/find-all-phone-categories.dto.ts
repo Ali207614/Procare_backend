@@ -1,4 +1,4 @@
-import { IsOptional, IsUUID, IsString, IsInt, Min, MinLength, MaxLength } from 'class-validator';
+import { IsOptional, IsUUID, IsString, IsInt, Min, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class FindAllPhoneCategoriesDto {

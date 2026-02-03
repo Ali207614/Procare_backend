@@ -106,8 +106,8 @@ export class CampaignsJobHandler {
         await this.checkCampaignCompletionSafe(campaignId);
         return;
       }
-    } catch (err: any) {
-      const msg: string = err?.message || 'send failed';
+    } catch (err: unknown) {
+      const msg: string = (err as Error)?.message || 'send failed';
       await this.markAsFailedNoTrx(recipientId, msg);
       await this.checkCampaignCompletionSafe(campaignId);
       return;

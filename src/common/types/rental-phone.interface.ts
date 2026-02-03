@@ -25,7 +25,7 @@ export interface RentalPhone {
     camera?: string;
     os_version?: string;
     network?: string[];
-    [key: string]: any;
+    [key: string]: string | string[] | undefined;
   };
   notes?: string;
   is_active: boolean;
@@ -51,7 +51,7 @@ export interface CreateRentalPhoneDto {
   market_value?: number;
   supplier?: string;
   location?: string;
-  specifications?: Record<string, any>;
+  specifications?: Record<string, unknown>;
   notes?: string;
 }
 
@@ -73,7 +73,7 @@ export interface UpdateRentalPhoneDto {
   market_value?: number;
   supplier?: string;
   location?: string;
-  specifications?: Record<string, any>;
+  specifications?: Record<string, unknown>;
   notes?: string;
   is_active?: boolean;
 }

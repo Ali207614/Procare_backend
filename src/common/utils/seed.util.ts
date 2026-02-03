@@ -1,6 +1,6 @@
 // utils/seed.util.js
 
-function sanitizeDescription(str: string | null) {
+function sanitizeDescription(str: string | null): string {
   if (!str) return '';
   return str
     .replace(/ʼ|ʻ|’|‘/g, "'")

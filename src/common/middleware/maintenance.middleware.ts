@@ -7,7 +7,7 @@ import { MaintenanceExcludedRoutes } from 'src/config/maintenance-excluded.route
 export class MaintenanceMiddleware implements NestMiddleware {
   constructor(private readonly featureService: FeatureService) {}
 
-  async use(req: Request, res: Response, next: NextFunction) {
+  async use(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const start = Date.now();
       const isOperational = await this.featureService.isFeatureActive('system.operational');

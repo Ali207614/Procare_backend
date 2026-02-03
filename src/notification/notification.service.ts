@@ -10,6 +10,7 @@ import {
   RepairNotificationMeta,
 } from '../common/types/notification.interface';
 import { PaginationResult } from 'src/common/utils/pagination.util';
+import { EnumBooleanString } from 'src/roles/dto/find-all-roles.dto';
 
 @Injectable()
 export class NotificationService {
@@ -58,9 +59,9 @@ export class NotificationService {
       admin_id: adminId,
     });
 
-    if (query.is_read === 'true') {
+    if (query.is_read === EnumBooleanString.TRUE) {
       void baseQuery.andWhere({ is_read: true });
-    } else if (query.is_read === 'false') {
+    } else if (query.is_read === EnumBooleanString.FALSE) {
       void baseQuery.andWhere({ is_read: false });
     }
 

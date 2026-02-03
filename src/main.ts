@@ -1,8 +1,10 @@
 // src/main.ts
 import { webcrypto } from 'node:crypto';
 import './config/env-loader';
-if (!(globalThis as any).crypto) {
-  (globalThis as any).crypto = webcrypto;
+
+declare const globalThis: { crypto?: typeof webcrypto };
+if (!globalThis.crypto) {
+  globalThis.crypto = webcrypto;
 }
 
 import { BadRequestException, ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';

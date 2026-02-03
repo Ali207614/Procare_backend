@@ -29,7 +29,8 @@ export class CouriersService {
       branch_id,
     });
 
-    const rows: Courier[] = result.rows.map((r: Courier) => {
+    const rows: Courier[] = result.rows.map((r: Courier & { total?: number }) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { total, ...rest } = r;
       return {
         ...rest,

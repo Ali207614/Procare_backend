@@ -3,7 +3,7 @@ import { Knex } from 'knex';
 export async function getNextSortValue(
   knex: Knex,
   tableName: string,
-  options?: { column?: string; where?: Record<string, any> },
+  options?: { column?: string; where?: Record<string, unknown> },
 ): Promise<number> {
   const column = options?.column ?? 'sort';
 

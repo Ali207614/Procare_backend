@@ -76,7 +76,7 @@ export class AdminsService {
     const total: number = rows.length > 0 ? Number(rows[0].total) : 0;
 
     return {
-      rows: rows.map(({ total, ...rest }) => rest),
+      rows: rows.map(({ total: _total, ...rest }) => rest),
       total,
       limit: query.limit ?? 20,
       offset: query.offset ?? 0,

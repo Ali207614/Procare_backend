@@ -1,5 +1,5 @@
 import { Controller, Get, Param, Patch, Body, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { FeatureService } from './feature.service';
 

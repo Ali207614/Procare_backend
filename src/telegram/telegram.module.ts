@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { TelegramService } from './telegram.service';
 import { LoggerModule } from 'src/common/logger/logger.module';
 
 @Module({
-  imports: [LoggerModule],
+  imports: [ConfigModule, LoggerModule],
   providers: [TelegramService],
   exports: [TelegramService],
 })

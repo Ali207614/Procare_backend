@@ -36,7 +36,7 @@ export class RedisService {
       if (s !== 'ready') {
         // ioredis v5: connect(): Promise<void>
         // ioredis v4: connect(): Promise<Redis>
-        await (this.client as any).connect?.();
+        await (this.client as Redis & { connect?: () => Promise<void> }).connect?.();
       }
       if (this.client.status !== 'ready') {
         this.logger.warn(`⚠️ Redis not ready (status=${this.client.status}), skipping`);
