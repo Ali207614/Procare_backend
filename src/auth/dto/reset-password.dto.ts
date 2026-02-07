@@ -7,15 +7,9 @@ export class ResetPasswordDto {
   @Matches(/^\+998[0-9]{9}$/, { message: 'Invalid phone number format' })
   phone_number!: string;
 
-  @ApiProperty({ example: '123456' })
-  @IsString({ context: { location: 'invalid_reset_code' } })
-  @MinLength(1, {
-    context: { location: 'invalid_code_length_min' },
-  })
-  @MaxLength(20, {
-    context: { location: 'invalid_code_length_max' },
-  })
-  code!: string;
+  @ApiProperty({ example: 'd290f1ee-6c54-4b01-90e6-d701748f0851' })
+  @IsString({ context: { location: 'invalid_reset_token' } })
+  reset_token!: string;
 
   @ApiProperty({ example: 'newpass123' })
   @IsString()

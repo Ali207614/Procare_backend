@@ -45,7 +45,7 @@ export function extractStatusPermissionFields(
     can_delivery_manage,
     can_view_payments,
     can_view_history,
-  } = row;
+  } = row as any;
 
   return {
     can_add,

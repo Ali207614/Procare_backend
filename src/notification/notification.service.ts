@@ -41,7 +41,7 @@ export class NotificationService {
     const message: BroadcastMessage<RepairNotificationMeta> = {
       title: payload.title,
       message: payload.message,
-      meta: payload.meta as RepairNotificationMeta,
+      meta: payload.meta as unknown as RepairNotificationMeta,
     };
 
     this.gateway.broadcastToAdmins(adminIds, message);

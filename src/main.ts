@@ -143,9 +143,10 @@ async function bootstrap(): Promise<void> {
   const expressApp = app.getHttpAdapter().getInstance() as ExpressApp;
   expressApp.set('trust proxy', 1);
 
-  logger.log(`http://${HOST}:${PORT}/${GLOBAL_PREFIX}`);
-  logger.log(`Swagger: http://${HOST}:${PORT}/${GLOBAL_PREFIX}/docs`);
-  logger.log(`Queues: http://${HOST}:${PORT}/admin/queues`);
+  const displayHost = HOST === '0.0.0.0' ? 'localhost' : HOST;
+  logger.log(`http://${displayHost}:${PORT}/${GLOBAL_PREFIX}`);
+  logger.log(`Swagger: http://${displayHost}:${PORT}/${GLOBAL_PREFIX}/docs`);
+  logger.log(`Queues: http://${displayHost}:${PORT}/admin/queues`);
 }
 
 bootstrap().catch((err) => {

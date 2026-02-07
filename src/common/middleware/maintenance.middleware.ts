@@ -31,10 +31,11 @@ export class MaintenanceMiddleware implements NestMiddleware {
 
       if (isExcluded) return next();
 
-      return res.status(503).json({
+      res.status(503).json({
         message: '🛠 Texnik ishlar ketmoqda. Iltimos, keyinroq urinib ko‘ring.',
         location: 'maintenance_mode',
       });
+      return;
     } catch (e) {
       console.error('❌ MaintenanceMiddleware error:', e);
       return next();

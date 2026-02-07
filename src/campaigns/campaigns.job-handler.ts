@@ -94,7 +94,7 @@ export class CampaignsJobHandler {
 
         const body = this.renderTemplate(template.body, vars, user);
         const res = await this.telegramService.sendMessage(user.telegram_chat_id, body);
-        messageId = res.data?.result?.message_id;
+        messageId = res?.data?.result?.message_id;
       } else if (campaign.delivery_method === 'sms') {
         // TODO: SMS provider integration (idempotent guard)
         // messageId = await smsProvider.send(...);

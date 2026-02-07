@@ -5,6 +5,15 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "lz4",
+      "bcrypt",
+      "@nestjs/core",
+      "@scarf/scarf",
+      "msgpackr-extract"
+    ]
+  },
   "scripts": {
     "start:worker:dev": "ts-node -r tsconfig-paths/register src/campaigns/campaign.worker.ts",
     "start:workers:dev": "concurrently -n API,WORKER -c cyan,magenta \"npm run start:dev\" \"npm run start:worker:dev\"",
@@ -43,6 +52,7 @@
     "@nestjs/schedule": "6.0.0",
     "@nestjs/swagger": "^7.4.2",
     "@nestjs/websockets": "^10.4.20",
+    "@types/jsonwebtoken": "^9.0.10",
     "axios": "1.9.0",
     "bcrypt": "6.0.0",
     "bull": "^4.16.5",
@@ -56,9 +66,10 @@
     "file-type": "^20.5.0",
     "helmet": "8.1.0",
     "ioredis": "5.6.1",
+    "jsonwebtoken": "^9.0.3",
     "knex": "^2.5.1",
     "lodash": "^4.17.21",
-    "lz4": "^0.6.5",
+    "lz4js": "^0.2.0",
     "nestjs-knex": "^3.0.0",
     "node-telegram-bot-api": "^0.66.0",
     "passport": "0.7.0",

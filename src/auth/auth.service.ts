@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { VerifyDto } from './dto/verify.dto';
@@ -19,6 +20,7 @@ import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { VerifyForgotPasswordOtpDto } from './dto/verify-forgot-password-otp.dto';
 import { AdminsService } from 'src/admins/admins.service';
 import { Admin } from 'src/common/types/admin.interface';
 
@@ -33,6 +35,7 @@ export class AuthService {
   ) {}
 
   private readonly RESET_PREFIX = 'reset-code:';
+  private readonly FORGOT_PASSWORD_TOKEN_PREFIX = 'forgot-password-token:';
 
   async sendVerificationCode(dto: SmsDto): Promise<{ message: string; code: string }> {
     const existingAdmin: Admin | undefined = await this.adminsService.findByPhoneNumber(
@@ -194,14 +197,43 @@ export class AuthService {
     return { message: 'Reset code sent successfully', code: code };
   }
 
-  async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
+  async verifyForgotPasswordOtp(
+    dto: VerifyForgotPasswordOtpDto,
+  ): Promise<{ message: string; reset_token: string }> {
     const redisKey = `${this.RESET_PREFIX}${dto.phone_number}`;
-    const code: string | null = await this.redisService.get(redisKey);
+    const storedCode: string | null = await this.redisService.get(redisKey);
 
-    if (!code || code !== dto.code) {
+    if (!storedCode || storedCode !== dto.code) {
       throw new BadRequestException({
         message: 'Invalid or expired code',
         location: 'invalid_code',
+      });
+    }
+
+    // Generate a secure random token (32 bytes = 64 hex characters)
+    const resetToken = crypto.randomBytes(32).toString('hex');
+
+    // Store the token in Redis with 10-minute TTL (600 seconds)
+    const tokenKey = `${this.FORGOT_PASSWORD_TOKEN_PREFIX}${dto.phone_number}`;
+    await this.redisService.set(tokenKey, resetToken, 600);
+
+    // Delete the OTP to prevent reuse
+    await this.redisService.del(redisKey);
+
+    return {
+      message: 'OTP verified successfully',
+      reset_token: resetToken,
+    };
+  }
+
+  async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
+    const tokenKey = `${this.FORGOT_PASSWORD_TOKEN_PREFIX}${dto.phone_number}`;
+    const storedToken: string | null = await this.redisService.get(tokenKey);
+
+    if (!storedToken || storedToken !== dto.reset_token) {
+      throw new BadRequestException({
+        message: 'Invalid or expired reset token',
+        location: 'invalid_reset_token',
       });
     }
 
@@ -217,7 +249,8 @@ export class AuthService {
       .where({ phone_number: dto.phone_number })
       .update({ password: hashed, updated_at: new Date() });
 
-    await this.redisService.del(redisKey);
+    // Delete the token after successful password reset
+    await this.redisService.del(tokenKey);
 
     return { message: '✅ Password reset successfully' };
   }

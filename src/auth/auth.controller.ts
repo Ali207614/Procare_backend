@@ -8,6 +8,7 @@ import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagg
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyForgotPasswordOtpDto } from './dto/verify-forgot-password-otp.dto';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { AuthenticatedRequest } from 'src/common/types/authenticated-request.type';
@@ -49,15 +50,29 @@ export class AuthController {
   }
 
   @Post('forgot-password')
-  @ApiOperation({ summary: 'Request password reset code' })
-  @ApiResponse({ status: 200, description: 'Reset code sent' })
+  @ApiOperation({ summary: 'Step 1: Request password reset OTP code via SMS' })
+  @ApiResponse({ status: 200, description: 'Reset code sent to phone number' })
+  @ApiResponse({ status: 404, description: 'Admin not found' })
   forgotPassword(@Body() dto: ForgotPasswordDto): Promise<{ message: string; code: string }> {
     return this.authService.forgotPassword(dto);
   }
 
+  @Post('verify-forgot-password-otp')
+  @ApiOperation({
+    summary: 'Step 2: Verify OTP and receive temporary reset token (valid for 10 minutes)',
+  })
+  @ApiResponse({ status: 200, description: 'OTP verified, reset token returned' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired OTP code' })
+  verifyForgotPasswordOtp(
+    @Body() dto: VerifyForgotPasswordOtpDto,
+  ): Promise<{ message: string; reset_token: string }> {
+    return this.authService.verifyForgotPasswordOtp(dto);
+  }
+
   @Post('reset-password')
-  @ApiOperation({ summary: 'Reset password using reset code' })
+  @ApiOperation({ summary: 'Step 3: Reset password using the temporary reset token' })
   @ApiResponse({ status: 200, description: 'Password reset successful' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired reset token' })
   resetPassword(@Body() dto: ResetPasswordDto): Promise<{ message: string }> {
     return this.authService.resetPassword(dto);
   }

@@ -1,6 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import Redis from 'ioredis';
-import * as lz4 from 'lz4';
+import * as lz4js from 'lz4js';
 import { LoggerService } from 'src/common/logger/logger.service';
 
 type JsonValue = unknown;
@@ -52,7 +52,7 @@ export class RedisService {
   /**
    * Saqlash:
    * - kichik JSON → RAW: + json
-   * - katta JSON → LZ4: + base64(lz4.encode(Buffer(json)))
+   * - katta JSON → LZ4: + base64(lz4.compress(Buffer(json)))
    */
   async set(key: string, value: JsonValue, ttlSeconds = 3600): Promise<void> {
     if (!(await this.ensureConnected())) return;
@@ -71,7 +71,7 @@ export class RedisService {
         );
       } else {
         const jsonBuf = Buffer.from(json, 'utf8');
-        const compressed = lz4.encode(jsonBuf); // <-- Buffer kiritildi
+        const compressed = Buffer.from(lz4js.compress(jsonBuf)); // <-- Buffer kiritildi
         const compressedSize = compressed.length;
 
         payload = StoredFormat.LZ4 + compressed.toString('base64');
@@ -93,7 +93,7 @@ export class RedisService {
   /**
    * O‘qish:
    * - RAW: prefiks → oddiy JSON
-   * - LZ4: prefiks → base64 → Buffer → lz4.decode → JSON
+   * - LZ4: prefiks → base64 → Buffer → lz4.decompress → JSON
    */
   async get<T = JsonValue>(key: string): Promise<T | null> {
     if (!(await this.ensureConnected())) return null;
@@ -110,7 +110,7 @@ export class RedisService {
       if (data.startsWith(StoredFormat.LZ4)) {
         const b64 = data.slice(StoredFormat.LZ4.length);
         const buf = Buffer.from(b64, 'base64');
-        const decodedBuf = lz4.decode(buf);
+        const decodedBuf = Buffer.from(lz4js.decompress(buf));
         const json = decodedBuf.toString('utf8');
         return JSON.parse(json) as T;
       }

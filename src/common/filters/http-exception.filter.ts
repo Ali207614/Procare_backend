@@ -40,7 +40,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
       this.logger.error(`${log} → ${shortMessage}`, stack);
 
-      return response.status(parsed.status).json({
+      response.status(parsed.status).json({
         statusCode: parsed.status,
         message: parsed.message,
         error: parsed.errorType,
@@ -48,6 +48,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         timestamp: new Date().toISOString(),
         path: request.url,
       });
+      return;
     }
     if (typeof exceptionResponse === 'string') {
       message = exceptionResponse;

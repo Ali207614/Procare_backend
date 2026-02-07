@@ -22,7 +22,7 @@ export class TelegramService {
     this.logger.log('TelegramService initialized successfully');
   }
 
-  async sendMessage(chatId: string | number, text: string): Promise<AxiosResponse<unknown> | null> {
+  async sendMessage(chatId: string | number, text: string): Promise<AxiosResponse<any> | null> {
     if (!this.isEnabled) {
       this.logger.warn('Telegram is disabled. Message not sent.');
       return null;
@@ -35,7 +35,7 @@ export class TelegramService {
         parse_mode: 'HTML',
       });
     } catch (err: unknown) {
-      if (err.response?.status === 429) {
+      if (axios.isAxiosError(err) && err.response?.status === 429) {
         const retryAfter = err.response.data.parameters?.retry_after || 5;
         this.logger.warn(`⚠️ FloodWait: sleeping ${retryAfter}s`);
         await new Promise((res) => setTimeout(res, retryAfter * 1000));
@@ -52,7 +52,7 @@ export class TelegramService {
     chatId: string | number,
     photoUrl: string,
     caption?: string,
-  ): Promise<AxiosResponse<unknown> | null> {
+  ): Promise<AxiosResponse<any> | null> {
     if (!this.isEnabled) {
       this.logger.warn('Telegram is disabled. Photo not sent.');
       return null;
@@ -76,7 +76,7 @@ export class TelegramService {
     chatId: string | number,
     fileUrl: string,
     caption?: string,
-  ): Promise<AxiosResponse<unknown> | null> {
+  ): Promise<AxiosResponse<any> | null> {
     if (!this.isEnabled) {
       this.logger.warn('Telegram is disabled. Document not sent.');
       return null;
