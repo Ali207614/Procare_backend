@@ -10,7 +10,7 @@ exports.up = async function (knex) {
       .unique()
       .defaultTo(knex.raw(`nextval('repair_order_number_seq')`));
 
-    table.uuid('user_id').notNullable().references('id').inTable('users').onDelete('CASCADE');
+    table.uuid('user_id').references('id').inTable('users').onDelete('CASCADE');
     table.uuid('branch_id').notNullable().references('id').inTable('branches').onDelete('CASCADE');
 
     table.decimal('total', 12, 2).notNullable().defaultTo(0);
@@ -38,6 +38,8 @@ exports.up = async function (knex) {
 
     table.uuid('created_by').notNullable().references('id').inTable('admins').onDelete('RESTRICT');
     table.enu('status', ['Open', 'Deleted','Closed','Cancelled']).defaultTo('Open');
+    table.string("phone_number").notNullable();
+    table.string("name")
 
     table.timestamp('created_at').defaultTo(knex.fn.now());
     table.timestamp('updated_at').defaultTo(knex.fn.now());

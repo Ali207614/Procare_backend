@@ -381,6 +381,7 @@ export class RepairOrdersService {
     }
 
     try {
+      console.log('Executing SQL:', querySql);
       const freshOrders: FreshRepairOrder[] = await this.knex
         .raw(querySql, queryParams)
         .then((r) => r.rows as FreshRepairOrder[]);
@@ -559,7 +560,7 @@ export class RepairOrdersService {
         logs.push({ key: 'status_id', oldVal: order.status_id, newVal: dto.status_id });
       }
 
-      if (dto.sort !== order.sort) {
+      if (dto.sort !== undefined && dto.sort !== order.sort) {
         updates.sort = dto.sort;
         logs.push({ key: 'sort', oldVal: order.sort, newVal: dto.sort });
       }

@@ -1,4 +1,4 @@
-import { IsUUID, IsOptional, IsEnum, ValidateNested, IsNumber } from 'class-validator';
+import { IsUUID, IsOptional, IsEnum, ValidateNested, IsNumber, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -24,12 +24,16 @@ export class UpdateRepairOrderDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsUUID('all', { context: { location: 'status_id' } })
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'Invalid status ID',
+  })
   status_id?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsUUID('all', { context: { location: 'phone_category_id' } })
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'Invalid phone category ID',
+  })
   phone_category_id?: string;
 
   @ApiPropertyOptional({ enum: ['Low', 'Medium', 'High', 'Highest'] })

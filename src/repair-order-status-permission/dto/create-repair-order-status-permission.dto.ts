@@ -6,6 +6,7 @@ import {
   ArrayUnique,
   IsOptional,
   IsBoolean,
+  Matches,
 } from 'class-validator';
 
 export class AssignRepairOrderStatusPermissionsDto {
@@ -17,7 +18,11 @@ export class AssignRepairOrderStatusPermissionsDto {
   @IsArray({ context: { location: 'status_ids' } })
   @ArrayNotEmpty({ context: { location: 'status_ids' } })
   @ArrayUnique({ context: { location: 'status_ids' } })
-  @IsUUID('all', { each: true, context: { location: 'status_ids' } })
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    each: true,
+    message: 'Each value in status_ids must be a UUID or custom status ID',
+    context: { location: 'status_ids' },
+  })
   status_ids!: string[];
 
   @ApiProperty()

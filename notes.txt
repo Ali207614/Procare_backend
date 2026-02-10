@@ -1,0 +1,22 @@
+1. PATCH /api/v1/campaigns/:campaign_id isn't working
+2. Password update isn't safe in both, admins and users
+3. GET `/repair-order-statuses` limitni ignore qilyapti
+4. GET `/permissions`da pagination metadata yo'q
+5. GET `/roles`da pagination metadata'sining validatsiyasida xatolik bor
+6. GET `/phone-os-types` limitni ignore qilyapti
+7. GET `/problem-categories`da `search` parametri ishlamayapti
+8. GET `/repair-parts`da `status` va `exclude_problem_category_ids` parametrlarining validatsiyasida muammo bor
+9. PUT `/repair-parts/assignments`ning Payload validatsiyasida xatolik bor
+10. POST `users/` Payload validationda xatolik bor
+11. POST `repair-order-status-transitions/:status_id`da payload validatsiyasida xatolik bor
+12. PUT `repair-order-status-permissions/bulk-assign`da payload validatsiyasida xatolik bor
+13. POST `repair-orders`da payload validatsiyasida xatolik bor
+14. PATCH `/api/v1/repair-orders/:id/client` returns 500 error because it tries to update `repair_orders` table with client fields (`first_name`, `last_name`, `phone`, `email`) which should be in `users` table. Also `email` column is missing in the database.
+15. POST `/api/v1/repair-orders/:id/attachments/` isn't using MinIO. 
+16. POST `/api/v1/repair-orders/:id/assign-admins` returns 400 error because of validation issue.
+17. POST `/api/v1/repair-orders/:id/rental-phone` has an issue at dealing with database.
+18. Yangi permission qo'shib, Lead tushganidan keyin muayyan qadamda User'ni yaratishi.
+19. GET `/api/v1/rental-phone-devices/` returns 500 error because the `rental_phone_devices` table in the database is missing many columns expected by the code (`serial_number`, `color`, `storage_capacity`, `deposit_amount`, `condition`, `specifications`). *Correction: `brand`, `model`, `imei`, `daily_rent_price`, `status`, `quantity`, `quantity_available` exist in the DB but are missing from the base migration.*
+20. POST `/api/v1/rental-phone-devices/` also returns 500 error for the same reason. The database table `rental_phone_devices` is missing several columns, which are present in the POST payload and expected by the `create` method in `RentalPhoneDevicesService`.
+21. PUT `/api/v1/rental-phone-devices/:id` partially fails or returns 500 error if key fields like `condition` are included in the payload, because the `rental_phone_devices` table is missing `condition`, `serial_number`, `color`, `storage_capacity`, `deposit_amount`, and `specifications` columns. However, updating fields that *do* exist (like `daily_rent_price`, `name`, `status`) should work if the conflicting columns are omitted from the payload.
+22. GET `/api/v1/rental-phone-devices/:rental_phone_device_code/` returns 400 with "Validation failed (uuid is expected)" when a code like `TEST-PHONE-001` is used in the path. The controller route `GET /rental-phone-devices/:id` applies `ParseUUIDPipe`, so it only accepts a UUID. Use `GET /api/v1/rental-phone-devices/code/:code` for lookup by device code, or change the route/validation if code-based lookup should be supported at `/:id`.

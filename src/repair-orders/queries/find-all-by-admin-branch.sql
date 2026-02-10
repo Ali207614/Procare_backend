@@ -53,7 +53,7 @@ SELECT
                         'to_status_id', t.to_status_id
                     )
                 )
-                FROM repair-order-status-transitions t
+                FROM "repair-order-status-transitions" t
                 WHERE t.from_status_id = s.id
             ), '[]'::json)
         ),
@@ -89,7 +89,7 @@ COALESCE((
     COALESCE((
         SELECT jsonb_build_object(
             'id', rp.id,
-            'rental_phone_id', rp.rental_phone_id,
+            'rental_phone_id', rp.rental_phone_device_id,
             'is_free', rp.is_free,
             'price', rp.price,
             'currency', rp.currency,

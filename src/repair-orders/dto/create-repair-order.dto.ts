@@ -13,6 +13,7 @@ import {
   ValidateIf,
   Min,
   Max,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -153,11 +154,15 @@ export class CreateRepairOrderDto {
     description: 'Phone category ID',
     example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec',
   })
-  @IsUUID('all', { message: 'Invalid phone category ID' })
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'Invalid phone category ID',
+  })
   phone_category_id!: string;
 
   @ApiProperty({ description: 'Status ID', example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec' })
-  @IsUUID('all', { message: 'Invalid status ID' })
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'Invalid status ID',
+  })
   status_id!: string;
 
   @ApiPropertyOptional({

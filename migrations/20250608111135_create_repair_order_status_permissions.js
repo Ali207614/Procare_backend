@@ -35,6 +35,7 @@ exports.up = async function (knex) {
     table.boolean('can_manage_rental_phone').defaultTo(true);
     table.boolean('can_view_history').defaultTo(true);
     table.boolean('can_user_manage').defaultTo(true);
+    table.boolean('can_create_user').defaultTo(false);
     table.timestamp('created_at').defaultTo(knex.fn.now());
     table.timestamp('updated_at').defaultTo(knex.fn.now());
 
