@@ -73,7 +73,7 @@ export class RepairOrderCreateHelperService {
 
       if (!device) {
         device = await trx('rental_phone_devices')
-          .where({ id: phone.rental_phone_id, status: 'Available', is_active: true })
+          .where({ id: phone.rental_phone_id, status: 'Available', is_available: true })
           .first();
         if (device) await this.redisService.set(cacheKey, device, 3600);
       }
@@ -95,7 +95,7 @@ export class RepairOrderCreateHelperService {
       await trx('repair_order_rental_phones')
         .insert({
           repair_order_id: orderId,
-          rental_phone_id: phone.rental_phone_id,
+          rental_phone_device_id: phone.rental_phone_id,
           is_free: phone.is_free ?? null,
           price: phone.price ?? null,
           currency: phone.currency ?? 'UZS',

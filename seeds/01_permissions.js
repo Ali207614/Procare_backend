@@ -92,8 +92,8 @@ exports.seed = async function (knex) {
     { id: '00000000-0000-4000-8000-000000000063', name: 'campaign.create', description: 'Kampaniya yaratish' },
     { id: '00000000-0000-4000-8000-000000000064', name: 'campaign.update', description: 'Kampaniyani tahrirlash' },
     { id: '00000000-0000-4000-8000-000000000065', name: 'campaign.delete', description: 'Kampaniyani o‘chirish' },
-    { id: '00000000-0000-4000-8000-000000000066', name: 'campaign.pause', description: 'Kampaniyani to‘xtatish' },
-    { id: '00000000-0000-4000-8000-000000000067', name: 'campaign.resume', description: 'Kampaniyani davom ettirish' },
+    { id: '00000000-0000-4000-8000-000000000066', name: 'pause:campaign', description: 'Kampaniyani to‘xtatish' },
+    { id: '00000000-0000-4000-8000-000000000067', name: 'resume:campaign', description: 'Kampaniyani davom ettirish' },
 
     { id: '00000000-0000-4000-8000-000000000069', name: 'permission.view', description: 'Ruxsatlarni ko‘rish' },
 
@@ -101,6 +101,12 @@ exports.seed = async function (knex) {
     { id: '00000000-0000-4000-8000-000000000071', name: 'repair.order.status.view', description: "Statuslarni ko'rish huquqi" },
     { id: '00000000-0000-4000-8000-000000000072', name: 'repair.order.status.update', description: "Status o'zgartirish huquqi" },
     { id: '00000000-0000-4000-8000-000000000073', name: 'repair.order.status.delete', description: "Status o'chirish huquqi" },
+
+    // 🏎 Rental phone permissions
+    { id: '00000000-0000-4000-8000-000000000074', name: 'rental_phones_read', description: "Ijara telefonlarni ko'rish" },
+    { id: '00000000-0000-4000-8000-000000000075', name: 'rental_phones_create', description: 'Ijara telefon yaratish' },
+    { id: '00000000-0000-4000-8000-000000000076', name: 'rental_phones_update', description: 'Ijara telefonni tahrirlash' },
+    { id: '00000000-0000-4000-8000-000000000077', name: 'rental_phones_delete', description: "Ijara telefonni o'chirish" },
   ];
 
 

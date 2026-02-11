@@ -7,6 +7,7 @@ import {
   MaxLength,
   IsPhoneNumber,
   Matches,
+  IsNumberString,
 } from 'class-validator';
 
 export class UpdateUserDto {
@@ -57,4 +58,14 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   language?: string;
+
+  @ApiPropertyOptional({ description: 'Telegram chat ID' })
+  @IsOptional()
+  @IsNumberString()
+  telegram_chat_id?: string;
+
+  @ApiPropertyOptional({ description: 'Telegram username' })
+  @IsOptional()
+  @IsString()
+  telegram_username?: string;
 }

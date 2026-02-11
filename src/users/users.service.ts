@@ -130,7 +130,7 @@ export class UsersService {
         telegram_username: dto.telegram_username ?? null,
         language: dto.language ?? 'uz',
         status: dto?.status ?? 'Open',
-        source: 'web',
+        source: (dto.source as User['source']) ?? 'web',
         is_active: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),

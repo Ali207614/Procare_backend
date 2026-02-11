@@ -217,6 +217,13 @@ export class RentalPhoneDevicesService {
       }
     }
 
+    if (Object.keys(dto).length === 0) {
+      throw new BadRequestException({
+        message: 'No update data provided',
+        location: 'empty_update_data',
+      });
+    }
+
     const [updatedDevice] = await this.knex(this.table)
       .where('id', id)
       .update({

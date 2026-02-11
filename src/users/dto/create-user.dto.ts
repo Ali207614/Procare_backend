@@ -9,7 +9,7 @@ import {
   Matches,
   IsEnum,
   IsBoolean,
-  IsNumber,
+  IsNumberString,
   IsIn,
 } from 'class-validator';
 
@@ -57,9 +57,9 @@ export class CreateUserDto {
   @IsString({ context: { location: 'language' } })
   language?: string;
 
-  @ApiProperty({ example: 1234567890, required: false, description: 'Telegram chat ID' })
+  @ApiProperty({ example: '1234567890', required: false, description: 'Telegram chat ID' })
   @IsOptional()
-  @IsNumber({}, { context: { location: 'telegram_chat_id' } })
+  @IsNumberString({}, { context: { location: 'telegram_chat_id' } })
   telegram_chat_id?: string;
 
   @ApiProperty({ example: 'telegram_user', required: false, description: 'Telegram username' })

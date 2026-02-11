@@ -97,6 +97,8 @@ export class RepairOrdersService {
         delivery_method: 'Self',
         pickup_method: 'Self',
         created_by: admin.id,
+        phone_number: user.phone_number1 || '',
+        name: [user.first_name, user.last_name].filter(Boolean).join(' ') || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -710,10 +712,17 @@ export class RepairOrdersService {
     );
 
     const updateFields: Record<string, unknown> = {};
-    if (updateDto.first_name !== undefined) updateFields.first_name = updateDto.first_name;
-    if (updateDto.last_name !== undefined) updateFields.last_name = updateDto.last_name;
-    if (updateDto.phone !== undefined) updateFields.phone = updateDto.phone;
-    if (updateDto.email !== undefined) updateFields.email = updateDto.email;
+
+    // Map first_name + last_name → name (the actual column on repair_orders)
+    if (updateDto.first_name !== undefined || updateDto.last_name !== undefined) {
+      const nameParts = [updateDto.first_name, updateDto.last_name].filter(Boolean);
+      if (nameParts.length > 0) {
+        updateFields.name = nameParts.join(' ');
+      }
+    }
+
+    // Map phone → phone_number (the actual column on repair_orders)
+    if (updateDto.phone !== undefined) updateFields.phone_number = updateDto.phone;
 
     if (Object.keys(updateFields).length === 0) {
       throw new BadRequestException('No valid fields to update');
@@ -721,15 +730,12 @@ export class RepairOrdersService {
 
     updateFields.updated_at = new Date();
 
-    const result = await this.knex(this.table)
-      .where({ id: repairOrderId })
-      .update(updateFields)
-      .returning('*');
+    await this.knex(this.table).where({ id: repairOrderId }).update(updateFields);
 
     await this.changeLogger.logChange(repairOrderId, 'client_info_updated', updateDto, admin.id);
     await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
 
-    return result[0] as { message: string };
+    return { message: 'Client info updated successfully' };
   }
 
   async updateProduct(

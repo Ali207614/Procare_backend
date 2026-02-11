@@ -22,6 +22,9 @@ export interface RepairOrder {
   created_by: string;
   status: 'Open' | 'Deleted' | 'Closed' | 'Cancelled';
 
+  phone_number: string;
+  name: string | null;
+
   created_at: string; // timestamp
   updated_at: string; // timestamp
 }
