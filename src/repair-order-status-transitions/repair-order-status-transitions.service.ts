@@ -30,8 +30,11 @@ export class RepairOrderStatusTransitionsService {
     const fromStatus = await this.statusService.getOrLoadStatusById(from_status_id);
     const branchId = fromStatus.branch_id;
 
-    const statuses: PaginationResult<RepairOrderStatus> =
-      await this.statusService.findAllStatuses(branchId);
+    const statuses: PaginationResult<RepairOrderStatus> = await this.statusService.findAllStatuses(
+      branchId,
+      0,
+      1000,
+    );
     const validStatusIds = statuses.rows.map((s) => s.id);
 
     for (const id of to_status_ids) {

@@ -357,7 +357,7 @@ describe('Repair Orders - Audit and Data Integrity', () => {
 
       // Try to create repair order with invalid foreign key
       const invalidDto = await RepairOrderTestSetup.createValidRepairOrderDto({
-        user_id: '12345678-1234-1234-1234-123456789012',
+        user_id: '12345678-1234-4000-8000-123456789012',
       });
 
       const response = await RepairOrderTestSetup.makeRequest()
@@ -380,7 +380,7 @@ describe('Repair Orders - Audit and Data Integrity', () => {
       // Verify no orphaned related records were created
       const orphanedProblems = await RepairOrderTestSetup.knex(
         'repair_order_initial_problems',
-      ).where('repair_order_id', '12345678-1234-1234-1234-123456789012');
+      ).where('repair_order_id', '12345678-1234-4000-8000-123456789012');
       expect(orphanedProblems.length).toBe(0);
     });
 

@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -22,6 +23,7 @@ import { UpdatePhoneOsTypeDto } from './dto/update-phone-os-type.dto';
 import { PhoneOsType } from 'src/common/types/phone-os-type.interface';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
+import { FindAllPhoneOsTypeDto } from './dto/find-all-phone-os-type.dto';
 
 @ApiTags('Phone OS Types')
 @ApiBearerAuth()
@@ -47,8 +49,8 @@ export class PhoneOsTypesController {
   @UseInterceptors(PaginationInterceptor)
   @SetPermissions('phone.os.view')
   @ApiOperation({ summary: 'Get all phone OS types (from Redis or DB)' })
-  async findAll(): Promise<PaginationResult<PhoneOsType>> {
-    return this.service.findAll();
+  async findAll(@Query() query: FindAllPhoneOsTypeDto): Promise<PaginationResult<PhoneOsType>> {
+    return this.service.findAll(query);
   }
 
   @Patch(':id')

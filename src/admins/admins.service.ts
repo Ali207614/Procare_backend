@@ -8,8 +8,6 @@ import {
 import { InjectKnex } from 'nestjs-knex';
 import { Knex } from 'knex';
 import { RedisService } from 'src/common/redis/redis.service';
-import { ChangePasswordDto } from './dto/change-password.dto';
-import bcrypt from 'bcrypt';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { PermissionsService } from 'src/permissions/permissions.service';
@@ -154,25 +152,6 @@ export class AdminsService {
         location: 'phone_unverified',
       });
     }
-  }
-
-  async changePassword(admin: AdminPayload, dto: ChangePasswordDto): Promise<{ message: string }> {
-    const dbAdmin: Admin = await this.findById(admin.id);
-
-    const isMatch = await bcrypt.compare(dto.current_password, dbAdmin.password || '');
-    if (!isMatch) {
-      throw new BadRequestException({
-        message: '⛔ Current password is incorrect',
-        location: 'wrong_current_password',
-      });
-    }
-
-    const hashed = await bcrypt.hash(dto.new_password, 10);
-    await this.knex(this.table)
-      .where({ id: admin.id })
-      .update({ password: hashed, updated_at: new Date() });
-
-    return { message: '✅ Password changed successfully' };
   }
 
   async create(adminId: string, dto: CreateAdminDto): Promise<Admin> {

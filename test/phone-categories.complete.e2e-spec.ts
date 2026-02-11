@@ -344,7 +344,7 @@ describe('Phone Categories Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           name: 'Invalid OS Type Category',
-          phone_os_type_id: '00000000-0000-0000-0000-000000000000',
+          phone_os_type_id: '00000000-0000-4000-8000-000000000000',
           parent_id: null,
         })
         .expect(400);
@@ -357,7 +357,7 @@ describe('Phone Categories Controller Complete E2E', () => {
         .send({
           name: 'Invalid Parent Category',
           phone_os_type_id: testOsType.id,
-          parent_id: '00000000-0000-0000-0000-000000000000',
+          parent_id: '00000000-0000-4000-8000-000000000000',
         })
         .expect(400);
     });
@@ -555,7 +555,7 @@ describe('Phone Categories Controller Complete E2E', () => {
 
     it('should fail when updating non-existent category', async () => {
       await request(app.getHttpServer())
-        .patch('/api/v1/phone-categories/00000000-0000-0000-0000-000000000000/sort')
+        .patch('/api/v1/phone-categories/00000000-0000-4000-8000-000000000000/sort')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ sort: 50 })
         .expect(404);
@@ -627,7 +627,7 @@ describe('Phone Categories Controller Complete E2E', () => {
 
     it('should fail when updating non-existent category', async () => {
       await request(app.getHttpServer())
-        .patch('/api/v1/phone-categories/00000000-0000-0000-0000-000000000000')
+        .patch('/api/v1/phone-categories/00000000-0000-4000-8000-000000000000')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           name: 'Non-existent Category',
@@ -703,7 +703,7 @@ describe('Phone Categories Controller Complete E2E', () => {
 
     it('should fail when deleting non-existent category', async () => {
       await request(app.getHttpServer())
-        .delete('/api/v1/phone-categories/00000000-0000-0000-0000-000000000000')
+        .delete('/api/v1/phone-categories/00000000-0000-4000-8000-000000000000')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(404);
     });

@@ -69,24 +69,33 @@ export class PermissionsService {
     offset?: number;
     sort_by?: string;
     sort_order?: 'asc' | 'desc';
-  }): Promise<Permission[]> {
-    const { search, limit = 20, offset = 0, sort_by = 'created_at', sort_order = 'desc' } = query;
+  }): Promise<{ rows: Permission[]; total: number; limit: number; offset: number }> {
+    const { search, limit = 10, offset = 0, sort_by = 'name', sort_order = 'desc' } = query;
 
     const qb = this.knex<Permission>('permissions')
       .where('is_active', true)
       .andWhere('status', 'Open');
 
     if (search) {
-      // eslint-disable-next-line @typescript-eslint/no-misused-promises
-      void qb.andWhere((builder: Knex.QueryBuilder) =>
-        builder.whereILike('name', `%${search}%`).orWhereILike('description', `%${search}%`),
-      );
+      void qb.andWhere((builder: Knex.QueryBuilder) => {
+        void builder.whereILike('name', `%${search}%`).orWhereILike('description', `%${search}%`);
+      });
     }
 
-    return qb
+    const totalRes = await qb.clone().count<{ count: string }>('id as count').first();
+    const total = parseInt(totalRes?.count || '0', 10);
+
+    const rows = await qb
       .orderBy(sort_by, sort_order)
       .limit(limit)
       .offset(offset)
       .select('id', 'name', 'description', 'created_at');
+
+    return {
+      rows,
+      total,
+      limit,
+      offset,
+    };
   }
 }

@@ -28,7 +28,7 @@ export class RentalPhoneDevicesService {
       currency,
     } = dto;
 
-    const baseQuery = this.knex(this.table).where('is_active', true);
+    const baseQuery = this.knex(this.table).where('is_available', true);
 
     // Search functionality
     if (search) {
@@ -37,7 +37,6 @@ export class RentalPhoneDevicesService {
           .whereILike('name', `%${search}%`)
           .orWhereILike('brand', `%${search}%`)
           .orWhereILike('model', `%${search}%`)
-          .orWhereILike('code', `%${search}%`)
           .orWhereILike('imei', `%${search}%`);
       });
     }
@@ -88,14 +87,13 @@ export class RentalPhoneDevicesService {
       .clone()
       .select(
         'id',
-        'code',
         'name',
         'brand',
         'model',
         'imei',
-        'serial_number',
         'color',
         'storage_capacity',
+        'battery_capacity',
         'is_free',
         'daily_rent_price',
         'deposit_amount',
@@ -103,12 +101,9 @@ export class RentalPhoneDevicesService {
         'is_available',
         'status',
         'condition',
-        'quantity',
-        'quantity_available',
         'notes',
         'specifications',
         'sort',
-        'is_active',
         'created_at',
         'updated_at',
       )
@@ -128,7 +123,7 @@ export class RentalPhoneDevicesService {
   }
 
   async findById(id: string): Promise<RentalPhoneDevice> {
-    const device = await this.knex(this.table).where('id', id).where('is_active', true).first();
+    const device = await this.knex(this.table).where('id', id).where('is_available', true).first();
 
     if (!device) {
       throw new NotFoundException({
@@ -140,24 +135,7 @@ export class RentalPhoneDevicesService {
     return device as RentalPhoneDevice;
   }
 
-  async findByCode(code: string): Promise<RentalPhoneDevice | null> {
-    return (await this.knex(this.table)
-      .where('code', code)
-      .where('is_active', true)
-      .first()) as RentalPhoneDevice | null;
-  }
-
   async create(dto: CreateRentalPhoneDeviceDto): Promise<RentalPhoneDevice> {
-    // Check if code already exists
-    const existingDevice = await this.knex(this.table).where('code', dto.code).first();
-
-    if (existingDevice) {
-      throw new BadRequestException({
-        message: 'Device with this code already exists',
-        location: 'code_already_exists',
-      });
-    }
-
     // Check if IMEI already exists (if provided)
     if (dto.imei) {
       const existingImei = await this.knex(this.table).where('imei', dto.imei).first();
@@ -183,14 +161,13 @@ export class RentalPhoneDevicesService {
 
     const [newDevice] = await this.knex(this.table)
       .insert({
-        code: dto.code,
         name: dto.name,
         brand: dto.brand || null,
         model: dto.model || null,
         imei: dto.imei || null,
-        serial_number: dto.serial_number || null,
         color: dto.color || null,
         storage_capacity: dto.storage_capacity || null,
+        battery_capacity: dto.battery_capacity || null,
         is_free: dto.is_free ?? false,
         daily_rent_price: dto.daily_rent_price,
         deposit_amount: dto.deposit_amount ?? 0,
@@ -198,12 +175,9 @@ export class RentalPhoneDevicesService {
         is_available: dto.is_available ?? true,
         status: dto.status ?? 'Available',
         condition: dto.condition ?? 'Good',
-        quantity: quantity,
-        quantity_available: quantityAvailable,
         notes: dto.notes || null,
         specifications: dto.specifications || null,
         sort: dto.sort ?? 1,
-        is_active: true,
         created_at: this.knex.fn.now(),
         updated_at: this.knex.fn.now(),
       })
@@ -214,21 +188,6 @@ export class RentalPhoneDevicesService {
 
   async update(id: string, dto: UpdateRentalPhoneDeviceDto): Promise<RentalPhoneDevice> {
     const existingDevice = await this.findById(id);
-
-    // Check if code already exists (if being updated)
-    if (dto.code && dto.code !== existingDevice.code) {
-      const codeExists = await this.knex(this.table)
-        .where('code', dto.code)
-        .where('id', '!=', id)
-        .first();
-
-      if (codeExists) {
-        throw new BadRequestException({
-          message: 'Device with this code already exists',
-          location: 'code_already_exists',
-        });
-      }
-    }
 
     // Check if IMEI already exists (if being updated)
     if (dto.imei && dto.imei !== existingDevice.imei) {
@@ -272,10 +231,10 @@ export class RentalPhoneDevicesService {
   async delete(id: string): Promise<void> {
     await this.findById(id);
 
-    // Soft delete - mark as inactive
+    // Soft delete - mark as unavailable and retired
     await this.knex(this.table).where('id', id).update({
-      is_active: false,
       is_available: false,
+      status: 'Retired',
       updated_at: this.knex.fn.now(),
     });
   }
@@ -313,7 +272,6 @@ export class RentalPhoneDevicesService {
 
   async getAvailableDevices(): Promise<RentalPhoneDevice[]> {
     return (await this.knex(this.table)
-      .where('is_active', true)
       .where('is_available', true)
       .where('quantity_available', '>', 0)
       .orderBy('sort', 'asc')
@@ -322,7 +280,7 @@ export class RentalPhoneDevicesService {
 
   async getDevicesByBrand(brand: string): Promise<RentalPhoneDevice[]> {
     return (await this.knex(this.table)
-      .where('is_active', true)
+      .where('is_available', true)
       .where('brand', brand)
       .orderBy('sort', 'asc')
       .orderBy('name', 'asc')) as RentalPhoneDevice[];
@@ -337,7 +295,7 @@ export class RentalPhoneDevicesService {
     averagePrice: number;
   }> {
     const [stats] = await this.knex(this.table)
-      .where('is_active', true)
+      .where('is_available', true)
       .select(
         this.knex.raw('COUNT(*) as total_devices'),
         this.knex.raw('COUNT(CASE WHEN status = ? THEN 1 END) as available_devices', ['Available']),

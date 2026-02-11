@@ -12,12 +12,6 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateRentalPhoneDeviceDto {
-  @ApiProperty({ example: 'RD001', description: 'Unique device code' })
-  @IsString({ context: { location: 'code' } })
-  @MinLength(2, { context: { location: 'code' } })
-  @MaxLength(50, { context: { location: 'code' } })
-  code!: string;
-
   @ApiProperty({ example: 'Samsung Galaxy A14', description: 'Device display name' })
   @IsString({ context: { location: 'name' } })
   @MinLength(2, { context: { location: 'name' } })
@@ -42,12 +36,6 @@ export class CreateRentalPhoneDeviceDto {
   @MaxLength(20, { context: { location: 'imei' } })
   imei?: string;
 
-  @ApiPropertyOptional({ example: 'R2J505X0ABC', description: 'Serial number' })
-  @IsOptional()
-  @IsString({ context: { location: 'serial_number' } })
-  @MaxLength(50, { context: { location: 'serial_number' } })
-  serial_number?: string;
-
   @ApiPropertyOptional({ example: 'Black', description: 'Device color' })
   @IsOptional()
   @IsString({ context: { location: 'color' } })
@@ -59,6 +47,12 @@ export class CreateRentalPhoneDeviceDto {
   @IsString({ context: { location: 'storage_capacity' } })
   @MaxLength(20, { context: { location: 'storage_capacity' } })
   storage_capacity?: string;
+
+  @ApiPropertyOptional({ example: '5000mAh', description: 'Battery capacity' })
+  @IsOptional()
+  @IsString({ context: { location: 'battery_capacity' } })
+  @MaxLength(20, { context: { location: 'battery_capacity' } })
+  battery_capacity?: string;
 
   @ApiPropertyOptional({ example: false, description: 'Whether the device is free to rent' })
   @IsOptional()

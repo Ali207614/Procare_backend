@@ -30,7 +30,7 @@ describe('Repair Orders - Edge Cases and Error Scenarios', () => {
   describe('Non-existent Entity Handling', () => {
     it('should handle non-existent user ID gracefully', async () => {
       const createDto = await RepairOrderTestSetup.createValidRepairOrderDto({
-        user_id: '12345678-1234-1234-1234-123456789012', // Valid UUID but non-existent
+        user_id: '12345678-1234-4000-8000-123456789012', // Valid UUID but non-existent
       });
 
       const response = await RepairOrderTestSetup.makeRequest()
@@ -47,7 +47,7 @@ describe('Repair Orders - Edge Cases and Error Scenarios', () => {
 
     it('should handle non-existent phone category gracefully', async () => {
       const createDto = await RepairOrderTestSetup.createValidRepairOrderDto({
-        phone_category_id: '12345678-1234-1234-1234-123456789012',
+        phone_category_id: '12345678-1234-4000-8000-123456789012',
       });
 
       const response = await RepairOrderTestSetup.makeRequest()
@@ -70,7 +70,7 @@ describe('Repair Orders - Edge Cases and Error Scenarios', () => {
         .set('Authorization', RepairOrderTestSetup.getAdminAuth())
         .query({
           branch_id: RepairOrderTestSetup.testData.branchData.id,
-          status_id: '12345678-1234-1234-1234-123456789012',
+          status_id: '12345678-1234-4000-8000-123456789012',
         })
         .send(createDto);
 
@@ -84,7 +84,7 @@ describe('Repair Orders - Edge Cases and Error Scenarios', () => {
         .post('/repair-orders')
         .set('Authorization', RepairOrderTestSetup.getAdminAuth())
         .query({
-          branch_id: '12345678-1234-1234-1234-123456789012',
+          branch_id: '12345678-1234-4000-8000-123456789012',
           status_id: RepairOrderTestSetup.testData.repairStatus.id,
         })
         .send(createDto);
@@ -96,7 +96,7 @@ describe('Repair Orders - Edge Cases and Error Scenarios', () => {
       const createDto = await RepairOrderTestSetup.createValidRepairOrderDto({
         initial_problems: [
           {
-            problem_category_id: '12345678-1234-1234-1234-123456789012',
+            problem_category_id: '12345678-1234-4000-8000-123456789012',
             price: 100000,
             estimated_minutes: 60,
             parts: [],
@@ -117,7 +117,7 @@ describe('Repair Orders - Edge Cases and Error Scenarios', () => {
     });
 
     it('should handle non-existent repair order for operations', async () => {
-      const nonExistentId = '12345678-1234-1234-1234-123456789012';
+      const nonExistentId = '12345678-1234-4000-8000-123456789012';
 
       // GET
       await RepairOrderTestSetup.makeRequest()
@@ -249,7 +249,7 @@ describe('Repair Orders - Edge Cases and Error Scenarios', () => {
           priority, created_at, updated_at, created_by, updated_by
         ) VALUES (
           '${require('uuid').v4()}',
-          '12345678-1234-1234-1234-123456789012',
+          '12345678-1234-4000-8000-123456789012',
           '${RepairOrderTestSetup.testData.branchData.id}',
           '${RepairOrderTestSetup.testData.phoneCategory.id}',
           '${RepairOrderTestSetup.testData.repairStatus.id}',

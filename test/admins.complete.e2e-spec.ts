@@ -438,7 +438,7 @@ describe('Admins Controller Complete E2E', () => {
           last_name: 'Branch',
           phone: '+998907777777',
           login: 'invalidbranch',
-          branch_id: '00000000-0000-0000-0000-000000000000',
+          branch_id: '00000000-0000-4000-8000-000000000000',
         })
         .expect(404);
     });
@@ -514,7 +514,7 @@ describe('Admins Controller Complete E2E', () => {
 
     it('should fail when updating non-existent admin', async () => {
       await request(app.getHttpServer())
-        .patch('/api/v1/admins/00000000-0000-0000-0000-000000000000')
+        .patch('/api/v1/admins/00000000-0000-4000-8000-000000000000')
         .set('Authorization', `Bearer ${superAdminToken}`)
         .send({
           first_name: 'Non-existent',
@@ -583,7 +583,7 @@ describe('Admins Controller Complete E2E', () => {
 
     it('should fail when deleting non-existent admin', async () => {
       await request(app.getHttpServer())
-        .delete('/api/v1/admins/00000000-0000-0000-0000-000000000000')
+        .delete('/api/v1/admins/00000000-0000-4000-8000-000000000000')
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(404);
     });

@@ -411,7 +411,7 @@ describe('Repair Orders - Comprehensive E2E Tests', () => {
     });
 
     it('should return 404 for non-existent repair order', async () => {
-      const nonExistentId = '12345678-1234-1234-1234-123456789012';
+      const nonExistentId = '12345678-1234-4000-8000-123456789012';
 
       const response = await request(app.getHttpServer())
         .get(`/repair-orders/${nonExistentId}`)
@@ -483,7 +483,7 @@ describe('Repair Orders - Comprehensive E2E Tests', () => {
     });
 
     it('should return 404 for non-existent repair order', async () => {
-      const nonExistentId = '12345678-1234-1234-1234-123456789012';
+      const nonExistentId = '12345678-1234-4000-8000-123456789012';
       const updateDto = { priority: 'High' };
 
       await request(app.getHttpServer())
@@ -1046,7 +1046,7 @@ describe('Repair Orders - Comprehensive E2E Tests', () => {
 
     it('should handle non-existent user ID gracefully', async () => {
       const createDto = await createValidRepairOrderDto({
-        user_id: '12345678-1234-1234-1234-123456789012', // Valid UUID but non-existent
+        user_id: '12345678-1234-4000-8000-123456789012', // Valid UUID but non-existent
       });
 
       const response = await request(app.getHttpServer())
@@ -1060,7 +1060,7 @@ describe('Repair Orders - Comprehensive E2E Tests', () => {
 
     it('should handle non-existent phone category gracefully', async () => {
       const createDto = await createValidRepairOrderDto({
-        phone_category_id: '12345678-1234-1234-1234-123456789012',
+        phone_category_id: '12345678-1234-4000-8000-123456789012',
       });
 
       const response = await request(app.getHttpServer())
@@ -1260,7 +1260,7 @@ describe('Repair Orders - Comprehensive E2E Tests', () => {
 
       // Try to create repair order with invalid foreign key
       const invalidDto = await createValidRepairOrderDto({
-        user_id: '12345678-1234-1234-1234-123456789012',
+        user_id: '12345678-1234-4000-8000-123456789012',
       });
 
       const response = await request(app.getHttpServer())

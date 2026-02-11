@@ -1,14 +1,20 @@
-import { IsOptional, IsNumber } from 'class-validator';
+import { IsOptional, IsInt, Min, Max } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 export class FindAllPhoneOsTypeDto {
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 0, description: 'Offset for pagination' })
   @IsOptional()
-  @IsNumber()
+  @Type(() => Number)
+  @IsInt({ context: { location: 'offset' } })
+  @Min(0, { context: { location: 'offset_min' } })
   offset?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 20, description: 'Number of items per page' })
   @IsOptional()
-  @IsNumber()
+  @Type(() => Number)
+  @IsInt({ context: { location: 'limit' } })
+  @Min(1, { context: { location: 'limit_min' } })
+  @Max(100, { context: { location: 'limit_max' } })
   limit?: number;
 }

@@ -13,7 +13,6 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { JwtAdminAuthGuard } from '../common/guards/jwt-admin.guard';
-import { ChangePasswordDto } from './dto/change-password.dto';
 import { AdminsService } from './admins.service';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
@@ -42,14 +41,6 @@ export class AdminsController {
   getProfile(@CurrentAdmin() admin: AdminPayload): AdminProfileDto {
     const adminData = this.adminsService.findById(admin.id);
     return plainToInstance(AdminProfileDto, adminData);
-  }
-
-  @Post('change-password')
-  changePassword(
-    @CurrentAdmin() admin: AdminPayload,
-    @Body() dto: ChangePasswordDto,
-  ): Promise<{ message: string }> {
-    return this.adminsService.changePassword(admin, dto);
   }
 
   @Post()

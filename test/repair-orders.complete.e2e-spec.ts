@@ -757,7 +757,7 @@ describe('Repair Orders - Complete E2E', () => {
     });
 
     it('should handle non-existent repair order IDs', async () => {
-      const nonExistentId = '12345678-1234-1234-1234-123456789012';
+      const nonExistentId = '12345678-1234-4000-8000-123456789012';
 
       await request(app.getHttpServer())
         .get(`/repair-orders/${nonExistentId}`)

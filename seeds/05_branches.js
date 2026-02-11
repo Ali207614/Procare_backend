@@ -1,8 +1,8 @@
 const { v4: uuidv4 } = require('uuid');
 
 exports.seed = async function (knex) {
-  const NO_BRANCH_ID = '00000000-0000-0000-0000-000000000000';
-  const superAdminId = '00000000-0000-0000-0000-000000000000';
+  const NO_BRANCH_ID = '00000000-0000-4000-8000-000000000000';
+  const superAdminId = '00000000-0000-4000-8000-000000000000';
 
   await knex('branches').del();
 

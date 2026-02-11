@@ -42,10 +42,14 @@ export class RepairOrderStatusesController {
   @SetPermissions('repair.order.status.view')
   @ApiOperation({ summary: 'Get all statuses for admin panel' })
   @ApiQuery({ name: 'branch_id', required: true })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'offset', required: false, type: Number })
   async getAll(
     @Query('branch_id', ParseUUIDPipe) branchId: string,
+    @Query('limit') limit?: number,
+    @Query('offset') offset?: number,
   ): Promise<PaginationResult<RepairOrderStatus>> {
-    return this.service.findAllStatuses(branchId);
+    return this.service.findAllStatuses(branchId, offset, limit);
   }
 
   @Post()
@@ -64,11 +68,15 @@ export class RepairOrderStatusesController {
   @UseInterceptors(PaginationInterceptor)
   @ApiOperation({ summary: 'Get viewable statuses for current admin' })
   @ApiQuery({ name: 'branch_id', required: true })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'offset', required: false, type: Number })
   async getViewable(
     @Req() req: AuthenticatedRequest,
     @Query('branch_id', ParseUUIDPipe) branchId: string,
+    @Query('limit') limit?: number,
+    @Query('offset') offset?: number,
   ): Promise<PaginationResult<RepairOrderStatusWithPermissions>> {
-    return this.service.findViewable(req.admin, branchId);
+    return this.service.findViewable(req.admin, branchId, offset, limit);
   }
 
   @Patch(':status_id/sort')

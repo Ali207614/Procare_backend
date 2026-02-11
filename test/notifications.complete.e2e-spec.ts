@@ -431,7 +431,7 @@ describe('Notifications Controller Complete E2E', () => {
 
     it('should fail when marking non-existent notification', async () => {
       await request(app.getHttpServer())
-        .patch('/api/v1/notifications/00000000-0000-0000-0000-000000000000/read')
+        .patch('/api/v1/notifications/00000000-0000-4000-8000-000000000000/read')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(404);
     });

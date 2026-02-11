@@ -412,7 +412,7 @@ describe('Campaigns Controller Complete E2E', () => {
           type: 'SMS',
           message: 'Campaign with invalid recipients',
           scheduled_date: new Date(Date.now() + 86400000).toISOString(),
-          user_ids: ['00000000-0000-0000-0000-000000000000'],
+          user_ids: ['00000000-0000-4000-8000-000000000000'],
         })
         .expect(404);
     });
@@ -661,7 +661,7 @@ describe('Campaigns Controller Complete E2E', () => {
 
     it('should fail with non-existent campaign ID', async () => {
       await request(app.getHttpServer())
-        .get('/api/v1/campaigns/00000000-0000-0000-0000-000000000000/recipients')
+        .get('/api/v1/campaigns/00000000-0000-4000-8000-000000000000/recipients')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(404);
     });
@@ -704,7 +704,7 @@ describe('Campaigns Controller Complete E2E', () => {
 
     it('should fail with non-existent campaign ID', async () => {
       await request(app.getHttpServer())
-        .get('/api/v1/campaigns/00000000-0000-0000-0000-000000000000')
+        .get('/api/v1/campaigns/00000000-0000-4000-8000-000000000000')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(404);
     });
@@ -765,7 +765,7 @@ describe('Campaigns Controller Complete E2E', () => {
 
     it('should fail when updating non-existent campaign', async () => {
       await request(app.getHttpServer())
-        .patch('/api/v1/campaigns/00000000-0000-0000-0000-000000000000')
+        .patch('/api/v1/campaigns/00000000-0000-4000-8000-000000000000')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           name: 'Non-existent Campaign',
@@ -824,7 +824,7 @@ describe('Campaigns Controller Complete E2E', () => {
 
     it('should fail when deleting non-existent campaign', async () => {
       await request(app.getHttpServer())
-        .delete('/api/v1/campaigns/00000000-0000-0000-0000-000000000000')
+        .delete('/api/v1/campaigns/00000000-0000-4000-8000-000000000000')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(404);
     });
@@ -862,7 +862,7 @@ describe('Campaigns Controller Complete E2E', () => {
 
     it('should fail when pausing non-existent campaign', async () => {
       await request(app.getHttpServer())
-        .patch('/api/v1/campaigns/00000000-0000-0000-0000-000000000000/pause')
+        .patch('/api/v1/campaigns/00000000-0000-4000-8000-000000000000/pause')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(404);
     });
@@ -904,7 +904,7 @@ describe('Campaigns Controller Complete E2E', () => {
 
     it('should fail when resuming non-existent campaign', async () => {
       await request(app.getHttpServer())
-        .patch('/api/v1/campaigns/00000000-0000-0000-0000-000000000000/resume')
+        .patch('/api/v1/campaigns/00000000-0000-4000-8000-000000000000/resume')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(404);
     });

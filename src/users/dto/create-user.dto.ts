@@ -57,12 +57,6 @@ export class CreateUserDto {
   @IsString({ context: { location: 'language' } })
   language?: string;
 
-  @ApiProperty({ example: 'password123', required: false, description: 'Password' })
-  @IsOptional()
-  @IsString({ context: { location: 'password' } })
-  @MinLength(6, { context: { location: 'password' } })
-  password?: string;
-
   @ApiProperty({ example: 1234567890, required: false, description: 'Telegram chat ID' })
   @IsOptional()
   @IsNumber({}, { context: { location: 'telegram_chat_id' } })

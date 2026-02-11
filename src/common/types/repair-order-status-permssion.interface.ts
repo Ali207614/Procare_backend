@@ -26,6 +26,7 @@ export interface RepairOrderStatusPermission {
   can_manage_rental_phone: boolean;
   can_view_history: boolean;
   can_user_manage: boolean;
+  can_create_user: boolean;
 
   created_at: string; // ISO timestamp
   updated_at: string; // ISO timestamp

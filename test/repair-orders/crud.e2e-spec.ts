@@ -171,7 +171,7 @@ describe('Repair Orders - CRUD Operations', () => {
     });
 
     it('should return 404 for non-existent repair order', async () => {
-      const nonExistentId = '12345678-1234-1234-1234-123456789012';
+      const nonExistentId = '12345678-1234-4000-8000-123456789012';
 
       const response = await RepairOrderTestSetup.makeRequest()
         .get(`/repair-orders/${nonExistentId}`)
@@ -248,7 +248,7 @@ describe('Repair Orders - CRUD Operations', () => {
     });
 
     it('should return 404 for non-existent repair order', async () => {
-      const nonExistentId = '12345678-1234-1234-1234-123456789012';
+      const nonExistentId = '12345678-1234-4000-8000-123456789012';
       const updateDto = { priority: 'High' };
 
       await RepairOrderTestSetup.makeRequest()

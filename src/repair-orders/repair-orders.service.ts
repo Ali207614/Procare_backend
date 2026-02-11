@@ -555,6 +555,50 @@ export class RepairOrdersService {
       const updates: Partial<RepairOrder> = {};
       const logs: { key: string; oldVal: unknown; newVal: unknown }[] = [];
 
+      // Check if target status has can_create_user enabled
+      const targetPermission = permissions.find((p) => p.status_id === dto.status_id);
+
+      if (targetPermission?.can_create_user) {
+        // Cast order to type with client info fields
+        const orderWithClientInfo = order as RepairOrder & {
+          first_name?: string;
+          last_name?: string;
+          phone?: string;
+        };
+        const { first_name, last_name, phone } = orderWithClientInfo;
+
+        if (phone) {
+          const existingUser = await trx('users')
+            .whereRaw('LOWER(phone_number1) = ?', phone.toLowerCase())
+            .andWhereNot({ status: 'Deleted' })
+            .first();
+
+          let targetUserId = existingUser?.id;
+
+          if (!existingUser) {
+            const [newUser] = await trx('users')
+              .insert({
+                first_name: first_name || '',
+                last_name: last_name || '',
+                phone_number1: phone,
+                is_active: true,
+                source: 'employee',
+                created_by: admin.id,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                status: 'Open',
+              })
+              .returning('id');
+            targetUserId = newUser.id;
+          }
+
+          if (targetUserId && targetUserId !== order.user_id) {
+            updates.user_id = targetUserId;
+            logs.push({ key: 'user_id', oldVal: order.user_id, newVal: targetUserId });
+          }
+        }
+      }
+
       if (dto.status_id !== order.status_id) {
         updates.status_id = dto.status_id;
         logs.push({ key: 'status_id', oldVal: order.status_id, newVal: dto.status_id });

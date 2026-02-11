@@ -27,7 +27,7 @@ export class ParseUUIDPipe implements PipeTransform<string, string> {
 
   /**
    * Check if this is a custom status ID format
-   * Allows formats like: 50000000-0000-0000-0001-001000000000
+   * Allows formats like: 50000000-0000-4000-8000-001000000000
    */
   private isCustomStatusId(value: string): boolean {
     // Check if it's a UUID-like format (8-4-4-4-12 characters)

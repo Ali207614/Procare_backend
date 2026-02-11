@@ -361,7 +361,7 @@ describe('Roles Controller Complete E2E', () => {
         .send({
           name: 'Invalid Permissions Role',
           description: 'Role with invalid permissions',
-          permission_ids: ['00000000-0000-0000-0000-000000000000'],
+          permission_ids: ['00000000-0000-4000-8000-000000000000'],
         })
         .expect(400);
     });
@@ -591,7 +591,7 @@ describe('Roles Controller Complete E2E', () => {
 
     it('should fail with non-existent role ID', async () => {
       await request(app.getHttpServer())
-        .get('/api/v1/roles/00000000-0000-0000-0000-000000000000')
+        .get('/api/v1/roles/00000000-0000-4000-8000-000000000000')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(404);
     });
@@ -684,7 +684,7 @@ describe('Roles Controller Complete E2E', () => {
 
     it('should fail when updating non-existent role', async () => {
       await request(app.getHttpServer())
-        .patch('/api/v1/roles/00000000-0000-0000-0000-000000000000')
+        .patch('/api/v1/roles/00000000-0000-4000-8000-000000000000')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           name: 'Non-existent Role',
@@ -707,7 +707,7 @@ describe('Roles Controller Complete E2E', () => {
         .patch(`/api/v1/roles/${testRole.id}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
-          permission_ids: ['00000000-0000-0000-0000-000000000000'],
+          permission_ids: ['00000000-0000-4000-8000-000000000000'],
         })
         .expect(400);
     });
@@ -767,7 +767,7 @@ describe('Roles Controller Complete E2E', () => {
 
     it('should fail when deleting non-existent role', async () => {
       await request(app.getHttpServer())
-        .delete('/api/v1/roles/00000000-0000-0000-0000-000000000000')
+        .delete('/api/v1/roles/00000000-0000-4000-8000-000000000000')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(404);
     });
@@ -924,7 +924,7 @@ describe('Roles Controller Complete E2E', () => {
 
     it('should prevent role name enumeration through error messages', async () => {
       const response = await request(app.getHttpServer())
-        .get('/api/v1/roles/00000000-0000-0000-0000-000000000000')
+        .get('/api/v1/roles/00000000-0000-4000-8000-000000000000')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(404);
 

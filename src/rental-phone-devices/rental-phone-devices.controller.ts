@@ -47,7 +47,7 @@ export class RentalPhoneDevicesController {
     name: 'search',
     required: false,
     type: String,
-    description: 'Search by name, brand, model, code, or IMEI',
+    description: 'Search by name, brand, model, or IMEI',
   })
   @ApiQuery({ name: 'brand', required: false, type: String, description: 'Filter by brand' })
   @ApiQuery({
@@ -133,16 +133,6 @@ export class RentalPhoneDevicesController {
     return this.rentalPhoneDevicesService.getDevicesByBrand(brand);
   }
 
-  @Get('code/:code')
-  @SetPermissions('rental_phones_read')
-  @ApiOperation({ summary: 'Get rental phone device by code' })
-  @ApiParam({ name: 'code', description: 'Device code' })
-  @ApiResponse({ status: 200, description: 'Rental phone device details' })
-  @ApiResponse({ status: 404, description: 'Device not found' })
-  async findByCode(@Param('code') code: string): Promise<RentalPhoneDevice | null> {
-    return this.rentalPhoneDevicesService.findByCode(code);
-  }
-
   @Get(':id')
   @SetPermissions('rental_phones_read')
   @ApiOperation({ summary: 'Get rental phone device by ID' })
@@ -158,7 +148,7 @@ export class RentalPhoneDevicesController {
   @ApiOperation({ summary: 'Create new rental phone device' })
   @ApiBody({ type: CreateRentalPhoneDeviceDto })
   @ApiResponse({ status: 201, description: 'Device created successfully' })
-  @ApiResponse({ status: 400, description: 'Invalid input or duplicate code/IMEI' })
+  @ApiResponse({ status: 400, description: 'Invalid input or duplicate IMEI' })
   async create(@Body() dto: CreateRentalPhoneDeviceDto): Promise<RentalPhoneDevice> {
     return this.rentalPhoneDevicesService.create(dto);
   }
@@ -170,7 +160,7 @@ export class RentalPhoneDevicesController {
   @ApiBody({ type: UpdateRentalPhoneDeviceDto })
   @ApiResponse({ status: 200, description: 'Device updated successfully' })
   @ApiResponse({ status: 404, description: 'Device not found' })
-  @ApiResponse({ status: 400, description: 'Invalid input or duplicate code/IMEI' })
+  @ApiResponse({ status: 400, description: 'Invalid input or duplicate IMEI' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateRentalPhoneDeviceDto,

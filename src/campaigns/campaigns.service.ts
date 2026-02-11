@@ -111,9 +111,7 @@ export class CampaignsService {
       }
 
       const newTemplateId = dto.template_id || campaign.template_id;
-      const template = await trx('templates')
-        .where({ id: newTemplateId, status: 'active' })
-        .first();
+      const template = await trx('templates').where({ id: newTemplateId, status: 'Open' }).first();
       if (!template) {
         throw new NotFoundException({
           message: 'Template not found or inactive',

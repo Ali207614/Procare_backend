@@ -19,7 +19,7 @@ export class CreateRoleDto {
   name!: string;
 
   @ApiProperty({
-    example: ['00000000-0000-0000-0000-000000000005'],
+    example: ['00000000-0000-4000-8000-000000000005'],
     description: 'Permissions IDS',
   })
   @IsArray()

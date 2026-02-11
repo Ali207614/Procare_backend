@@ -9,7 +9,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
-import { Transform, TransformFnParams } from 'class-transformer';
+import { Transform, TransformFnParams, Type } from 'class-transformer';
 
 export enum EnumBooleanString {
   TRUE = 'true',
@@ -24,7 +24,7 @@ export class FindAllRolesDto {
   @IsOptional()
   @IsString({ context: { location: 'search' } })
   @MinLength(1, { context: { location: 'search_min' } })
-  @MaxLength(100, { context: { location: 'search_min' } })
+  @MaxLength(100, { context: { location: 'search_max' } })
   search?: string;
 
   @ApiPropertyOptional({
@@ -70,6 +70,7 @@ export class FindAllRolesDto {
     description: 'Number of items per page',
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt({ context: { location: 'limit' } })
   @Min(1, { context: { location: 'limit_min' } })
   @Max(100, { context: { location: 'limit_max' } })
@@ -80,6 +81,7 @@ export class FindAllRolesDto {
     description: 'Offset for pagination (starting index)',
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt({ context: { location: 'offset' } })
   @Min(0, { context: { location: 'offset_min' } })
   offset = 0;

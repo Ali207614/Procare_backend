@@ -201,7 +201,7 @@ describe('Repair Orders - Status Transitions', () => {
     });
 
     it('should handle non-existent repair order for move', async () => {
-      const nonExistentId = '12345678-1234-1234-1234-123456789012';
+      const nonExistentId = '12345678-1234-4000-8000-123456789012';
       const moveDto = { notes: 'Test move' };
 
       await RepairOrderTestSetup.makeRequest()
@@ -213,7 +213,7 @@ describe('Repair Orders - Status Transitions', () => {
     });
 
     it('should handle non-existent status for move', async () => {
-      const nonExistentStatusId = '12345678-1234-1234-1234-123456789012';
+      const nonExistentStatusId = '12345678-1234-4000-8000-123456789012';
       const moveDto = { notes: 'Test move' };
 
       const response = await RepairOrderTestSetup.makeRequest()

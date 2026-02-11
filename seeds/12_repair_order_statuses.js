@@ -182,7 +182,7 @@ exports.seed = async function (knex) {
         can_add_payment: template.can_add_payment,
         status: 'Open',
         branch_id: branch.id,
-        created_by: '00000000-0000-0000-0000-000000000000', // Super admin
+        created_by: '00000000-0000-4000-8000-000000000000', // Super admin
         created_at: knex.fn.now(),
         updated_at: knex.fn.now(),
       });

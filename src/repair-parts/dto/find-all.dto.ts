@@ -1,8 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
-  IsEnum,
+  IsIn,
   IsOptional,
   IsString,
   IsUUID,
@@ -39,10 +39,41 @@ export class FindAllPartsDto {
     enum: ['Open', 'Deleted'],
     description: 'Filter by part status',
     example: 'Open',
+    isArray: true,
   })
   @IsOptional()
-  @IsEnum(['Open', 'Deleted'])
-  status?: 'Open' | 'Deleted';
+  @Transform(({ value, obj }): string[] | undefined => {
+    // Handle status, status[], or even malformed keys
+    const rawObj = obj as Record<string, unknown>;
+    const rawValue =
+      value ??
+      rawObj['status'] ??
+      rawObj['status[]'] ??
+      rawObj[Object.keys(rawObj).find((k) => k.startsWith('status')) || ''];
+
+    if (rawValue === null || rawValue === undefined) return undefined;
+
+    const items = Array.isArray(rawValue)
+      ? (rawValue as unknown[]).flat(Infinity)
+      : String(rawValue).split(',');
+
+    return items
+      .map((item) => {
+        if (typeof item === 'object' && item !== null) {
+          const keys = Object.keys(item);
+          return keys.length > 0 ? keys[0] : '';
+        }
+        return String(item);
+      })
+      .map((s) => s.replace(/[\[\]"']/g, '').trim())
+      .filter((s) => s !== '' && s !== 'undefined' && s !== 'null') as ('Open' | 'Deleted')[];
+  })
+  @IsArray()
+  @IsIn(['Open', 'Deleted'], {
+    each: true,
+    message: 'Status must be one of the following values: Open, Deleted',
+  })
+  status?: ('Open' | 'Deleted')[];
 
   @ApiPropertyOptional({
     type: [String],
@@ -50,6 +81,31 @@ export class FindAllPartsDto {
     example: ['550e8400-e29b-41d4-a716-446655440000'],
   })
   @IsOptional()
+  @Transform(({ value, obj }): string[] | undefined => {
+    const rawObj = obj as Record<string, unknown>;
+    const rawValue =
+      value ??
+      rawObj['problem_category_ids'] ??
+      rawObj['problem_category_ids[]'] ??
+      rawObj[Object.keys(rawObj).find((k) => k.startsWith('problem_category_ids')) || ''];
+
+    if (rawValue === null || rawValue === undefined) return undefined;
+
+    const items = Array.isArray(rawValue)
+      ? (rawValue as unknown[]).flat(Infinity)
+      : String(rawValue).split(',');
+
+    return items
+      .map((item) => {
+        if (typeof item === 'object' && item !== null) {
+          const keys = Object.keys(item);
+          return keys.length > 0 ? keys[0] : '';
+        }
+        return String(item);
+      })
+      .map((s) => s.replace(/[\[\]"']/g, '').trim())
+      .filter((s) => s !== '' && s !== 'undefined' && s !== 'null');
+  })
   @IsArray()
   @IsUUID('all', { each: true })
   problem_category_ids?: string[];
@@ -60,6 +116,31 @@ export class FindAllPartsDto {
     example: ['550e8400-e29b-41d4-a716-446655440111'],
   })
   @IsOptional()
+  @Transform(({ value, obj }): string[] | undefined => {
+    const rawObj = obj as Record<string, unknown>;
+    const rawValue =
+      value ??
+      rawObj['exclude_problem_category_ids'] ??
+      rawObj['exclude_problem_category_ids[]'] ??
+      rawObj[Object.keys(rawObj).find((k) => k.startsWith('exclude_problem_category_ids')) || ''];
+
+    if (rawValue === null || rawValue === undefined) return undefined;
+
+    const items = Array.isArray(rawValue)
+      ? (rawValue as unknown[]).flat(Infinity)
+      : String(rawValue).split(',');
+
+    return items
+      .map((item) => {
+        if (typeof item === 'object' && item !== null) {
+          const keys = Object.keys(item);
+          return keys.length > 0 ? keys[0] : '';
+        }
+        return String(item);
+      })
+      .map((s) => s.replace(/[\[\]"']/g, '').trim())
+      .filter((s) => s !== '' && s !== 'undefined' && s !== 'null');
+  })
   @IsArray()
   @IsUUID('all', { each: true })
   exclude_problem_category_ids?: string[];

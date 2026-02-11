@@ -29,7 +29,6 @@ export const RateLimitedAdminRoutes = [
   { path: 'admins', method: RequestMethod.POST },
   { path: 'admins/:id', method: RequestMethod.PATCH },
   { path: 'admins/:id', method: RequestMethod.DELETE },
-  { path: 'admins/change-password', method: RequestMethod.GET },
 
   { path: 'features', method: RequestMethod.PATCH },
   { path: 'features', method: RequestMethod.GET },

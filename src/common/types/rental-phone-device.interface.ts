@@ -1,13 +1,12 @@
 export interface RentalPhoneDevice {
   id: string;
-  code: string;
   name: string;
   brand: string | null;
   model: string | null;
   imei: string | null;
-  serial_number: string | null;
   color: string | null;
   storage_capacity: string | null;
+  battery_capacity: string | null;
   is_free: boolean;
   daily_rent_price: number;
   deposit_amount: number;
@@ -20,18 +19,15 @@ export interface RentalPhoneDevice {
   notes: string | null;
   specifications: string | null;
   sort: number;
-  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
 
 export interface CreateRentalPhoneDeviceDto {
-  code: string;
   name: string;
   brand?: string;
   model?: string;
   imei?: string;
-  serial_number?: string;
   color?: string;
   storage_capacity?: string;
   is_free?: boolean;
@@ -49,12 +45,10 @@ export interface CreateRentalPhoneDeviceDto {
 }
 
 export interface UpdateRentalPhoneDeviceDto {
-  code?: string;
   name?: string;
   brand?: string;
   model?: string;
   imei?: string;
-  serial_number?: string;
   color?: string;
   storage_capacity?: string;
   is_free?: boolean;
@@ -69,7 +63,6 @@ export interface UpdateRentalPhoneDeviceDto {
   notes?: string;
   specifications?: string;
   sort?: number;
-  is_active?: boolean;
 }
 
 export interface RentalPhoneDeviceQueryDto {
@@ -83,7 +76,6 @@ export interface RentalPhoneDeviceQueryDto {
   is_free?: boolean;
   min_price?: number;
   max_price?: number;
-  is_active?: boolean;
 }
 
 // This interface is deprecated - use RentalPhoneDevice instead

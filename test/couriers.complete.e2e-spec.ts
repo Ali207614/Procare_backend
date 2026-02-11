@@ -363,7 +363,7 @@ describe('Couriers Controller Complete E2E', () => {
 
     it('should fail with non-existent branch_id', async () => {
       await request(app.getHttpServer())
-        .get('/api/v1/couriers?branch_id=00000000-0000-0000-0000-000000000000')
+        .get('/api/v1/couriers?branch_id=00000000-0000-4000-8000-000000000000')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(404);
     });
@@ -746,7 +746,7 @@ describe('Couriers Controller Complete E2E', () => {
 
       // Not found case (non-existent branch)
       await request(app.getHttpServer())
-        .get('/api/v1/couriers?branch_id=00000000-0000-0000-0000-000000000000')
+        .get('/api/v1/couriers?branch_id=00000000-0000-4000-8000-000000000000')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(404);
     });

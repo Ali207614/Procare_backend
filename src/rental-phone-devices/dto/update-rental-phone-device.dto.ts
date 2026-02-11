@@ -12,13 +12,6 @@ import {
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateRentalPhoneDeviceDto {
-  @ApiPropertyOptional({ example: 'RD001', description: 'Unique device code' })
-  @IsOptional()
-  @IsString({ context: { location: 'code' } })
-  @MinLength(2, { context: { location: 'code' } })
-  @MaxLength(50, { context: { location: 'code' } })
-  code?: string;
-
   @ApiPropertyOptional({ example: 'Samsung Galaxy A14', description: 'Device display name' })
   @IsOptional()
   @IsString({ context: { location: 'name' } })
@@ -44,12 +37,6 @@ export class UpdateRentalPhoneDeviceDto {
   @MaxLength(20, { context: { location: 'imei' } })
   imei?: string;
 
-  @ApiPropertyOptional({ example: 'R2J505X0ABC', description: 'Serial number' })
-  @IsOptional()
-  @IsString({ context: { location: 'serial_number' } })
-  @MaxLength(50, { context: { location: 'serial_number' } })
-  serial_number?: string;
-
   @ApiPropertyOptional({ example: 'Black', description: 'Device color' })
   @IsOptional()
   @IsString({ context: { location: 'color' } })
@@ -61,6 +48,12 @@ export class UpdateRentalPhoneDeviceDto {
   @IsString({ context: { location: 'storage_capacity' } })
   @MaxLength(20, { context: { location: 'storage_capacity' } })
   storage_capacity?: string;
+
+  @ApiPropertyOptional({ example: '5000mAh', description: 'Battery capacity' })
+  @IsOptional()
+  @IsString({ context: { location: 'battery_capacity' } })
+  @MaxLength(20, { context: { location: 'battery_capacity' } })
+  battery_capacity?: string;
 
   @ApiPropertyOptional({ example: false, description: 'Whether the device is free to rent' })
   @IsOptional()
@@ -150,9 +143,4 @@ export class UpdateRentalPhoneDeviceDto {
   @Min(1, { context: { location: 'sort' } })
   @Max(9999, { context: { location: 'sort' } })
   sort?: number;
-
-  @ApiPropertyOptional({ example: true, description: 'Whether the device is active' })
-  @IsOptional()
-  @IsBoolean({ context: { location: 'is_active' } })
-  is_active?: boolean;
 }

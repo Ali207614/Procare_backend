@@ -519,7 +519,7 @@ describe('Branches Controller Complete E2E', () => {
 
     it('should fail when getting non-existent branch', async () => {
       await request(app.getHttpServer())
-        .get('/api/v1/branches/00000000-0000-0000-0000-000000000000')
+        .get('/api/v1/branches/00000000-0000-4000-8000-000000000000')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(404);
     });
@@ -582,7 +582,7 @@ describe('Branches Controller Complete E2E', () => {
 
     it('should fail when updating non-existent branch', async () => {
       await request(app.getHttpServer())
-        .patch('/api/v1/branches/00000000-0000-0000-0000-000000000000/sort')
+        .patch('/api/v1/branches/00000000-0000-4000-8000-000000000000/sort')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ sort: 50 })
         .expect(404);
@@ -654,7 +654,7 @@ describe('Branches Controller Complete E2E', () => {
 
     it('should fail when updating non-existent branch', async () => {
       await request(app.getHttpServer())
-        .patch('/api/v1/branches/00000000-0000-0000-0000-000000000000')
+        .patch('/api/v1/branches/00000000-0000-4000-8000-000000000000')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           name: 'Non-existent Branch',
@@ -720,7 +720,7 @@ describe('Branches Controller Complete E2E', () => {
 
     it('should fail when deleting non-existent branch', async () => {
       await request(app.getHttpServer())
-        .delete('/api/v1/branches/00000000-0000-0000-0000-000000000000')
+        .delete('/api/v1/branches/00000000-0000-4000-8000-000000000000')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(404);
     });
@@ -804,7 +804,7 @@ describe('Branches Controller Complete E2E', () => {
     });
 
     it('should fail with non-existent admin IDs', async () => {
-      const adminIds = ['00000000-0000-0000-0000-000000000000'];
+      const adminIds = ['00000000-0000-4000-8000-000000000000'];
 
       await request(app.getHttpServer())
         .post(`/api/v1/branches/${testBranch.id}/admins`)
@@ -839,7 +839,7 @@ describe('Branches Controller Complete E2E', () => {
 
     it('should fail when assigning to non-existent branch', async () => {
       await request(app.getHttpServer())
-        .post('/api/v1/branches/00000000-0000-0000-0000-000000000000/admins')
+        .post('/api/v1/branches/00000000-0000-4000-8000-000000000000/admins')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ admin_ids: [testAdmin.id] })
         .expect(404);
@@ -940,7 +940,7 @@ describe('Branches Controller Complete E2E', () => {
 
     it('should fail when removing from non-existent branch', async () => {
       await request(app.getHttpServer())
-        .delete('/api/v1/branches/00000000-0000-0000-0000-000000000000/admins')
+        .delete('/api/v1/branches/00000000-0000-4000-8000-000000000000/admins')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ admin_ids: [testAdmin.id] })
         .expect(404);

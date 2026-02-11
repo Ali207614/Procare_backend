@@ -4,7 +4,7 @@ exports.seed = async function (knex) {
   const repairParts = [
     // iPhone Parts
     {
-      id: '30000000-0000-0000-0000-000000000001',
+      id: '30000000-0000-4000-8000-000000000001',
       name_uz: 'iPhone 15 Pro Max Ekran',
       name_ru: 'Экран iPhone 15 Pro Max',
       name_en: 'iPhone 15 Pro Max Screen',
@@ -15,7 +15,7 @@ exports.seed = async function (knex) {
       sort: 1,
     },
     {
-      id: '30000000-0000-0000-0000-000000000002',
+      id: '30000000-0000-4000-8000-000000000002',
       name_uz: 'iPhone 15 Pro Ekran',
       name_ru: 'Экран iPhone 15 Pro',
       name_en: 'iPhone 15 Pro Screen',
@@ -26,7 +26,7 @@ exports.seed = async function (knex) {
       sort: 2,
     },
     {
-      id: '30000000-0000-0000-0000-000000000003',
+      id: '30000000-0000-4000-8000-000000000003',
       name_uz: 'iPhone 14 Ekran',
       name_ru: 'Экран iPhone 14',
       name_en: 'iPhone 14 Screen',
@@ -37,7 +37,7 @@ exports.seed = async function (knex) {
       sort: 3,
     },
     {
-      id: '30000000-0000-0000-0000-000000000004',
+      id: '30000000-0000-4000-8000-000000000004',
       name_uz: 'iPhone 13 Ekran',
       name_ru: 'Экран iPhone 13',
       name_en: 'iPhone 13 Screen',
@@ -48,7 +48,7 @@ exports.seed = async function (knex) {
       sort: 4,
     },
     {
-      id: '30000000-0000-0000-0000-000000000005',
+      id: '30000000-0000-4000-8000-000000000005',
       name_uz: 'iPhone 15 Batareya',
       name_ru: 'Батарея iPhone 15',
       name_en: 'iPhone 15 Battery',
@@ -59,7 +59,7 @@ exports.seed = async function (knex) {
       sort: 5,
     },
     {
-      id: '30000000-0000-0000-0000-000000000006',
+      id: '30000000-0000-4000-8000-000000000006',
       name_uz: 'iPhone 14 Batareya',
       name_ru: 'Батарея iPhone 14',
       name_en: 'iPhone 14 Battery',
@@ -70,7 +70,7 @@ exports.seed = async function (knex) {
       sort: 6,
     },
     {
-      id: '30000000-0000-0000-0000-000000000007',
+      id: '30000000-0000-4000-8000-000000000007',
       name_uz: 'iPhone 13 Batareya',
       name_ru: 'Батарея iPhone 13',
       name_en: 'iPhone 13 Battery',
@@ -83,7 +83,7 @@ exports.seed = async function (knex) {
 
     // Samsung Parts
     {
-      id: '30000000-0000-0000-0000-000000000020',
+      id: '30000000-0000-4000-8000-000000000020',
       name_uz: 'Galaxy S24 Ultra Ekran',
       name_ru: 'Экран Galaxy S24 Ultra',
       name_en: 'Galaxy S24 Ultra Screen',
@@ -94,7 +94,7 @@ exports.seed = async function (knex) {
       sort: 20,
     },
     {
-      id: '30000000-0000-0000-0000-000000000021',
+      id: '30000000-0000-4000-8000-000000000021',
       name_uz: 'Galaxy S24 Ekran',
       name_ru: 'Экран Galaxy S24',
       name_en: 'Galaxy S24 Screen',
@@ -105,7 +105,7 @@ exports.seed = async function (knex) {
       sort: 21,
     },
     {
-      id: '30000000-0000-0000-0000-000000000022',
+      id: '30000000-0000-4000-8000-000000000022',
       name_uz: 'Galaxy S23 Ekran',
       name_ru: 'Экран Galaxy S23',
       name_en: 'Galaxy S23 Screen',
@@ -116,7 +116,7 @@ exports.seed = async function (knex) {
       sort: 22,
     },
     {
-      id: '30000000-0000-0000-0000-000000000023',
+      id: '30000000-0000-4000-8000-000000000023',
       name_uz: 'Galaxy A54 Ekran',
       name_ru: 'Экран Galaxy A54',
       name_en: 'Galaxy A54 Screen',
@@ -127,7 +127,7 @@ exports.seed = async function (knex) {
       sort: 23,
     },
     {
-      id: '30000000-0000-0000-0000-000000000024',
+      id: '30000000-0000-4000-8000-000000000024',
       name_uz: 'Galaxy S24 Ultra Batareya',
       name_ru: 'Батарея Galaxy S24 Ultra',
       name_en: 'Galaxy S24 Ultra Battery',
@@ -138,7 +138,7 @@ exports.seed = async function (knex) {
       sort: 24,
     },
     {
-      id: '30000000-0000-0000-0000-000000000025',
+      id: '30000000-0000-4000-8000-000000000025',
       name_uz: 'Galaxy A54 Batareya',
       name_ru: 'Батарея Galaxy A54',
       name_en: 'Galaxy A54 Battery',
@@ -151,7 +151,7 @@ exports.seed = async function (knex) {
 
     // Xiaomi Parts
     {
-      id: '30000000-0000-0000-0000-000000000040',
+      id: '30000000-0000-4000-8000-000000000040',
       name_uz: 'Mi 14 Ultra Ekran',
       name_ru: 'Экран Mi 14 Ultra',
       name_en: 'Mi 14 Ultra Screen',
@@ -162,7 +162,7 @@ exports.seed = async function (knex) {
       sort: 40,
     },
     {
-      id: '30000000-0000-0000-0000-000000000041',
+      id: '30000000-0000-4000-8000-000000000041',
       name_uz: 'Redmi Note 13 Pro Ekran',
       name_ru: 'Экран Redmi Note 13 Pro',
       name_en: 'Redmi Note 13 Pro Screen',
@@ -173,7 +173,7 @@ exports.seed = async function (knex) {
       sort: 41,
     },
     {
-      id: '30000000-0000-0000-0000-000000000042',
+      id: '30000000-0000-4000-8000-000000000042',
       name_uz: 'POCO X6 Pro Ekran',
       name_ru: 'Экран POCO X6 Pro',
       name_en: 'POCO X6 Pro Screen',
@@ -184,7 +184,7 @@ exports.seed = async function (knex) {
       sort: 42,
     },
     {
-      id: '30000000-0000-0000-0000-000000000043',
+      id: '30000000-0000-4000-8000-000000000043',
       name_uz: 'Xiaomi Mi 14 Batareya',
       name_ru: 'Батарея Xiaomi Mi 14',
       name_en: 'Xiaomi Mi 14 Battery',
@@ -195,7 +195,7 @@ exports.seed = async function (knex) {
       sort: 43,
     },
     {
-      id: '30000000-0000-0000-0000-000000000044',
+      id: '30000000-0000-4000-8000-000000000044',
       name_uz: 'Redmi Note 13 Batareya',
       name_ru: 'Батарея Redmi Note 13',
       name_en: 'Redmi Note 13 Battery',
@@ -208,7 +208,7 @@ exports.seed = async function (knex) {
 
     // Common Parts
     {
-      id: '30000000-0000-0000-0000-000000000060',
+      id: '30000000-0000-4000-8000-000000000060',
       name_uz: 'USB-C Zaryadlash Kabeli',
       name_ru: 'Кабель зарядки USB-C',
       name_en: 'USB-C Charging Cable',
@@ -219,7 +219,7 @@ exports.seed = async function (knex) {
       sort: 60,
     },
     {
-      id: '30000000-0000-0000-0000-000000000061',
+      id: '30000000-0000-4000-8000-000000000061',
       name_uz: 'Lightning Zaryadlash Kabeli',
       name_ru: 'Кабель зарядки Lightning',
       name_en: 'Lightning Charging Cable',
@@ -230,7 +230,7 @@ exports.seed = async function (knex) {
       sort: 61,
     },
     {
-      id: '30000000-0000-0000-0000-000000000062',
+      id: '30000000-0000-4000-8000-000000000062',
       name_uz: 'Telefon Himoya Oynasi',
       name_ru: 'Защитное стекло для телефона',
       name_en: 'Phone Screen Protector',
@@ -241,7 +241,7 @@ exports.seed = async function (knex) {
       sort: 62,
     },
     {
-      id: '30000000-0000-0000-0000-000000000063',
+      id: '30000000-0000-4000-8000-000000000063',
       name_uz: 'Telefon Qopqogi',
       name_ru: 'Чехол для телефона',
       name_en: 'Phone Case',
@@ -252,7 +252,7 @@ exports.seed = async function (knex) {
       sort: 63,
     },
     {
-      id: '30000000-0000-0000-0000-000000000064',
+      id: '30000000-0000-4000-8000-000000000064',
       name_uz: 'SIM Karta Adapter',
       name_ru: 'Адаптер SIM карты',
       name_en: 'SIM Card Adapter',
@@ -263,7 +263,7 @@ exports.seed = async function (knex) {
       sort: 64,
     },
     {
-      id: '30000000-0000-0000-0000-000000000065',
+      id: '30000000-0000-4000-8000-000000000065',
       name_uz: 'Karnay (Speaker)',
       name_ru: 'Динамик',
       name_en: 'Speaker',
@@ -274,7 +274,7 @@ exports.seed = async function (knex) {
       sort: 65,
     },
     {
-      id: '30000000-0000-0000-0000-000000000066',
+      id: '30000000-0000-4000-8000-000000000066',
       name_uz: 'Mikrofon',
       name_ru: 'Микрофон',
       name_en: 'Microphone',
@@ -298,7 +298,7 @@ exports.seed = async function (knex) {
       description_ru: `Запчасть для ${part.name_ru}`,
       description_en: `Spare part for ${part.name_en}`,
       status: 'Open',
-      created_by: '00000000-0000-0000-0000-000000000000', // Super admin
+      created_by: '00000000-0000-4000-8000-000000000000', // Super admin
       created_at: knex.fn.now(),
       updated_at: knex.fn.now(),
     });
