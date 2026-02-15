@@ -13,7 +13,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiParam } from '@nestjs/swagger';
-import { AttachmentsService } from '../services/attachments.service';
+import { AttachmentsService, AttachmentResponse } from '../services/attachments.service';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 
@@ -33,7 +33,7 @@ export class AttachmentsController {
     @UploadedFile() file: Express.Multer.File,
     @Body() body: { description?: string },
     @CurrentAdmin() admin: AdminPayload,
-  ): Promise<unknown> {
+  ): Promise<AttachmentResponse> {
     return this.attachmentsService.uploadAttachment(
       repairOrderId,
       file,
@@ -48,7 +48,7 @@ export class AttachmentsController {
   async getAttachments(
     @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
     @CurrentAdmin() admin: AdminPayload,
-  ): Promise<unknown[]> {
+  ): Promise<AttachmentResponse[]> {
     return this.attachmentsService.getAttachments(repairOrderId, admin);
   }
 

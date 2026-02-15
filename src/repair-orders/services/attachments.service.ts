@@ -1,12 +1,30 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectKnex, Knex } from 'nestjs-knex';
 import { v4 as uuidv4 } from 'uuid';
-import * as path from 'path';
-import * as fs from 'fs/promises';
 import { RepairOrderChangeLoggerService } from './repair-order-change-logger.service';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { RepairOrder } from 'src/common/types/repair-order.interface';
+import { StorageService } from 'src/common/storage/storage.service';
+import sharp from 'sharp';
+
+export interface RepairOrderAttachment {
+  id: string;
+  repair_order_id: string;
+  original_name: string;
+  file_name: string;
+  file_path: string;
+  file_size: number;
+  mime_type: string;
+  description: string | null;
+  uploaded_by: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface AttachmentResponse extends RepairOrderAttachment {
+  urls: Record<string, string>;
+}
 
 @Injectable()
 export class AttachmentsService {
@@ -14,6 +32,7 @@ export class AttachmentsService {
     @InjectKnex() private readonly knex: Knex,
     private readonly changeLogger: RepairOrderChangeLoggerService,
     private readonly permissionService: RepairOrderStatusPermissionsService,
+    private readonly storageService: StorageService,
   ) {}
 
   async uploadAttachment(
@@ -21,14 +40,15 @@ export class AttachmentsService {
     file: Express.Multer.File,
     description: string,
     admin: AdminPayload,
-  ): Promise<unknown> {
+  ): Promise<AttachmentResponse> {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
 
-    const order: RepairOrder | undefined = await this.knex('repair_orders')
-      .where({ id: repairOrderId })
-      .first();
+    const order = (await this.knex('repair_orders').where({ id: repairOrderId }).first()) as
+      | RepairOrder
+      | undefined;
+
     if (!order) {
       throw new NotFoundException('Repair order not found');
     }
@@ -55,22 +75,55 @@ export class AttachmentsService {
       throw new BadRequestException('File size exceeds 5MB limit');
     }
 
-    const fileExtension = path.extname(file.originalname);
-    const fileName = `${uuidv4()}${fileExtension}`;
-    const uploadPath = path.join(process.cwd(), 'uploads', 'repair-orders', repairOrderId);
+    const attachmentId = uuidv4();
+    const fileExtension = file.originalname.split('.').pop() || '';
+    const basePath = `repair-orders/${repairOrderId}/${attachmentId}`;
+    const isImage = file.mimetype.startsWith('image/') && file.mimetype !== 'image/gif';
 
-    await fs.mkdir(uploadPath, { recursive: true });
+    if (isImage) {
+      // Process image variants with explicit format and quality
+      const format = file.mimetype === 'image/png' ? 'png' : 'jpeg';
 
-    const filePath = path.join(uploadPath, fileName);
-    await fs.writeFile(filePath, file.buffer);
+      const [small, medium, large] = await Promise.all([
+        sharp(file.buffer)
+          .resize(200, undefined, { withoutEnlargement: true })
+          [format]({ quality: 70 })
+          .toBuffer(),
+        sharp(file.buffer)
+          .resize(800, undefined, { withoutEnlargement: true })
+          [format]({ quality: 80 })
+          .toBuffer(),
+        sharp(file.buffer)
+          .resize(1200, undefined, { withoutEnlargement: true })
+          [format]({ quality: 90 })
+          .toBuffer(),
+      ]);
 
-    const attachment = await this.knex('repair_order_attachments')
+      await Promise.all([
+        this.storageService.upload(`${basePath}-small.${fileExtension}`, small, {
+          'Content-Type': file.mimetype,
+        }),
+        this.storageService.upload(`${basePath}-medium.${fileExtension}`, medium, {
+          'Content-Type': file.mimetype,
+        }),
+        this.storageService.upload(`${basePath}-large.${fileExtension}`, large, {
+          'Content-Type': file.mimetype,
+        }),
+      ]);
+    } else {
+      // Upload single file
+      await this.storageService.upload(`${basePath}.${fileExtension}`, file.buffer, {
+        'Content-Type': file.mimetype,
+      });
+    }
+
+    const attachment = (await this.knex('repair_order_attachments')
       .insert({
-        id: uuidv4(),
+        id: attachmentId,
         repair_order_id: repairOrderId,
         original_name: file.originalname,
-        file_name: fileName,
-        file_path: filePath,
+        file_name: `${attachmentId}.${fileExtension}`,
+        file_path: basePath, // Store base path
         file_size: file.size,
         mime_type: file.mimetype,
         description: description || null,
@@ -78,7 +131,7 @@ export class AttachmentsService {
         created_at: new Date(),
         updated_at: new Date(),
       })
-      .returning('*');
+      .returning('*')) as RepairOrderAttachment[];
 
     await this.changeLogger.logChange(
       repairOrderId,
@@ -90,13 +143,20 @@ export class AttachmentsService {
       admin.id,
     );
 
-    return attachment[0] as unknown;
+    const result = attachment[0];
+    return {
+      ...result,
+      urls: isImage
+        ? await this.storageService.getMultipleUrls(basePath, fileExtension)
+        : { original: await this.storageService.generateUrl(`${basePath}.${fileExtension}`) },
+    };
   }
 
-  async getAttachments(repairOrderId: string, admin: AdminPayload): Promise<unknown[]> {
-    const order: RepairOrder | undefined = await this.knex('repair_orders')
-      .where({ id: repairOrderId })
-      .first();
+  async getAttachments(repairOrderId: string, admin: AdminPayload): Promise<AttachmentResponse[]> {
+    const order = (await this.knex('repair_orders').where({ id: repairOrderId }).first()) as
+      | RepairOrder
+      | undefined;
+
     if (!order) {
       throw new NotFoundException('Repair order not found');
     }
@@ -114,9 +174,28 @@ export class AttachmentsService {
       permissions,
     );
 
-    return this.knex('repair_order_attachments')
+    const attachments = (await this.knex('repair_order_attachments')
       .where({ repair_order_id: repairOrderId })
-      .orderBy('created_at', 'desc');
+      .orderBy('created_at', 'desc')) as RepairOrderAttachment[];
+
+    return Promise.all(
+      attachments.map(async (attachment) => {
+        const isImage =
+          attachment.mime_type.startsWith('image/') && attachment.mime_type !== 'image/gif';
+        const fileExtension = attachment.original_name.split('.').pop() || '';
+
+        return {
+          ...attachment,
+          urls: isImage
+            ? await this.storageService.getMultipleUrls(attachment.file_path, fileExtension)
+            : {
+                original: await this.storageService.generateUrl(
+                  `${attachment.file_path}.${fileExtension}`,
+                ),
+              },
+        };
+      }),
+    );
   }
 
   async deleteAttachment(
@@ -124,9 +203,10 @@ export class AttachmentsService {
     attachmentId: string,
     admin: AdminPayload,
   ): Promise<{ message: string }> {
-    const order: RepairOrder | undefined = await this.knex('repair_orders')
-      .where({ id: repairOrderId })
-      .first();
+    const order = (await this.knex('repair_orders').where({ id: repairOrderId }).first()) as
+      | RepairOrder
+      | undefined;
+
     if (!order) {
       throw new NotFoundException('Repair order not found');
     }
@@ -144,18 +224,30 @@ export class AttachmentsService {
       permissions,
     );
 
-    const attachment = await this.knex('repair_order_attachments')
+    const attachment = (await this.knex('repair_order_attachments')
       .where({ id: attachmentId, repair_order_id: repairOrderId })
-      .first();
+      .first()) as RepairOrderAttachment | undefined;
 
     if (!attachment) {
       throw new NotFoundException('Attachment not found');
     }
 
     try {
-      await fs.unlink(String(attachment.file_path));
+      const isImage =
+        attachment.mime_type.startsWith('image/') && attachment.mime_type !== 'image/gif';
+      const fileExtension = attachment.original_name.split('.').pop() || '';
+
+      if (isImage) {
+        await Promise.all([
+          this.storageService.delete(`${attachment.file_path}-small.${fileExtension}`),
+          this.storageService.delete(`${attachment.file_path}-medium.${fileExtension}`),
+          this.storageService.delete(`${attachment.file_path}-large.${fileExtension}`),
+        ]);
+      } else {
+        await this.storageService.delete(`${attachment.file_path}.${fileExtension}`);
+      }
     } catch (error) {
-      console.warn('Failed to delete file from filesystem:', error);
+      console.warn('Failed to delete file from MinIO:', error);
     }
 
     await this.knex('repair_order_attachments').where({ id: attachmentId }).del();

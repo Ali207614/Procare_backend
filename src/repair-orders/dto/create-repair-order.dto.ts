@@ -146,9 +146,32 @@ class RentalPhoneDto {
 }
 
 export class CreateRepairOrderDto {
-  @ApiProperty({ description: 'User ID', example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec' })
+  @ApiPropertyOptional({
+    description: 'User ID (optional if first_name + phone provided)',
+    example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec',
+  })
+  @IsOptional()
+  @ValidateIf((o) => o.user_id !== undefined)
   @IsUUID('all', { message: 'Invalid user ID' })
-  user_id!: string;
+  user_id?: string;
+
+  @ApiPropertyOptional({ description: 'Client first name', example: 'Asilbek', maxLength: 100 })
+  @IsOptional()
+  @IsString({ message: 'First name must be a string' })
+  @MaxLength(100, { message: 'First name must not exceed 100 characters' })
+  first_name?: string;
+
+  @ApiPropertyOptional({ description: 'Client last name', example: 'Azimov', maxLength: 100 })
+  @IsOptional()
+  @IsString({ message: 'Last name must be a string' })
+  @MaxLength(100, { message: 'Last name must not exceed 100 characters' })
+  last_name?: string;
+
+  @ApiPropertyOptional({ description: 'Client phone number', example: '+998901234567' })
+  @IsOptional()
+  @IsString({ message: 'Phone must be a string' })
+  @MaxLength(20, { message: 'Phone must not exceed 20 characters' })
+  phone?: string;
 
   @ApiProperty({
     description: 'Phone category ID',

@@ -63,6 +63,7 @@ import { TemplatesModule } from './templates/templates.module';
 import { UsersController } from './users/users.controller';
 import { UsersModule } from './users/users.module';
 import { UsersService } from './users/users.service';
+import { StorageModule } from './common/storage/storage.module';
 
 @Module({
   imports: [
@@ -98,6 +99,7 @@ import { UsersService } from './users/users.service';
     TemplatesModule,
     CampaignsModule,
     TelegramModule,
+    StorageModule,
   ],
   controllers: [
     AuthController,

@@ -59,12 +59,55 @@ export class RepairOrdersService {
         permissions,
       );
 
-      const user = await trx('users').where({ id: dto.user_id, status: 'Open' }).first();
-      if (!user)
+      // ── Resolve user: either by user_id or by inline client info ──
+      const currentStatusPermission = permissions.find((p) => p.status_id === statusId);
+      let resolvedUserId: string | undefined = dto.user_id;
+      let resolvedPhoneNumber = '';
+      let resolvedName: string | null = null;
+
+      if (dto.user_id) {
+        // Flow 1: existing user_id provided
+        const user = await trx('users').where({ id: dto.user_id, status: 'Open' }).first();
+        if (!user)
+          throw new BadRequestException({
+            message: 'User not found or inactive',
+            location: 'user_id',
+          });
+        resolvedPhoneNumber = user.phone_number1 || '';
+        resolvedName = [user.first_name, user.last_name].filter(Boolean).join(' ') || null;
+      } else if (dto.phone) {
+        // Flow 2: inline client info (first_name, last_name, phone)
+        const existingUser = await trx('users')
+          .whereRaw('LOWER(phone_number1) = ?', dto.phone.toLowerCase())
+          .andWhereNot({ status: 'Deleted' })
+          .first();
+
+        if (existingUser) {
+          resolvedUserId = existingUser.id;
+        } else if (currentStatusPermission?.can_create_user) {
+          const [newUser] = await trx('users')
+            .insert({
+              first_name: dto.first_name || '',
+              last_name: dto.last_name || '',
+              phone_number1: dto.phone,
+              is_active: true,
+              source: 'employee',
+              created_by: admin.id,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              status: 'Open',
+            })
+            .returning('*');
+          resolvedUserId = newUser.id;
+        }
+        resolvedPhoneNumber = dto.phone;
+        resolvedName = [dto.first_name, dto.last_name].filter(Boolean).join(' ') || null;
+      } else {
         throw new BadRequestException({
-          message: 'User not found or inactive',
+          message: 'Either user_id or phone must be provided',
           location: 'user_id',
         });
+      }
 
       const phoneCategory = await trx('phone_categories as pc')
         .select(
@@ -88,7 +131,7 @@ export class RepairOrdersService {
 
       const sort = await getNextSortValue(trx, this.table, { where: { branch_id: branchId } });
       const insertData: Partial<RepairOrder> = {
-        user_id: dto.user_id,
+        user_id: resolvedUserId,
         branch_id: branchId,
         phone_category_id: dto.phone_category_id,
         priority: dto.priority || 'Medium',
@@ -97,8 +140,8 @@ export class RepairOrdersService {
         delivery_method: 'Self',
         pickup_method: 'Self',
         created_by: admin.id,
-        phone_number: user.phone_number1 || '',
-        name: [user.first_name, user.last_name].filter(Boolean).join(' ') || null,
+        phone_number: resolvedPhoneNumber,
+        name: resolvedName,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -557,46 +600,17 @@ export class RepairOrdersService {
       const updates: Partial<RepairOrder> = {};
       const logs: { key: string; oldVal: unknown; newVal: unknown }[] = [];
 
-      // Check if target status has can_create_user enabled
-      const targetPermission = permissions.find((p) => p.status_id === dto.status_id);
+      // If the order has no linked user yet, check whether the target status
+      // has can_create_user enabled and, if so, find-or-create the user.
+      if (!order.user_id) {
+        const targetPermission = permissions.find((p) => p.status_id === dto.status_id);
 
-      if (targetPermission?.can_create_user) {
-        // Cast order to type with client info fields
-        const orderWithClientInfo = order as RepairOrder & {
-          first_name?: string;
-          last_name?: string;
-          phone?: string;
-        };
-        const { first_name, last_name, phone } = orderWithClientInfo;
+        if (targetPermission?.can_create_user) {
+          const linkedUserId = await this.ensureUserLinked(trx, order, admin.id);
 
-        if (phone) {
-          const existingUser = await trx('users')
-            .whereRaw('LOWER(phone_number1) = ?', phone.toLowerCase())
-            .andWhereNot({ status: 'Deleted' })
-            .first();
-
-          let targetUserId = existingUser?.id;
-
-          if (!existingUser) {
-            const [newUser] = await trx('users')
-              .insert({
-                first_name: first_name || '',
-                last_name: last_name || '',
-                phone_number1: phone,
-                is_active: true,
-                source: 'employee',
-                created_by: admin.id,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-                status: 'Open',
-              })
-              .returning('id');
-            targetUserId = newUser.id;
-          }
-
-          if (targetUserId && targetUserId !== order.user_id) {
-            updates.user_id = targetUserId;
-            logs.push({ key: 'user_id', oldVal: order.user_id, newVal: targetUserId });
+          if (linkedUserId) {
+            updates.user_id = linkedUserId;
+            logs.push({ key: 'user_id', oldVal: order.user_id, newVal: linkedUserId });
           }
         }
       }
@@ -946,5 +960,52 @@ export class RepairOrdersService {
       await trx.rollback();
       throw error;
     }
+  }
+
+  /**
+   * Finds an existing user by the repair order's phone_number column,
+   * or creates a new one using phone_number + name from the order.
+   *
+   * @returns The user ID to assign, or null if phone_number is missing.
+   */
+  private async ensureUserLinked(
+    trx: Knex.Transaction,
+    order: RepairOrder,
+    adminId: string,
+  ): Promise<string | null> {
+    const phone = order.phone_number;
+    if (!phone) return null;
+
+    // Try to find an existing, non-deleted user with the same phone
+    const existingUser: { id: string } | undefined = await trx('users')
+      .whereRaw('LOWER(phone_number1) = ?', phone.toLowerCase())
+      .andWhereNot({ status: 'Deleted' })
+      .first();
+
+    if (existingUser) {
+      return existingUser.id;
+    }
+
+    // Split the single "name" column (e.g. "Asilbek Azimov") into first/last
+    const fullName = (order.name || '').trim();
+    const spaceIndex = fullName.indexOf(' ');
+    const firstName = spaceIndex > -1 ? fullName.substring(0, spaceIndex) : fullName;
+    const lastName = spaceIndex > -1 ? fullName.substring(spaceIndex + 1) : '';
+
+    const [newUser]: { id: string }[] = await trx('users')
+      .insert({
+        first_name: firstName,
+        last_name: lastName,
+        phone_number1: phone,
+        is_active: true,
+        source: 'employee',
+        created_by: adminId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        status: 'Open',
+      })
+      .returning('id');
+
+    return newUser.id;
   }
 }
