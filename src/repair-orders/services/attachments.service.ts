@@ -5,6 +5,7 @@ import { RepairOrderChangeLoggerService } from './repair-order-change-logger.ser
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { RepairOrder } from 'src/common/types/repair-order.interface';
+import { AttachmentResponseDto } from '../dto/attachment-response.dto';
 import { StorageService } from 'src/common/storage/storage.service';
 import sharp from 'sharp';
 
@@ -22,10 +23,6 @@ export interface RepairOrderAttachment {
   updated_at: Date;
 }
 
-export interface AttachmentResponse extends RepairOrderAttachment {
-  urls: Record<string, string>;
-}
-
 @Injectable()
 export class AttachmentsService {
   constructor(
@@ -40,7 +37,7 @@ export class AttachmentsService {
     file: Express.Multer.File,
     description: string,
     admin: AdminPayload,
-  ): Promise<AttachmentResponse> {
+  ): Promise<AttachmentResponseDto> {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
@@ -152,7 +149,10 @@ export class AttachmentsService {
     };
   }
 
-  async getAttachments(repairOrderId: string, admin: AdminPayload): Promise<AttachmentResponse[]> {
+  async getAttachments(
+    repairOrderId: string,
+    admin: AdminPayload,
+  ): Promise<AttachmentResponseDto[]> {
     const order = (await this.knex('repair_orders').where({ id: repairOrderId }).first()) as
       | RepairOrder
       | undefined;

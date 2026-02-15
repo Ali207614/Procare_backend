@@ -14,3 +14,4 @@ export { UpdateRentalPhoneDto } from './update-rental-phone.dto';
 export { UpdateProductDto } from './update-product.dto';
 export { UpdateProblemDto } from './update-problem.dto';
 export { TransferBranchDto } from './transfer-branch.dto';
+export { AttachmentResponseDto, UploadAttachmentDto } from './attachment-response.dto';
