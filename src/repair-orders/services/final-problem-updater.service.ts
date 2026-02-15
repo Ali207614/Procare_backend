@@ -65,41 +65,59 @@ export class FinalProblemUpdaterService {
     const phoneCategoryId = order.phone_category_id;
     const problemIds = problems.map((p) => p.problem_category_id);
 
-    // Validate problems
-    const rootRows = await trx
+    const existingCategories = await trx('problem_categories')
+      .whereIn('id', problemIds)
+      .andWhere({ status: 'Open', is_active: true })
+      .select<{ id: string }[]>('id');
+
+    if (existingCategories.length !== problemIds.length) {
+      const existingIds = existingCategories.map((c) => c.id);
+      const missing = problemIds.filter((id) => !existingIds.includes(id));
+      throw new BadRequestException({
+        message: 'Some final problem categories are not found or inactive',
+        location: 'final_problems',
+        missing_ids: missing,
+      });
+    }
+
+    const pathRows = await trx
       .withRecursive('problem_path', (qb) => {
         void qb
-          .select('id', 'parent_id')
+          .select('id', 'parent_id', 'id as start_id')
           .from('problem_categories')
           .whereIn('id', problemIds)
           .unionAll(function () {
-            void this.select('p.id', 'p.parent_id')
+            void this.select('p.id', 'p.parent_id', 'pp.start_id')
               .from('problem_categories as p')
               .join('problem_path as pp', 'pp.parent_id', 'p.id');
           });
       })
-      .select<{ id: string }[]>('id')
-      .from('problem_path')
-      .whereNull('parent_id');
+      .select<{ id: string; start_id: string }[]>('id', 'start_id')
+      .from('problem_path');
 
-    const rootProblemIds = rootRows.map((r) => r.id);
-
-    const allowed: string[] = await trx('phone_problem_mappings')
+    const mappedCategoryIds: string[] = await trx('phone_problem_mappings')
       .where({ phone_category_id: phoneCategoryId })
-      .whereIn('problem_category_id', rootProblemIds)
       .pluck('problem_category_id');
 
-    const invalid = rootProblemIds.filter((id) => !allowed.includes(id));
+    const allowedStartIds = new Set(
+      pathRows.filter((row) => mappedCategoryIds.includes(row.id)).map((row) => row.start_id),
+    );
+
+    const invalid = problemIds.filter((id) => !allowedStartIds.has(id));
     if (invalid.length) {
       throw new BadRequestException({
         message: 'Some final problems are not allowed for this phone category',
         location: 'final_problems',
+        invalid_problem_ids: invalid,
       });
     }
 
     // Delete old problems and parts
     await trx('repair_order_final_problems').where({ repair_order_id: orderId }).delete();
-    await trx('repair_order_parts').where({ repair_order_id: orderId }).delete();
+    await trx('repair_order_parts')
+      .where({ repair_order_id: orderId })
+      .whereNotNull('repair_order_final_problem_id')
+      .delete();
 
     const now = new Date();
 
@@ -126,39 +144,45 @@ export class FinalProblemUpdaterService {
     const allParts = problems.flatMap((p) => p.parts || []);
     const allPartIds = [...new Set(allParts.map((p) => p.id))];
 
-    const partRows = await trx('repair_parts')
-      .whereIn('id', allPartIds)
-      .select('id', 'problem_category_id');
+    if (allPartIds.length > 0) {
+      const partAssignments = await trx('repair_part_assignments')
+        .whereIn('repair_part_id', allPartIds)
+        .select('repair_part_id', 'problem_category_id');
 
-    const partMap = Object.fromEntries(partRows.map((r) => [r.id, r.problem_category_id]));
+      const allowedPartSet = new Set(
+        partAssignments.map((r) => `${r.repair_part_id}:${r.problem_category_id}`),
+      );
 
-    const duplicateParts = problems.flatMap((p) => {
-      const seen = new Set<string>();
-      return (p.parts || []).filter((pt) => {
-        const key = `${p.problem_category_id}:${pt.id}`;
-        if (seen.has(key)) return true;
-        seen.add(key);
-        return false;
+      const duplicateParts = problems.flatMap((p) => {
+        const seen = new Set<string>();
+        return (p.parts || []).filter((pt) => {
+          const key = `${p.problem_category_id}:${pt.id}`;
+          if (seen.has(key)) return true;
+          seen.add(key);
+          return false;
+        });
       });
-    });
 
-    if (duplicateParts.length > 0) {
-      throw new BadRequestException({
-        message: 'Duplicate parts found in one or more final problems',
-        location: 'final_problems.parts',
-      });
-    }
+      if (duplicateParts.length > 0) {
+        throw new BadRequestException({
+          message: 'Duplicate parts found in one or more final problems',
+          location: 'final_problems.parts',
+        });
+      }
 
-    const invalidParts = problems.flatMap((p) =>
-      (p.parts || []).filter((pt) => partMap[pt.id] !== p.problem_category_id).map((pt) => pt.id),
-    );
+      const invalidParts = problems.flatMap((p) =>
+        (p.parts || [])
+          .filter((pt) => !allowedPartSet.has(`${pt.id}:${p.problem_category_id}`))
+          .map((pt) => pt.id),
+      );
 
-    if (invalidParts.length > 0) {
-      throw new BadRequestException({
-        message: 'Some parts do not belong to the specified problem category',
-        location: 'final_problems.parts',
-        invalid_part_ids: [...new Set(invalidParts)],
-      });
+      if (invalidParts.length > 0) {
+        throw new BadRequestException({
+          message: 'Some parts do not belong to the specified problem category',
+          location: 'final_problems.parts',
+          invalid_part_ids: [...new Set(invalidParts)],
+        });
+      }
     }
 
     // Insert parts

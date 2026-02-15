@@ -37,40 +37,50 @@ export async function validateAndInsertProblems(
     allPermissions,
   );
 
-  const row: { problem_category_id: string } = await trx('phone_problem_mappings')
-    .where({ phone_category_id: phoneCategoryId })
-    .first<{ problem_category_id: string }>();
-
-  const rootProblemId = row?.problem_category_id;
-  if (!rootProblemId) {
-    throw new BadRequestException({
-      message: 'No root problem is configured for this phone category',
-      location: locationKey,
-    });
-  }
-
-  const rawResult: Array<{ id: string }> = await trx
-    .withRecursive('descendants', (qb) => {
-      void qb
-        .select('id')
-        .from('problem_categories')
-        .where('id', rootProblemId)
-        .unionAll(function () {
-          void this.select('c.id')
-            .from('problem_categories as c')
-            .join('descendants as d', 'c.parent_id', 'd.id')
-            .where({ 'c.is_active': true, 'c.status': 'Open' });
-        });
-    })
-    .select('id')
-    .from('descendants');
-
-  const allowedProblemIds: string[] = rawResult.map((r: { id: string }) => r.id);
   const submittedProblemIds: string[] = problems.map(
     (p: ProblemWithParts) => p.problem_category_id,
   );
+
+  const existingCategories = await trx('problem_categories')
+    .whereIn('id', submittedProblemIds)
+    .andWhere({ status: 'Open', is_active: true })
+    .select<{ id: string }[]>('id');
+
+  if (existingCategories.length !== submittedProblemIds.length) {
+    const existingIds = existingCategories.map((c) => c.id);
+    const missing = submittedProblemIds.filter((id) => !existingIds.includes(id));
+    throw new BadRequestException({
+      message: 'Some problem categories are not found or inactive',
+      location: locationKey,
+      missing_ids: missing,
+    });
+  }
+
+  const pathRows = await trx
+    .withRecursive('problem_path', (qb) => {
+      void qb
+        .select('id', 'parent_id', 'id as start_id')
+        .from('problem_categories')
+        .whereIn('id', submittedProblemIds)
+        .unionAll(function () {
+          void this.select('p.id', 'p.parent_id', 'pp.start_id')
+            .from('problem_categories as p')
+            .join('problem_path as pp', 'pp.parent_id', 'p.id');
+        });
+    })
+    .select<{ id: string; start_id: string }[]>('id', 'start_id')
+    .from('problem_path');
+
+  const mappedCategoryIds: string[] = await trx('phone_problem_mappings')
+    .where({ phone_category_id: phoneCategoryId })
+    .pluck('problem_category_id');
+
+  const allowedStartIds = new Set(
+    pathRows.filter((row) => mappedCategoryIds.includes(row.id)).map((row) => row.start_id),
+  );
+
   const invalidProblemIds: string[] = submittedProblemIds.filter(
-    (id: string) => !allowedProblemIds.includes(id),
+    (id: string) => !allowedStartIds.has(id),
   );
 
   if (invalidProblemIds.length) {
@@ -108,12 +118,12 @@ export async function validateAndInsertProblems(
   const uniquePartIds: string[] = [...new Set(allPartIds)];
 
   if (uniquePartIds.length > 0) {
-    const partRows = await trx('repair_part_assignments')
+    const partAssignments = await trx('repair_part_assignments')
       .whereIn('repair_part_id', uniquePartIds)
       .select('repair_part_id', 'problem_category_id');
 
-    const partMap = Object.fromEntries(
-      partRows.map((r) => [r.repair_part_id, r.problem_category_id]),
+    const allowedPartSet = new Set(
+      partAssignments.map((r) => `${r.repair_part_id}:${r.problem_category_id}`),
     );
 
     const duplicates = allPartIds.filter((id, index, self) => self.indexOf(id) !== index);
@@ -129,7 +139,7 @@ export async function validateAndInsertProblems(
     for (const problem of problems) {
       const partList = problem.parts || [];
       for (const part of partList) {
-        if (partMap[part.id] !== problem.problem_category_id) {
+        if (!allowedPartSet.has(`${part.id}:${problem.problem_category_id}`)) {
           invalidParts.push(part.id);
         }
       }
