@@ -52,8 +52,8 @@ export class AssignAdminUpdaterService {
 
       const uniqueIds = [...new Set(adminIds)];
 
-      const existing = await trx('admins').whereIn('id', uniqueIds).pluck('id');
-      const notFound = uniqueIds.filter((id) => !existing.includes(id));
+      const existingAdmins = await trx('admins').whereIn('id', uniqueIds).pluck('id');
+      const notFound = uniqueIds.filter((id) => !existingAdmins.includes(id));
 
       if (notFound.length) {
         throw new BadRequestException({
@@ -63,16 +63,29 @@ export class AssignAdminUpdaterService {
         });
       }
 
+      // Filter out admins already assigned to this order
+      const alreadyAssigned = await trx('repair_order_assign_admins')
+        .where('repair_order_id', orderId)
+        .whereIn('admin_id', uniqueIds)
+        .pluck('admin_id');
+
+      const idsToAssign = uniqueIds.filter((id) => !alreadyAssigned.includes(id));
+
+      if (idsToAssign.length === 0) return;
+
       const now = new Date();
-      const rows = uniqueIds.map((id) => ({
+      const rows = idsToAssign.map((id) => ({
         repair_order_id: orderId,
         admin_id: id,
         created_at: now,
       }));
 
-      await trx('repair_order_assign_admins').insert(rows);
+      await trx('repair_order_assign_admins')
+        .insert(rows)
+        .onConflict(['repair_order_id', 'admin_id'])
+        .ignore();
 
-      const notifications = uniqueIds.map((adminId) => ({
+      const notifications = idsToAssign.map((adminId) => ({
         admin_id: adminId,
         title: 'Yangi buyurtma tayinlandi',
         message: 'Sizga yangi repair order biriktirildi.',
@@ -89,7 +102,7 @@ export class AssignAdminUpdaterService {
 
       await trx('notifications').insert(notifications);
 
-      await this.notificationService.notifyAdmins(trx, uniqueIds, {
+      await this.notificationService.notifyAdmins(trx, idsToAssign, {
         title: 'Yangi buyurtma',
         message: 'Sizga yangi buyurtma biriktirildi.',
         meta: {
@@ -98,7 +111,7 @@ export class AssignAdminUpdaterService {
         },
       });
 
-      await this.changeLogger.logIfChanged(trx, orderId, 'admin_ids', [], uniqueIds, admin.id);
+      await this.changeLogger.logIfChanged(trx, orderId, 'admin_ids', [], idsToAssign, admin.id);
     });
 
     if (branchId) {

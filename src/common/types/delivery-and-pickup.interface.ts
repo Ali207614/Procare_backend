@@ -10,6 +10,7 @@ export interface RepairOrderPickup {
   created_by: string;
   created_at: string;
   updated_at: string;
+  updated_by: string | null;
 }
 
 export interface RepairOrderDelivery {
@@ -23,4 +24,5 @@ export interface RepairOrderDelivery {
   created_by: string;
   created_at: string;
   updated_at: string;
+  updated_by: string | null;
 }

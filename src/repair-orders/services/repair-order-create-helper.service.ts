@@ -181,7 +181,10 @@ export class RepairOrderCreateHelperService {
         admin_id: id,
         created_at: now,
       }));
-      await trx('repair_order_assign_admins').insert(rows);
+      await trx('repair_order_assign_admins')
+        .insert(rows)
+        .onConflict(['repair_order_id', 'admin_id'])
+        .ignore();
 
       const order = await trx('repair_orders').where({ id: orderId }).first();
       if (order) {

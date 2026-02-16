@@ -61,7 +61,7 @@ SELECT
         'name_en', b.name_en
     )), '{}'::jsonb) AS branch,
     COALESCE((
-        SELECT json_agg(jsonb_build_object(
+        SELECT json_agg(DISTINCT jsonb_build_object(
             'id', aa.admin_id,
             'first_name', a.first_name,
             'last_name', a.last_name,

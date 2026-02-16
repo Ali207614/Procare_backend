@@ -72,15 +72,13 @@ SELECT
 
 /* === Assigned Admins === */
 COALESCE((
-        SELECT json_agg(
-            jsonb_build_object(
-                'id', aa.admin_id,
-                'first_name', a.first_name,
-                'last_name', a.last_name,
-                'phone_number', a.phone_number,
-                'created_at', aa.created_at
-            )
-        )
+        SELECT json_agg(DISTINCT jsonb_build_object(
+            'id', aa.admin_id,
+            'first_name', a.first_name,
+            'last_name', a.last_name,
+            'phone_number', a.phone_number,
+            'created_at', aa.created_at
+        ))
         FROM repair_order_assign_admins aa
         INNER JOIN admins a ON aa.admin_id = a.id
         WHERE aa.repair_order_id = ro.id
