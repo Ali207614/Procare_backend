@@ -823,29 +823,50 @@ export class RepairOrdersService {
       throw new NotFoundException('Repair order not found');
     }
 
-    const existingProblem = await this.knex('repair_order_problems')
-      .where({ id: problemId, repair_order_id: repairOrderId })
-      .first();
-
-    if (!existingProblem) {
-      throw new NotFoundException('Problem not found');
-    }
-
-    const permissions = await this.permissionService.findByRolesAndBranch(
-      admin.roles,
-      order.branch_id,
-    );
-    await this.permissionService.checkPermissionsOrThrow(
-      admin.roles,
-      order.branch_id,
-      order.status_id,
-      ['can_update'],
-      'repair_order_update',
-      permissions,
-    );
-
     const trx = await this.knex.transaction();
     try {
+      let problemType: 'initial' | 'final' | null = null;
+
+      // 1. Identify if it's an initial or final problem
+      let existingProblem = await trx('repair_order_initial_problems')
+        .where({ id: problemId, repair_order_id: repairOrderId })
+        .first();
+
+      if (existingProblem) {
+        problemType = 'initial';
+      } else {
+        existingProblem = await trx('repair_order_final_problems')
+          .where({ id: problemId, repair_order_id: repairOrderId })
+          .first();
+        if (existingProblem) {
+          problemType = 'final';
+        }
+      }
+
+      if (!problemType) {
+        await trx.rollback();
+        throw new NotFoundException('Problem not found');
+      }
+
+      const permissions = await this.permissionService.findByRolesAndBranch(
+        admin.roles,
+        order.branch_id,
+      );
+      await this.permissionService.checkPermissionsOrThrow(
+        admin.roles,
+        order.branch_id,
+        order.status_id,
+        ['can_update'],
+        'repair_order_update',
+        permissions,
+      );
+
+      // 2. Update problem details
+      const problemTableName =
+        problemType === 'initial'
+          ? 'repair_order_initial_problems'
+          : 'repair_order_final_problems';
+
       const updateFields: Record<string, unknown> = {};
       if (updateDto.problem_category_id !== undefined)
         updateFields.problem_category_id = updateDto.problem_category_id;
@@ -855,23 +876,31 @@ export class RepairOrdersService {
 
       if (Object.keys(updateFields).length > 0) {
         updateFields.updated_at = new Date();
-
-        await trx('repair_order_problems').where({ id: problemId }).update(updateFields);
+        await trx(problemTableName).where({ id: problemId }).update(updateFields);
       }
 
+      // 3. Update parts
       if (updateDto.parts !== undefined) {
-        await trx('repair_order_problem_parts').where({ repair_order_problem_id: problemId }).del();
+        const idColumn =
+          problemType === 'initial'
+            ? 'repair_order_initial_problem_id'
+            : 'repair_order_final_problem_id';
+
+        await trx('repair_order_parts').where({ [idColumn]: problemId }).del();
 
         if (updateDto.parts.length > 0) {
-          const partsData = updateDto.parts.map((partId) => ({
-            id: uuidv4(),
-            repair_order_problem_id: problemId,
-            part_id: partId,
+          const partsData = updateDto.parts.map((p) => ({
+            repair_order_id: repairOrderId,
+            [idColumn]: problemId,
+            repair_part_id: p.id,
+            part_price: p.part_price,
+            quantity: p.quantity,
+            created_by: admin.id,
             created_at: new Date(),
             updated_at: new Date(),
           }));
 
-          await trx('repair_order_problem_parts').insert(partsData);
+          await trx('repair_order_parts').insert(partsData);
         }
       }
 

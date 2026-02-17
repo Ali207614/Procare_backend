@@ -17,7 +17,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-class ProblemPartInputDto {
+export class ProblemPartInputDto {
   @ApiProperty({
     description: 'Repair part ID',
     example: '7b2e2f60-5f0c-4c44-b2bb-6d7d0eeb7c6c',
@@ -42,7 +42,7 @@ class ProblemPartInputDto {
   quantity!: number;
 }
 
-class ProblemDto {
+export class ProblemDto {
   @ApiProperty({
     description: 'Problem category ID',
     example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec',

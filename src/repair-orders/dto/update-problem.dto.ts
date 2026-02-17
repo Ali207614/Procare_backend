@@ -1,4 +1,22 @@
-import { IsUUID, IsOptional, IsNumber, Min, IsArray, ArrayUnique } from 'class-validator';
+import { IsUUID, IsOptional, IsNumber, Min, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+
+class ProblemPartDto {
+  @ApiPropertyOptional()
+  @IsUUID('all')
+  id!: string;
+
+  @ApiPropertyOptional()
+  @IsNumber()
+  @Min(0)
+  part_price!: number;
+
+  @ApiPropertyOptional()
+  @IsNumber()
+  @Min(1)
+  quantity!: number;
+}
 
 export class UpdateProblemDto {
   @IsOptional()
@@ -17,7 +35,7 @@ export class UpdateProblemDto {
 
   @IsOptional()
   @IsArray()
-  @ArrayUnique()
-  @IsUUID(undefined, { each: true })
-  parts?: string[];
+  @ValidateNested({ each: true })
+  @Type(() => ProblemPartDto)
+  parts?: ProblemPartDto[];
 }

@@ -102,7 +102,111 @@ COALESCE((
         FROM repair_order_rental_phones rp
         WHERE rp.repair_order_id = ro.id AND rp.status != 'Cancelled'
         LIMIT 1
-    ), '{}'::jsonb) AS rental_phone
+    ), '{}'::jsonb) AS rental_phone,
+
+    COALESCE((
+        SELECT json_agg(
+            jsonb_build_object(
+                'id', ip.id,
+                'problem_category', jsonb_build_object(
+                    'id', pc_ip.id,
+                    'name_uz', pc_ip.name_uz,
+                    'name_ru', pc_ip.name_ru,
+                    'name_en', pc_ip.name_en
+                ),
+                'price', ip.price,
+                'estimated_minutes', ip.estimated_minutes,
+                'created_by', ip.created_by,
+                'created_at', ip.created_at,
+                'updated_at', ip.updated_at,
+                'parts', COALESCE((
+                    SELECT json_agg(
+                        jsonb_build_object(
+                            'id', rparts.id,
+                            'repair_part', jsonb_build_object(
+                                'id', rp_part.id,
+                                'name_uz', rp_part.part_name_uz,
+                                'name_ru', rp_part.part_name_ru,
+                                'name_en', rp_part.part_name_en,
+                                'price', rp_part.part_price,
+                                'quantity', rp_part.quantity,
+                                'description_uz', rp_part.description_uz,
+                                'description_ru', rp_part.description_ru,
+                                'description_en', rp_part.description_en,
+                                'status', rp_part.status,
+                                'created_by', rp_part.created_by,
+                                'created_at', rp_part.created_at,
+                                'updated_at', rp_part.updated_at
+                            ),
+                            'quantity', rparts.quantity,
+                            'part_price', rparts.part_price,
+                            'created_by', rparts.created_by,
+                            'created_at', rparts.created_at,
+                            'updated_at', rparts.updated_at
+                        )
+                    )
+                    FROM repair_order_parts rparts
+                    LEFT JOIN repair_parts rp_part ON rparts.repair_part_id = rp_part.id
+                    WHERE rparts.repair_order_initial_problem_id = ip.id
+                ), '[]'::json)
+            )
+        )
+        FROM repair_order_initial_problems ip
+        LEFT JOIN problem_categories pc_ip ON ip.problem_category_id = pc_ip.id
+        WHERE ip.repair_order_id = ro.id
+    ), '[]'::json) AS initial_problems,
+
+    COALESCE((
+        SELECT json_agg(
+            jsonb_build_object(
+                'id', fp.id,
+                'problem_category', jsonb_build_object(
+                    'id', pc_fp.id,
+                    'name_uz', pc_fp.name_uz,
+                    'name_ru', pc_fp.name_ru,
+                    'name_en', pc_fp.name_en
+                ),
+                'price', fp.price,
+                'estimated_minutes', fp.estimated_minutes,
+                'created_by', fp.created_by,
+                'created_at', fp.created_at,
+                'updated_at', fp.updated_at,
+                'parts', COALESCE((
+                    SELECT json_agg(
+                        jsonb_build_object(
+                            'id', rparts.id,
+                            'repair_part', jsonb_build_object(
+                                'id', rp_part.id,
+                                'name_uz', rp_part.part_name_uz,
+                                'name_ru', rp_part.part_name_ru,
+                                'name_en', rp_part.part_name_en,
+                                'price', rp_part.part_price,
+                                'quantity', rp_part.quantity,
+                                'description_uz', rp_part.description_uz,
+                                'description_ru', rp_part.description_ru,
+                                'description_en', rp_part.description_en,
+                                'status', rp_part.status,
+                                'created_by', rp_part.created_by,
+                                'created_at', rp_part.created_at,
+                                'updated_at', rp_part.updated_at
+                            ),
+                            'quantity', rparts.quantity,
+                            'part_price', rparts.part_price,
+                            'created_by', rparts.created_by,
+                            'created_at', rparts.created_at,
+                            'updated_at', rparts.updated_at
+                        )
+                    )
+                    FROM repair_order_parts rparts
+                    LEFT JOIN repair_parts rp_part ON rparts.repair_part_id = rp_part.id
+                    WHERE rparts.repair_order_final_problem_id = fp.id
+                ), '[]'::json)
+            )
+        )
+        FROM repair_order_final_problems fp
+        LEFT JOIN problem_categories pc_fp ON fp.problem_category_id = pc_fp.id
+        WHERE fp.repair_order_id = ro.id
+    ), '[]'::json) AS final_problems
 
 FROM repair_orders ro
     LEFT JOIN users u ON ro.user_id = u.id
