@@ -863,9 +863,7 @@ export class RepairOrdersService {
 
       // 2. Update problem details
       const problemTableName =
-        problemType === 'initial'
-          ? 'repair_order_initial_problems'
-          : 'repair_order_final_problems';
+        problemType === 'initial' ? 'repair_order_initial_problems' : 'repair_order_final_problems';
 
       const updateFields: Record<string, unknown> = {};
       if (updateDto.problem_category_id !== undefined)
@@ -886,7 +884,9 @@ export class RepairOrdersService {
             ? 'repair_order_initial_problem_id'
             : 'repair_order_final_problem_id';
 
-        await trx('repair_order_parts').where({ [idColumn]: problemId }).del();
+        await trx('repair_order_parts')
+          .where({ [idColumn]: problemId })
+          .del();
 
         if (updateDto.parts.length > 0) {
           const partsData = updateDto.parts.map((p) => ({
