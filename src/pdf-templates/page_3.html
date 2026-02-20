@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procare - Shartnoma Shartlari</title>
+    <style>
+        :root {
+            --primary-blue: #00a0e3;
+            --text-dark: #333;
+            --text-black: #000;
+            --text-gray: #555;
+            --line-color: #333;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+
+        /* The physical paper is Landscape */
+        .page-container {
+            width: 297mm;
+            height: 210mm;
+            background: #fff;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* The content is Portrait, rotated -90 degrees (CCW) */
+        .content-wrapper {
+            width: 210mm;
+            height: 297mm;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-90deg);
+            transform-origin: center center;
+            padding: 25mm 30mm; /* Adjusted margins for better fullness */
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+            padding-bottom: 10px;
+        }
+
+        .logo-main {
+            height: 52px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            height: 52px;
+        }
+
+        .header-line {
+            width: 2px;
+            height: 40px;
+            background-color: #000;
+            margin-right: 18px;
+        }
+
+        .tagline {
+            font-size: 24px;
+            font-weight: 500;
+            color: #333;
+            letter-spacing: 0.5px;
+        }
+
+        /* ===== MAIN CONTENT ===== */
+        .title-blue {
+            color: var(--primary-blue);
+            font-size: 19px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .intro-para {
+            font-size: 13.5px;
+            line-height: 1.6;
+            color: var(--text-black);
+            margin-bottom: 25px;
+            max-width: 100%;
+        }
+
+        .sections {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            margin-bottom: 25px;
+        }
+
+        .section-item {
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--text-black);
+        }
+
+        .section-header {
+            font-weight: bold;
+            margin-right: 4px;
+        }
+
+        .shu-sababli {
+            margin-top: 20px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .shu-sababli-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .bullet-point {
+            padding-left: 15px;
+            margin-bottom: 6px;
+        }
+
+        .confirmation-text {
+            color: var(--primary-blue);
+            font-weight: bold;
+            font-size: 17px;
+            margin-top: 35px;
+            margin-bottom: 18px;
+        }
+
+        /* ===== CUSTOMER INFO ===== */
+        .customer-info-title {
+            color: var(--primary-blue);
+            font-weight: bold;
+            font-size: 17px;
+            margin-bottom: 18px;
+        }
+
+        .bottom-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-top: 10px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .fields-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 60%; /* Reduced from 65% to increase gap */
+        }
+
+        .input-row {
+            display: flex;
+            align-items: flex-end;
+            font-size: 14px;
+        }
+
+        .label {
+            font-weight: bold;
+            margin-right: 10px;
+            white-space: nowrap;
+        }
+
+        .value {
+            border-bottom: 1px solid #000;
+            flex-grow: 1;
+            min-height: 22px;
+            padding-bottom: 2px;
+            padding-left: 8px;
+            font-style: italic;
+        }
+
+        /* ===== SIGNATURE ===== */
+        .signature-area {
+            width: 35%;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            margin-bottom: 5px;
+            margin-right: 5px; /* Moves it towards left from the right edge */
+        }
+
+        .signature-row {
+            display: flex;
+            align-items: flex-end;
+            gap: 12px;
+            width: 100%;
+        }
+
+        .signature-label {
+            font-weight: bold;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        .signature-line {
+            border-bottom: 1px solid #000;
+            flex-grow: 1;
+            min-height: 22px;
+        }
+
+        /* ===== BACKGROUND SHAPE ===== */
+        .bg-shape {
+            position: absolute;
+            bottom: -30px;
+            right: -30px;
+            width: 400px;
+            height: 400px;
+            opacity: 0.1;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .bg-shape img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        @media print {
+            body { background: none; }
+            .page-container { 
+                margin: 0; 
+                box-shadow: none; 
+                width: 297mm; 
+                height: 210mm; 
+                padding: 0;
+            }
+            @page { 
+                size: A4 landscape; 
+                margin: 0; 
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <div class="content-wrapper">
+            
+            <!-- Header -->
+            <div class="header">
+                <img src="assets/logo.png" class="logo-main" alt="Procare">
+                <div class="header-right">
+                    <div class="header-line"></div>
+                    <div class="tagline">Where Experts Meet</div>
+                </div>
+            </div>
+
+            <!-- Intro -->
+            <div class="title-blue">Hurmatli mijoz,</div>
+            <div class="intro-para">
+                Siz Procare servis xizmatlaridan foydalanish uchun qurilmangizni topshirayotganingizda quyidagi shartlarga rozilik bildirgan hisoblanasiz. Ushbu hujjat Procare tomonidan taqdim etiladigan servis xizmatlari uchun jamoatchilikka ochiq oferta (taklif) hisoblanadi.
+            </div>
+
+            <!-- Numbered Sections -->
+            <div class="sections">
+                <div class="section-item">
+                    <span class="section-header">1. Qurilmaning ochilishi:</span>
+                    Men, mijoz sifatida, qurilmam Procare servis ustalari tomonidan diagnostika va ta'mirlash maqsadida ochilishiga qarshi emasman va bunga rozilik bildiraman.
+                </div>
+
+                <div class="section-item">
+                    <span class="section-header">2. Ichki muammolar ehtimoli:</span>
+                    Men tushunaman va roziman: Qurilma ochilgach, ichida servisga topshirish vaqtida aniqlanmagan qo'shimcha nosozliklar aniqlanishi mumkin. Bunday holatda yakuniy ta'mirlash narxi mutaxassis tomonida o'tkazilgan yakuniy diagnostika asosida alohida belgilanadi. Qurilma ochilgan vaqtida aniqlanishi mumkin bo'lgan qo'shimcha muammolarga e'tirozim yo'q, va bu Procare aybi emasligini tushunaman.
+                </div>
+
+                <div class="section-item">
+                    <span class="section-header">3. Diagnostika xulosasi:</span>
+                    Men qurilmam bo'yicha o'tkazilgan texnik ko'rik natijalari (1-ilova) bilan tanishganman va u bilan roziman.
+                </div>
+
+                <div class="section-item">
+                    <span class="section-header">4. Qurilma yoqilmagan holatda topshirilganda:</span>
+                    Agar qurilma servisga yoqilmaydigan holatda topshirilgan bo'lsa, uni ochib ko'rish jarayonida boshqa muammolar aniqlanishi mumkin. Lekin yakuniy diagnostika Procare Pro va ekspert ustalari tomonidan o'tkazilishi bilan tanishdim.
+                </div>
+            </div>
+
+            <!-- Bullet Points -->
+            <div class="shu-sababli">
+                <div class="shu-sababli-title">Shu sababli:</div>
+                <div class="bullet-point">- Ta'mir xarajatlari faqat ichki ko'rikdan keyin aniqlanadi;</div>
+                <div class="bullet-point">- Qurilmadagi yangi muammolar uchun Procare mas'ul emas, chunki qurilmaning dastlabki holatini to'liq baholash imkoniyati bo'lmagan.</div>
+            </div>
+
+            <!-- Confirmation -->
+            <div class="confirmation-text">Men buni tushunaman va roziligimni bildiraman.</div>
+
+            <!-- Customer Info -->
+            <div class="customer-info-title">Mijoz ma'lumotlari:</div>
+            
+            <div class="bottom-section">
+                <div class="fields-container">
+                    <div class="input-row">
+                        <span class="label">F.I.SH:</span>
+                        <div class="value" id="field-customer_name"></div>
+                    </div>
+                    <div class="input-row">
+                        <span class="label">Telefon raqami:</span>
+                        <div class="value" id="field-phone_number"></div>
+                    </div>
+                    <div class="input-row">
+                        <span class="label">Qurilma raqami:</span>
+                        <div class="value" id="field-device_name"></div>
+                    </div>
+                    <div class="input-row">
+                        <span class="label">IMEI / Seriya raqami:</span>
+                        <div class="value" id="field-imei"></div>
+                    </div>
+                    <div class="input-row">
+                        <span class="label">Topshirish sanasi:</span>
+                        <div class="value" id="field-date"></div>
+                    </div>
+                </div>
+
+                <!-- Signature Area -->
+                <div class="signature-area">
+                    <div class="signature-row">
+                        <span class="signature-label">Mijoz imzosi:</span>
+                        <div class="signature-line"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Background Pattern -->
+            <div class="bg-shape">
+                <img src="assets/half_logo.svg" alt="">
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+    /**
+     * Renders page 3 based on the provided payload.
+     * Exposed globally so Puppeteer can inject data.
+     */
+    window.renderApp = function(payload) {
+        if (!payload) {
+            console.error("No payload provided to renderApp");
+            window.isRendered = true;
+            return;
+        }
+
+        const form = payload.form || {};
+
+        // Helper: set text content of an element by ID
+        function setText(id, value) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = value || '';
+        }
+
+        // Date: convert "YYYY-MM-DD" → "DD.MM.YYYY"
+        if (form.date) {
+            const dateParts = form.date.split('-');
+            if (dateParts.length === 3) {
+                const [y, m, d] = dateParts;
+                setText('field-date', `${d}.${m}.${y}`);
+            } else {
+                setText('field-date', form.date);
+            }
+        }
+
+        // Other form fields
+        setText('field-customer_name', form.customer_name);
+        setText('field-phone_number',  form.phone_number);
+        setText('field-device_name',   form.device_name);
+        setText('field-imei',          form.imei);
+
+        // Signal rendering complete
+        window.isRendered = true;
+    };
+
+    // Auto-render if PAYLOAD is already defined globally
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof PAYLOAD !== 'undefined') {
+            window.renderApp(PAYLOAD);
+        } else {
+            // Check if we are in Puppeteer or just local browser
+            const params = new URLSearchParams(window.location.search);
+            if (!params.has('no-auto')) {
+                // If not in Puppeteer, we might want to wait for manual trigger or just mark as done
+                // For now, let's mark as done so it doesn't hang
+                setTimeout(() => {
+                   if (!window.isRendered) window.isRendered = true;
+                }, 500);
+            }
+        }
+    });
+    </script>
+</body>
+</html>

@@ -28,7 +28,6 @@ import { LoggerModule } from 'src/common/logger/logger.module';
 
         try {
           await client.connect();
-          console.log('✅ Redis connected');
           return client;
         } catch (err: unknown) {
           console.error('❌ Redis connect error:', err instanceof Error ? err.message : err);

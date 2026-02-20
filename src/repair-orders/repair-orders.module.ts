@@ -5,14 +5,17 @@ import { NotificationGateway } from 'src/notification/notification.gateway';
 import { NotificationModule } from 'src/notification/notification.module';
 import { RepairOrderStatusPermissionsModule } from 'src/repair-order-status-permission/repair-order-status-permissions.module';
 import { RepairOrderStatusesModule } from 'src/repair-order-statuses/repair-order-statuses.module';
+import { PdfModule } from 'src/pdf/pdf.module';
 import { AssignAdminController } from './controllers/assign-admin.controller';
 import { CommentController } from './controllers/comment.controller';
 import { DeliveryController } from './controllers/delivery.controller';
 import { PickupController } from './controllers/pickup.controller';
 import { RentalPhoneController } from './controllers/rental-phone.controller';
 import { AttachmentsController } from './controllers/attachments.controller';
+import { ServiceFormsController } from './controllers/service-forms.controller';
 import { RepairOrdersController } from './repair-orders.controller';
 import { RepairOrdersService } from './repair-orders.service';
+import { ServiceFormsService } from './services/service-forms.service';
 import { AssignAdminUpdaterService } from './services/assign-admin-updater.service';
 import { CommentUpdaterService } from './services/comment-updater.service';
 import { DeliveryUpdaterService } from './services/delivery-updater.service';
@@ -31,6 +34,7 @@ import { AttachmentsService } from './services/attachments.service';
     NotificationModule,
     RepairOrderStatusesModule,
     LoggerModule,
+    PdfModule,
   ],
   controllers: [
     RepairOrdersController,
@@ -40,6 +44,7 @@ import { AttachmentsService } from './services/attachments.service';
     PickupController,
     RentalPhoneController,
     AttachmentsController,
+    ServiceFormsController,
   ],
   providers: [
     AssignAdminUpdaterService,
@@ -54,6 +59,7 @@ import { AttachmentsService } from './services/attachments.service';
     NotificationGateway,
     RepairOrdersService,
     AttachmentsService,
+    ServiceFormsService,
   ],
   exports: [
     AssignAdminUpdaterService,

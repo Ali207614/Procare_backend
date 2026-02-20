@@ -22,7 +22,7 @@ export class TelegramService {
     this.logger.log('TelegramService initialized successfully');
   }
 
-  async sendMessage(chatId: string | number, text: string): Promise<AxiosResponse<any> | null> {
+  async sendMessage(chatId: string | number, text: string): Promise<AxiosResponse<unknown> | null> {
     if (!this.isEnabled) {
       this.logger.warn('Telegram is disabled. Message not sent.');
       return null;
@@ -52,7 +52,7 @@ export class TelegramService {
     chatId: string | number,
     photoUrl: string,
     caption?: string,
-  ): Promise<AxiosResponse<any> | null> {
+  ): Promise<AxiosResponse<unknown> | null> {
     if (!this.isEnabled) {
       this.logger.warn('Telegram is disabled. Photo not sent.');
       return null;
@@ -76,7 +76,7 @@ export class TelegramService {
     chatId: string | number,
     fileUrl: string,
     caption?: string,
-  ): Promise<AxiosResponse<any> | null> {
+  ): Promise<AxiosResponse<unknown> | null> {
     if (!this.isEnabled) {
       this.logger.warn('Telegram is disabled. Document not sent.');
       return null;

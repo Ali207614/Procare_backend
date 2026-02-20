@@ -71,6 +71,32 @@ export class StorageService implements OnModuleInit {
   }
 
   /**
+   * Lists files in MinIO matching a prefix
+   * @param prefix The prefix to search for
+   */
+  async listFiles(prefix: string): Promise<string[]> {
+    return new Promise((resolve, reject) => {
+      const objects: string[] = [];
+      const stream = this.client.listObjectsV2(this.bucketName, prefix, true);
+
+      stream.on('data', (obj) => {
+        if (obj.name) {
+          objects.push(obj.name);
+        }
+      });
+
+      stream.on('error', (error) => {
+        this.logger.error(`Error listing files with prefix "${prefix}":`, error);
+        reject(error);
+      });
+
+      stream.on('end', () => {
+        resolve(objects);
+      });
+    });
+  }
+
+  /**
    * Generates URLs for variants of an image
    * @param basePath The base path (without size suffix)
    * @param extension The file extension

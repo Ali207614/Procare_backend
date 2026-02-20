@@ -22,8 +22,8 @@ import { UpdateRepairOrderDto } from 'src/repair-orders/dto/update-repair-order.
 import { MoveRepairOrderDto } from 'src/repair-orders/dto/move-repair-order.dto';
 import { FindAllRepairOrdersQueryDto } from 'src/repair-orders/dto/find-all-repair-orders.dto';
 import { UpdateClientInfoDto, UpdateProductDto, UpdateProblemDto, TransferBranchDto } from './dto';
-import { v4 as uuidv4 } from 'uuid';
 import { ForbiddenException } from '@nestjs/common';
+import { PdfService } from 'src/pdf/pdf.service';
 
 @Injectable()
 export class RepairOrdersService {
@@ -38,6 +38,7 @@ export class RepairOrdersService {
     private readonly helper: RepairOrderCreateHelperService,
     private readonly redisService: RedisService,
     private readonly logger: LoggerService,
+    private readonly pdfService: PdfService,
   ) {}
 
   async create(

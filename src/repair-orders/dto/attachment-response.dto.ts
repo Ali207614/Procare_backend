@@ -51,7 +51,7 @@ export class AttachmentResponseDto {
 
 export class UploadAttachmentDto {
   @ApiProperty({ type: 'string', format: 'binary', description: 'File to upload' })
-  file!: any;
+  file!: Express.Multer.File;
 
   @ApiProperty({ example: 'Damaged screen photo', required: false })
   description?: string;

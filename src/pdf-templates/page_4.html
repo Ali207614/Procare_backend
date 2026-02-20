@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procare - Kafolat Sertifikati (Muqova)</title>
+    <!-- Premium Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-blue: #00a0e3;
+            --text-dark: #222;
+            --text-gray: #666;
+            --border-color: #ddd;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            font-family: 'Outfit', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .page-container {
+            width: 297mm;
+            height: 210mm;
+            background: #fff;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            box-sizing: border-box;
+        }
+
+        /* Dash lines for cutting and folding */
+        .card {
+            position: relative;
+            box-sizing: border-box;
+            border: 0.2mm dashed var(--border-color);
+            padding: 15mm 12mm;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Specific Cell Content */
+        .front-cover {
+            justify-content: flex-start;
+        }
+
+        .warranty-title {
+            color: var(--text-dark);
+            font-size: 36px;
+            font-weight: 800;
+            line-height: 1;
+            text-transform: uppercase;
+            letter-spacing: -0.5px;
+            margin-bottom: 60px;
+        }
+
+        .logo-box {
+            margin-top: auto;
+        }
+
+        .logo-img {
+            height: 48px;
+            width: auto;
+        }
+
+        .back-cover {
+            justify-content: center;
+            align-items: flex-end;
+        }
+
+        .tagline {
+            font-size: 24px;
+            font-weight: 300;
+            color: var(--text-dark);
+            text-align: right;
+            letter-spacing: 0.5px;
+        }
+
+        /* Placeholder/Empty panels */
+        .empty-panel {
+            background: #fff;
+        }
+
+        /* Decorative background element for the whole page */
+        .page-bg-accent {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 400px;
+            height: 400px;
+            opacity: 0.03;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        @media print {
+            body { background: none; }
+            .page-container { 
+                margin: 0; 
+                box-shadow: none;
+                width: 297mm;
+                height: 210mm;
+            }
+            @page { 
+                size: A4 landscape; 
+                margin: 0; 
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <!-- Row 1 -->
+        <!-- Card 1: Front Cover -->
+        <div class="card front-cover">
+            <div class="warranty-title">KAFOLAT<br>SERTIFIKATI</div>
+            <div class="logo-box">
+                <img src="assets/logo.png" class="logo-img" alt="Procare">
+            </div>
+        </div>
+        
+        <!-- Card 2: Empty (Foldable Outside) -->
+        <div class="card empty-panel"></div>
+        
+        <!-- Card 3: Empty (Foldable Outside) -->
+        <div class="card empty-panel"></div>
+        
+        <!-- Card 4: Back Cover -->
+        <div class="card back-cover">
+            <div class="tagline">Where experts Meet</div>
+        </div>
+
+        <!-- Row 2 (Duplicate of Row 1) -->
+        <!-- Card 5: Front Cover -->
+        <div class="card front-cover">
+            <div class="warranty-title">KAFOLAT<br>SERTIFIKATI</div>
+            <div class="logo-box">
+                <img src="assets/logo.png" class="logo-img" alt="Procare">
+            </div>
+        </div>
+        
+        <!-- Card 6: Empty (Foldable Outside) -->
+        <div class="card empty-panel"></div>
+        
+        <!-- Card 7: Empty (Foldable Outside) -->
+        <div class="card empty-panel"></div>
+        
+        <!-- Card 8: Back Cover -->
+        <div class="card back-cover">
+            <div class="tagline">Where experts Meet</div>
+        </div>
+
+        <!-- Central decorative logo -->
+        <img src="assets/half_logo.svg" class="page-bg-accent" alt="">
+    </div>
+
+    <script>
+    /**
+     * Renders page 4 based on the provided payload.
+     * Even though this page has no dynamic fields yet, 
+     * we keep the structure for compatibility.
+     */
+    window.renderApp = function(payload) {
+        // No dynamic fields on the cover yet.
+        // Signal rendering complete
+        window.isRendered = true;
+    };
+
+    // Auto-render logic
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof PAYLOAD !== 'undefined') {
+            window.renderApp(PAYLOAD);
+        } else {
+            setTimeout(() => {
+               if (!window.isRendered) window.isRendered = true;
+            }, 500);
+        }
+    });
+    </script>
+</body>
+</html>

@@ -4,7 +4,11 @@
   "sourceRoot": "src",
   "compilerOptions": {
     "assets": [
-      "**/*.sql"
+      "**/*.sql",
+      {
+        "include": "pdf-templates/**/*",
+        "watchAssets": true
+      }
     ]
   }
 }

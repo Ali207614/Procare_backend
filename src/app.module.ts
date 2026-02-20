@@ -64,6 +64,7 @@ import { UsersController } from './users/users.controller';
 import { UsersModule } from './users/users.module';
 import { UsersService } from './users/users.service';
 import { StorageModule } from './common/storage/storage.module';
+import { PdfModule } from './pdf/pdf.module';
 
 @Module({
   imports: [
@@ -100,6 +101,7 @@ import { StorageModule } from './common/storage/storage.module';
     CampaignsModule,
     TelegramModule,
     StorageModule,
+    PdfModule,
   ],
   controllers: [
     AuthController,

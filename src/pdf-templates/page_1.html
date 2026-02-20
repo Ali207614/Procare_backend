@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procare Service Form</title>
+    <style>
+        :root {
+            --primary-blue: #00a0e3;
+            --text-gray: #555;
+            --line-color: #ccc;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+
+        .page-container {
+            width: 297mm; /* A4 Landscape */
+            height: 210mm;
+            background: #fff;
+            margin: 10mm auto;
+            display: flex;
+            position: relative;
+            box-sizing: border-box;
+            border: 1px solid #ddd;
+            overflow: hidden;
+        }
+
+        .column {
+            width: 50%;
+            padding: 40px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+
+        .column-left {
+            border-right: 1px dashed #aaa;
+        }
+
+        /* Background Decorations */
+        .bg-pattern {
+            position: absolute;
+            bottom: -20px;
+            right: -20px;
+            width: 250px;
+            opacity: 0.1;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* Header Styles */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            z-index: 1;
+        }
+
+        .logo { height: 45px; }
+        
+        .header-tagline {
+            font-size: 14px;
+            color: #444;
+            border-left: 2px solid #333;
+            padding-left: 15px;
+            height: 25px;
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        /* Form Row Styles */
+        .form-section { z-index: 1; margin-bottom: 20px; }
+        
+        .row-grid {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 20px;
+        }
+
+        .input-group {
+            margin-bottom: 8px;
+            display: flex;
+            align-items: flex-end;
+            font-size: 11px;
+        }
+
+        .label { font-weight: bold; white-space: nowrap; margin-right: 5px; }
+        
+        .underline {
+            border-bottom: 1px solid var(--line-color);
+            flex-grow: 1;
+            min-height: 18px;
+            padding-left: 5px;
+            font-style: italic;
+        }
+
+        /* Pattern Grid */
+        .pattern-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 11px;
+        }
+
+        .pattern-svg {
+            margin-top: 5px;
+            overflow: visible;
+        }
+
+        /* Checkbox Styles */
+        .checkbox-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 10px;
+            z-index: 1;
+        }
+
+        .cb-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 10px;
+            width: 75px;
+            text-align: center;
+        }
+
+        .box {
+            width: 14px;
+            height: 14px;
+            border: 1.5px solid #333;
+            margin-top: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        
+        .box.checked::after {
+            content: "✓";
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        h3 {
+            font-size: 13px;
+            margin: 15px 0 5px 0;
+            color: #000;
+        }
+
+        /* Phone Images Section */
+        .phone-views {
+            text-align: center;
+            margin-top: 15px;
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+        .phone-views img {
+            width: 100%;
+            max-width: 380px;
+            display: block;
+            margin: 0 auto;
+        }
+
+        /* Damage point overlay wrapper */
+        .views-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+            max-width: 380px;
+            margin: 0 auto;
+        }
+
+        .views-overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+        }
+
+        /* Damage marker dot */
+        .damage-dot {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: rgba(220, 30, 30, 0.85);
+            border: 1.5px solid #fff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 3px rgba(0,0,0,0.4);
+        }
+
+        /* Notes and Signatures */
+        .notes-area {
+            margin-top: 20px;
+            border-bottom: 1px solid var(--line-color);
+            height: 80px;
+            line-height: 25px;
+            background-image: linear-gradient(transparent 24px, var(--line-color) 25px);
+            background-size: 100% 25px;
+            font-size: 10px;
+            color: #444;
+            padding: 2px 0;
+        }
+
+        .signature-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 40px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .sig-box {
+            width: 45%;
+            border-top: 1px solid #333;
+            padding-top: 5px;
+            text-align: left;
+        }
+
+        @media print {
+            body { background: none; }
+            .page-container { margin: 0; border: none; box-shadow: none; }
+            @page { size: A4 landscape; margin: 0; }
+            .no-print { display: none !important; }
+        }
+
+        /* Float Button Styling */
+        .download-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background-color: var(--primary-blue);
+            color: white;
+            border: none;
+            padding: 15px 25px;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: transform 0.2s, background-color 0.2s;
+        }
+
+        .download-btn:hover {
+            background-color: #0088c2;
+            transform: scale(1.05);
+        }
+
+        .download-btn:active {
+            transform: scale(0.95);
+        }
+    </style>
+    <!-- pdf-lib and html2pdf CDNs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- 
+         The PAYLOAD is now injected by pdf-generator.js (Node script).
+         If you open this file directly in browser, it will be empty.
+    -->
+    <script>
+    // Optional: Add a listener for when the page loads to check if a payload was auto-injected
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof PAYLOAD !== 'undefined') {
+            window.renderApp(PAYLOAD);
+        }
+    });
+    </script>
+
+    <div class="page-container">
+        <!-- ==================== LEFT COLUMN ==================== -->
+        <div class="column column-left">
+            <img src="assets/half_logo.svg" class="bg-pattern" alt="">
+            
+            <header>
+                <img src="assets/logo.png" class="logo" alt="Procare">
+                <div class="header-tagline">Where Experts Meet</div>
+            </header>
+
+            <div class="row-grid">
+                <div class="form-inputs">
+                    <div class="input-group"><span class="label">Mijoz (F.I.O):</span> <div class="underline" id="field-customer_name"></div></div>
+                    <div class="input-group"><span class="label">Telefon raqam:</span> <div class="underline" id="field-phone_number"></div></div>
+                    <div class="input-group"><span class="label">Qurilma nomi:</span> <div class="underline" id="field-device_name"></div></div>
+                    <div class="input-group"><span class="label">IMEI:</span> <div class="underline" id="field-imei"></div></div>
+                    <div class="input-group"><span class="label">Mutaxassis ismi:</span> <div class="underline" id="field-specialist_name"></div></div>
+                    <div class="input-group"><span class="label">Promo-kod:</span> <div class="underline" id="field-promo_code"></div></div>
+                    <div class="input-group"><span class="label">Ta'mir (Ariza) ID:</span> <div class="underline" id="field-repair_id"></div></div>
+                    <div class="input-group"><span class="label">Murojat manbasi:</span> <div class="underline" id="field-source"></div></div>
+                </div>
+                
+                <div class="side-info">
+                    <!-- Date from form payload -->
+                    <div class="input-group">
+                        <span class="label">Sana:</span>
+                        <div class="underline" id="field-date"></div>
+                    </div>
+                    <!-- Pin from form payload -->
+                    <div class="input-group">
+                        <span class="label">Pin:</span>
+                        <div class="underline" id="field-pin"></div>
+                    </div>
+                    <!-- Pattern from payload -->
+                    <div class="pattern-container">
+                        <span class="label">Pattern:</span>
+                        <!--
+                            Pattern dots are indexed as a 3x3 grid:
+                              1 2 3
+                              4 5 6
+                              7 8 9
+                            Active dots and order come from PAYLOAD.pattern
+                        -->
+                        <svg class="pattern-svg" width="76" height="76"
+                             viewBox="0 0 76 76"
+                             id="patternSvg">
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DISPLAY checklist -->
+            <h3>Ekran</h3>
+            <div class="checkbox-container" id="checklist-display"></div>
+
+            <!-- BODY / Korpus -->
+            <h3>Korpus:</h3>
+            <div class="phone-views">
+                <!-- Combined phone views image with damage point overlays -->
+                <div class="views-wrapper" id="viewsWrapper">
+                    <img src="assets/combined_views.png" alt="Phone Views" id="combinedImg">
+                    <!-- damage dots injected here by script -->
+                </div>
+            </div>
+            <div class="checkbox-container" id="checklist-body" style="justify-content: space-around; margin-top: 5px;"></div>
+        </div>
+
+        <!-- ==================== RIGHT COLUMN ==================== -->
+        <div class="column">
+            <img src="assets/half_logo.svg" class="bg-pattern" alt="">
+            
+            <header>
+                <img src="assets/logo.png" class="logo" alt="Procare">
+                <div class="header-tagline">Where Experts Meet</div>
+            </header>
+
+            <h3>Plata <span style="font-weight: normal; font-size: 10px;">(Settings bo'limidagi xatolar)</span></h3>
+            <div class="checkbox-container" id="checklist-ports-1"></div>
+
+            <h3>Plata</h3>
+            <div class="checkbox-container" id="checklist-ports"></div>
+
+            <h3>Boshqalar</h3>
+            <div class="checkbox-container" id="checklist-other"></div>
+
+            <h3 style="margin-top: 30px;">Izohlar:</h3>
+            <div class="notes-area" id="field-comments"></div>
+
+            <div class="signature-row">
+                <div class="sig-box">Procare mutaxassisi:</div>
+                <div class="sig-box">Mijoz:</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    /**
+     * Renders the entire application based on the provided payload.
+     * This is exposed globally so that external tools (like Puppeteer) can inject data.
+     */
+    window.renderApp = function(payload) {
+        if (!payload) {
+            console.error("No payload provided to renderApp");
+            return;
+        }
+
+        const form = payload.form || {};
+
+        /* ------------------------------------------------------------------ */
+        /*  1. HELPERS                                                         */
+        /* ------------------------------------------------------------------ */
+        const NS = 'http://www.w3.org/2000/svg';
+
+        function svgEl(tag, attrs) {
+            const node = document.createElementNS(NS, tag);
+            Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
+            return node;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /*  2. FORM FIELDS                                                     */
+        /* ------------------------------------------------------------------ */
+        
+        // Date: convert "YYYY-MM-DD" → "DD.MM.YYYY"
+        const dateEl = document.getElementById('field-date');
+        if (dateEl && form.date) {
+            const [y, m, d] = form.date.split('-');
+            dateEl.textContent = `${d}.${m}.${y}`;
+        }
+
+        // Pin
+        const pinEl = document.getElementById('field-pin');
+        if (pinEl && form.pin) {
+            pinEl.textContent = form.pin;
+        }
+
+        // Additional form fields
+        const fields = [
+            'customer_name', 'phone_number', 'device_name', 'imei',
+            'specialist_name', 'promo_code', 'repair_id', 'source'
+        ];
+        fields.forEach(key => {
+            const el = document.getElementById(`field-${key}`);
+            if (el) el.textContent = form[key] || '';
+        });
+
+        // Comments
+        const commentsEl = document.getElementById('field-comments');
+        if (commentsEl) {
+            commentsEl.textContent = payload.comments || '';
+        }
+
+        /* ------------------------------------------------------------------ */
+        /*  3. PATTERN SVG                                                     */
+        /* ------------------------------------------------------------------ */
+        const DOT_R = 9;
+        const POSITIONS = {
+            1: [10, 10], 2: [38, 10], 3: [66, 10],
+            4: [10, 38], 5: [38, 38], 6: [66, 38],
+            7: [10, 66], 8: [38, 66], 9: [66, 66]
+        };
+
+        const svg = document.getElementById('patternSvg');
+        if (svg) {
+            // Clear existing SVG content
+            while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+            const sequence = (payload.pattern || []).filter(n => n >= 1 && n <= 9);
+            const activeSet = new Set(sequence);
+
+            // Connector lines (drawn first, behind dots)
+            for (let i = 0; i < sequence.length - 1; i++) {
+                const [x1, y1] = POSITIONS[sequence[i]];
+                const [x2, y2] = POSITIONS[sequence[i + 1]];
+                svg.appendChild(svgEl('line', {
+                    x1, y1, x2, y2,
+                    stroke: '#333',
+                    'stroke-width': '1.5',
+                    'stroke-linecap': 'round',
+                    opacity: '0.6'
+                }));
+            }
+
+            // Dots + order numbers
+            for (let dotNum = 1; dotNum <= 9; dotNum++) {
+                const [cx, cy] = POSITIONS[dotNum];
+                const isActive = activeSet.has(dotNum);
+                const order = sequence.indexOf(dotNum) + 1;
+
+                svg.appendChild(svgEl('circle', {
+                    cx, cy, r: DOT_R,
+                    fill: isActive ? '#333' : '#fff',
+                    stroke: isActive ? '#333' : '#aaa',
+                    'stroke-width': '1.5'
+                }));
+
+                if (isActive) {
+                    const text = svgEl('text', {
+                        x: cx, y: cy,
+                        'text-anchor': 'middle',
+                        'dominant-baseline': 'central',
+                        fill: '#fff',
+                        'font-size': '7',
+                        'font-family': 'Segoe UI, Arial, sans-serif',
+                        'font-weight': 'bold',
+                        'pointer-events': 'none'
+                    });
+                    text.textContent = order;
+                    svg.appendChild(text);
+                }
+            }
+        }
+
+        /* ------------------------------------------------------------------ */
+        /*  4. CHECKLISTS                                                      */
+        /* ------------------------------------------------------------------ */
+
+        // Label maps per checklist group
+        const LABELS = {
+            display: ['Ekran (LCD/Display)', 'Oyna/Sensor', 'Old kamera', 'Asosiy kamera'],
+            body: ['Oldi tomon shisha', 'Orqa tomon shisha', 'Kamera oynasi', 'Frame (Obodok)'],
+            'ports-1': ['Ekran', 'Batareyka', 'MacSafe', 'Kamera', 'Korpus'],
+            ports: ['Tugmalar', 'Face ID', 'Touch ID', 'Vibratsiya', 'Antenna', 'Wi-Fi', 'Bluetooth', 'Fonar', 'SIM Karta', 'SD Karta'],
+            other: ['Kolonka', 'Mikrofon', 'Quvvat porti']
+        };
+
+        function renderChecklist(containerId, groupKey) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            
+            // Clear container
+            container.innerHTML = '';
+
+            const items = (payload.checklist || {})[groupKey] || [];
+            const labels = LABELS[groupKey] || [];
+
+            labels.forEach((label, idx) => {
+                const item = items[idx] || {};
+                const div = document.createElement('div');
+                div.className = 'cb-item';
+                const box = document.createElement('div');
+                box.className = 'box' + (item.checked ? ' checked' : '');
+                div.textContent = label;
+                div.appendChild(box);
+                container.appendChild(div);
+            });
+        }
+
+        renderChecklist('checklist-display', 'display');
+        renderChecklist('checklist-body', 'body');
+        renderChecklist('checklist-ports-1', 'ports-1');
+        renderChecklist('checklist-ports', 'ports');
+        renderChecklist('checklist-other', 'other');
+
+        /* ------------------------------------------------------------------ */
+        /*  5. DEVICE POINTS — damage markers on combined_views.png           */
+        /* ------------------------------------------------------------------ */
+
+        const IMG_W = 3787;   // full composite image pixel width
+        const IMG_H = 2028;   // full composite image pixel height
+
+        const VIEW_BOXES = {
+            view1: { x: 200,  y: 200, w: 788,  h: 1627 },
+            front: { x: 200,  y: 200, w: 788,  h: 1627 }, // Alias for view1
+            view2: { x: 1188, y: 200, w: 789,  h: 1628 },
+            back:  { x: 1188, y: 200, w: 789,  h: 1628 }, // Alias for view2
+            view3: { x: 2177, y: 686, w: 643,  h: 655  },
+            view4: { x: 3020, y: 200, w: 148,  h: 1628 },
+            side:  { x: 3020, y: 200, w: 148,  h: 1628 }, // Alias for view4
+            view5: { x: 3248, y: 200, w: 133,  h: 1628 },
+            view6: { x: 3461, y: 209, w: 126,  h: 1610 }
+        };
+
+        const wrapper = document.getElementById('viewsWrapper');
+        if (wrapper) {
+            // Remove old dots
+            const oldDots = wrapper.querySelectorAll('.damage-dot');
+            oldDots.forEach(d => d.remove());
+
+            const devicePoints = payload.device_points || {};
+
+            Object.entries(devicePoints).forEach(([viewKey, points]) => {
+                const box = VIEW_BOXES[viewKey];
+                if (!box || !points.length) return;
+
+                points.forEach(pt => {
+                    // Absolute pixel position inside composite image
+                    const absX = box.x + pt.x * box.w;
+                    const absY = box.y + pt.y * box.h;
+
+                    // Convert to percentage of full image
+                    const leftPct = (absX / IMG_W) * 100;
+                    const topPct  = (absY / IMG_H) * 100;
+
+                    const dot = document.createElement('div');
+                    dot.className = 'damage-dot';
+                    dot.style.left = leftPct + '%';
+                    dot.style.top  = topPct + '%';
+                    dot.title = `${viewKey}: (${pt.x}, ${pt.y})`;
+                    wrapper.appendChild(dot);
+                });
+            });
+        }
+        
+        // Indicate to external tools that rendering is complete
+        window.isRendered = true;
+    };
+
+    // Auto-render if PAYLOAD is already defined globally
+    if (typeof PAYLOAD !== 'undefined') {
+        window.renderApp(PAYLOAD);
+    }
+    </script>
+</body>
+</html>

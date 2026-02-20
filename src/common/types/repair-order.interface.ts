@@ -24,6 +24,7 @@ export interface RepairOrder {
 
   phone_number: string;
   name: string | null;
+  source_type: string | null;
 
   created_at: string; // timestamp
   updated_at: string; // timestamp

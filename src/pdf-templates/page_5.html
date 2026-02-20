@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procare - Kafolat Sertifikati (Ichki qism)</title>
+    <!-- Premium Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-blue: #00a0e3;
+            --text-dark: #222;
+            --text-gray: #555;
+            --border-color: #eee;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            font-family: 'Outfit', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .page-container {
+            width: 297mm;
+            height: 210mm;
+            background: #fff;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            box-sizing: border-box;
+        }
+
+        .card {
+            position: relative;
+            box-sizing: border-box;
+            border: 0.2mm dashed #ddd;
+            padding: 12mm 8mm;
+            display: flex;
+            flex-direction: column;
+            font-size: 11.5px;
+            line-height: 1.4;
+            color: var(--text-dark);
+        }
+
+        h2 {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--primary-blue);
+            margin: 0 0 10px 0;
+            line-height: 1.2;
+        }
+
+        .section-text {
+            margin-bottom: 12px;
+        }
+
+        .bullet-list {
+            padding-left: 0;
+            list-style: none;
+            margin: 0;
+        }
+
+        .bullet-list li {
+            margin-bottom: 5px;
+            padding-left: 10px;
+            position: relative;
+        }
+
+        .bullet-list li::before {
+            content: "-";
+            position: absolute;
+            left: 0;
+        }
+
+        /* Information Fields */
+        .info-fields {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .field-row {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 2px;
+        }
+
+        .field-label {
+            font-size: 10px;
+            font-weight: 500;
+            color: var(--text-gray);
+        }
+
+        .field-value {
+            border-bottom: 1px solid #ccc;
+            min-height: 15px;
+            font-weight: 600;
+            font-size: 11px;
+            padding: 2px 0;
+        }
+
+        .signature-line {
+            margin-top: 10px;
+            border-top: 1px solid #ccc;
+            padding-top: 2px;
+            font-size: 9px;
+            color: var(--text-gray);
+        }
+
+        @media print {
+            body { background: none; }
+            .page-container { 
+                margin: 0; 
+                box-shadow: none;
+                width: 297mm;
+                height: 210mm;
+            }
+            @page { 
+                size: A4 landscape; 
+                margin: 0; 
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container" id="pageContainer">
+        <!-- Row 1 will be duplicated in Row 2 via JS or manual -->
+        <!-- Panel 1 -->
+        <div class="card">
+            <div class="section-text">
+                Ushbu kafolat sertifikati Procare servis markazi tomonidan ta'mirlangan qurilmaga yoki o'rnatilgan ehtiyot qismga nisbatan kafolat muddatini tasdiqlaydi.
+            </div>
+            <div class="section-text">
+                Quyida keltirilgan shartlar asosida mijoz kafolat xizmatlaridan foydalanishi mumkin:
+            </div>
+            <h2>1. Kafolat muddati</h2>
+            <div class="section-text">
+                Kafolat muddati ta'mirlangan qurilma yoki o'rnatilgan ehtiyot qism bo'yicha 30 kunni tashkil qiladi, agar boshqa muddat servis qabul varaqasida ko'rsatilmagan bo'lsa.
+            </div>
+        </div>
+
+        <!-- Panel 2 -->
+        <div class="card">
+            <div class="section-text">
+                Kafolat muddati davrida ta'mirlangan qurilma qismi bilan yuzaga kelishi mumkin bo'lgan muammolar Procare servisi tomonidan bepulga qayta ta'mirlanadi. (ushbu sertifikatning 3-bo'limidagi holatlar bundan mustasno)
+            </div>
+            <h2>2. Kafolat quyidagi holatlarni qamrab oladi:</h2>
+            <ul class="bullet-list">
+                <li>Procare tomonidan o'rnatilgan ehtiyot qismlarning nuqsonlari</li>
+                <li>Procare tomonidan amalga oshirilgan ta'mir ishlaridagi texnik xatoliklar</li>
+            </ul>
+        </div>
+
+        <!-- Panel 3 -->
+        <div class="card" style="font-size: 10.5px;">
+            <h2>3. Kafolat quyidagi holatlarda amal qilmaydi:</h2>
+            <ul class="bullet-list">
+                <li>Qurilma boshqa servis markazida ta'mirlangan bo'lsa</li>
+                <li>Qurilma mexanik zarba, suyuqlik yoki noto'g'ri foydalanish oqibatida buzilgan bo'lsa</li>
+                <li>Qurilmadagi buzilish kafolat muddatidan keyin aniqlangan bo'lsa</li>
+                <li>Qurilma Procare diagnostika qoidalariga zid ravishda ishlatilgan bo'lsa</li>
+            </ul>
+            <div class="section-text" style="margin-top:10px; font-size: 10px;">
+                Procare servisi quvvatlash bilan bog'liq bo'lgan ta'mirni amalga oshirganda (noto'g'ri quvvatlash oqibatida yuzaga kelgan muammolar), kafolat muddati 10 kunga teng. Agar 10 kundan keyin ushbu muammo takrorlansa, mijozdan birinchi narxning 50% olinadi.
+            </div>
+        </div>
+
+        <!-- Panel 4 -->
+        <div class="card">
+            <h2 style="font-size: 13px;">Mijoz va qurilma ma'lumotlari:</h2>
+            <div class="info-fields">
+                <div class="field-row">
+                    <span class="field-label">F.I.SH:</span>
+                    <div class="field-value" id="field-customer_name"></div>
+                </div>
+                <div class="field-row">
+                    <span class="field-label">Telefon raqami:</span>
+                    <div class="field-value" id="field-phone_number"></div>
+                </div>
+                <div class="field-row">
+                    <span class="field-label">Qurilma raqami:</span>
+                    <div class="field-value" id="field-device_name"></div>
+                </div>
+                <div class="field-row">
+                    <span class="field-label">IMEI / Seriya raqami:</span>
+                    <div class="field-value" id="field-imei"></div>
+                </div>
+                <div class="field-row" style="flex-direction: row; justify-content: space-between;">
+                    <div style="width: 48%;">
+                        <span class="field-label">Ta'mir sanasi:</span>
+                        <div class="field-value" id="field-date"></div>
+                    </div>
+                    <div style="width: 48%;">
+                        <span class="field-label">Kafolat muddati:</span>
+                        <div class="field-value"></div>
+                    </div>
+                </div>
+                <div class="field-row">
+                    <span class="field-label">Mijoz imzosi:</span>
+                    <div class="field-value"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 2 is exactly same. We will clone using JS or just paste. -->
+        <div id="row2-marker"></div>
+    </div>
+
+    <script>
+    window.renderApp = function(payload) {
+        if (!payload) {
+            window.isRendered = true;
+            return;
+        }
+
+        const form = payload.form || {};
+        
+        // Populate fields
+        const elements = document.querySelectorAll('[id^="field-"]');
+        elements.forEach(el => {
+            const key = el.id.replace('field-', '');
+            if (key === 'date' && form.date) {
+                const parts = form.date.split('-');
+                el.textContent = parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : form.date;
+            } else {
+                el.textContent = form[key] || '';
+            }
+        });
+
+        // Clone row 1 into row 2
+        const container = document.getElementById('pageContainer');
+        const panels = Array.from(container.children).slice(0, 4);
+        panels.forEach(p => {
+            const clone = p.cloneNode(true);
+            container.appendChild(clone);
+        });
+        
+        // Remove row2-marker
+        const marker = document.getElementById('row2-marker');
+        if (marker) marker.remove();
+
+        window.isRendered = true;
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof PAYLOAD !== 'undefined') {
+            window.renderApp(PAYLOAD);
+        } else {
+            // Local viewing logic
+            setTimeout(() => {
+                if (!window.isRendered) window.renderApp({});
+            }, 500);
+        }
+    });
+    </script>
+</body>
+</html>
