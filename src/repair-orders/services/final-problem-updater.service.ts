@@ -63,6 +63,12 @@ export class FinalProblemUpdaterService {
     );
 
     const phoneCategoryId = order.phone_category_id;
+    if (!phoneCategoryId) {
+      throw new BadRequestException({
+        message: 'Problems cannot be added to a repair order without a phone category',
+        location: 'final_problems',
+      });
+    }
     const problemIds = problems.map((p) => p.problem_category_id);
 
     const existingCategories = await trx('problem_categories')

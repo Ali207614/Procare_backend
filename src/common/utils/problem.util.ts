@@ -7,7 +7,7 @@ import { ProblemWithParts } from 'src/common/types/problem-with-parts';
 export async function validateAndInsertProblems(
   trx: Knex.Transaction,
   problems: ProblemWithParts[],
-  phoneCategoryId: string,
+  phoneCategoryId: string | undefined,
   admin: AdminPayload,
   statusId: string,
   branchId: string,
@@ -26,6 +26,13 @@ export async function validateAndInsertProblems(
   ) => Promise<void>,
 ): Promise<void> {
   if (!problems?.length) return;
+
+  if (!phoneCategoryId) {
+    throw new BadRequestException({
+      message: 'Problems cannot be added without a phone category',
+      location: locationKey,
+    });
+  }
 
   // 🔐 permission check
   await checkPermissionsOrThrow(

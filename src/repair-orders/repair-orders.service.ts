@@ -63,8 +63,9 @@ export class RepairOrdersService {
       // ── Resolve user: either by user_id or by inline client info ──
       const currentStatusPermission = permissions.find((p) => p.status_id === statusId);
       let resolvedUserId: string | undefined = dto.user_id;
-      let resolvedPhoneNumber = '';
-      let resolvedName: string | null = null;
+      let resolvedPhoneNumber = dto.phone_number || dto.phone || '';
+      let resolvedName: string | null =
+        dto.name || [dto.first_name, dto.last_name].filter(Boolean).join(' ') || null;
 
       if (dto.user_id) {
         // Flow 1: existing user_id provided
@@ -76,21 +77,30 @@ export class RepairOrdersService {
           });
         resolvedPhoneNumber = user.phone_number1 || '';
         resolvedName = [user.first_name, user.last_name].filter(Boolean).join(' ') || null;
-      } else if (dto.phone) {
-        // Flow 2: inline client info (first_name, last_name, phone)
+      } else if (resolvedPhoneNumber) {
+        // Flow 2: inline client info
         const existingUser = await trx('users')
-          .whereRaw('LOWER(phone_number1) = ?', dto.phone.toLowerCase())
+          .whereRaw('LOWER(phone_number1) = ?', resolvedPhoneNumber.toLowerCase())
           .andWhereNot({ status: 'Deleted' })
           .first();
 
         if (existingUser) {
           resolvedUserId = existingUser.id;
         } else if (currentStatusPermission?.can_create_user) {
+          let firstName = dto.first_name || '';
+          let lastName = dto.last_name || '';
+
+          if (dto.name && !dto.first_name) {
+            const parts = dto.name.trim().split(' ');
+            firstName = parts[0];
+            lastName = parts.slice(1).join(' ');
+          }
+
           const [newUser] = await trx('users')
             .insert({
-              first_name: dto.first_name || '',
-              last_name: dto.last_name || '',
-              phone_number1: dto.phone,
+              first_name: firstName,
+              last_name: lastName,
+              phone_number1: resolvedPhoneNumber,
               is_active: true,
               source: 'employee',
               created_by: admin.id,
@@ -101,34 +111,34 @@ export class RepairOrdersService {
             .returning('*');
           resolvedUserId = newUser.id;
         }
-        resolvedPhoneNumber = dto.phone;
-        resolvedName = [dto.first_name, dto.last_name].filter(Boolean).join(' ') || null;
       } else {
         throw new BadRequestException({
-          message: 'Either user_id or phone must be provided',
-          location: 'user_id',
+          message: 'Either user_id or phone_number must be provided',
+          location: 'phone_number',
         });
       }
 
-      const phoneCategory = await trx('phone_categories as pc')
-        .select(
-          'pc.*',
-          this.knex.raw(
-            `EXISTS (SELECT 1 FROM phone_categories c WHERE c.parent_id = pc.id AND c.status = 'Open') as has_children`,
-          ),
-        )
-        .where({ 'pc.id': dto.phone_category_id, 'pc.is_active': true, 'pc.status': 'Open' })
-        .first();
-      if (!phoneCategory)
-        throw new BadRequestException({
-          message: 'Phone category not found or inactive',
-          location: 'phone_category_id',
-        });
-      if (phoneCategory.has_children)
-        throw new BadRequestException({
-          message: 'Phone category must not have children',
-          location: 'phone_category_id',
-        });
+      if (dto.phone_category_id) {
+        const phoneCategory = await trx('phone_categories as pc')
+          .select(
+            'pc.*',
+            this.knex.raw(
+              `EXISTS (SELECT 1 FROM phone_categories c WHERE c.parent_id = pc.id AND c.status = 'Open') as has_children`,
+            ),
+          )
+          .where({ 'pc.id': dto.phone_category_id, 'pc.is_active': true, 'pc.status': 'Open' })
+          .first();
+        if (!phoneCategory)
+          throw new BadRequestException({
+            message: 'Phone category not found or inactive',
+            location: 'phone_category_id',
+          });
+        if (phoneCategory.has_children)
+          throw new BadRequestException({
+            message: 'Phone category must not have children',
+            location: 'phone_category_id',
+          });
+      }
 
       const sort = await getNextSortValue(trx, this.table, { where: { branch_id: branchId } });
       const insertData: Partial<RepairOrder> = {
@@ -728,16 +738,22 @@ export class RepairOrdersService {
 
     const updateFields: Record<string, unknown> = {};
 
-    // Map first_name + last_name → name (the actual column on repair_orders)
-    if (updateDto.first_name !== undefined || updateDto.last_name !== undefined) {
+    // Map name property if provided, otherwise reconstruct from first/last
+    if (updateDto.name !== undefined) {
+      updateFields.name = updateDto.name;
+    } else if (updateDto.first_name !== undefined || updateDto.last_name !== undefined) {
       const nameParts = [updateDto.first_name, updateDto.last_name].filter(Boolean);
       if (nameParts.length > 0) {
         updateFields.name = nameParts.join(' ');
       }
     }
 
-    // Map phone → phone_number (the actual column on repair_orders)
-    if (updateDto.phone !== undefined) updateFields.phone_number = updateDto.phone;
+    // Map phone_number property if provided, otherwise use phone
+    if (updateDto.phone_number !== undefined) {
+      updateFields.phone_number = updateDto.phone_number;
+    } else if (updateDto.phone !== undefined) {
+      updateFields.phone_number = updateDto.phone;
+    }
 
     if (Object.keys(updateFields).length === 0) {
       throw new BadRequestException('No valid fields to update');

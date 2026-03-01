@@ -237,9 +237,11 @@ export class AdminsService {
   async update(
     currentAdmin: AdminPayload,
     targetAdminId: string,
-    dto: UpdateAdminDto & { role_ids?: string[]; branch_ids?: string[] },
+    dto: UpdateAdminDto,
   ): Promise<{ message: string }> {
-    return this.knex.transaction(async (trx) => {
+    const { role_ids, branch_ids } = dto;
+
+    const result = await this.knex.transaction(async (trx) => {
       const target: Admin | undefined = await trx<Admin>('admins')
         .where({ id: targetAdminId })
         .andWhereNot({ status: 'Deleted' })
@@ -372,15 +374,11 @@ export class AdminsService {
           }));
           await trx('admin_roles').insert(roleData);
         }
-
-        await this.redisService.del(`${this.redisKeyByAdminRoles}:${targetAdminId}`);
-        await this.redisService.del(`admin:${targetAdminId}:permissions`);
       }
 
       if (branch_ids !== undefined) {
         if (branch_ids.length === 0) {
           await trx('admin_branches').where({ admin_id: targetAdminId }).del();
-          await this.redisService.del(`${this.redisKeyByAdminId}:${targetAdminId}`);
         } else {
           const parser = new ParseUUIDPipe();
           let branchIds: string[];
@@ -413,18 +411,28 @@ export class AdminsService {
             branch_id,
           }));
           await trx('admin_branches').insert(branchData);
-
-          await this.redisService.del(`${this.redisKeyByAdminId}:${targetAdminId}`);
         }
       }
 
-      await this.permissionsService.clearPermissionCache(targetAdminId);
-      await this.permissionsService.getPermissions(targetAdminId);
-
-      await this.redisService.del(`admin:${targetAdminId}`);
-
       return { message: 'Admin updated successfully' };
     });
+
+    // --- Flush Cache After Commit ---
+    if (role_ids !== undefined) {
+      await this.redisService.del(`${this.redisKeyByAdminRoles}:${targetAdminId}`);
+      await this.redisService.del(`admin:${targetAdminId}:permissions`);
+    }
+
+    if (branch_ids !== undefined) {
+      await this.redisService.flushByPrefix(`${this.redisKeyByAdminId}:${targetAdminId}`);
+    }
+
+    await this.permissionsService.clearPermissionCache(targetAdminId);
+    await this.permissionsService.getPermissions(targetAdminId);
+
+    await this.redisService.del(`admin:${targetAdminId}`);
+
+    return result;
   }
 
   async delete(requestingAdmin: AdminPayload, targetAdminId: string): Promise<{ message: string }> {
@@ -460,7 +468,7 @@ export class AdminsService {
       updated_at: new Date(),
     });
 
-    await this.redisService.del(`${this.redisKeyByAdminId}:${targetAdminId}`);
+    await this.redisService.flushByPrefix(`${this.redisKeyByAdminId}:${targetAdminId}`);
     await this.redisService.del(`${this.redisKeyByAdminRoles}:${targetAdminId}`);
 
     await this.permissionsService.clearPermissionCache(targetAdminId);

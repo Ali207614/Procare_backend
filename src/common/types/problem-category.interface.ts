@@ -1,4 +1,5 @@
 import { BreadcrumbItem } from 'src/common/types/breadcrumb.interface';
+import { RepairPart } from './repair-part.interface';
 
 export interface ProblemCategory {
   id: string;
@@ -19,4 +20,5 @@ export interface ProblemCategory {
 export interface ProblemCategoryWithMeta extends ProblemCategory {
   has_children: boolean;
   breadcrumb: BreadcrumbItem[];
+  assigned_parts?: Partial<RepairPart>[];
 }

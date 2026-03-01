@@ -192,6 +192,19 @@ export class ProblemCategoriesService {
           SELECT 1 FROM problem_categories c
           WHERE c.parent_id = p.id AND c.status = 'Open' 
         ) as has_children`),
+          trx.raw(`(
+            SELECT COALESCE(JSON_AGG(json_build_object(
+              'id', rp.id,
+              'part_name_uz', rp.part_name_uz,
+              'part_name_ru', rp.part_name_ru,
+              'part_name_en', rp.part_name_en,
+              'part_price', rp.part_price,
+              'is_required', rpa.is_required
+            )), '[]'::json)
+            FROM repair_part_assignments rpa
+            JOIN repair_parts rp ON rp.id = rpa.repair_part_id
+            WHERE rpa.problem_category_id = p.id AND rp.status = 'Open'
+          ) as assigned_parts`),
           trx.raw(`'[]'::json as breadcrumb`),
         )
         .leftJoin('phone_problem_mappings as ppm', 'ppm.problem_category_id', 'p.id')
@@ -282,6 +295,19 @@ export class ProblemCategoriesService {
           SELECT 1 FROM problem_categories c
           WHERE c.parent_id = p.id AND c.status = 'Open'
         ) as has_children`),
+          trx.raw(`(
+            SELECT COALESCE(JSON_AGG(json_build_object(
+              'id', rp.id,
+              'part_name_uz', rp.part_name_uz,
+              'part_name_ru', rp.part_name_ru,
+              'part_name_en', rp.part_name_en,
+              'part_price', rp.part_price,
+              'is_required', rpa.is_required
+            )), '[]'::json)
+            FROM repair_part_assignments rpa
+            JOIN repair_parts rp ON rp.id = rpa.repair_part_id
+            WHERE rpa.problem_category_id = p.id AND rp.status = 'Open'
+          ) as assigned_parts`),
           trx.raw(
             `(
             WITH RECURSIVE breadcrumb AS (

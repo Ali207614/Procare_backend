@@ -8,6 +8,8 @@ SELECT
     ro.pickup_method,
     ro.sort,
     ro.priority,
+    ro.name,
+    ro.phone_number,
     ro.created_at,
     COALESCE(
             jsonb_build_object(
@@ -46,6 +48,7 @@ SELECT
             'name_uz', s.name_uz,
             'name_ru', s.name_ru,
             'name_en', s.name_en,
+            'can_user_view', s.can_user_view,
             'transitions', COALESCE((
                 SELECT json_agg(
                     jsonb_build_object(

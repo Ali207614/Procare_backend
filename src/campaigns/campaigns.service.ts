@@ -99,10 +99,9 @@ export class CampaignsService {
     return this.knex.transaction(async (trx) => {
       const campaign: ICampaign | undefined = await trx('campaigns').where('id', id).first();
       if (!campaign) {
-        throw new NotFoundException({
+        throw new BadRequestException({
           message: 'Campaign not found',
-          location: 'campaign',
-          id,
+          location: 'campaign_id',
         });
       }
 
@@ -232,10 +231,9 @@ export class CampaignsService {
   async findOne(id: string): Promise<ICampaign> {
     const campaign: ICampaign | undefined = await this.knex('campaigns').where('id', id).first();
     if (!campaign) {
-      throw new NotFoundException({
+      throw new BadRequestException({
         message: 'Campaign not found',
-        location: 'campaign',
-        id,
+        location: 'campaign_id',
       });
     }
     return campaign;
@@ -245,6 +243,15 @@ export class CampaignsService {
     campaignId: string,
     filters: FindAllRecipientsDto,
   ): Promise<PaginationResult<ICampaignRecipient>> {
+    const campaign = await this.knex('campaigns').where('id', campaignId).first();
+
+    if (!campaign) {
+      throw new BadRequestException({
+        message: 'Campaign not found',
+        location: 'campaign_id',
+      });
+    }
+
     const baseQuery = this.knex('campaign_recipient as cr')
       .select(
         'cr.id',
@@ -326,10 +333,9 @@ export class CampaignsService {
   async remove(id: string): Promise<void> {
     const deleted = await this.knex('campaigns').where('id', id).del();
     if (!deleted) {
-      throw new NotFoundException({
+      throw new BadRequestException({
         message: 'Campaign not found',
-        location: 'campaign',
-        id,
+        location: 'campaign_id',
       });
     }
   }
@@ -461,9 +467,9 @@ export class CampaignsService {
       .where('id', campaignId)
       .first();
     if (!campaign) {
-      throw new NotFoundException({
+      throw new BadRequestException({
         message: 'Campaign not found',
-        location: 'campaign',
+        location: 'campaign_id',
       });
     }
 
@@ -489,6 +495,13 @@ export class CampaignsService {
   }
 
   async pauseCampaign(campaignId: string): Promise<void> {
+    const campaign = await this.knex('campaigns').where('id', campaignId).first();
+    if (!campaign) {
+      throw new BadRequestException({
+        message: 'Campaign not found',
+        location: 'campaign_id',
+      });
+    }
     await this.knex('campaigns').where('id', campaignId).update({ status: 'paused' });
 
     const jobs = await this.queue.getJobs(['waiting', 'delayed', 'active']);
@@ -502,6 +515,13 @@ export class CampaignsService {
   }
 
   async resumeCampaign(campaignId: string): Promise<void> {
+    const campaign = await this.knex('campaigns').where('id', campaignId).first();
+    if (!campaign) {
+      throw new BadRequestException({
+        message: 'Campaign not found',
+        location: 'campaign_id',
+      });
+    }
     await this.knex('campaigns').where('id', campaignId).update({ status: 'sending' });
     await this.enqueueRecipients(campaignId);
     this.logger.log(`Resumed campaign ${campaignId}`);

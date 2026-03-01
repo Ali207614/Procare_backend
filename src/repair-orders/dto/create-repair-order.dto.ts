@@ -155,6 +155,16 @@ export class CreateRepairOrderDto {
   @IsUUID('all', { message: 'Invalid user ID' })
   user_id?: string;
 
+  @ApiPropertyOptional({
+    description: 'Client full name',
+    example: 'Asilbek Azimov',
+    maxLength: 200,
+  })
+  @IsOptional()
+  @IsString({ message: 'Name must be a string' })
+  @MaxLength(200, { message: 'Name must not exceed 200 characters' })
+  name?: string;
+
   @ApiPropertyOptional({ description: 'Client first name', example: 'Asilbek', maxLength: 100 })
   @IsOptional()
   @IsString({ message: 'First name must be a string' })
@@ -167,20 +177,30 @@ export class CreateRepairOrderDto {
   @MaxLength(100, { message: 'Last name must not exceed 100 characters' })
   last_name?: string;
 
+  @ApiPropertyOptional({
+    description: 'Client phone number (replaces phone)',
+    example: '+998901234567',
+  })
+  @IsOptional()
+  @IsString({ message: 'Phone number must be a string' })
+  @MaxLength(20, { message: 'Phone number must not exceed 20 characters' })
+  phone_number?: string;
+
   @ApiPropertyOptional({ description: 'Client phone number', example: '+998901234567' })
   @IsOptional()
   @IsString({ message: 'Phone must be a string' })
   @MaxLength(20, { message: 'Phone must not exceed 20 characters' })
   phone?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Phone category ID',
     example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec',
   })
+  @IsOptional()
   @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
     message: 'Invalid phone category ID',
   })
-  phone_category_id!: string;
+  phone_category_id?: string;
 
   @ApiProperty({ description: 'Status ID', example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec' })
   @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {

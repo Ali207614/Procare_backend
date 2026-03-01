@@ -11,14 +11,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiOkResponse,
-  ApiNotFoundResponse,
-  ApiBearerAuth,
-  ApiResponse,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiOkResponse, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { CampaignsService } from './campaigns.service';
 import { ICampaign } from 'src/common/types/campaign.interface';
 import { CreateCampaignDto } from 'src/campaigns/dto/create-campaign.dto';
@@ -62,7 +55,7 @@ export class CampaignsController {
     return this.campaignsService.findAll(filters);
   }
 
-  @Get(':id/recipients')
+  @Get(':campaign_id/recipients')
   @UseInterceptors(PaginationInterceptor)
   @ApiOperation({
     summary: 'Get campaign recipients (with filters, search, sorting, and pagination)',
@@ -72,8 +65,12 @@ export class CampaignsController {
     description: 'List of campaign recipients with user details',
     type: FindAllRecipientsDto,
   })
+  @ApiResponse({
+    status: 400,
+    description: 'Campaign not found',
+  })
   async findRecipients(
-    @Param('id') id: string,
+    @Param('campaign_id', ParseUUIDPipe) id: string,
     @Query(ValidationPipe) filters: FindAllRecipientsDto,
   ): Promise<PaginationResult<ICampaignRecipient>> {
     return this.campaignsService.findRecipients(id, filters);
@@ -81,14 +78,14 @@ export class CampaignsController {
 
   @Get(':campaign_id')
   @ApiOperation({ summary: 'Get a campaign by ID' })
-  @ApiNotFoundResponse({ description: 'Campaign not found' })
+  @ApiResponse({ status: 400, description: 'Campaign not found' })
   async findOne(@Param('campaign_id', ParseUUIDPipe) id: string): Promise<ICampaign> {
     return this.campaignsService.findOne(id);
   }
 
   @Patch(':campaign_id')
   @ApiOperation({ summary: 'Update a campaign by ID' })
-  @ApiNotFoundResponse({ description: 'Campaign not found' })
+  @ApiResponse({ status: 400, description: 'Campaign not found' })
   @UseGuards(PermissionsGuard)
   @SetPermissions('campaign.update')
   async update(
@@ -101,7 +98,7 @@ export class CampaignsController {
   @Delete(':campaign_id')
   @ApiOperation({ summary: 'Delete a campaign by ID' })
   @ApiOkResponse()
-  @ApiNotFoundResponse({ description: 'Campaign not found' })
+  @ApiResponse({ status: 400, description: 'Campaign not found' })
   @UseGuards(PermissionsGuard)
   @SetPermissions('campaign.delete')
   async remove(@Param('campaign_id', ParseUUIDPipe) id: string): Promise<void> {

@@ -40,6 +40,8 @@ export interface FreshRepairOrder {
   sort: number;
   priority: 'Low' | 'Medium' | 'High' | 'Highest';
   status_id: string;
+  name: string | null;
+  phone_number: string | null;
   user: {
     id: string | null;
     first_name: string | null;
@@ -219,6 +221,8 @@ export interface RepairOrderDetails {
   pickup_method: 'Self' | 'Pickup';
   sort: number;
   priority: 'Low' | 'Medium' | 'High' | 'Highest';
+  name: string | null;
+  phone_number: string | null;
   user: {
     id: string | null;
     first_name: string | null;

@@ -113,11 +113,13 @@ export class RepairOrderCreateHelperService {
         .where({ id: phone.rental_phone_id })
         .update({ status: 'Rented', updated_at: new Date() });
 
-      const userCacheKey = `${this.redisKeyUser}${dto.user_id}`;
-      let user: User | null | undefined = await this.redisService.get(userCacheKey);
-      if (!user) {
-        user = await trx<User>('users').where({ id: dto.user_id, status: 'Open' }).first();
-        if (user) await this.redisService.set(userCacheKey, user, 3600);
+      if (dto.user_id) {
+        const userCacheKey = `${this.redisKeyUser}${dto.user_id}`;
+        let user: User | null | undefined = await this.redisService.get(userCacheKey);
+        if (!user) {
+          user = await trx<User>('users').where({ id: dto.user_id, status: 'Open' }).first();
+          if (user) await this.redisService.set(userCacheKey, user, 3600);
+        }
       }
 
       // External system integration removed

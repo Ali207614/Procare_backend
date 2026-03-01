@@ -181,7 +181,7 @@ export class RolesService {
   }
 
   async update(id: string, dto: UpdateRoleDto): Promise<{ message: string }> {
-    return this.knex.transaction(async (trx) => {
+    const result = await this.knex.transaction(async (trx) => {
       const role = await this.findOne(id);
 
       if (
@@ -245,12 +245,14 @@ export class RolesService {
 
       const adminIds = await trx('admin_roles').where({ role_id: id }).pluck('admin_id');
 
-      await Promise.all(
-        adminIds.map((adminId) => this.redisService.del(`admin:${adminId}:permissions`)),
-      );
-
-      return { message: 'Role updated successfully' };
+      return { message: 'Role updated successfully', adminIds };
     });
+
+    await Promise.all(
+      result.adminIds.map((adminId) => this.redisService.del(`admin:${adminId}:permissions`)),
+    );
+
+    return { message: result.message };
   }
 
   async delete(id: string): Promise<{ message: string }> {

@@ -376,7 +376,7 @@ export class BranchesService {
   }
 
   async assignAdmins(branchId: string, adminIds: string[]): Promise<{ message: string }> {
-    return this.knex.transaction(async (trx) => {
+    const result = await this.knex.transaction(async (trx) => {
       const validAdmins = await trx('admins')
         .whereIn('id', adminIds)
         .andWhere({ status: 'Open', is_active: true });
@@ -414,16 +414,17 @@ export class BranchesService {
       }));
 
       await trx('admin_branches').insert(insertRows);
-
-      await this.flushCacheByPrefix(this.redisKeyByAdminId);
-      await this.flushCacheByPrefix(this.redisKey);
-
       return { message: 'Admins assigned to branch successfully' };
     });
+
+    await this.flushCacheByPrefix(this.redisKeyByAdminId);
+    await this.flushCacheByPrefix(this.redisKey);
+
+    return result;
   }
 
   async removeAdmins(branchId: string, adminIds: string[]): Promise<{ message: string }> {
-    return this.knex.transaction(async (trx) => {
+    const result = await this.knex.transaction(async (trx) => {
       const existing = await trx('admin_branches')
         .whereIn('admin_id', adminIds)
         .andWhere('branch_id', branchId);
@@ -440,10 +441,12 @@ export class BranchesService {
         .andWhere('branch_id', branchId)
         .del();
 
-      await this.flushCacheByPrefix(this.redisKeyByAdminId);
-      await this.flushCacheByPrefix(this.redisKey);
-
       return { message: 'Admins removed from branch successfully' };
     });
+
+    await this.flushCacheByPrefix(this.redisKeyByAdminId);
+    await this.flushCacheByPrefix(this.redisKey);
+
+    return result;
   }
 }
