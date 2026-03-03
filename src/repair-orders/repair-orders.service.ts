@@ -140,44 +140,138 @@ export class RepairOrdersService {
           });
       }
 
-      const sort = await getNextSortValue(trx, this.table, { where: { branch_id: branchId } });
-      const insertData: Partial<RepairOrder> = {
-        user_id: resolvedUserId,
-        branch_id: branchId,
-        phone_category_id: dto.phone_category_id,
-        priority: dto.priority || 'Medium',
-        status_id: statusId,
-        sort,
-        delivery_method: 'Self',
-        pickup_method: 'Self',
-        created_by: admin.id,
-        phone_number: resolvedPhoneNumber,
-        name: resolvedName,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+      let existingOpenOrder: RepairOrder | undefined;
+      if (resolvedUserId || resolvedPhoneNumber) {
+        let query = trx(this.table).whereNotIn('status', ['Cancelled', 'Deleted', 'Closed']);
 
-      const [order]: RepairOrder[] = await trx(this.table).insert(insertData).returning('*');
+        if (resolvedUserId && resolvedPhoneNumber) {
+          query = query.andWhere((qb) => {
+            void qb
+              .where({ user_id: resolvedUserId })
+              .orWhere({ phone_number: resolvedPhoneNumber });
+          });
+        } else if (resolvedUserId) {
+          query = query.where({ user_id: resolvedUserId });
+        } else if (resolvedPhoneNumber) {
+          query = query.where({ phone_number: resolvedPhoneNumber });
+        }
+
+        existingOpenOrder = await query.first();
+      }
+
+      let order: RepairOrder;
+
+      if (existingOpenOrder) {
+        // Instead of throwing an error, we update the existing open order
+        const updateData: Partial<RepairOrder> = {
+          updated_at: new Date().toISOString(),
+        };
+
+        // Update fields if they are missing or provided in DTO
+        if (resolvedUserId && !existingOpenOrder.user_id) updateData.user_id = resolvedUserId;
+        if (resolvedName && !existingOpenOrder.name) updateData.name = resolvedName;
+        if (dto.phone_category_id) updateData.phone_category_id = dto.phone_category_id;
+        if (dto.priority) updateData.priority = dto.priority;
+
+        const [updated]: RepairOrder[] = await trx(this.table)
+          .where({ id: existingOpenOrder.id })
+          .update(updateData)
+          .returning('*');
+        order = updated;
+        this.logger.log(
+          `Updating existing open repair order ${order.id} for ${resolvedUserId ? `user ${resolvedUserId}` : `phone ${resolvedPhoneNumber}`}`,
+        );
+      } else {
+        const sort = await getNextSortValue(trx, this.table, { where: { branch_id: branchId } });
+        const insertData: Partial<RepairOrder> = {
+          user_id: resolvedUserId,
+          branch_id: branchId,
+          phone_category_id: dto.phone_category_id,
+          priority: dto.priority || 'Medium',
+          status_id: statusId,
+          sort,
+          delivery_method: 'Self',
+          pickup_method: 'Self',
+          created_by: admin.id,
+          phone_number: resolvedPhoneNumber,
+          name: resolvedName,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        const [inserted]: RepairOrder[] = await trx(this.table).insert(insertData).returning('*');
+        order = inserted;
+      }
+
+      // Process helpers (initial problems, comments, etc.) for either the new or existing order
       await Promise.all([
-        this.helper.insertAssignAdmins(trx, dto, admin, statusId, order.id, branchId, permissions),
-        this.helper.insertRentalPhone(trx, dto, admin, statusId, order.id, branchId, permissions),
+        this.helper.insertAssignAdmins(
+          trx,
+          dto,
+          admin,
+          order.status_id,
+          order.id,
+          order.branch_id,
+          permissions,
+        ),
+        this.helper.insertRentalPhone(
+          trx,
+          dto,
+          admin,
+          order.status_id,
+          order.id,
+          order.branch_id,
+          permissions,
+        ),
         this.helper.insertInitialProblems(
           trx,
           dto,
           admin,
-          statusId,
+          order.status_id,
           order.id,
-          branchId,
+          order.branch_id,
           permissions,
         ),
-        this.helper.insertFinalProblems(trx, dto, admin, statusId, order.id, branchId, permissions),
-        this.helper.insertComments(trx, dto, admin, statusId, order.id, branchId, permissions),
-        this.helper.insertPickup(trx, dto, admin, statusId, order.id, branchId, permissions),
-        this.helper.insertDelivery(trx, dto, admin, statusId, order.id, branchId, permissions),
+        this.helper.insertFinalProblems(
+          trx,
+          dto,
+          admin,
+          order.status_id,
+          order.id,
+          order.branch_id,
+          permissions,
+        ),
+        this.helper.insertComments(
+          trx,
+          dto,
+          admin,
+          order.status_id,
+          order.id,
+          order.branch_id,
+          permissions,
+        ),
+        this.helper.insertPickup(
+          trx,
+          dto,
+          admin,
+          order.status_id,
+          order.id,
+          order.branch_id,
+          permissions,
+        ),
+        this.helper.insertDelivery(
+          trx,
+          dto,
+          admin,
+          order.status_id,
+          order.id,
+          order.branch_id,
+          permissions,
+        ),
       ]);
 
       await trx.commit();
-      await this.redisService.flushByPrefix(`${this.table}:${branchId}`);
+      await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
       return order;
     } catch (err) {
       await trx.rollback();
@@ -185,7 +279,9 @@ export class RepairOrdersService {
       if (err instanceof HttpException) {
         throw err;
       }
-      this.logger.error(`Failed to create repair order:`);
+      this.logger.error(
+        `Failed to handle repair order: ${err instanceof Error ? err.message : String(err)}`,
+      );
       throw err;
     }
   }

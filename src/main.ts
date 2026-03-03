@@ -72,7 +72,9 @@ async function bootstrap(): Promise<void> {
   );
 
   // Prefix
-  app.setGlobalPrefix(GLOBAL_PREFIX);
+  app.setGlobalPrefix(GLOBAL_PREFIX, {
+    exclude: ['api/webhooks/(.*)'],
+  });
 
   // Basic auth: Queues & Swagger
   app.use(
@@ -106,6 +108,7 @@ async function bootstrap(): Promise<void> {
       in: 'header',
       description: 'Enter your JWT token: <code>Bearer &lt;token&gt;</code>',
     })
+    .addBasicAuth()
     .build();
 
   const swaggerDoc = SwaggerModule.createDocument(app, swaggerCfg);

@@ -16,9 +16,33 @@ export class UsersService {
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,
   ) {}
+  private readonly userFields = [
+    'id',
+    'customer_code',
+    'first_name',
+    'last_name',
+    'phone_number1',
+    'phone_number2',
+    'phone_verified',
+    'passport_series',
+    'id_card_number',
+    'birth_date',
+    'language',
+    'telegram_chat_id',
+    'telegram_username',
+    'status',
+    'is_active',
+    'source',
+    'created_at',
+    'updated_at',
+    'created_by',
+  ];
 
   async findOneWithOrders(userId: string): Promise<UserWithRepairOrders> {
-    const user: User | undefined = await this.knex('users').where({ id: userId }).first();
+    const user: UserListItem | undefined = await this.knex('users')
+      .select(this.userFields)
+      .where({ id: userId, status: 'Open' })
+      .first();
 
     if (!user) {
       throw new NotFoundException({
@@ -104,8 +128,8 @@ export class UsersService {
     };
   }
 
-  async create(dto: CreateUserDto, admin: AdminPayload): Promise<User> {
-    const exists: User | undefined = await this.knex('users')
+  async create(dto: CreateUserDto, admin: AdminPayload): Promise<UserListItem> {
+    const exists: UserListItem | undefined = await this.knex<UserListItem>('users')
       .whereRaw('LOWER(phone_number1) = ?', dto.phone_number1.toLowerCase())
       .andWhereNot({ status: 'Deleted' })
       .first();
@@ -117,7 +141,7 @@ export class UsersService {
       });
     }
 
-    const [user]: User[] = await this.knex<User>('users')
+    const [user]: UserListItem[] = await this.knex<UserListItem>('users')
       .insert({
         first_name: dto.first_name,
         last_name: dto.last_name,
@@ -136,7 +160,7 @@ export class UsersService {
         updated_at: new Date().toISOString(),
         created_by: admin.id,
       })
-      .returning('*');
+      .returning(this.userFields);
 
     // External system integration removed
 
@@ -149,36 +173,16 @@ export class UsersService {
 
     const baseQuery = this.buildUserQuery(this.knex, filters);
 
-    const [rows, [{ count }]] = await Promise.all([
+    const [rows, [{ count }]] = (await Promise.all([
       baseQuery
         .clone()
-        .select(
-          'id',
-          'customer_code',
-          'first_name',
-          'last_name',
-          'phone_number1',
-          'phone_number2',
-          'phone_verified',
-          'passport_series',
-          'id_card_number',
-          'birth_date',
-          'language',
-          'telegram_chat_id',
-          'telegram_username',
-          'status',
-          'is_active',
-          'source',
-          'created_at',
-          'updated_at',
-          'created_by',
-        )
+        .select(this.userFields)
         .orderBy('created_at', 'desc')
         .offset(offset)
         .limit(limit),
 
       baseQuery.clone().clearSelect().clearOrder().count<{ count: string }[]>('* as count'),
-    ]);
+    ])) as unknown as [UserListItem[], [{ count: string }]];
 
     return {
       rows,

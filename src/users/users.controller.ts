@@ -20,7 +20,7 @@ import { SetPermissions } from 'src/common/decorators/permission-decorator';
 import { FindAllUsersDto } from './dto/find-all-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserWithRepairOrders } from 'src/common/types/repair-order.interface';
-import { User, UserListItem } from 'src/common/types/user.interface';
+import { UserListItem } from 'src/common/types/user.interface';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
@@ -37,7 +37,10 @@ export class UsersController {
   @UseGuards(PermissionsGuard)
   @SetPermissions('user.create')
   @ApiOperation({ summary: 'Create new user' })
-  async create(@Body() dto: CreateUserDto, @CurrentAdmin() admin: AdminPayload): Promise<User> {
+  async create(
+    @Body() dto: CreateUserDto,
+    @CurrentAdmin() admin: AdminPayload,
+  ): Promise<UserListItem> {
     return this.usersService.create(dto, admin);
   }
 

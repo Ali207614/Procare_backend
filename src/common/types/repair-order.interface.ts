@@ -1,9 +1,9 @@
-import { User } from 'src/common/types/user.interface';
+import { UserListItem } from 'src/common/types/user.interface';
 
 export interface RepairOrder {
   id: string;
   number_id: number;
-  user_id: string;
+  user_id: string | null;
   branch_id: string;
 
   total: string;
@@ -19,12 +19,21 @@ export interface RepairOrder {
   priority: 'Low' | 'Medium' | 'High' | 'Highest';
   priority_level: number;
 
-  created_by: string;
+  created_by: string | null;
   status: 'Open' | 'Deleted' | 'Closed' | 'Cancelled';
 
   phone_number: string;
   name: string | null;
-  source_type: string | null;
+  source:
+    | 'Telegram'
+    | 'Meta'
+    | 'Qolda'
+    | 'Boshqa'
+    | 'Kiruvchi qongiroq'
+    | 'Chiquvchi qongiroq'
+    | null;
+  call_count: number;
+  missed_calls: number;
 
   created_at: string; // timestamp
   updated_at: string; // timestamp
@@ -427,6 +436,6 @@ export interface JoinedRepairOrder {
   };
 }
 
-export interface UserWithRepairOrders extends User {
+export interface UserWithRepairOrders extends UserListItem {
   repair_orders: JoinedRepairOrder[];
 }

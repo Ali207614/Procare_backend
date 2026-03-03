@@ -36,8 +36,13 @@ exports.up = async function (knex) {
     table.enu('priority', ['Low', 'Medium', 'High', 'Highest']).notNullable().defaultTo('Medium');
     table.integer('priority_level').notNullable().defaultTo(2);
 
-    table.uuid('created_by').notNullable().references('id').inTable('admins').onDelete('RESTRICT');
+    table.uuid('created_by').references('id').inTable('admins').onDelete('RESTRICT');
     table.enu('status', ['Open', 'Deleted','Closed','Cancelled']).defaultTo('Open');
+    table.enu('source', ["Telegram", "Meta", "Qolda", "Boshqa", "Kiruvchi qongiroq", "Chiquvchi qongiroq"]).notNullable().defaultTo("Qolda");
+    
+    table.integer('call_count').defaultTo(0).notNullable();
+    table.integer('missed_calls').defaultTo(0).notNullable();
+
     table.string("phone_number").notNullable();
     table.string("name")
 

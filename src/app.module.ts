@@ -65,6 +65,7 @@ import { UsersModule } from './users/users.module';
 import { UsersService } from './users/users.service';
 import { StorageModule } from './common/storage/storage.module';
 import { PdfModule } from './pdf/pdf.module';
+import { OnlinePbxModule } from './online-pbx/online-pbx.module';
 
 @Module({
   imports: [
@@ -102,6 +103,7 @@ import { PdfModule } from './pdf/pdf.module';
     TelegramModule,
     StorageModule,
     PdfModule,
+    OnlinePbxModule,
   ],
   controllers: [
     AuthController,

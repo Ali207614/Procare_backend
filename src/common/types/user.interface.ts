@@ -1,5 +1,6 @@
 export interface User {
   id: string;
+  customer_code: string | null;
   first_name: string;
   last_name: string;
   phone_number1: string | null;
@@ -25,6 +26,7 @@ export interface User {
 export type UserListItem = Pick<
   User,
   | 'id'
+  | 'customer_code'
   | 'first_name'
   | 'last_name'
   | 'phone_number1'
