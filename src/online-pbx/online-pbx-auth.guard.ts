@@ -8,28 +8,18 @@ export class OnlinePbxAuthGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     const request: Request = context.switchToHttp().getRequest();
-    const authHeader = request.headers.authorization;
+    const token = request.query.token as string;
 
-    if (!authHeader) {
-      throw new UnauthorizedException('Authorization header is missing');
+    if (!token) {
+      throw new UnauthorizedException('Token is missing in the query parameters');
     }
 
-    const [type, credentials] = authHeader.split(' ');
+    const expectedToken = this.configService.get<string>('ONLINEPBX_WEBHOOK_TOKEN');
 
-    if (type?.toLowerCase() !== 'basic' || !credentials) {
-      throw new UnauthorizedException('Invalid authorization type');
-    }
-
-    const decoded = Buffer.from(credentials, 'base64').toString();
-    const [user, pass] = decoded.split(':');
-
-    const expectedUser = this.configService.get<string>('ONLINEPBX_WEBHOOK_USER');
-    const expectedPass = this.configService.get<string>('ONLINEPBX_WEBHOOK_PASS');
-
-    if (user === expectedUser && pass === expectedPass) {
+    if (token === expectedToken) {
       return true;
     }
 
-    throw new UnauthorizedException('Invalid credentials');
+    throw new UnauthorizedException('Invalid token');
   }
 }

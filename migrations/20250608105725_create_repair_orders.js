@@ -18,7 +18,6 @@ exports.up = async function (knex) {
 
     table
       .uuid('phone_category_id')
-      .notNullable()
       .references('id')
       .inTable('phone_categories')
       .onDelete('RESTRICT');

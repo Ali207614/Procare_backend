@@ -7,9 +7,6 @@ import axios from 'axios';
 import * as https from 'https';
 import { User } from 'src/common/types/user.interface';
 import { RepairOrder } from 'src/common/types/repair-order.interface';
-import { Branch } from 'src/common/types/branch.interface';
-import { PhoneCategory } from 'src/common/types/phone-category.interface';
-import { RepairOrderStatus } from 'src/common/types/repair-order-status.interface';
 
 interface OnlinePbxWebhookPayload {
   uuid: string;
@@ -101,13 +98,60 @@ export class OnlinePbxService {
     }
   }
 
+  /**
+   * Helper to format phone number to DB standard +998XXXXXXXXX
+   * Handles 3-digit OnlinePBX tokens as special cases.
+   */
+  private formatPhone(phone: string | undefined): string | null {
+    if (!phone || typeof phone !== 'string') return null;
+
+    // Remove any non-digit characters if present
+    const digits = phone.replace(/\D/g, '');
+
+    // 3-digit tokens/extensions should be kept as is
+    if (digits.length === 3) {
+      return digits;
+    }
+
+    // 9-digit local numbers: prepend +998
+    if (digits.length === 9) {
+      return `+998${digits}`;
+    }
+
+    // 12-digit numbers starting with 998: prepend +
+    if (digits.length === 12 && digits.startsWith('998')) {
+      return `+${digits}`;
+    }
+
+    // If it already starts with + and has 12 digits (+998...)
+    if (phone.startsWith('+') && digits.length === 12) {
+      return phone;
+    }
+
+    // Fallback for other cases where it doesn't start with + but has 10+ digits
+    if (!phone.startsWith('+') && digits.length >= 10) {
+      return `+${digits}`;
+    }
+
+    return phone;
+  }
+
   async handleWebhook(payload: Record<string, unknown>): Promise<void> {
+    // TEMPORARY LOGGING FOR TESTING
+    try {
+      await this.knex('online_pbx_webhook_logs').insert({
+        payload: payload,
+        created_at: new Date().toISOString(),
+      });
+    } catch (logError: unknown) {
+      const errorMessage = logError instanceof Error ? logError.message : String(logError);
+      this.logger.error(`[OnlinePBX Webhook] Failed to log raw payload: ${errorMessage}`);
+    }
+
     this.logger.log(`[OnlinePBX Webhook] Received payload: ${JSON.stringify(payload)}`);
 
     const {
       uuid,
-      caller,
-      callee,
       direction,
       event,
       call_duration,
@@ -115,6 +159,7 @@ export class OnlinePbxService {
       hangup_cause,
       download_url: rawDownloadUrl,
     } = payload as unknown as OnlinePbxWebhookPayload;
+    const { caller, callee } = payload as unknown as OnlinePbxWebhookPayload;
 
     let download_url = rawDownloadUrl;
     if (download_url && typeof download_url === 'string' && download_url.startsWith('http://')) {
@@ -123,54 +168,31 @@ export class OnlinePbxService {
 
     if (!uuid) return;
 
+    const gateway = this.config.get<string>('GATEWAY');
+    let userId: string | null = null;
+    let repairOrderId: string | null = null;
+
     // Distinguish between customer and staff (admin)
     let customerPhoneRaw: string | undefined;
-    let staffPhoneRaw: string | undefined;
-
-    const gateway = this.config.get<string>('GATEWAY');
 
     if (direction === 'inbound') {
       customerPhoneRaw = caller;
-      staffPhoneRaw = callee;
     } else if (direction === 'outbound') {
       customerPhoneRaw = callee;
-      staffPhoneRaw = caller;
     }
-
-    // Helper to format phone number to DB standard +998XXXXXXXXX
-    const formatPhone = (phone: string | undefined): string | null => {
-      if (!phone || typeof phone !== 'string') return null;
-      if (phone.startsWith('998') && phone.length === 12) {
-        return '+' + phone;
-      } else if (phone.length === 9) {
-        return '+998' + phone;
-      } else if (!phone.startsWith('+')) {
-        return '+' + phone;
-      }
-      return phone;
-    };
 
     // Role verification using GATEWAY - if either side is our gateway, that side is staff
-    const formattedCaller = formatPhone(caller);
-    const formattedCallee = formatPhone(callee);
-    const formattedGateway = formatPhone(gateway);
+    const formattedCaller = this.formatPhone(caller);
+    const formattedCallee = this.formatPhone(callee);
+    const formattedGateway = this.formatPhone(gateway);
 
     if (formattedCaller && formattedGateway && formattedCaller === formattedGateway) {
-      // Caller is our gateway, so he must be staff/company side
       customerPhoneRaw = callee;
-      staffPhoneRaw = caller;
     } else if (formattedCallee && formattedGateway && formattedCallee === formattedGateway) {
-      // Callee is our gateway, so he must be staff/company side
       customerPhoneRaw = caller;
-      staffPhoneRaw = callee;
     }
 
-    const formattedCustomerPhone = formatPhone(customerPhoneRaw);
-    const formattedStaffPhone = formatPhone(staffPhoneRaw);
-
-    let userId: string | null = null;
-    let adminId: string | null = null;
-    let repairOrderId: string | null = null;
+    const formattedCustomerPhone = this.formatPhone(customerPhoneRaw);
 
     // Identify Customer
     if (formattedCustomerPhone) {
@@ -181,15 +203,6 @@ export class OnlinePbxService {
         userId = user.id;
       }
     }
-
-    // Identify Staff (Admin)
-    if (formattedStaffPhone) {
-      const admin = await this.knex('admins').where('phone_number', formattedStaffPhone).first();
-      if (admin) {
-        adminId = admin.id;
-      }
-    }
-
     if (formattedCustomerPhone) {
       // Don't create repair orders for internal calls (admin to admin)
       // or if the customer phone is actually our gateway
@@ -223,32 +236,16 @@ export class OnlinePbxService {
           repairOrderId = openOrder.id;
         }
 
-        const assignAdminToOrder = async (orderId: string, aId: string): Promise<void> => {
-          await this.knex('repair_order_assign_admins')
-            .insert({
-              repair_order_id: orderId,
-              admin_id: aId,
-              created_at: new Date().toISOString(),
-            })
-            .onConflict(['repair_order_id', 'admin_id'])
-            .ignore();
-        };
-
         if (event === 'call_start' || event === 'call_answered') {
           if (!openOrder) {
             // Create repair order for both inbound and outbound calls if no order exists
             if (event === 'call_start') {
-              const defaultBranch = await this.knex<Branch>('branches').first();
-              const defaultCategory = await this.knex<PhoneCategory>('phone_categories')
-                .where('status', 'Open')
-                .first();
-              const defaultStatus = await this.knex<RepairOrderStatus>('repair_order_statuses')
-                .orderBy('sort', 'asc')
-                .first();
+              const defaultBranch = '00000000-0000-4000-8000-000000000000';
+              const defaultStatus = '50000000-0000-0000-0001-001000000000';
 
-              if (defaultBranch && defaultCategory && defaultStatus) {
+              if (defaultBranch && defaultStatus) {
                 const sortResult = await this.knex('repair_orders')
-                  .where('branch_id', defaultBranch.id)
+                  .where({ branch_id: defaultBranch })
                   .max<{ max_sort: number | string }>('sort as max_sort')
                   .first();
                 const nextSort = sortResult?.max_sort ? Number(sortResult.max_sort) + 1 : 1;
@@ -256,14 +253,13 @@ export class OnlinePbxService {
                 const [newOrder] = await this.knex<RepairOrder>('repair_orders')
                   .insert({
                     user_id: userId,
-                    branch_id: defaultBranch.id,
-                    phone_category_id: defaultCategory.id,
+                    branch_id: defaultBranch,
                     priority: 'Medium',
-                    status_id: defaultStatus.id,
+                    status_id: defaultStatus,
                     sort: nextSort,
                     delivery_method: 'Self',
                     pickup_method: 'Self',
-                    created_by: adminId, // Link to admin who handled the call
+                    created_by: null,
                     phone_number: formattedCustomerPhone,
                     name: userId ? null : null,
                     source: direction === 'inbound' ? 'Kiruvchi qongiroq' : 'Chiquvchi qongiroq',
@@ -275,13 +271,14 @@ export class OnlinePbxService {
 
                 if (newOrder) {
                   repairOrderId = newOrder.id;
-                  if (adminId) {
-                    await assignAdminToOrder(newOrder.id, adminId);
-                  }
                 }
 
                 this.logger.log(
                   `Created new repair order for ${userId ? `user ${userId}` : `unknown caller ${formattedCustomerPhone}`} from ${direction} call.`,
+                );
+              } else {
+                this.logger.warn(
+                  `[OnlinePBX Webhook] Cannot create repair order. Missing master data: Branch=${!!defaultBranch}, Status=${!!defaultStatus}`,
                 );
               }
             }
@@ -290,17 +287,12 @@ export class OnlinePbxService {
             if (event === 'call_start') {
               await this.knex('repair_orders')
                 .where({ id: openOrder.id })
-                .increment('call_count', 1);
+                .update({
+                  call_count: this.knex.raw('call_count + 1'),
+                  updated_at: new Date().toISOString(),
+                });
               this.logger.log(
-                `Incremented call_count for existing open repair order ${openOrder.id}.`,
-              );
-            }
-
-            // Automatically assign the staff member to the open order
-            if (adminId) {
-              await assignAdminToOrder(openOrder.id, adminId);
-              this.logger.log(
-                `Assigned admin ${adminId} to existing open repair order ${openOrder.id} from call.`,
+                `Incremented call_count for existing open repair order ${openOrder.id} and updated updated_at.`,
               );
             }
           }
@@ -308,36 +300,24 @@ export class OnlinePbxService {
           if (openOrder) {
             await this.knex('repair_orders')
               .where({ id: openOrder.id })
-              .increment('missed_calls', 1);
+              .update({
+                missed_calls: this.knex.raw('missed_calls + 1'),
+                updated_at: new Date().toISOString(),
+              });
             this.logger.log(
-              `Incremented missed_calls for existing open repair order ${openOrder.id}.`,
+              `Incremented missed_calls for existing open repair order ${openOrder.id} and updated updated_at.`,
             );
           }
         }
       }
     }
 
-    // Upsert phone_call record using Knex
-    const existingCall = await this.knex<PhoneCall>('phone_calls').where('uuid', uuid).first();
-
-    if (existingCall) {
-      await this.knex<PhoneCall>('phone_calls')
-        .where('uuid', uuid)
-        .update({
-          event: event || existingCall.event,
-          call_duration: call_duration ? Number(call_duration) : existingCall.call_duration,
-          dialog_duration: dialog_duration ? Number(dialog_duration) : existingCall.dialog_duration,
-          hangup_cause: hangup_cause || existingCall.hangup_cause,
-          download_url: download_url || existingCall.download_url,
-          user_id: userId || existingCall.user_id,
-          repair_order_id: repairOrderId || existingCall.repair_order_id,
-          updated_at: new Date().toISOString(),
-        });
-    } else {
-      await this.knex<PhoneCall>('phone_calls').insert({
+    // Upsert phone_call record using Knex's built-in support
+    await this.knex<PhoneCall>('phone_calls')
+      .insert({
         uuid,
-        caller: (caller as string) || null,
-        callee: (callee as string) || null,
+        caller: formattedCaller,
+        callee: formattedCallee,
         direction: (direction as string) || null,
         event: (event as string) || null,
         call_duration: call_duration ? Number(call_duration) : null,
@@ -348,7 +328,17 @@ export class OnlinePbxService {
         repair_order_id: repairOrderId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+      })
+      .onConflict('uuid')
+      .merge({
+        event: event || undefined,
+        call_duration: call_duration ? Number(call_duration) : undefined,
+        dialog_duration: dialog_duration ? Number(dialog_duration) : undefined,
+        hangup_cause: hangup_cause || undefined,
+        download_url: download_url || undefined,
+        user_id: userId || undefined,
+        repair_order_id: repairOrderId || undefined,
+        updated_at: new Date().toISOString(),
       });
-    }
   }
 }
