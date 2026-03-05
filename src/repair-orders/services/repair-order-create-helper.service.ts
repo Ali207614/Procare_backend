@@ -10,6 +10,9 @@ import { RepairOrderStatusPermission } from 'src/common/types/repair-order-statu
 import { User } from 'src/common/types/user.interface';
 import { RentalPhone } from 'src/common/types/rental-phone.interface';
 import { LoggerService } from 'src/common/logger/logger.service';
+import { RepairNotificationMeta } from 'src/common/types/notification.interface';
+import { RepairOrder } from 'src/common/types/repair-order.interface';
+import { InjectKnex } from 'nestjs-knex';
 
 @Injectable()
 export class RepairOrderCreateHelperService {
@@ -18,6 +21,7 @@ export class RepairOrderCreateHelperService {
   private readonly redisKeyAdmin = 'admin:';
 
   constructor(
+    @InjectKnex() private readonly knex: Knex,
     private readonly permissionService: RepairOrderStatusPermissionsService,
     private readonly notificationService: NotificationService,
     private readonly redisService: RedisService,
@@ -188,44 +192,44 @@ export class RepairOrderCreateHelperService {
         .onConflict(['repair_order_id', 'admin_id'])
         .ignore();
 
-      const order = await trx('repair_orders').where({ id: orderId }).first();
+      const order = await trx<RepairOrder>('repair_orders').where({ id: orderId }).first();
       if (order) {
-        const notifications = uniqueIds.map((adminId) => ({
-          admin_id: adminId,
-          title: 'Yangi buyurtma tayinlandi',
-          message: 'Sizga yangi repair order biriktirildi.',
-          type: 'info',
-          meta: {
-            order_id: order.id,
-            branch_id: order.branch_id,
-            assigned_by: admin.id,
-            action: 'assigned_to_order',
-          },
-          created_at: now,
-          updated_at: now,
-        }));
+        void this.getRepairOrderNotificationMeta(order.id, trx)
+          .then((richMeta) => {
+            const notifications = uniqueIds.map((adminId) => ({
+              admin_id: adminId,
+              title: 'Yangi buyurtma tayinlandi',
+              message: 'Sizga yangi repair order biriktirildi.',
+              type: 'info',
+              meta: {
+                ...richMeta,
+                branch_id: order.branch_id,
+                assigned_by: admin.id,
+                action: 'assigned_to_order',
+              } as Record<string, unknown>,
+              created_at: now,
+              updated_at: now,
+            }));
 
-        await trx('notifications').insert(notifications);
-        try {
-          await this.notificationService.notifyAdmins(trx, uniqueIds, {
-            title: 'Yangi buyurtma',
-            message: 'Sizga yangi buyurtma biriktirildi.',
-            meta: {
-              order_id: order.id,
-              action: 'assigned_to_order',
-            },
+            return trx('notifications')
+              .insert(notifications)
+              .then(() => {
+                return this.notificationService.notifyAdmins(trx, uniqueIds, {
+                  title: 'Yangi buyurtma',
+                  message: 'Sizga yangi buyurtma biriktirildi.',
+                  meta: {
+                    ...richMeta,
+                    action: 'assigned_to_order',
+                  } as Record<string, unknown>,
+                });
+              });
+          })
+          .catch((err: Error) => {
+            const message = err.message || 'Unknown error while sending notifications';
+            this.logger.error(
+              `Failed to send notifications for repair order ${orderId}: ${message}`,
+            );
           });
-        } catch (err) {
-          const message =
-            err instanceof Error ? err.message : 'Unknown error while sending notifications';
-
-          this.logger.error(`Failed to send notifications for repair order ${orderId}: ${message}`);
-
-          throw new BadRequestException({
-            message: 'Failed to send notifications',
-            location: 'notifications',
-          });
-        }
       }
 
       this.logger.log(`Assigned ${uniqueIds.length} admins to repair order ${orderId}`);
@@ -497,5 +501,36 @@ export class RepairOrderCreateHelperService {
         location: 'insert_delivery',
       });
     }
+  }
+
+  async getRepairOrderNotificationMeta(
+    orderId: string,
+    trx: Knex | Knex.Transaction = this.knex,
+  ): Promise<RepairNotificationMeta | null> {
+    const query = `
+      SELECT
+        ro.id as order_id,
+        ro.number_id::text as number_id,
+        pc.name_uz as phone_category_name,
+        COALESCE(u.first_name || ' ' || u.last_name, ro.name) as user_full_name,
+        COALESCE(u.phone_number1, ro.phone_number) as user_phone_number,
+        ro.pickup_method,
+        ro.delivery_method,
+        ro.priority,
+        ro.source,
+        (
+          SELECT string_agg(a.first_name || ' ' || a.last_name, ', ')
+          FROM repair_order_assign_admins raa
+          JOIN admins a ON a.id = raa.admin_id
+          WHERE raa.repair_order_id = ro.id
+        ) as assigned_admins
+      FROM repair_orders ro
+      LEFT JOIN phone_categories pc ON pc.id = ro.phone_category_id
+      LEFT JOIN users u ON u.id = ro.user_id
+      WHERE ro.id = ?
+    `;
+
+    const result = await trx.raw(query, [orderId]);
+    return (result.rows[0] as RepairNotificationMeta) || null;
   }
 }

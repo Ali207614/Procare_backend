@@ -131,6 +131,16 @@ export class RedisService {
     }
   }
 
+  async ttl(key: string): Promise<number> {
+    if (!(await this.ensureConnected())) return -1;
+    try {
+      return await this.client!.ttl(this.buildKey(key));
+    } catch (err) {
+      this.handleError(err, `Redis TTL error for key=${key}`);
+      return -1;
+    }
+  }
+
   /**
    * Prefiks bo‘yicha tozalash (SCAN asosida).
    * Katta setlarda COUNT bilan bosqichma-bosqich yuradi.

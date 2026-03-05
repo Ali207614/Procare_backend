@@ -6,7 +6,6 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import * as https from 'https';
 import { User } from 'src/common/types/user.interface';
-import { RepairOrder } from 'src/common/types/repair-order.interface';
 
 interface OnlinePbxWebhookPayload {
   uuid: string;
@@ -37,6 +36,8 @@ interface PhoneCall {
   updated_at: string;
 }
 
+import { RepairOrdersService } from 'src/repair-orders/repair-orders.service';
+
 @Injectable()
 export class OnlinePbxService {
   private readonly apiUrl: string;
@@ -47,6 +48,7 @@ export class OnlinePbxService {
     private readonly logger: LoggerService,
     private readonly config: ConfigService,
     @InjectKnex() private readonly knex: Knex,
+    private readonly repairOrderService: RepairOrdersService,
   ) {
     // We use https as a default to ensure secure communication.
     // In Node.js, the implementation for http and https is handled by axios automatically
@@ -217,21 +219,11 @@ export class OnlinePbxService {
       } else {
         // Inbound & Outbound call handling logic (tracking customer's repair orders)
         // Look for an existing open repair order for this customer
-        let query = this.knex<RepairOrder>('repair_orders').whereNotIn('status', [
-          'Cancelled',
-          'Deleted',
-          'Closed',
-        ]);
+        const openOrder = await this.repairOrderService.findOpenOrderByPhoneNumber(
+          formattedCustomerPhone,
+          userId,
+        );
 
-        if (userId) {
-          query = query.andWhere((qb): void => {
-            void qb.where({ user_id: userId }).orWhere({ phone_number: formattedCustomerPhone });
-          });
-        } else {
-          query = query.where({ phone_number: formattedCustomerPhone });
-        }
-
-        const openOrder = await query.first();
         if (openOrder) {
           repairOrderId = openOrder.id;
         }
@@ -244,37 +236,20 @@ export class OnlinePbxService {
               const defaultStatus = '50000000-0000-0000-0001-001000000000';
 
               if (defaultBranch && defaultStatus) {
-                const sortResult = await this.knex('repair_orders')
-                  .where({ branch_id: defaultBranch })
-                  .max<{ max_sort: number | string }>('sort as max_sort')
-                  .first();
-                const nextSort = sortResult?.max_sort ? Number(sortResult.max_sort) + 1 : 1;
-
-                const [newOrder] = await this.knex<RepairOrder>('repair_orders')
-                  .insert({
-                    user_id: userId,
-                    branch_id: defaultBranch,
-                    priority: 'Medium',
-                    status_id: defaultStatus,
-                    sort: nextSort,
-                    delivery_method: 'Self',
-                    pickup_method: 'Self',
-                    created_by: null,
-                    phone_number: formattedCustomerPhone,
-                    name: userId ? null : null,
-                    source: direction === 'inbound' ? 'Kiruvchi qongiroq' : 'Chiquvchi qongiroq',
-                    call_count: 1,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                  })
-                  .returning('*');
+                const newOrder = await this.repairOrderService.createFromWebhook({
+                  userId,
+                  branchId: defaultBranch,
+                  statusId: defaultStatus,
+                  phoneNumber: formattedCustomerPhone,
+                  source: direction === 'inbound' ? 'Kiruvchi qongiroq' : 'Chiquvchi qongiroq',
+                });
 
                 if (newOrder) {
                   repairOrderId = newOrder.id;
                 }
 
                 this.logger.log(
-                  `Created new repair order for ${userId ? `user ${userId}` : `unknown caller ${formattedCustomerPhone}`} from ${direction} call.`,
+                  `Created new repair order for ${userId ? `user ${userId}` : `unknown caller ${formattedCustomerPhone}`} from ${direction} call via RepairOrdersService.`,
                 );
               } else {
                 this.logger.warn(
@@ -285,27 +260,17 @@ export class OnlinePbxService {
           } else {
             // For either inbound or outbound, if we find an open order, we update it
             if (event === 'call_start') {
-              await this.knex('repair_orders')
-                .where({ id: openOrder.id })
-                .update({
-                  call_count: this.knex.raw('call_count + 1'),
-                  updated_at: new Date().toISOString(),
-                });
+              await this.repairOrderService.incrementCallCount(openOrder.id);
               this.logger.log(
-                `Incremented call_count for existing open repair order ${openOrder.id} and updated updated_at.`,
+                `Incremented call_count for existing open repair order ${openOrder.id} via RepairOrdersService.`,
               );
             }
           }
         } else if (event === 'call_missed') {
           if (openOrder) {
-            await this.knex('repair_orders')
-              .where({ id: openOrder.id })
-              .update({
-                missed_calls: this.knex.raw('missed_calls + 1'),
-                updated_at: new Date().toISOString(),
-              });
+            await this.repairOrderService.incrementMissedCallCount(openOrder.id);
             this.logger.log(
-              `Incremented missed_calls for existing open repair order ${openOrder.id} and updated updated_at.`,
+              `Incremented missed_calls for existing open repair order ${openOrder.id} via RepairOrdersService.`,
             );
           }
         }

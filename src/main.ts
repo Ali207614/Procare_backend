@@ -46,6 +46,7 @@ async function bootstrap(): Promise<void> {
   app.use(compression({ threshold: 1024 }));
 
   // Filters & interceptors
+  app.enableShutdownHooks();
   app.useGlobalFilters(new HttpExceptionFilter(logger));
   const reflector = app.get(Reflector);
   app.useGlobalInterceptors(new ClassSerializerInterceptor(reflector));

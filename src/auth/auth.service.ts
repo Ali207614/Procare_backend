@@ -7,10 +7,14 @@ import {
   Injectable,
   NotFoundException,
   UnauthorizedException,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import axios from 'axios';
+import { normalizeUzPhone } from 'src/common/utils/phone.util';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { VerifyDto } from './dto/verify.dto';
@@ -23,6 +27,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyForgotPasswordOtpDto } from './dto/verify-forgot-password-otp.dto';
 import { AdminsService } from 'src/admins/admins.service';
 import { Admin } from 'src/common/types/admin.interface';
+import { SendCodeResponseDto } from './dto/send-code-response.dto';
 
 @Injectable()
 export class AuthService {
@@ -36,8 +41,96 @@ export class AuthService {
 
   private readonly RESET_PREFIX = 'reset-code:';
   private readonly FORGOT_PASSWORD_TOKEN_PREFIX = 'forgot-password-token:';
+  private readonly REDIS_PREFIX = {
+    verify: 'auth:verify_code',
+    reset: 'auth:reset_code',
+    pin_reset: 'auth:pin_reset_code',
+    reset_token: 'auth:reset_token',
+  };
 
-  async sendVerificationCode(dto: SmsDto): Promise<{ message: string; code: string }> {
+  // A helper function for sending OTP code
+  async sendCode(
+    phone: string,
+    type: 'verify' | 'reset' | 'pin_reset',
+  ): Promise<SendCodeResponseDto> {
+    const rateLimitKey = `rl:send_code:phone:${phone}`;
+    const ttl = await this.redisService.ttl(rateLimitKey);
+
+    if (ttl > 0) {
+      throw new HttpException(
+        {
+          message: 'Too many requests. Please try again later.',
+          location: 'auth_send_code_rate_limit',
+          retry_after: ttl,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    const code: string = Math.floor(100000 + Math.random() * 900000).toString();
+
+    const EXPIRES_IN = 300;
+    const RETRY_AFTER = 60;
+
+    const { last9: fixed_phone } = normalizeUzPhone(phone);
+
+    const message_id =
+      Array.from({ length: 3 }, () =>
+        String.fromCharCode(97 + Math.floor(Math.random() * 26)),
+      ).join('') +
+      Math.floor(Math.random() * 1000000000)
+        .toString()
+        .padStart(9, '0');
+
+    await this.redisService.set(`${this.REDIS_PREFIX[type]}:${phone}`, code, EXPIRES_IN);
+
+    const data_to_send = {
+      recipient: Number(fixed_phone),
+      'message-id': message_id,
+      sms: {
+        originator: process.env.SMS_ORIGINATOR,
+        content: {
+          text: `Tasdiqlash kodi: ${code}\nKod faqat siz uchun. Uni boshqalarga bermang.`,
+        },
+      },
+    };
+    const sms_creadentials = {
+      username: process.env.SMS_USERNAME || '',
+      password: process.env.SMS_PASSWORD || '',
+    };
+
+    if (process.env.NODE_ENV !== 'development' && process.env.SMS_API_URL) {
+      await axios.post(
+        process.env.SMS_API_URL,
+        {
+          messages: data_to_send,
+        },
+        {
+          auth: sms_creadentials,
+        },
+      );
+    }
+
+    // Set rate limit only after successful sending (or skipping in dev)
+    await this.redisService.set(rateLimitKey, '1', RETRY_AFTER);
+
+    const expiresAt = new Date(Date.now() + EXPIRES_IN * 1000).toISOString();
+
+    const res: SendCodeResponseDto = {
+      message: 'Verification code sent successfully',
+      expires_in: EXPIRES_IN,
+      expires_at: expiresAt,
+      retry_after: RETRY_AFTER,
+    };
+
+    if (process.env.NODE_ENV !== 'production') {
+      res.code = code;
+    }
+
+    return res;
+  }
+
+  async sendVerificationCode(dto: SmsDto): Promise<SendCodeResponseDto> {
     const existingAdmin: Admin | undefined = await this.adminsService.findByPhoneNumber(
       dto.phone_number,
     );
@@ -56,18 +149,13 @@ export class AuthService {
       });
     }
 
-    const code: string = Math.floor(100000 + Math.random() * 900000).toString();
-    console.log('Verification code:', code);
-
-    await this.redisService.set(`verify:${dto.phone_number}`, code, 300); // 5 min TTL
-
-    // TODO: await this.smsService.send(dto.phone_number, code);
-
-    return { message: 'Verification code sent successfully', code };
+    return await this.sendCode(dto.phone_number, 'verify');
   }
 
   async verifyCode(dto: VerifyDto): Promise<{ message: string }> {
-    const storedCode: string | null = await this.redisService.get(`verify:${dto.phone_number}`);
+    const storedCode: string | null = await this.redisService.get(
+      `${this.REDIS_PREFIX.verify}:${dto.phone_number}`,
+    );
 
     if (!storedCode || storedCode !== dto.code) {
       throw new BadRequestException({
@@ -77,7 +165,7 @@ export class AuthService {
     }
 
     await this.adminsService.markPhoneVerified(dto.phone_number);
-    await this.redisService.del(`verify:${dto.phone_number}`);
+    await this.redisService.del(`${this.REDIS_PREFIX.verify}:${dto.phone_number}`);
 
     return { message: 'Phone number verified successfully' };
   }
@@ -183,24 +271,18 @@ export class AuthService {
     return { message: 'Logged out successfully' };
   }
 
-  async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string; code: string }> {
+  async forgotPassword(dto: ForgotPasswordDto): Promise<SendCodeResponseDto> {
     const admin: Admin | undefined = await this.adminsService.findByPhoneNumber(dto.phone_number);
 
     this.adminsService.checkAdminAccessControl(admin, { requireVerified: true });
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    await this.redisService.set(`${this.RESET_PREFIX}${dto.phone_number}`, code, 300); // 5 min
-
-    // TODO: await this.smsService.send(dto.phone_number, `🔐 Reset code: ${code}`);
-    console.log(`Reset code: ${code}`);
-
-    return { message: 'Reset code sent successfully', code: code };
+    return await this.sendCode(dto.phone_number, 'reset');
   }
 
   async verifyForgotPasswordOtp(
     dto: VerifyForgotPasswordOtpDto,
   ): Promise<{ message: string; reset_token: string }> {
-    const redisKey = `${this.RESET_PREFIX}${dto.phone_number}`;
+    const redisKey = `${this.REDIS_PREFIX.reset}:${dto.phone_number}`;
     const storedCode: string | null = await this.redisService.get(redisKey);
 
     if (!storedCode || storedCode !== dto.code) {

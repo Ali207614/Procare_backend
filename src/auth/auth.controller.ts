@@ -12,6 +12,7 @@ import { VerifyForgotPasswordOtpDto } from './dto/verify-forgot-password-otp.dto
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { AuthenticatedRequest } from 'src/common/types/authenticated-request.type';
+import { SendCodeResponseDto } from './dto/send-code-response.dto';
 
 @ApiTags('Auth-admin')
 @Controller('auth/admin')
@@ -22,7 +23,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Send verification code to phone number' })
   @ApiResponse({ status: 201, description: 'Verification code sent successfully' })
   @ApiResponse({ status: 400, description: 'Bad Request' })
-  sendCode(@Body() dto: SmsDto): Promise<{ message: string; code: string }> {
+  sendCode(@Body() dto: SmsDto): Promise<SendCodeResponseDto> {
     return this.authService.sendVerificationCode(dto);
   }
 
@@ -53,7 +54,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Step 1: Request password reset OTP code via SMS' })
   @ApiResponse({ status: 200, description: 'Reset code sent to phone number' })
   @ApiResponse({ status: 404, description: 'Admin not found' })
-  forgotPassword(@Body() dto: ForgotPasswordDto): Promise<{ message: string; code: string }> {
+  forgotPassword(@Body() dto: ForgotPasswordDto): Promise<SendCodeResponseDto> {
     return this.authService.forgotPassword(dto);
   }
 

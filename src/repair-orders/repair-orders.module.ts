@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { LoggerModule } from 'src/common/logger/logger.module';
 import { RedisModule } from 'src/common/redis/redis.module';
-import { NotificationGateway } from 'src/notification/notification.gateway';
 import { NotificationModule } from 'src/notification/notification.module';
 import { RepairOrderStatusPermissionsModule } from 'src/repair-order-status-permission/repair-order-status-permissions.module';
 import { RepairOrderStatusesModule } from 'src/repair-order-statuses/repair-order-statuses.module';
@@ -26,6 +25,7 @@ import { RentalPhoneUpdaterService } from './services/rental-phone-updater.servi
 import { RepairOrderChangeLoggerService } from './services/repair-order-change-logger.service';
 import { RepairOrderCreateHelperService } from './services/repair-order-create-helper.service';
 import { AttachmentsService } from './services/attachments.service';
+import { RepairOrderWebhookService } from './services/repair-order-webhook.service';
 
 @Module({
   imports: [
@@ -56,10 +56,10 @@ import { AttachmentsService } from './services/attachments.service';
     RepairOrderChangeLoggerService,
     RepairOrderCreateHelperService,
     RentalPhoneUpdaterService,
-    NotificationGateway,
     RepairOrdersService,
     AttachmentsService,
     ServiceFormsService,
+    RepairOrderWebhookService,
   ],
   exports: [
     AssignAdminUpdaterService,
@@ -71,6 +71,8 @@ import { AttachmentsService } from './services/attachments.service';
     RepairOrderChangeLoggerService,
     RepairOrderCreateHelperService,
     RentalPhoneUpdaterService,
+    RepairOrdersService,
+    RepairOrderWebhookService,
   ],
 })
 export class RepairOrdersModule {}

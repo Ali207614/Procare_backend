@@ -1,9 +1,14 @@
-import { BadRequestException, HttpException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  HttpException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectKnex } from 'nestjs-knex';
 import { Knex } from 'knex';
-import { getNextSortValue } from 'src/common/utils/sort.util';
-import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { RedisService } from 'src/common/redis/redis.service';
+import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
 import {
   RepairOrder,
@@ -22,8 +27,9 @@ import { UpdateRepairOrderDto } from 'src/repair-orders/dto/update-repair-order.
 import { MoveRepairOrderDto } from 'src/repair-orders/dto/move-repair-order.dto';
 import { FindAllRepairOrdersQueryDto } from 'src/repair-orders/dto/find-all-repair-orders.dto';
 import { UpdateClientInfoDto, UpdateProductDto, UpdateProblemDto, TransferBranchDto } from './dto';
-import { ForbiddenException } from '@nestjs/common';
 import { PdfService } from 'src/pdf/pdf.service';
+import { RepairOrderWebhookService } from 'src/repair-orders/services/repair-order-webhook.service';
+import { NotificationService } from 'src/notification/notification.service';
 
 @Injectable()
 export class RepairOrdersService {
@@ -39,6 +45,8 @@ export class RepairOrdersService {
     private readonly redisService: RedisService,
     private readonly logger: LoggerService,
     private readonly pdfService: PdfService,
+    private readonly webhookService: RepairOrderWebhookService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async create(
@@ -173,6 +181,14 @@ export class RepairOrdersService {
         if (dto.phone_category_id) updateData.phone_category_id = dto.phone_category_id;
         if (dto.priority) updateData.priority = dto.priority;
 
+        // Move existing order to the top of its current status list
+        await trx(this.table)
+          .where({ branch_id: branchId, status_id: existingOpenOrder.status_id, status: 'Open' })
+          .andWhere('sort', '<', existingOpenOrder.sort)
+          .increment('sort', 1);
+
+        updateData.sort = 1;
+
         const [updated]: RepairOrder[] = await trx(this.table)
           .where({ id: existingOpenOrder.id })
           .update(updateData)
@@ -182,7 +198,12 @@ export class RepairOrdersService {
           `Updating existing open repair order ${order.id} for ${resolvedUserId ? `user ${resolvedUserId}` : `phone ${resolvedPhoneNumber}`}`,
         );
       } else {
-        const sort = await getNextSortValue(trx, this.table, { where: { branch_id: branchId } });
+        // Shift all existing orders for this branch and status down by 1
+        await trx(this.table)
+          .where({ branch_id: branchId, status_id: statusId, status: 'Open' })
+          .increment('sort', 1);
+
+        const sort = 1;
         const insertData: Partial<RepairOrder> = {
           user_id: resolvedUserId,
           branch_id: branchId,
@@ -271,6 +292,39 @@ export class RepairOrdersService {
       ]);
 
       await trx.commit();
+
+      // Notify all admins in the branch room and create DB records
+      void this.helper
+        .getRepairOrderNotificationMeta(order.id)
+        .then((richMeta) => {
+          this.notificationService
+            .notifyBranch(this.knex, order.branch_id, {
+              title: 'Yangi buyurtma',
+              message: `Filialda yangi buyurtma yaratildi: #${order.number_id}`,
+              type: 'info',
+              meta: {
+                ...richMeta,
+                action: 'order_created',
+              } as Record<string, unknown>,
+            })
+            .catch((err: Error) => {
+              this.logger.error(
+                `Failed to send branch notification for order ${order.id}: ${err.message}`,
+              );
+            });
+        })
+        .catch((err: Error) => {
+          this.logger.error(
+            `Failed to fetch meta for branch notification for order ${order.id}: ${err.message}`,
+          );
+        });
+
+      this.webhookService.sendWebhook(order.id).catch((err: unknown) => {
+        this.logger.error(
+          `[RepairOrdersService] Webhook error: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
       return order;
     } catch (err) {
@@ -725,6 +779,34 @@ export class RepairOrdersService {
       if (dto.status_id !== order.status_id) {
         updates.status_id = dto.status_id;
         logs.push({ key: 'status_id', oldVal: order.status_id, newVal: dto.status_id });
+
+        // Notify branch about the move
+        void this.helper
+          .getRepairOrderNotificationMeta(order.id)
+          .then((richMeta) => {
+            this.notificationService
+              .notifyBranch(this.knex, order.branch_id, {
+                title: 'Buyurtma holati o‘zgardi',
+                message: `Buyurtma #${order.number_id} yangi statusga o'tdi`,
+                type: 'info',
+                meta: {
+                  ...richMeta,
+                  from_status_id: order.status_id,
+                  to_status_id: dto.status_id,
+                  action: 'status_changed',
+                } as Record<string, unknown>,
+              })
+              .catch((err: Error) => {
+                this.logger.error(
+                  `Failed to send branch notification for moved order ${order.id}: ${err.message}`,
+                );
+              });
+          })
+          .catch((err: Error) => {
+            this.logger.error(
+              `Failed to fetch meta for branch notification for moved order ${order.id}: ${err.message}`,
+            );
+          });
       }
 
       if (dto.sort !== undefined && dto.sort !== order.sort) {
@@ -1074,10 +1156,16 @@ export class RepairOrdersService {
 
     const trx = await this.knex.transaction();
     try {
+      // Shift all existing orders for the target branch and status down by 1
+      await trx(this.table)
+        .where({ branch_id: transferDto.new_branch_id, status_id: order.status_id, status: 'Open' })
+        .increment('sort', 1);
+
       const updated = await trx(this.table)
         .where({ id: repairOrderId })
         .update({
           branch_id: transferDto.new_branch_id,
+          sort: 1, // Always at top of the new branch
           updated_at: new Date(),
         })
         .returning('*');
@@ -1101,6 +1189,126 @@ export class RepairOrdersService {
     } catch (error) {
       await trx.rollback();
       throw error;
+    }
+  }
+
+  async findOpenOrderByPhoneNumber(
+    phoneNumber: string,
+    userId?: string | null,
+  ): Promise<RepairOrder | undefined> {
+    let query = this.knex<RepairOrder>(this.table).whereNotIn('status', [
+      'Cancelled',
+      'Deleted',
+      'Closed',
+    ]);
+
+    if (userId) {
+      query = query.andWhere((qb): void => {
+        void qb.where({ user_id: userId }).orWhere({ phone_number: phoneNumber });
+      });
+    } else {
+      query = query.where({ phone_number: phoneNumber });
+    }
+
+    return query.first();
+  }
+
+  async incrementCallCount(orderId: string): Promise<void> {
+    const trx = await this.knex.transaction();
+    try {
+      const order = await trx<RepairOrder>(this.table).where({ id: orderId }).first();
+      if (!order || order.status !== 'Open') {
+        await trx.rollback();
+        return;
+      }
+
+      await trx(this.table)
+        .where({ id: orderId })
+        .update({
+          call_count: this.knex.raw('call_count + 1'),
+          updated_at: new Date().toISOString(),
+        });
+
+      await this.moveToTop(trx, order);
+      await trx.commit();
+      await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
+    } catch (error) {
+      await trx.rollback();
+      throw error;
+    }
+  }
+
+  async incrementMissedCallCount(orderId: string): Promise<void> {
+    const trx = await this.knex.transaction();
+    try {
+      const order = await trx<RepairOrder>(this.table).where({ id: orderId }).first();
+      if (!order || order.status !== 'Open') {
+        await trx.rollback();
+        return;
+      }
+
+      await trx(this.table)
+        .where({ id: orderId })
+        .update({
+          missed_calls: this.knex.raw('missed_calls + 1'),
+          updated_at: new Date().toISOString(),
+        });
+
+      await this.moveToTop(trx, order);
+      await trx.commit();
+      await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
+    } catch (error) {
+      await trx.rollback();
+      throw error;
+    }
+  }
+
+  async createFromWebhook(data: {
+    userId: string | null;
+    branchId: string;
+    statusId: string;
+    phoneNumber: string;
+    source: 'Kiruvchi qongiroq' | 'Chiquvchi qongiroq';
+  }): Promise<RepairOrder> {
+    const trx = await this.knex.transaction();
+    try {
+      // Shift all existing orders for this branch and status down by 1
+      await trx(this.table)
+        .where({ branch_id: data.branchId, status_id: data.statusId, status: 'Open' })
+        .increment('sort', 1);
+
+      const [newOrder] = await trx<RepairOrder>(this.table)
+        .insert({
+          user_id: data.userId,
+          branch_id: data.branchId,
+          priority: 'Medium',
+          status_id: data.statusId,
+          sort: 1, // Always at top
+          delivery_method: 'Self',
+          pickup_method: 'Self',
+          created_by: null,
+          phone_number: data.phoneNumber,
+          name: null,
+          source: data.source,
+          call_count: 1,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .returning('*');
+
+      await trx.commit();
+
+      this.webhookService.sendWebhook(newOrder.id).catch((err: unknown) => {
+        this.logger.error(
+          `[RepairOrdersService] Webhook error: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+
+      await this.redisService.flushByPrefix(`${this.table}:${data.branchId}`);
+      return newOrder;
+    } catch (err) {
+      await trx.rollback();
+      throw err;
     }
   }
 
@@ -1149,5 +1357,26 @@ export class RepairOrdersService {
       .returning('id');
 
     return newUser.id;
+  }
+
+  /**
+   * Reusable helper to move a repair order to the top of its status list.
+   * Shifts existing items that were above this one.
+   */
+  private async moveToTop(trx: Knex.Transaction, order: RepairOrder): Promise<void> {
+    if (order.sort === 1) return;
+
+    // Shift all orders currently above this one down by 1
+    await trx(this.table)
+      .where({
+        branch_id: order.branch_id,
+        status_id: order.status_id,
+        status: 'Open',
+      })
+      .andWhere('sort', '<', order.sort)
+      .increment('sort', 1);
+
+    // Set this order's sort to 1
+    await trx(this.table).where({ id: order.id }).update({ sort: 1 });
   }
 }

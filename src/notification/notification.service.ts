@@ -26,6 +26,8 @@ export class NotificationService {
   ): Promise<void> {
     const now = new Date();
 
+    if (adminIds.length === 0) return;
+
     const records: Partial<Notification>[] = adminIds.map((adminId: string) => ({
       admin_id: adminId,
       title: payload.title,
@@ -45,6 +47,48 @@ export class NotificationService {
     };
 
     this.gateway.broadcastToAdmins(adminIds, message);
+  }
+
+  /**
+   * Notifies all admins associated with a specific branch.
+   * Persists notifications in DB and broadcasts via branch-specific socket room.
+   */
+  async notifyBranch(
+    trx: Knex.Transaction | Knex,
+    branchId: string,
+    payload: NotificationPayload,
+  ): Promise<void> {
+    const now = new Date();
+
+    const admins = await trx('admin_branches')
+      .where({ branch_id: branchId })
+      .select<{ admin_id: string }[]>('admin_id');
+
+    const adminIds = admins.map((a) => a.admin_id);
+
+    if (adminIds.length === 0) return;
+
+    // 2. Persist notifications for all admins
+    const records = adminIds.map((adminId) => ({
+      admin_id: adminId,
+      title: payload.title,
+      message: payload.message,
+      type: payload.type ?? 'info',
+      meta: payload.meta || {},
+      created_at: now,
+      updated_at: now,
+    }));
+
+    await trx('notifications').insert(records);
+
+    // 3. Broadcast to branch room
+    const message: BroadcastMessage<RepairNotificationMeta> = {
+      title: payload.title,
+      message: payload.message,
+      meta: payload.meta as unknown as RepairNotificationMeta,
+    };
+
+    this.gateway.broadcastToBranch(branchId, message);
   }
 
   async findAll(

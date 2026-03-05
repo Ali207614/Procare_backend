@@ -500,4 +500,21 @@ export class AdminsService {
 
     return result;
   }
+
+  async findBranchesByAdminId(adminId: string): Promise<{ id: string; name_uz: string }[]> {
+    const key = `${this.redisKeyByAdminId}:${adminId}`;
+
+    const cached: { id: string; name_uz: string }[] | null = await this.redisService.get(key);
+    if (cached !== null) return cached;
+
+    const branches: { id: string; name_uz: string }[] = await this.knex('admin_branches')
+      .join('branches', 'admin_branches.branch_id', 'branches.id')
+      .where({ admin_id: adminId })
+      .andWhere('branches.status', 'Open')
+      .select('branches.id', 'branches.name_uz');
+
+    await this.redisService.set(key, branches, 3600);
+
+    return branches;
+  }
 }

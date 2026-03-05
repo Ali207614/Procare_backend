@@ -30,6 +30,16 @@ export interface BroadcastMessage<M = unknown> {
 
 export interface RepairNotificationMeta {
   order_id: string;
-  phoneModel: string;
-  status: string;
+  number_id: string;
+  phone_category_name: string | null;
+  user_full_name: string | null;
+  user_phone_number: string | null;
+  pickup_method: string;
+  delivery_method: string;
+  priority: string;
+  source: string;
+  assigned_admins: string | null;
+  action?: string;
+  from_status_id?: string;
+  to_status_id?: string;
 }
