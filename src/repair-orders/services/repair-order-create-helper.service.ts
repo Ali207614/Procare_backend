@@ -511,6 +511,7 @@ export class RepairOrderCreateHelperService {
       SELECT
         ro.id as order_id,
         ro.number_id::text as number_id,
+        ro.sort,
         pc.name_uz as phone_category_name,
         COALESCE(u.first_name || ' ' || u.last_name, ro.name) as user_full_name,
         COALESCE(u.phone_number1, ro.phone_number) as user_phone_number,

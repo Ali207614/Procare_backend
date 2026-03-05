@@ -52,14 +52,46 @@ Qabul qilinadigan obyekt formati quyidagicha:
 | `title` | `string` | Bildirishnoma sarlavhasi (masalan: "Yangi buyurtma") |
 | `message` | `string` | Bildirishnoma matni |
 | `type` | `string` | Xabar turi (`info`, `success`, `warning`, `error`) |
-| `meta` | `object` | Qo'shimcha ma'lumotlar (IDlar va harakat turi) |
+| `meta` | `object` | Qo'shimcha ma'lumotlar (buyurtma haqida to'liq kontekst) |
 
 ### Meta obyektining tarkibi:
 
-`meta` obyekti bildirishnoma nima haqida ekanligini bildiradi:
+`meta` obyekti bildirishnoma nima haqida ekanligini bildiradi va har doim quyidagi maydonlarni o'z ichiga oladi:
 
-*   **`order_id`**: Tegishli repair orderning UUIDsi.
-*   **`action`**: Sodir bo'lgan amal turi.
+| Maydon | Turi | Tavsif |
+| :--- | :--- | :--- |
+| `order_id` | `string` | Tegishli repair orderning UUIDsi |
+| `number_id` | `string` | Repair orderning tartib raqami (masalan: `"1024"`) |
+| `sort` | `number` | Orderning o'z status ustunidagi tartib pozitsiyasi |
+| `phone_category_name` | `string \| null` | Qurilma kategoriyasining nomi (masalan: `"iPhone 14 Pro"`) |
+| `user_full_name` | `string \| null` | Mijozning to'liq ismi |
+| `user_phone_number` | `string \| null` | Mijozning telefon raqami |
+| `pickup_method` | `string` | Qabul qilish usuli (`Self`, `Courier`, va h.k.) |
+| `delivery_method` | `string` | Yetkazib berish usuli (`Self`, `Courier`, va h.k.) |
+| `priority` | `string` | Buyurtma ustuvorligi (`Low`, `Medium`, `High`) |
+| `source` | `string` | Buyurtma manbasi |
+| `assigned_admins` | `string \| null` | Tayinlangan adminlarning to'liq ismlari (vergul bilan ajratilgan) |
+| `action` | `string` | Sodir bo'lgan amal turi (pastda batafsil) |
+
+#### `order_created` action uchun qo'shimcha maydonlar:
+
+*(yuqoridagi barcha maydonlarga qo'shimcha ravishda)*
+
+*(hech qanday qo'shimcha maydon yo'q)*
+
+#### `status_changed` action uchun qo'shimcha maydonlar:
+
+| Maydon | Turi | Tavsif |
+| :--- | :--- | :--- |
+| `from_status_id` | `string` | Oldingi status UUIDsi |
+| `to_status_id` | `string` | Yangi status UUIDsi |
+
+#### `assigned_to_order` action uchun qo'shimcha maydonlar:
+
+| Maydon | Turi | Tavsif |
+| :--- | :--- | :--- |
+| `branch_id` | `string` | Filial UUIDsi |
+| `assigned_by` | `string` | Tayinlashni amalga oshirgan admin UUIDsi |
 
 ---
 
@@ -80,17 +112,32 @@ Frontend `meta.action` maydoniga qarab foydalanuvchini kerakli sahifaga yo'nalti
 Agar loyihada TypeScript ishlatilayotgan bo'lsa, quyidagi interfeyslardan foydalanish tavsiya etiladi:
 
 ```typescript
+interface NotificationMeta {
+  order_id: string;
+  number_id: string;
+  sort: number;
+  phone_category_name: string | null;
+  user_full_name: string | null;
+  user_phone_number: string | null;
+  pickup_method: string;
+  delivery_method: string;
+  priority: string;
+  source: string;
+  assigned_admins: string | null;
+  action: 'order_created' | 'status_changed' | 'assigned_to_order';
+  // status_changed only
+  from_status_id?: string;
+  to_status_id?: string;
+  // assigned_to_order only
+  branch_id?: string;
+  assigned_by?: string;
+}
+
 interface NotificationPayload {
   title: string;
   message: string;
   type: 'info' | 'success' | 'warning' | 'error';
-  meta: {
-    order_id: string;
-    action: 'order_created' | 'status_changed' | 'assigned_to_order';
-    from_status_id?: string;
-    to_status_id?: string;
-    [key: string]: any;
-  };
+  meta: NotificationMeta;
 }
 ```
 
