@@ -219,7 +219,9 @@ export class OnlinePbxService {
       } else {
         // Inbound & Outbound call handling logic (tracking customer's repair orders)
         // Look for an existing open repair order for this customer
+        const defaultBranch = '00000000-0000-4000-8000-000000000000';
         const openOrder = await this.repairOrderService.findOpenOrderByPhoneNumber(
+          defaultBranch,
           formattedCustomerPhone,
           userId,
         );
@@ -232,7 +234,6 @@ export class OnlinePbxService {
           if (!openOrder) {
             // Create repair order for both inbound and outbound calls if no order exists
             if (event === 'call_start') {
-              const defaultBranch = '00000000-0000-4000-8000-000000000000';
               const defaultStatus = '50000000-0000-0000-0001-001000000000';
 
               if (defaultBranch && defaultStatus) {

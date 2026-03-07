@@ -150,7 +150,9 @@ export class RepairOrdersService {
 
       let existingOpenOrder: RepairOrder | undefined;
       if (resolvedUserId || resolvedPhoneNumber) {
-        let query = trx(this.table).whereNotIn('status', ['Cancelled', 'Deleted', 'Closed']);
+        let query = trx(this.table)
+          .where({ branch_id: branchId })
+          .whereNotIn('status', ['Cancelled', 'Deleted', 'Closed']);
 
         if (resolvedUserId && resolvedPhoneNumber) {
           query = query.andWhere((qb) => {
@@ -1193,14 +1195,13 @@ export class RepairOrdersService {
   }
 
   async findOpenOrderByPhoneNumber(
+    branchId: string,
     phoneNumber: string,
     userId?: string | null,
   ): Promise<RepairOrder | undefined> {
-    let query = this.knex<RepairOrder>(this.table).whereNotIn('status', [
-      'Cancelled',
-      'Deleted',
-      'Closed',
-    ]);
+    let query = this.knex<RepairOrder>(this.table)
+      .where({ branch_id: branchId })
+      .whereNotIn('status', ['Cancelled', 'Deleted', 'Closed']);
 
     if (userId) {
       query = query.andWhere((qb): void => {
