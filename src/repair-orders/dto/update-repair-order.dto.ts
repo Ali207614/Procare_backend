@@ -6,6 +6,11 @@ import {
   IsNumber,
   Matches,
   IsArray,
+  IsNotEmpty,
+  ValidateIf,
+  IsString,
+  MinLength,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
@@ -59,11 +64,20 @@ export class UpdateRepairOrderDto {
   status_id?: string;
 
   @ApiPropertyOptional()
-  @IsOptional()
+  @ValidateIf((o) => o.phone_category_id !== undefined || o.imei !== undefined)
   @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
     message: 'Invalid phone category ID',
   })
+  @IsNotEmpty({ message: 'Phone category is required when IMEI is provided' })
   phone_category_id?: string;
+
+  @ApiPropertyOptional()
+  @ValidateIf((o) => o.phone_category_id !== undefined || o.imei !== undefined)
+  @IsString({ message: 'IMEI must be a string' })
+  @MinLength(14, { message: 'IMEI must be exactly 14 characters' })
+  @MaxLength(14, { message: 'IMEI must be exactly 14 characters' })
+  @IsNotEmpty({ message: 'IMEI is required when phone category is provided' })
+  imei?: string;
 
   @ApiPropertyOptional({ enum: ['Low', 'Medium', 'High', 'Highest'] })
   @IsOptional()

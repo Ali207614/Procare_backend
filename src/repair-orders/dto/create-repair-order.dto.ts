@@ -11,9 +11,11 @@ import {
   ValidateNested,
   IsBoolean,
   ValidateIf,
+  IsNotEmpty,
   Min,
   Max,
   Matches,
+  MinLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -194,11 +196,23 @@ export class CreateRepairOrderDto {
     description: 'Phone category ID',
     example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec',
   })
-  @IsOptional()
+  @ValidateIf((o) => o.phone_category_id !== undefined || o.imei !== undefined)
   @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
     message: 'Invalid phone category ID',
   })
+  @IsNotEmpty({ message: 'Phone category is required when IMEI is provided' })
   phone_category_id?: string;
+
+  @ApiPropertyOptional({
+    description: 'IMEI number',
+    example: '123456789012345',
+  })
+  @ValidateIf((o) => o.phone_category_id !== undefined || o.imei !== undefined)
+  @IsString({ message: 'IMEI must be a string' })
+  @MinLength(14, { message: 'IMEI must be exactly 14 characters' })
+  @MaxLength(14, { message: 'IMEI must be exactly 14 characters' })
+  @IsNotEmpty({ message: 'IMEI is required when phone category is provided' })
+  imei?: string;
 
   @ApiProperty({ description: 'Branch ID', example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec' })
   @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {

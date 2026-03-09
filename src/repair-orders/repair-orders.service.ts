@@ -182,6 +182,7 @@ export class RepairOrdersService {
         if (resolvedUserId && !existingOpenOrder.user_id) updateData.user_id = resolvedUserId;
         if (resolvedName && !existingOpenOrder.name) updateData.name = resolvedName;
         if (dto.phone_category_id) updateData.phone_category_id = dto.phone_category_id;
+        if (dto.imei) updateData.imei = dto.imei;
         if (dto.priority) updateData.priority = dto.priority;
 
         // Move existing order to the top of its current status list
@@ -211,6 +212,7 @@ export class RepairOrdersService {
           user_id: resolvedUserId,
           branch_id: branchId,
           phone_category_id: dto.phone_category_id,
+          imei: dto.imei,
           priority: dto.priority || 'Medium',
           status_id: createStatus.id,
           sort,
@@ -414,6 +416,7 @@ export class RepairOrdersService {
         'status_id',
         'priority',
         'phone_category_id',
+        'imei',
       ];
       for (const field of fieldsToCheck) {
         const dtoFieldValue = dto[field as keyof UpdateRepairOrderDto];
