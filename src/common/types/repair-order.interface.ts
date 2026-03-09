@@ -456,4 +456,3 @@ export interface JoinedRepairOrder {
 export interface UserWithRepairOrders extends UserListItem {
   repair_orders: JoinedRepairOrder[];
 }
-
