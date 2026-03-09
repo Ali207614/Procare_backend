@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  InternalServerErrorException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, InternalServerErrorException } from '@nestjs/common';
 import { InjectKnex } from 'nestjs-knex';
 import { Knex } from 'knex';
 import { PdfService } from 'src/pdf/pdf.service';
@@ -71,14 +66,6 @@ export class ServiceFormsService {
       throw new NotFoundException({
         message: 'Repair order not found or has been deleted',
         location: 'repair_order_id',
-      });
-    }
-
-    if (!data.imei) {
-      throw new BadRequestException({
-        message:
-          'IMEI is required for service form creation. Please update the repair order with an IMEI before generating the service form.',
-        location: 'imei',
       });
     }
 

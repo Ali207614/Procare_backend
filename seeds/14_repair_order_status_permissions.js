@@ -43,6 +43,7 @@ exports.seed = async function (knex) {
       can_view_history: true,
       can_user_manage: true,
       can_create_user: isNewOrder,
+      cannot_continue_without_imei: false,
       created_at: knex.fn.now(),
       updated_at: knex.fn.now(),
     });

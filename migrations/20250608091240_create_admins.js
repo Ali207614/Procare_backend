@@ -12,6 +12,8 @@ exports.up = async function (knex) {
     table.string('password');
     table.boolean('is_protected').defaultTo(false);
 
+    table.string('onlinepbx_code').nullable();
+
     table.string('passport_series');
     table.date('birth_date');
     table.date('hire_date');

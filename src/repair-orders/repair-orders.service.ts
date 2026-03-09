@@ -838,6 +838,17 @@ export class RepairOrdersService {
         permissions,
       );
 
+      // Block the move if the target status requires an IMEI and the order has none
+      if (dto.status_id !== order.status_id) {
+        const targetPermission = permissions.find((p) => p.status_id === dto.status_id);
+        if (targetPermission?.cannot_continue_without_imei && !order.imei) {
+          throw new BadRequestException({
+            message: 'IMEI is required to move the order to this status',
+            location: 'imei',
+          });
+        }
+      }
+
       const updates: Partial<RepairOrder> = {};
       const logs: { key: string; oldVal: unknown; newVal: unknown }[] = [];
 

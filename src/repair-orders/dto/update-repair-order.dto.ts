@@ -6,8 +6,6 @@ import {
   IsNumber,
   Matches,
   IsArray,
-  IsNotEmpty,
-  ValidateIf,
   IsString,
   MinLength,
   MaxLength,
@@ -64,19 +62,17 @@ export class UpdateRepairOrderDto {
   status_id?: string;
 
   @ApiPropertyOptional()
-  @ValidateIf((o) => o.phone_category_id !== undefined || o.imei !== undefined)
+  @IsOptional()
   @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
     message: 'Invalid phone category ID',
   })
-  @IsNotEmpty({ message: 'Phone category is required when IMEI is provided' })
   phone_category_id?: string;
 
   @ApiPropertyOptional()
-  @ValidateIf((o) => o.phone_category_id !== undefined || o.imei !== undefined)
+  @IsOptional()
   @IsString({ message: 'IMEI must be a string' })
   @MinLength(14, { message: 'IMEI must be exactly 14 characters' })
   @MaxLength(14, { message: 'IMEI must be exactly 14 characters' })
-  @IsNotEmpty({ message: 'IMEI is required when phone category is provided' })
   imei?: string;
 
   @ApiPropertyOptional({ enum: ['Low', 'Medium', 'High', 'Highest'] })

@@ -27,6 +27,7 @@ export interface RepairOrderStatusPermission {
   can_view_history: boolean;
   can_user_manage: boolean;
   can_create_user: boolean;
+  cannot_continue_without_imei: boolean;
 
   created_at: string; // ISO timestamp
   updated_at: string; // ISO timestamp
