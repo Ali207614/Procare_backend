@@ -200,11 +200,11 @@ export class CreateRepairOrderDto {
   })
   phone_category_id?: string;
 
-  @ApiProperty({ description: 'Status ID', example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec' })
+  @ApiProperty({ description: 'Branch ID', example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec' })
   @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
-    message: 'Invalid status ID',
+    message: 'Invalid branch ID',
   })
-  status_id!: string;
+  branch_id!: string;
 
   @ApiPropertyOptional({
     description: 'Priority level',

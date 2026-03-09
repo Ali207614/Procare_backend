@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { Knex } from 'knex';
 
 export class TestHelpers {
@@ -56,7 +56,8 @@ export class TestHelpers {
         await knex(table).del();
       } catch (error) {
         // Table might not exist
-        console.warn(`Could not clean table ${table}:`, error.message);
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn('Could not clean table ' + table + ':', message);
       }
     }
 
@@ -100,3 +101,7 @@ export class TestHelpers {
     });
   }
 }
+
+
+
+

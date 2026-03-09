@@ -14,7 +14,7 @@ exports.seed = async function (knex) {
       color: '#1976D2',
       sort: 1,
       can_user_view: true,
-      type: null,
+      type: 'Open',
       is_protected: true,
       can_add_payment: false,
     },

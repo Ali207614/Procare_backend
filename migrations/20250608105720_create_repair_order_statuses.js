@@ -14,7 +14,7 @@ exports.up = async function (knex) {
     table.boolean('can_user_view').defaultTo(true);
     table.boolean('is_active').defaultTo(true);
 
-    table.enu('type', ['Completed', 'Cancelled']).nullable();
+    table.enu('type', ['Completed', 'Cancelled', 'Open']).nullable();
 
     table.boolean('is_protected').defaultTo(false);
     table.boolean('can_add_payment').defaultTo(false);

@@ -1,4 +1,48 @@
-
+WITH queue_problem_minutes AS (
+    SELECT
+        problem_rows.repair_order_id,
+        COALESCE(SUM(problem_rows.estimated_minutes), 0)::integer AS total_estimated_minutes
+    FROM (
+        SELECT repair_order_id, estimated_minutes
+        FROM repair_order_initial_problems
+        UNION ALL
+        SELECT repair_order_id, estimated_minutes
+        FROM repair_order_final_problems
+    ) AS problem_rows
+    GROUP BY problem_rows.repair_order_id
+),
+queue_orders AS (
+    SELECT
+        ro.id,
+        ro.branch_id,
+        ro.status_id,
+        ro.sort,
+        ro.created_at,
+        COALESCE(qpm.total_estimated_minutes, 0) AS total_estimated_minutes,
+        GREATEST(
+            COALESCE(qpm.total_estimated_minutes, 0)
+                - FLOOR(EXTRACT(EPOCH FROM (NOW() - ro.created_at)) / 60)::integer,
+            0
+        ) AS remaining_minutes
+    FROM repair_orders ro
+        LEFT JOIN queue_problem_minutes qpm ON qpm.repair_order_id = ro.id
+    WHERE ro.branch_id = :branchId
+      AND ro.status = 'Open'
+      AND ro.status_id = ANY(:statusIds)
+),
+queue_deadlines AS (
+    SELECT
+        qo.id,
+        NOW()
+            + (
+                SUM(qo.remaining_minutes) OVER (
+                    PARTITION BY qo.branch_id, qo.status_id
+                    ORDER BY qo.sort
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) * INTERVAL '1 minute'
+            ) AS deadline_at
+    FROM queue_orders qo
+)
 SELECT
     ro.id,
     ro.number_id,
@@ -10,7 +54,9 @@ SELECT
     ro.priority,
     ro.name,
     ro.phone_number,
+    ro.source,
     ro.created_at,
+    qd.deadline_at,
     COALESCE(
             jsonb_build_object(
                     'id', u.id,
@@ -212,6 +258,7 @@ COALESCE((
     ), '[]'::json) AS final_problems
 
 FROM repair_orders ro
+    LEFT JOIN queue_deadlines qd ON qd.id = ro.id
     LEFT JOIN users u ON ro.user_id = u.id
     LEFT JOIN admins ca ON ro.created_by = ca.id
     LEFT JOIN branches b ON ro.branch_id = b.id

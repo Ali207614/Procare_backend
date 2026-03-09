@@ -79,7 +79,8 @@ Recommended Postman environment variables:
   - `sort_order`: `asc`, `desc`
   - `customer_name`: Search string
   - `phone_number`: Search string
-  - `order_number`: Search string
+  - order_number: Search string
+- **Response note**: Each repair order now includes deadline_at, an ISO timestamp computed from its remaining estimated work plus the remaining estimated work of orders above it in the same status queue.
 
 ### 3. Get Repair Order Details
 - **Method**: `GET`
@@ -209,4 +210,5 @@ if (response.id) {
 1. **Creation Flow**: Create User -> Create Phone Category -> Create Repair Order.
 2. **Workflow Flow**: Move status from `New` -> `Diagnosis` -> `Ready`.
 3. **Completion Flow**: Add Final Problems -> Move to `Completed`.
+
 

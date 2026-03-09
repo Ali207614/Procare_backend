@@ -39,13 +39,13 @@ export class RepairOrdersController {
   constructor(private readonly service: RepairOrdersService) {}
 
   @Post()
-  @UseGuards(RepairOrderStatusExistGuard)
+  @UseGuards(BranchExistGuard)
   @ApiOperation({ summary: 'Create repair order' })
   create(
     @Req() req: AuthenticatedRequest,
     @Body() dto: CreateRepairOrderDto,
   ): Promise<RepairOrder> {
-    return this.service.create(req.admin, req.status.branch_id, req.status.id, dto);
+    return this.service.create(req.admin, req.branch.id, dto);
   }
 
   @Patch(':repair_order_id')

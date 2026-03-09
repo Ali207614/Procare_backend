@@ -50,7 +50,16 @@ export interface FreshRepairOrder {
   priority: 'Low' | 'Medium' | 'High' | 'Highest';
   status_id: string;
   name: string | null;
+  source:
+    | 'Telegram'
+    | 'Meta'
+    | 'Qolda'
+    | 'Boshqa'
+    | 'Kiruvchi qongiroq'
+    | 'Chiquvchi qongiroq'
+    | null;
   phone_number: string | null;
+  deadline_at: string | null;
   user: {
     id: string | null;
     first_name: string | null;
@@ -232,6 +241,14 @@ export interface RepairOrderDetails {
   priority: 'Low' | 'Medium' | 'High' | 'Highest';
   name: string | null;
   phone_number: string | null;
+  source:
+    | 'Telegram'
+    | 'Meta'
+    | 'Qolda'
+    | 'Boshqa'
+    | 'Kiruvchi qongiroq'
+    | 'Chiquvchi qongiroq'
+    | null;
   user: {
     id: string | null;
     first_name: string | null;
@@ -439,3 +456,4 @@ export interface JoinedRepairOrder {
 export interface UserWithRepairOrders extends UserListItem {
   repair_orders: JoinedRepairOrder[];
 }
+

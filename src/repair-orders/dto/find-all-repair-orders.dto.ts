@@ -155,4 +155,14 @@ export class FindAllRepairOrdersQueryDto {
   @IsOptional()
   @IsDateString()
   date_to?: string;
+
+  @ApiPropertyOptional({
+    description: 'Status ID-lari boyicha filter (UUID array)',
+    isArray: true,
+    example: ['c7a77f42-2f13-4b8e-b8cb-7d5f2c82fbbb'],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  status_ids?: string[];
 }

@@ -251,11 +251,15 @@ export class RepairOrderTestSetup {
       bg_color: '#f0f0f0',
       color: '#333',
       sort: 1,
+      is_active: true,
+      is_protected: true,
+      type: 'Open',
+      status: 'Open',
       branch_id: branchId,
       created_at: new Date(),
       updated_at: new Date(),
     };
-    await this.knex('repair_statuses').insert(status);
+    await this.knex('repair_order_statuses').insert(status);
     return status;
   }
 
@@ -268,11 +272,15 @@ export class RepairOrderTestSetup {
       bg_color: '#ffa500',
       color: '#fff',
       sort: 2,
+      is_active: true,
+      is_protected: false,
+      type: 'Open',
+      status: 'Open',
       branch_id: branchId,
       created_at: new Date(),
       updated_at: new Date(),
     };
-    await this.knex('repair_statuses').insert(status);
+    await this.knex('repair_order_statuses').insert(status);
     return status;
   }
 
@@ -285,11 +293,15 @@ export class RepairOrderTestSetup {
       bg_color: '#008000',
       color: '#fff',
       sort: 3,
+      is_active: true,
+      is_protected: false,
+      type: 'Completed',
+      status: 'Open',
       branch_id: branchId,
       created_at: new Date(),
       updated_at: new Date(),
     };
-    await this.knex('repair_statuses').insert(status);
+    await this.knex('repair_order_statuses').insert(status);
     return status;
   }
 
@@ -302,11 +314,15 @@ export class RepairOrderTestSetup {
       bg_color: '#808080',
       color: '#fff',
       sort: 4,
+      is_active: true,
+      is_protected: false,
+      type: 'Cancelled',
+      status: 'Open',
       branch_id: branchId,
       created_at: new Date(),
       updated_at: new Date(),
     };
-    await this.knex('repair_statuses').insert(status);
+    await this.knex('repair_order_statuses').insert(status);
     return status;
   }
 
@@ -345,7 +361,7 @@ export class RepairOrderTestSetup {
     return {
       user_id: this.testData.userData.id,
       phone_category_id: this.testData.phoneCategory.id,
-      status_id: this.testData.repairStatus.id,
+      branch_id: this.testData.branchData.id,
       priority: 'Medium',
       initial_problems: [
         {
@@ -369,7 +385,6 @@ export class RepairOrderTestSetup {
     const response = await request(this.app.getHttpServer())
       .post('/repair-orders')
       .set('Authorization', `Bearer ${this.testData.adminToken}`)
-      .query({ branch_id: this.testData.branchData.id, status_id: this.testData.repairStatus.id })
       .send(createDto);
 
     return response.body;

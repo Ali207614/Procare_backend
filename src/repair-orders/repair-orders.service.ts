@@ -30,6 +30,7 @@ import { UpdateClientInfoDto, UpdateProductDto, UpdateProblemDto, TransferBranch
 import { PdfService } from 'src/pdf/pdf.service';
 import { RepairOrderWebhookService } from 'src/repair-orders/services/repair-order-webhook.service';
 import { NotificationService } from 'src/notification/notification.service';
+import { RepairOrderStatus } from 'src/common/types/repair-order-status.interface';
 
 @Injectable()
 export class RepairOrdersService {
@@ -52,24 +53,24 @@ export class RepairOrdersService {
   async create(
     admin: AdminPayload,
     branchId: string,
-    statusId: string,
     dto: CreateRepairOrderDto,
   ): Promise<RepairOrder> {
     const trx = await this.knex.transaction();
     try {
+      const createStatus = await this.resolveCreateStatus(trx, branchId);
       const permissions: RepairOrderStatusPermission[] =
         await this.permissionService.findByRolesAndBranch(admin.roles, branchId);
       await this.permissionService.checkPermissionsOrThrow(
         admin.roles,
         branchId,
-        statusId,
+        createStatus.id,
         ['can_add'],
         'repair_order_permission',
         permissions,
       );
 
       // ── Resolve user: either by user_id or by inline client info ──
-      const currentStatusPermission = permissions.find((p) => p.status_id === statusId);
+      const currentStatusPermission = permissions.find((p) => p.status_id === createStatus.id);
       let resolvedUserId: string | undefined = dto.user_id;
       let resolvedPhoneNumber = dto.phone_number || dto.phone || '';
       let resolvedName: string | null =
@@ -202,7 +203,7 @@ export class RepairOrdersService {
       } else {
         // Shift all existing orders for this branch and status down by 1
         await trx(this.table)
-          .where({ branch_id: branchId, status_id: statusId, status: 'Open' })
+          .where({ branch_id: branchId, status_id: createStatus.id, status: 'Open' })
           .increment('sort', 1);
 
         const sort = 1;
@@ -211,7 +212,7 @@ export class RepairOrdersService {
           branch_id: branchId,
           phone_category_id: dto.phone_category_id,
           priority: dto.priority || 'Medium',
-          status_id: statusId,
+          status_id: createStatus.id,
           sort,
           delivery_method: 'Self',
           pickup_method: 'Self',
@@ -342,6 +343,45 @@ export class RepairOrdersService {
     }
   }
 
+  private async resolveCreateStatus(
+    trx: Knex.Transaction,
+    branchId: string,
+  ): Promise<RepairOrderStatus> {
+    const protectedStatus = await trx<RepairOrderStatus>('repair_order_statuses')
+      .where({
+        branch_id: branchId,
+        status: 'Open',
+        is_active: true,
+        type: 'Open',
+        is_protected: true,
+      })
+      .orderBy('sort', 'asc')
+      .first();
+
+    if (protectedStatus) {
+      return protectedStatus;
+    }
+
+    const fallbackStatus = await trx<RepairOrderStatus>('repair_order_statuses')
+      .where({
+        branch_id: branchId,
+        status: 'Open',
+        is_active: true,
+        type: 'Open',
+      })
+      .orderBy('sort', 'asc')
+      .first();
+
+    if (!fallbackStatus) {
+      throw new BadRequestException({
+        message: 'No active open repair order status found for this branch',
+        location: 'branch_id',
+      });
+    }
+
+    return fallbackStatus;
+  }
+
   async update(
     admin: AdminPayload,
     orderId: string,
@@ -378,6 +418,25 @@ export class RepairOrdersService {
       for (const field of fieldsToCheck) {
         const dtoFieldValue = dto[field as keyof UpdateRepairOrderDto];
         if (dtoFieldValue !== undefined && dtoFieldValue !== order[field]) {
+          if (field === 'status_id') {
+            // Shift current queue items up to close the gap
+            await trx(this.table)
+              .where({ branch_id: order.branch_id, status_id: order.status_id, status: 'Open' })
+              .andWhere('sort', '>', order.sort)
+              .decrement('sort', 1);
+
+            // Shift target queue items down to make room at the top
+            await trx(this.table)
+              .where({
+                branch_id: order.branch_id,
+                status_id: dtoFieldValue as string,
+                status: 'Open',
+              })
+              .increment('sort', 1);
+
+            updatedFields.sort = 1;
+            logFields.push({ key: 'sort', oldVal: order.sort, newVal: 1 });
+          }
           (updatedFields as Record<string, unknown>)[field] = dtoFieldValue;
           logFields.push({ key: field, oldVal: order[field], newVal: dtoFieldValue });
         }
@@ -463,15 +522,24 @@ export class RepairOrdersService {
       assigned_admin_ids,
       date_from,
       date_to,
+      status_ids,
     } = query;
 
     const permissions: RepairOrderStatusPermission[] =
       await this.permissionService.findByRolesAndBranch(admin.roles, branchId);
 
-    const statusIds: string[] = permissions.filter((p) => p.can_view).map((p) => p.status_id);
+    let statusIds: string[] = permissions.filter((p) => p.can_view).map((p) => p.status_id);
 
     if (!statusIds.length) {
       return {};
+    }
+
+    // Narrow to requested status IDs (while keeping security boundary)
+    if (status_ids?.length) {
+      statusIds = statusIds.filter((id) => status_ids.includes(id));
+      if (!statusIds.length) {
+        return {};
+      }
     }
 
     // Build filter hash for cache key
@@ -487,6 +555,7 @@ export class RepairOrdersService {
       assigned_admin_ids,
       date_from,
       date_to,
+      status_ids,
     });
 
     const cacheKey = `${this.table}:${branchId}:${admin.id}:${sort_by}:${sort_order}:${offset}:${limit}:${Buffer.from(filterHash).toString('base64')}`;
@@ -646,6 +715,12 @@ export class RepairOrdersService {
         .where({ id: orderId })
         .update({ status: 'Deleted', updated_at: new Date() });
 
+      // Shift other orders up to maintain contiguity
+      await trx(this.table)
+        .where({ branch_id: order.branch_id, status_id: order.status_id, status: 'Open' })
+        .andWhere('sort', '>', order.sort)
+        .decrement('sort', 1);
+
       await trx.commit();
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
       return { message: 'Repair order deleted successfully' };
@@ -779,8 +854,23 @@ export class RepairOrdersService {
       }
 
       if (dto.status_id !== order.status_id) {
+        // Shift orders in the old status up to maintain contiguity
+        await trx(this.table)
+          .where({ branch_id: order.branch_id, status_id: order.status_id, status: 'Open' })
+          .andWhere('sort', '>', order.sort)
+          .decrement('sort', 1);
+
+        const targetSort = dto.sort || 1;
+        // Shift orders in the new status down to make room
+        await trx(this.table)
+          .where({ branch_id: order.branch_id, status_id: dto.status_id, status: 'Open' })
+          .andWhere('sort', '>=', targetSort)
+          .increment('sort', 1);
+
         updates.status_id = dto.status_id;
+        updates.sort = targetSort;
         logs.push({ key: 'status_id', oldVal: order.status_id, newVal: dto.status_id });
+        logs.push({ key: 'sort', oldVal: order.sort, newVal: targetSort });
 
         // Notify branch about the move
         void this.helper
@@ -809,11 +899,25 @@ export class RepairOrdersService {
               `Failed to fetch meta for branch notification for moved order ${order.id}: ${err.message}`,
             );
           });
-      }
+      } else if (dto.sort !== undefined && dto.sort !== order.sort) {
+        // Same status, different sort -> use existing list reordering logic
+        const newSort = dto.sort;
+        if (newSort < order.sort) {
+          await trx(this.table)
+            .where({ branch_id: order.branch_id, status_id: order.status_id, status: 'Open' })
+            .andWhere('sort', '>=', newSort)
+            .andWhere('sort', '<', order.sort)
+            .update({ sort: this.knex.raw('sort + 1') });
+        } else {
+          await trx(this.table)
+            .where({ branch_id: order.branch_id, status_id: order.status_id, status: 'Open' })
+            .andWhere('sort', '<=', newSort)
+            .andWhere('sort', '>', order.sort)
+            .update({ sort: this.knex.raw('sort - 1') });
+        }
 
-      if (dto.sort !== undefined && dto.sort !== order.sort) {
-        updates.sort = dto.sort;
-        logs.push({ key: 'sort', oldVal: order.sort, newVal: dto.sort });
+        updates.sort = newSort;
+        logs.push({ key: 'sort', oldVal: order.sort, newVal: newSort });
       }
 
       if (Object.keys(updates).length) {
@@ -1158,6 +1262,12 @@ export class RepairOrdersService {
 
     const trx = await this.knex.transaction();
     try {
+      // Shift orders in the current branch up to maintain contiguity
+      await trx(this.table)
+        .where({ branch_id: order.branch_id, status_id: order.status_id, status: 'Open' })
+        .andWhere('sort', '>', order.sort)
+        .decrement('sort', 1);
+
       // Shift all existing orders for the target branch and status down by 1
       await trx(this.table)
         .where({ branch_id: transferDto.new_branch_id, status_id: order.status_id, status: 'Open' })

@@ -9,6 +9,7 @@ SELECT
     ro.priority,
     ro.name,
     ro.phone_number,
+    ro.source,
     ro.created_at,
     COALESCE((jsonb_build_object(
             'id', u.id,

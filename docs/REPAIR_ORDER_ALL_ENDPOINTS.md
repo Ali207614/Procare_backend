@@ -30,7 +30,7 @@
 |---|---|
 | **Method** | `POST` |
 | **URL** | `/api/v1/repair-orders` |
-| **Guards** | `JwtAdminAuthGuard`, `RepairOrderStatusExistGuard` |
+| **Guards** | `JwtAdminAuthGuard`, `BranchExistGuard` |
 | **DTO** | `CreateRepairOrderDto` |
 
 **Payload:**
@@ -38,7 +38,7 @@
 {
   "user_id": "uuid (required)",
   "phone_category_id": "uuid (required)",
-  "status_id": "uuid (required)",
+  "branch_id": "uuid (required)",
   "priority": "Low | Medium | High | Highest (optional)",
   "admin_ids": ["uuid", "uuid"] ,
   "initial_problems": [
@@ -148,7 +148,9 @@
 | `pickup_methods` | string[] | ❌ | — | `Self`, `Pickup` |
 | `assigned_admin_ids` | UUID[] | ❌ | — | Filter by assigned admin IDs |
 | `date_from` | ISO 8601 | ❌ | — | Created date from |
-| `date_to` | ISO 8601 | ❌ | — | Created date to |
+| date_to | ISO 8601 | ❌ | — | Created date to |
+
+**Response note:** Each repair order item includes deadline_at, an ISO-8601 timestamp computed from the order's remaining estimated minutes plus the remaining estimated minutes of higher-priority orders in the same status queue.
 
 ---
 
@@ -843,3 +845,4 @@ Below is a filtered list of **only the endpoints that update/modify** repair ord
 - **Status transition endpoints:** 2
 - **Status permission endpoints:** 4
 - **Repair parts endpoints:** 6
+
