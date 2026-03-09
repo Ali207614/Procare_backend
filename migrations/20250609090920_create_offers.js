@@ -3,8 +3,8 @@ exports.up = async function (knex) {
     table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
 
     table.text('content_uz').notNullable();
-    table.text('content_ru').notNullable();
-    table.text('content_en').notNullable();
+    table.text('content_ru').nullable();
+    table.text('content_en').nullable();
 
     table.string('version').notNullable().unique();
 

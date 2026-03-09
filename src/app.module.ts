@@ -63,6 +63,9 @@ import { TemplatesModule } from './templates/templates.module';
 import { UsersController } from './users/users.controller';
 import { UsersModule } from './users/users.module';
 import { UsersService } from './users/users.service';
+import { OffersModule } from './offers/offers.module';
+import { OffersService } from './offers/offers.service';
+import { OffersController } from './offers/offers.controller';
 import { StorageModule } from './common/storage/storage.module';
 import { PdfModule } from './pdf/pdf.module';
 import { OnlinePbxModule } from './online-pbx/online-pbx.module';
@@ -101,6 +104,7 @@ import { OnlinePbxModule } from './online-pbx/online-pbx.module';
     TemplatesModule,
     CampaignsModule,
     TelegramModule,
+    OffersModule,
     StorageModule,
     PdfModule,
     OnlinePbxModule,
@@ -120,6 +124,7 @@ import { OnlinePbxModule } from './online-pbx/online-pbx.module';
     PermissionsController,
     TemplatesController,
     CampaignsController,
+    OffersController,
   ],
   providers: [
     RepairPartsService,
@@ -136,6 +141,7 @@ import { OnlinePbxModule } from './online-pbx/online-pbx.module';
     RolesService,
     AdminsService,
     UsersService,
+    OffersService,
   ],
 })
 export class AppModule implements NestModule {

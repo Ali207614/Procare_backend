@@ -107,6 +107,13 @@ exports.seed = async function (knex) {
     { id: '00000000-0000-4000-8000-000000000075', name: 'rental_phones_create', description: 'Ijara telefon yaratish' },
     { id: '00000000-0000-4000-8000-000000000076', name: 'rental_phones_update', description: 'Ijara telefonni tahrirlash' },
     { id: '00000000-0000-4000-8000-000000000077', name: 'rental_phones_delete', description: "Ijara telefonni o'chirish" },
+
+    // Offers permissions
+    { id: '00000000-0000-4000-8000-000000000078', name: 'offers.view_all', description: "Offertalarni ko'rish" },
+    { id: '00000000-0000-4000-8000-000000000079', name: 'offers.view', description: "Offertalarni ko'rish" },
+    { id: '00000000-0000-4000-8000-000000000080', name: 'offers.create', description: 'Offerta yaratish' },
+    { id: '00000000-0000-4000-8000-000000000081', name: 'offers.update', description: 'Offertani tahrirlash' },
+    { id: '00000000-0000-4000-8000-000000000082', name: 'offers.delete', description: "Offertani o'chirish" },
   ];
 
 
