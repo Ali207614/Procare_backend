@@ -25,6 +25,30 @@ class RoleMiniDto {
 }
 
 @Exclude()
+class WorkDaysProfileDto {
+  @Expose()
+  monday!: boolean;
+
+  @Expose()
+  tuesday!: boolean;
+
+  @Expose()
+  wednesday!: boolean;
+
+  @Expose()
+  thursday!: boolean;
+
+  @Expose()
+  friday!: boolean;
+
+  @Expose()
+  saturday!: boolean;
+
+  @Expose()
+  sunday!: boolean;
+}
+
+@Exclude()
 export class AdminProfileDto {
   @Expose()
   id!: string;
@@ -55,6 +79,13 @@ export class AdminProfileDto {
 
   @Expose()
   id_card_number!: string;
+
+  @Expose()
+  onlinepbx_code!: string;
+
+  @Expose()
+  @Type(() => WorkDaysProfileDto)
+  work_days!: WorkDaysProfileDto;
 
   @Expose()
   language!: string;

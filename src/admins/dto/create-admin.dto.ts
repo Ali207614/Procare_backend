@@ -12,7 +12,39 @@ import {
   ArrayMaxSize,
   IsBoolean,
   Matches,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class WorkDaysDto {
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  monday!: boolean;
+
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  tuesday!: boolean;
+
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  wednesday!: boolean;
+
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  thursday!: boolean;
+
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  friday!: boolean;
+
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  saturday!: boolean;
+
+  @ApiProperty({ example: false })
+  @IsBoolean()
+  sunday!: boolean;
+}
 
 export class CreateAdminDto {
   @ApiProperty({ example: 'Ali', description: 'First name' })
@@ -31,6 +63,17 @@ export class CreateAdminDto {
   @IsPhoneNumber('UZ', { context: { location: 'phone_number' } })
   @Matches(/^\+998[0-9]{9}$/, { message: 'Invalid phone number format' })
   phone_number!: string;
+
+  @ApiProperty({ example: '123', required: false, description: 'OnlinePBX code' })
+  @IsOptional()
+  @IsString({ context: { location: 'onlinepbx_code' } })
+  onlinepbx_code?: string;
+
+  @ApiProperty({ type: WorkDaysDto, description: 'Work days' })
+  @IsOptional()
+  @ValidateNested({ context: { location: 'work_days' } })
+  @Type(() => WorkDaysDto)
+  work_days?: WorkDaysDto;
 
   @ApiProperty({ example: 'AA1234567', required: false, description: 'Passport series' })
   @IsOptional()

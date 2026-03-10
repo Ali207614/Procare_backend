@@ -10,9 +10,11 @@ import {
   IsBoolean,
   IsPhoneNumber,
   Matches,
+  ValidateNested,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { WorkDaysDto } from './create-admin.dto';
 
 export class UpdateAdminDto {
   @ApiProperty({ required: false })
@@ -39,6 +41,17 @@ export class UpdateAdminDto {
   @IsPhoneNumber('UZ', { context: { location: 'phone_number' } })
   @Matches(/^\+998[0-9]{9}$/, { message: 'Invalid phone number format' })
   phone_number?: string;
+
+  @ApiProperty({ example: '123', required: false, description: 'OnlinePBX code' })
+  @IsOptional()
+  @IsString({ context: { location: 'onlinepbx_code' } })
+  onlinepbx_code?: string;
+
+  @ApiProperty({ type: WorkDaysDto, description: 'Work days', required: false })
+  @IsOptional()
+  @ValidateNested({ context: { location: 'work_days' } })
+  @Type(() => WorkDaysDto)
+  work_days?: WorkDaysDto;
 
   @ApiProperty({
     example: '1990-01-01T00:00:00Z',

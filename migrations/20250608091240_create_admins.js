@@ -13,6 +13,15 @@ exports.up = async function (knex) {
     table.boolean('is_protected').defaultTo(false);
 
     table.string('onlinepbx_code').nullable();
+    table.jsonb('work_days').notNullable().defaultTo(JSON.stringify({
+      monday: true,
+      tuesday: true,
+      wednesday: true,
+      thursday: true,
+      friday: true,
+      saturday: true,
+      sunday: false,
+    }));
 
     table.string('passport_series');
     table.date('birth_date');

@@ -203,6 +203,8 @@ export class AdminsService {
         hire_date: dto.hire_date ? new Date(dto.hire_date).toISOString() : null,
         passport_series: dto.passport_series ?? null,
         id_card_number: dto.id_card_number ?? null,
+        onlinepbx_code: dto.onlinepbx_code ?? null,
+        work_days: dto.work_days ?? undefined,
         created_by: adminId,
         status: 'Pending',
       };
@@ -304,6 +306,8 @@ export class AdminsService {
           'role_ids',
           'branch_ids',
           'is_active',
+          'onlinepbx_code',
+          'work_days',
         ];
 
         for (const field of sensitiveFields) {
@@ -339,6 +343,8 @@ export class AdminsService {
           'phone_number',
           'language',
           'is_active',
+          'onlinepbx_code',
+          'work_days',
         ]),
         ...(dto.birth_date !== undefined && {
           birth_date: dto.birth_date ? new Date(dto.birth_date).toISOString() : null,

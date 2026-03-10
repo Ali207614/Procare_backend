@@ -1,3 +1,13 @@
+export interface WorkDays {
+  monday: boolean;
+  tuesday: boolean;
+  wednesday: boolean;
+  thursday: boolean;
+  friday: boolean;
+  saturday: boolean;
+  sunday: boolean;
+}
+
 export interface Admin {
   id: string;
   first_name: string | null;
@@ -7,6 +17,8 @@ export interface Admin {
   verification_code: string | null;
   password: string | null;
   is_protected: boolean;
+  onlinepbx_code: string | null;
+  work_days: WorkDays;
 
   passport_series: string | null;
   birth_date: string | null;

@@ -185,13 +185,8 @@ export class RepairOrdersService {
         if (dto.imei) updateData.imei = dto.imei;
         if (dto.priority) updateData.priority = dto.priority;
 
-        // Move existing order to the top of its current status list
-        await trx(this.table)
-          .where({ branch_id: branchId, status_id: existingOpenOrder.status_id, status: 'Open' })
-          .andWhere('sort', '<', existingOpenOrder.sort)
-          .increment('sort', 1);
-
-        updateData.sort = 1;
+        // Move existing order to the top of its current status list using helper
+        await this.moveToTop(trx, existingOpenOrder);
 
         const [updated]: RepairOrder[] = await trx(this.table)
           .where({ id: existingOpenOrder.id })
@@ -202,12 +197,7 @@ export class RepairOrdersService {
           `Updating existing open repair order ${order.id} for ${resolvedUserId ? `user ${resolvedUserId}` : `phone ${resolvedPhoneNumber}`}`,
         );
       } else {
-        // Shift all existing orders for this branch and status down by 1
-        await trx(this.table)
-          .where({ branch_id: branchId, status_id: createStatus.id, status: 'Open' })
-          .increment('sort', 1);
-
-        const sort = 1;
+        const sort = 999999;
         const insertData: Partial<RepairOrder> = {
           user_id: resolvedUserId,
           branch_id: branchId,
@@ -226,6 +216,8 @@ export class RepairOrdersService {
         };
 
         const [inserted]: RepairOrder[] = await trx(this.table).insert(insertData).returning('*');
+        // Move the new order to the top
+        await this.moveToTop(trx, inserted);
         order = inserted;
       }
 
@@ -428,20 +420,17 @@ export class RepairOrdersService {
               .andWhere('sort', '>', order.sort)
               .decrement('sort', 1);
 
-            // Shift target queue items down to make room at the top
-            await trx(this.table)
-              .where({
-                branch_id: order.branch_id,
-                status_id: dtoFieldValue as string,
-                status: 'Open',
-              })
-              .increment('sort', 1);
-
-            updatedFields.sort = 1;
+            // Set new status and high sort, then move to top of the new status
+            updatedFields.status_id = dtoFieldValue as string;
+            updatedFields.sort = 999999;
+            logFields.push({ key: 'status_id', oldVal: order.status_id, newVal: dtoFieldValue });
             logFields.push({ key: 'sort', oldVal: order.sort, newVal: 1 });
+
+            // We'll call moveToTop after the update to ensure we have the correct record state
+          } else {
+            (updatedFields as Record<string, unknown>)[field] = dtoFieldValue;
+            logFields.push({ key: field, oldVal: order[field], newVal: dtoFieldValue });
           }
-          (updatedFields as Record<string, unknown>)[field] = dtoFieldValue;
-          logFields.push({ key: field, oldVal: order[field], newVal: dtoFieldValue });
         }
       }
 
@@ -485,6 +474,12 @@ export class RepairOrdersService {
         await trx(this.table)
           .where({ id: orderId })
           .update({ ...updatedFields, updated_at: new Date() });
+
+        // If status changed to a new one, ensure it's at the top of the new status list
+        if (updatedFields.status_id) {
+          const updatedOrder = await trx<RepairOrder>(this.table).where({ id: orderId }).first();
+          if (updatedOrder) await this.moveToTop(trx, updatedOrder);
+        }
       }
 
       await Promise.all([
@@ -1282,19 +1277,16 @@ export class RepairOrdersService {
         .andWhere('sort', '>', order.sort)
         .decrement('sort', 1);
 
-      // Shift all existing orders for the target branch and status down by 1
-      await trx(this.table)
-        .where({ branch_id: transferDto.new_branch_id, status_id: order.status_id, status: 'Open' })
-        .increment('sort', 1);
-
       const updated = await trx(this.table)
         .where({ id: repairOrderId })
         .update({
           branch_id: transferDto.new_branch_id,
-          sort: 1, // Always at top of the new branch
+          sort: 999999, // Temp end of list
           updated_at: new Date(),
         })
         .returning('*');
+
+      await this.moveToTop(trx, updated[0] as RepairOrder);
 
       await this.changeLogger.logChange(
         repairOrderId,
@@ -1394,21 +1386,18 @@ export class RepairOrdersService {
     statusId: string;
     phoneNumber: string;
     source: 'Kiruvchi qongiroq' | 'Chiquvchi qongiroq';
+    onlinepbxCode?: string | null;
+    fallbackToFewestOpen?: boolean;
   }): Promise<RepairOrder> {
     const trx = await this.knex.transaction();
     try {
-      // Shift all existing orders for this branch and status down by 1
-      await trx(this.table)
-        .where({ branch_id: data.branchId, status_id: data.statusId, status: 'Open' })
-        .increment('sort', 1);
-
       const [newOrder] = await trx<RepairOrder>(this.table)
         .insert({
           user_id: data.userId,
           branch_id: data.branchId,
           priority: 'Medium',
           status_id: data.statusId,
-          sort: 1, // Always at top
+          sort: 999999, // Temporary high sort for new order
           delivery_method: 'Self',
           pickup_method: 'Self',
           created_by: null,
@@ -1420,6 +1409,63 @@ export class RepairOrdersService {
           updated_at: new Date().toISOString(),
         })
         .returning('*');
+
+      // Move the new order to the top using the reusable helper
+      await this.moveToTop(trx, newOrder);
+
+      let assignedAdminId: string | null = null;
+
+      // 1. Try to assign based on onlinepbxCode
+      if (data.onlinepbxCode) {
+        const adminWithCode = await trx('admins')
+          .where({ onlinepbx_code: data.onlinepbxCode, is_active: true, status: 'Open' })
+          .first();
+        if (adminWithCode) {
+          assignedAdminId = adminWithCode.id;
+        }
+      }
+
+      // 2. If no admin found or no code provided, find the least busy active admin (only if allowed)
+      if (!assignedAdminId && data.fallbackToFewestOpen === true) {
+        // Get the current day of week in lowercase (e.g., 'monday', 'tuesday')
+        const currentDayIndex = new Date().getDay();
+        const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const currentDayStr = days[currentDayIndex];
+
+        const leastBusyAdmin = await trx('admins')
+          .select('admins.id')
+          .leftJoin('repair_order_assign_admins as roaa', 'admins.id', 'roaa.admin_id')
+          .leftJoin('repair_orders as ro', (builder) => {
+            builder
+              .on('roaa.repair_order_id', '=', 'ro.id')
+              .andOn('ro.status', '=', trx.raw('?', ['Open']));
+          })
+          .leftJoin('repair_order_statuses as ros', (builder) => {
+            builder
+              .on('ro.status_id', '=', 'ros.id')
+              .andOn('ros.type', '=', trx.raw('?', ['Open']));
+          })
+          .where({ 'admins.is_active': true, 'admins.status': 'Open' })
+          // Check that the admin works today using JSONB extraction
+          .andWhereRaw(`(admins.work_days->>?)::boolean = true`, [currentDayStr])
+          .groupBy('admins.id')
+          // Count only repair orders where the joined status actually has type 'Open'
+          .orderByRaw('COUNT(CASE WHEN ros.type = ? THEN 1 END) ASC', ['Open'])
+          .first();
+
+        if (leastBusyAdmin) {
+          assignedAdminId = leastBusyAdmin.id;
+        }
+      }
+
+      // 3. Assign the admin to the repair order if an admin was found
+      if (assignedAdminId) {
+        await trx('repair_order_assign_admins').insert({
+          repair_order_id: newOrder.id,
+          admin_id: assignedAdminId,
+          created_at: new Date(),
+        });
+      }
 
       await trx.commit();
 
@@ -1482,6 +1528,28 @@ export class RepairOrdersService {
       .returning('id');
 
     return newUser.id;
+  }
+
+  /**
+   * Reusable helper to move a repair order to the top of its status list.
+   * Shifts existing items that were above this one.
+   */
+  async moveToTopById(orderId: string): Promise<void> {
+    const trx = await this.knex.transaction();
+    try {
+      const order = await trx<RepairOrder>(this.table).where({ id: orderId }).first();
+      if (!order || order.status !== 'Open') {
+        await trx.rollback();
+        return;
+      }
+
+      await this.moveToTop(trx, order);
+      await trx.commit();
+      await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
+    } catch (error) {
+      await trx.rollback();
+      throw error;
+    }
   }
 
   /**

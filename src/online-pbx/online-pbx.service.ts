@@ -176,11 +176,16 @@ export class OnlinePbxService {
 
     // Distinguish between customer and staff (admin)
     let customerPhoneRaw: string | undefined;
+    let onlinepbxCode: string | null = null;
 
     if (direction === 'inbound') {
       customerPhoneRaw = caller;
+      const calleeDigits = callee?.replace(/\D/g, '');
+      if (calleeDigits?.length === 3) onlinepbxCode = calleeDigits;
     } else if (direction === 'outbound') {
       customerPhoneRaw = callee;
+      const callerDigits = caller?.replace(/\D/g, '');
+      if (callerDigits?.length === 3) onlinepbxCode = callerDigits;
     }
 
     // Role verification using GATEWAY - if either side is our gateway, that side is staff
@@ -230,49 +235,85 @@ export class OnlinePbxService {
           repairOrderId = openOrder.id;
         }
 
-        if (event === 'call_start' || event === 'call_answered') {
-          if (!openOrder) {
-            // Create repair order for both inbound and outbound calls if no order exists
-            if (event === 'call_start') {
-              const defaultStatus = '50000000-0000-0000-0001-001000000000';
-
-              if (defaultBranch && defaultStatus) {
-                const newOrder = await this.repairOrderService.createFromWebhook({
-                  userId,
-                  branchId: defaultBranch,
-                  statusId: defaultStatus,
-                  phoneNumber: formattedCustomerPhone,
-                  source: direction === 'inbound' ? 'Kiruvchi qongiroq' : 'Chiquvchi qongiroq',
-                });
-
-                if (newOrder) {
-                  repairOrderId = newOrder.id;
-                }
-
-                this.logger.log(
-                  `Created new repair order for ${userId ? `user ${userId}` : `unknown caller ${formattedCustomerPhone}`} from ${direction} call via RepairOrdersService.`,
-                );
-              } else {
-                this.logger.warn(
-                  `[OnlinePBX Webhook] Cannot create repair order. Missing master data: Branch=${!!defaultBranch}, Status=${!!defaultStatus}`,
-                );
-              }
+        const createOrderHelper = async (
+          pbxCode: string | null,
+          fallback: boolean,
+        ): Promise<void> => {
+          const defaultStatus = '50000000-0000-0000-0001-001000000000';
+          if (defaultBranch && defaultStatus) {
+            const newOrder = await this.repairOrderService.createFromWebhook({
+              userId,
+              branchId: defaultBranch,
+              statusId: defaultStatus,
+              phoneNumber: formattedCustomerPhone,
+              source: direction === 'inbound' ? 'Kiruvchi qongiroq' : 'Chiquvchi qongiroq',
+              onlinepbxCode: pbxCode,
+              fallbackToFewestOpen: fallback,
+            });
+            if (newOrder) {
+              repairOrderId = newOrder.id;
             }
+            this.logger.log(
+              `Created new repair order for ${userId ? `user ${userId}` : `unknown caller ${formattedCustomerPhone}`} from ${direction} call via RepairOrdersService.`,
+            );
           } else {
-            // For either inbound or outbound, if we find an open order, we update it
-            if (event === 'call_start') {
+            this.logger.warn(
+              `[OnlinePBX Webhook] Cannot create repair order. Missing master data: Branch=${!!defaultBranch}, Status=${!!defaultStatus}`,
+            );
+          }
+        };
+
+        if (direction === 'outbound') {
+          // Admin calling user
+          if (event === 'call_start') {
+            if (!openOrder) {
+              // Create if doesn't exist, assigning to caller without fallback
+              await createOrderHelper(onlinepbxCode, false);
+            } else {
               await this.repairOrderService.incrementCallCount(openOrder.id);
               this.logger.log(
                 `Incremented call_count for existing open repair order ${openOrder.id} via RepairOrdersService.`,
               );
             }
           }
-        } else if (event === 'call_missed') {
-          if (openOrder) {
-            await this.repairOrderService.incrementMissedCallCount(openOrder.id);
-            this.logger.log(
-              `Incremented missed_calls for existing open repair order ${openOrder.id} via RepairOrdersService.`,
-            );
+        } else if (direction === 'inbound') {
+          // User calling admin
+          if (event === 'call_start') {
+            if (openOrder) {
+              // Only increment if already exists; don't create yet
+              await this.repairOrderService.incrementCallCount(openOrder.id);
+              this.logger.log(
+                `Incremented call_count for existing open repair order ${openOrder.id} via RepairOrdersService.`,
+              );
+            }
+          } else if (event === 'call_missed') {
+            if (!openOrder) {
+              // Missed call: create and use fallback logic
+              await createOrderHelper(null, true);
+            } else {
+              // Increment missed calls count on existing order
+              await this.repairOrderService.incrementMissedCallCount(openOrder.id);
+              this.logger.log(
+                `Incremented missed_calls for existing open repair order ${openOrder.id} via RepairOrdersService.`,
+              );
+            }
+          } else if (event === 'call_end') {
+            // Check if admin actually talked to user
+            if (Number(dialog_duration) > 0) {
+              if (!openOrder) {
+                // Determine which admin answered from callee directly
+                const calleeDigits = callee?.replace(/\D/g, '');
+                const specificAdminCode = calleeDigits?.length === 3 ? calleeDigits : onlinepbxCode;
+                // Create and strictly assign to whoever answered
+                await createOrderHelper(specificAdminCode, false);
+              } else {
+                // If it exists, move to top again as the interaction just completed
+                await this.repairOrderService.moveToTopById(openOrder.id);
+                this.logger.log(
+                  `Moved existing open repair order ${openOrder.id} to top on call_end with duration > 0.`,
+                );
+              }
+            }
           }
         }
       }

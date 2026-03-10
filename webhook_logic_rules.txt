@@ -1,0 +1,24 @@
+Webhook Logic Rules for Repair Order Creation
+
+1. Outbound Calls (Admin calling a user):
+   - Trigger: `call_start`
+   - Rule: We must create a repair order immediately if there isn't an open one, regardless of whether they actually talked or not (no need to check `dialog_duration`).
+   - Assignment: Assigned directly to the admin who initiated the call. No "fewest open repair orders" fallback.
+
+2. Inbound Calls (User calling the branch):
+   - Trigger: `call_start`
+     - Rule: Wait. Do NOT create a repair order when the call is just ringing. Wait to see if an admin picks up or if it is missed. (If a repair order already exists for this user, we can just increment the call count).
+
+   - Trigger: `call_missed` (User hung up before an admin answered)
+     - Rule: Create a new repair order (if one doesn't exist).
+     - Assignment: This is the ONLY scenario where the "fewest open repair orders" auto-assignment logic applies. It assigns the order to the active admin with the lowest number of current open orders.
+
+   - Trigger: `call_end` (Call finished)
+     - Rule: Check if the staff actually talked to the user. We verify this by checking if `dialog_duration` is greater than 0. 
+     - If `dialog_duration > 0`, and no open repair order exists yet:
+       - Create a new repair order.
+       - Assignment: Assign it specifically to the admin who picked up the phone and talked to the user. No "fewest open repair orders" fallback applies.
+
+Summary of "Fewest Open Repair Orders" logic:
+- IT ONLY FIRES on Inbound `call_missed` events.
+- If it's an Outbound call or an Inbound call that was actually answered (`dialog_duration > 0`), the repair order is strictly assigned to the specific admin involved in the call. If that specific admin lookup fails, the order is created but left unassigned.
