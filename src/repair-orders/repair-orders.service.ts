@@ -1428,9 +1428,11 @@ export class RepairOrdersService {
       // 2. If no admin found or no code provided, find the least busy active admin (only if allowed)
       if (!assignedAdminId && data.fallbackToFewestOpen === true) {
         // Get the current day of week in lowercase (e.g., 'monday', 'tuesday')
-        const currentDayIndex = new Date().getDay();
+        const now = new Date();
+        const currentDayIndex = now.getDay();
         const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
         const currentDayStr = days[currentDayIndex];
+        const currentHHmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
         const leastBusyAdmin = await trx('admins')
           .select('admins.id')
@@ -1448,6 +1450,9 @@ export class RepairOrdersService {
           .where({ 'admins.is_active': true, 'admins.status': 'Open' })
           // Check that the admin works today using JSONB extraction
           .andWhereRaw(`(admins.work_days->>?)::boolean = true`, [currentDayStr])
+          // Check that the admin is currently in their working hours
+          .andWhere('admins.work_start_time', '<=', currentHHmm)
+          .andWhere('admins.work_end_time', '>=', currentHHmm)
           .groupBy('admins.id')
           // Count only repair orders where the joined status actually has type 'Open'
           .orderByRaw('COUNT(CASE WHEN ros.type = ? THEN 1 END) ASC', ['Open'])

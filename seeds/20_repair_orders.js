@@ -107,16 +107,12 @@ exports.seed = async function (knex) {
         id: uuidv4(),
         repair_order_id: repairOrderId,
         amount: 50000,
-        currency: 'UZS',
-        payment_method: 'payme',
-        payment_status: 'paid',
-        paid_at: knex.fn.now(),
-        payme_transaction_id: `payme_${Date.now()}_${i}`,
-        created_by: admin.id,
+        type: i % 2 === 0 ? 'cash' : 'transfer',
         created_at: knex.fn.now(),
         updated_at: knex.fn.now(),
       });
     }
+
   }
 
   await knex('repair_orders').insert(repairOrders);

@@ -114,7 +114,14 @@ exports.seed = async function (knex) {
     { id: '00000000-0000-4000-8000-000000000080', name: 'offers.create', description: 'Offerta yaratish' },
     { id: '00000000-0000-4000-8000-000000000081', name: 'offers.update', description: 'Offertani tahrirlash' },
     { id: '00000000-0000-4000-8000-000000000082', name: 'offers.delete', description: "Offertani o'chirish" },
+
+    // Repair Order Payments
+    { id: '00000000-0000-4000-8000-000000000083', name: 'repair_order_payments.create', description: "To'lov yaratish" },
+    { id: '00000000-0000-4000-8000-000000000084', name: 'repair_order_payments.read', description: "To'lovlarni ko'rish" },
+    { id: '00000000-0000-4000-8000-000000000085', name: 'repair_order_payments.update', description: "To'lovni tahrirlash" },
+    { id: '00000000-0000-4000-8000-000000000086', name: 'repair_order_payments.delete', description: "To'lovni o'chirish" },
   ];
+
 
 
   for (const perm of permissions) {

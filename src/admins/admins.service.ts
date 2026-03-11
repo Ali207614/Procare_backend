@@ -205,6 +205,8 @@ export class AdminsService {
         id_card_number: dto.id_card_number ?? null,
         onlinepbx_code: dto.onlinepbx_code ?? null,
         work_days: dto.work_days ?? undefined,
+        work_start_time: dto.work_start_time ?? '09:00',
+        work_end_time: dto.work_end_time ?? '18:00',
         created_by: adminId,
         status: 'Pending',
       };
@@ -308,6 +310,8 @@ export class AdminsService {
           'is_active',
           'onlinepbx_code',
           'work_days',
+          'work_start_time',
+          'work_end_time',
         ];
 
         for (const field of sensitiveFields) {
@@ -345,6 +349,8 @@ export class AdminsService {
           'is_active',
           'onlinepbx_code',
           'work_days',
+          'work_start_time',
+          'work_end_time',
         ]),
         ...(dto.birth_date !== undefined && {
           birth_date: dto.birth_date ? new Date(dto.birth_date).toISOString() : null,

@@ -75,6 +75,26 @@ export class CreateAdminDto {
   @Type(() => WorkDaysDto)
   work_days?: WorkDaysDto;
 
+  @ApiProperty({
+    example: '09:00',
+    required: false,
+    description: 'Work start time in HH:mm format',
+  })
+  @IsOptional()
+  @IsString({ context: { location: 'work_start_time' } })
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: 'Time must be in HH:mm format' })
+  work_start_time?: string;
+
+  @ApiProperty({
+    example: '18:00',
+    required: false,
+    description: 'Work end time in HH:mm format',
+  })
+  @IsOptional()
+  @IsString({ context: { location: 'work_end_time' } })
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: 'Time must be in HH:mm format' })
+  work_end_time?: string;
+
   @ApiProperty({ example: 'AA1234567', required: false, description: 'Passport series' })
   @IsOptional()
   @IsString({ context: { location: 'passport_series' } })

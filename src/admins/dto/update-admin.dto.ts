@@ -54,6 +54,26 @@ export class UpdateAdminDto {
   work_days?: WorkDaysDto;
 
   @ApiProperty({
+    example: '09:00',
+    required: false,
+    description: 'Work start time in HH:mm format',
+  })
+  @IsOptional()
+  @IsString({ context: { location: 'work_start_time' } })
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: 'Time must be in HH:mm format' })
+  work_start_time?: string;
+
+  @ApiProperty({
+    example: '18:00',
+    required: false,
+    description: 'Work end time in HH:mm format',
+  })
+  @IsOptional()
+  @IsString({ context: { location: 'work_end_time' } })
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: 'Time must be in HH:mm format' })
+  work_end_time?: string;
+
+  @ApiProperty({
     example: '1990-01-01T00:00:00Z',
     required: false,
     description: 'Birth date in ISO 8601 format',

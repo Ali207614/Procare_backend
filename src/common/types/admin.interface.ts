@@ -19,6 +19,8 @@ export interface Admin {
   is_protected: boolean;
   onlinepbx_code: string | null;
   work_days: WorkDays;
+  work_start_time: string;
+  work_end_time: string;
 
   passport_series: string | null;
   birth_date: string | null;

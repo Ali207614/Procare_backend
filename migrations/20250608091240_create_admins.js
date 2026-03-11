@@ -22,6 +22,8 @@ exports.up = async function (knex) {
       saturday: true,
       sunday: false,
     }));
+    table.string("work_start_time").defaultTo("09:00")
+    table.string("work_end_time").defaultTo("18:00")
 
     table.string('passport_series');
     table.date('birth_date');
