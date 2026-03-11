@@ -126,8 +126,16 @@ export class ServiceFormsService {
     try {
       pdfBuffer = await this.pdfService.generateProcareServiceForm(payload);
     } catch (error) {
-      this.logger.error('Failed to generate service form PDF', (error as Error)?.stack);
-      throw new InternalServerErrorException('Failed to generate service form PDF');
+      this.logger.error(
+        'Failed to generate service form PDF',
+        JSON.stringify({
+          errorMessage: (error as Error)?.message,
+          stack: (error as Error)?.stack,
+        }),
+      );
+      throw new InternalServerErrorException(
+        `Failed to generate service form PDF: ${(error as Error)?.message || 'Unknown Error'}`,
+      );
     }
 
     // 5. Upload to MinIO
@@ -135,8 +143,16 @@ export class ServiceFormsService {
     try {
       await this.storageService.upload(filePath, pdfBuffer, { 'Content-Type': 'application/pdf' });
     } catch (error) {
-      this.logger.error('Failed to upload service form to storage', (error as Error)?.stack);
-      throw new InternalServerErrorException('Failed to upload service form to storage');
+      this.logger.error(
+        'Failed to upload service form to storage',
+        JSON.stringify({
+          errorMessage: (error as Error)?.message,
+          stack: (error as Error)?.stack,
+        }),
+      );
+      throw new InternalServerErrorException(
+        `Failed to upload service form to storage: ${(error as Error)?.message || 'Unknown Error'}`,
+      );
     }
 
     // 6. Save record to DB

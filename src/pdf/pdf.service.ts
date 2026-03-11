@@ -76,7 +76,9 @@ export class PdfService {
       return Buffer.from(finalPdfBytes);
     } catch (error) {
       this.logger.error('Failed to generate PDF', error);
-      throw new InternalServerErrorException('Failed to generate service form document');
+      throw new InternalServerErrorException(
+        `Failed to generate service form document: ${(error as Error)?.message || 'Unknown Context'}`,
+      );
     } finally {
       await browser.close();
     }

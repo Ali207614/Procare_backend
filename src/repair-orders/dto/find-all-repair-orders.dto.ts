@@ -9,6 +9,8 @@ import {
   IsString,
   IsDateString,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ToArray } from 'src/common/decorators/to-array.decorator';
 
 export class FindAllRepairOrdersQueryDto {
   @ApiPropertyOptional({
@@ -16,18 +18,20 @@ export class FindAllRepairOrdersQueryDto {
     example: 0,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt({ message: 'offset butun son bolishi kerak' })
   @Min(0)
-  offset = 0;
+  offset: number = 0;
 
   @ApiPropertyOptional({
     description: 'Pagination uchun limit (default: 20)',
     example: 20,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt({ message: 'limit butun son bolishi kerak' })
   @Min(1)
-  limit = 20;
+  limit: number = 20;
 
   @ApiPropertyOptional({
     description: 'Saralash ustuni (default: sort)',
@@ -61,6 +65,7 @@ export class FindAllRepairOrdersQueryDto {
     example: ['Organic', 'App'],
   })
   @IsOptional()
+  @ToArray()
   @IsArray()
   @IsIn(['Organic', 'App', 'Meta', 'Web', 'Bot', 'Other'], { each: true })
   source_types?: string[];
@@ -72,6 +77,7 @@ export class FindAllRepairOrdersQueryDto {
     example: ['High', 'Highest'],
   })
   @IsOptional()
+  @ToArray()
   @IsArray()
   @IsIn(['Low', 'Medium', 'High', 'Highest'], { each: true })
   priorities?: string[];
@@ -115,6 +121,7 @@ export class FindAllRepairOrdersQueryDto {
     example: ['Self', 'Delivery'],
   })
   @IsOptional()
+  @ToArray()
   @IsArray()
   @IsIn(['Self', 'Delivery'], { each: true })
   delivery_methods?: string[];
@@ -126,6 +133,7 @@ export class FindAllRepairOrdersQueryDto {
     example: ['Self', 'Pickup'],
   })
   @IsOptional()
+  @ToArray()
   @IsArray()
   @IsIn(['Self', 'Pickup'], { each: true })
   pickup_methods?: string[];
@@ -136,6 +144,7 @@ export class FindAllRepairOrdersQueryDto {
     example: ['c7a77f42-2f13-4b8e-b8cb-7d5f2c82fbbb'],
   })
   @IsOptional()
+  @ToArray()
   @IsArray()
   @IsUUID('all', { each: true })
   assigned_admin_ids?: string[];
@@ -162,6 +171,7 @@ export class FindAllRepairOrdersQueryDto {
     example: ['c7a77f42-2f13-4b8e-b8cb-7d5f2c82fbbb'],
   })
   @IsOptional()
+  @ToArray()
   @IsArray()
   @IsUUID('all', { each: true })
   status_ids?: string[];

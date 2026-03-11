@@ -57,9 +57,9 @@ export class OffersService {
   }
 
   async create(createOfferDto: CreateOfferDto): Promise<Offer> {
-    const latestOffer = await this.knex<Offer>('offers').orderBy('version', 'desc').first();
+    const latestOffer = await this.knex<Offer>('offers').orderBy('created_at', 'desc').first();
 
-    const nextVersion = latestOffer ? this.incrementVersion(latestOffer.version) : 'v1.0.0';
+    const nextVersion = latestOffer ? this.smartIncrement(latestOffer, createOfferDto) : 'v1.0.0';
 
     // Mark all previous offers as inactive
     await this.knex('offers').update({ is_active: false });
@@ -83,11 +83,65 @@ export class OffersService {
       .update({ status: 'Deleted', is_active: false });
   }
 
-  private incrementVersion(version: string): string {
-    const parts = version.replace('v', '').split('.');
+  private smartIncrement(oldOffer: Offer, newOffer: CreateOfferDto): string {
+    const changePercentage = this.calculateChangePercentage(oldOffer, newOffer);
+
+    const parts = oldOffer.version.replace('v', '').split('.');
     if (parts.length !== 3) return 'v1.0.0';
-    const [major, minor, patch] = parts.map(Number);
-    // Increment minor version for each new "update" via POST
-    return `v${major}.${minor + 1}.${patch}`;
+
+    let [major, minor, patch] = parts.map(Number);
+
+    if (changePercentage > 70) {
+      major++;
+      minor = 0;
+      patch = 0;
+    } else if (changePercentage >= 20) {
+      minor++;
+      patch = 0;
+    } else {
+      patch++;
+    }
+
+    return `v${major}.${minor}.${patch}`;
+  }
+
+  private calculateChangePercentage(oldOffer: Offer, newOffer: CreateOfferDto): number {
+    const oldVal = oldOffer.content_uz || '';
+    const newVal = newOffer.content_uz || '';
+
+    if (!oldVal && !newVal) return 0;
+
+    const distance = this.levenshteinDistance(String(oldVal), String(newVal));
+    const maxLen = Math.max(String(oldVal).length, String(newVal).length, 1);
+
+    return (distance / maxLen) * 100;
+  }
+
+  private levenshteinDistance(s1: string, s2: string): number {
+    const n = s1.length;
+    const m = s2.length;
+
+    if (n > m) return this.levenshteinDistance(s2, s1);
+
+    let prevRow = new Int32Array(n + 1);
+    let currRow = new Int32Array(n + 1);
+
+    for (let i = 0; i <= n; i++) prevRow[i] = i;
+
+    for (let i = 1; i <= m; i++) {
+      currRow[0] = i;
+      for (let j = 1; j <= n; j++) {
+        const cost = s1[j - 1] === s2[i - 1] ? 0 : 1;
+        currRow[j] = Math.min(
+          prevRow[j] + 1, // deletion
+          currRow[j - 1] + 1, // insertion
+          prevRow[j - 1] + cost, // substitution
+        );
+      }
+      // Swap rows
+      [prevRow, currRow] = [currRow, prevRow];
+    }
+
+    return prevRow[n];
   }
 }
