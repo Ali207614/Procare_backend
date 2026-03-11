@@ -139,17 +139,6 @@ export class OnlinePbxService {
   }
 
   async handleWebhook(payload: Record<string, unknown>): Promise<void> {
-    // TEMPORARY LOGGING FOR TESTING
-    try {
-      await this.knex('online_pbx_webhook_logs').insert({
-        payload: payload,
-        created_at: new Date().toISOString(),
-      });
-    } catch (logError: unknown) {
-      const errorMessage = logError instanceof Error ? logError.message : String(logError);
-      this.logger.error(`[OnlinePBX Webhook] Failed to log raw payload: ${errorMessage}`);
-    }
-
     this.logger.log(`[OnlinePBX Webhook] Received payload: ${JSON.stringify(payload)}`);
 
     const {
