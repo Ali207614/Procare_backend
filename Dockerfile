@@ -6,11 +6,20 @@ FROM node:${NODE_VERSION} as base
 
 WORKDIR /usr/src/app
 
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
 RUN apk add --no-cache \
     python3 \
     make \
     g++ \
-    dumb-init
+    dumb-init \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
 
 COPY package*.json ./
 
