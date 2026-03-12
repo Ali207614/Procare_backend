@@ -13,7 +13,9 @@ export class OffersService {
   async findAll(dto: FindAllOffersDto): Promise<PaginationResult<Offer>> {
     const { limit = 10, offset = 0, status } = dto;
 
-    const baseQuery = this.knex<Offer>('offers').orderBy('created_at', 'desc');
+    const baseQuery = this.knex<Offer>('offers')
+      .orderBy('is_active', 'desc')
+      .orderBy('created_at', 'desc');
 
     if (status) {
       void baseQuery.where('status', status);
