@@ -656,7 +656,6 @@ export class RepairOrdersService {
     }
 
     try {
-      console.log('Executing SQL:', querySql);
       const freshOrders: FreshRepairOrder[] = await this.knex
         .raw(querySql, queryParams)
         .then((r) => r.rows as FreshRepairOrder[]);

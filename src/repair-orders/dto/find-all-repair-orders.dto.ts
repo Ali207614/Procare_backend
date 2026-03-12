@@ -3,7 +3,7 @@ import {
   IsIn,
   IsInt,
   IsOptional,
-  IsUUID,
+  Matches,
   Min,
   IsArray,
   IsString,
@@ -54,7 +54,9 @@ export class FindAllRepairOrdersQueryDto {
   sort_order: 'asc' | 'desc' = 'asc';
 
   @ApiProperty({ description: 'Branch ID', example: 'c7a77f42-2f13-4b8e-b8cb-7d5f2c82fbbb' })
-  @IsUUID()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'branch_id must be a valid UUID',
+  })
   branch_id!: string;
 
   // Filters
@@ -146,7 +148,10 @@ export class FindAllRepairOrdersQueryDto {
   @IsOptional()
   @ToArray()
   @IsArray()
-  @IsUUID('all', { each: true })
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    each: true,
+    message: 'Each value in assigned_admin_ids must be a valid UUID',
+  })
   assigned_admin_ids?: string[];
 
   @ApiPropertyOptional({
@@ -173,6 +178,9 @@ export class FindAllRepairOrdersQueryDto {
   @IsOptional()
   @ToArray()
   @IsArray()
-  @IsUUID('all', { each: true })
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    each: true,
+    message: 'Each value in status_ids must be a valid UUID',
+  })
   status_ids?: string[];
 }

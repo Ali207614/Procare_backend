@@ -88,6 +88,12 @@ export class AdminProfileDto {
   work_days!: WorkDaysProfileDto;
 
   @Expose()
+  work_start_time!: string;
+
+  @Expose()
+  work_end_time!: string;
+
+  @Expose()
   language!: string;
 
   @Expose()

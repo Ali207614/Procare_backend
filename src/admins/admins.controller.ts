@@ -38,8 +38,8 @@ export class AdminsController {
 
   @UseInterceptors(ClassSerializerInterceptor)
   @Get('me')
-  getProfile(@CurrentAdmin() admin: AdminPayload): AdminProfileDto {
-    const adminData = this.adminsService.findById(admin.id);
+  async getProfile(@CurrentAdmin() admin: AdminPayload): Promise<AdminProfileDto> {
+    const adminData = await this.adminsService.findById(admin.id);
     return plainToInstance(AdminProfileDto, adminData);
   }
 
