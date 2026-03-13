@@ -19,10 +19,21 @@ export class FindRentalPhoneDevicesDto {
   @ApiPropertyOptional({
     description: 'Filter by device status',
     enum: ['Available', 'Rented', 'Maintenance', 'Lost', 'Damaged', 'Retired'],
+    isArray: true,
   })
   @IsOptional()
-  @IsEnum(['Available', 'Rented', 'Maintenance', 'Lost', 'Damaged', 'Retired'])
-  status?: 'Available' | 'Rented' | 'Maintenance' | 'Lost' | 'Damaged' | 'Retired';
+  @Transform(
+    ({ value }) =>
+      (Array.isArray(value) ? value : value ? [value] : []) as (
+        | 'Available'
+        | 'Rented'
+        | 'Maintenance'
+        | 'Lost'
+        | 'Damaged'
+        | 'Retired'
+      )[],
+  )
+  status?: ('Available' | 'Rented' | 'Maintenance' | 'Lost' | 'Damaged' | 'Retired')[];
 
   @ApiPropertyOptional({
     description: 'Filter by device condition',
@@ -82,10 +93,17 @@ export class FindRentalPhoneDevicesDto {
   @Type(() => Number)
   max_price?: number;
 
-  @ApiPropertyOptional({ description: 'Filter by currency', enum: ['UZS', 'USD', 'EUR'] })
+  @ApiPropertyOptional({
+    description: 'Filter by currency',
+    enum: ['UZS', 'USD', 'EUR'],
+    isArray: true,
+  })
   @IsOptional()
-  @IsEnum(['UZS', 'USD', 'EUR'])
-  currency?: 'UZS' | 'USD' | 'EUR';
+  @Transform(
+    ({ value }) =>
+      (Array.isArray(value) ? value : value ? [value] : []) as ('UZS' | 'USD' | 'EUR')[],
+  )
+  currency?: ('UZS' | 'USD' | 'EUR')[];
 
   @ApiPropertyOptional({ description: 'Pagination offset' })
   @IsOptional()

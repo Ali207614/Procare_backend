@@ -12,19 +12,19 @@ exports.up = async function (knex) {
 
     table.boolean('is_free').notNullable().defaultTo(false);
     table.decimal('daily_rent_price', 12, 2).notNullable().defaultTo(0);
-    table.decimal('deposit_amount', 12, 2).notNullable().defaultTo(0);
+    table.decimal('deposit_amount', 12, 2).nullable().defaultTo(0);
     table.enu('currency', ['UZS', 'USD', 'EUR']).notNullable().defaultTo('UZS');
 
     table.boolean('is_available').notNullable().defaultTo(true);
     table.enu('status', ['Available', 'Rented', 'Maintenance', 'Lost', 'Damaged', 'Retired']).notNullable().defaultTo('Available');
     table.enu('condition', ['Excellent', 'Good', 'Fair', 'Poor']).notNullable().defaultTo('Good');
 
-    table.integer('quantity').notNullable().defaultTo(1);
-    table.integer('quantity_available').notNullable().defaultTo(1);
+    table.integer('quantity').nullable().defaultTo(1);
+    table.integer('quantity_available').nullable().defaultTo(1);
 
     table.text('notes').nullable();
     table.text('specifications').nullable();
-    table.integer('sort').defaultTo(1).notNullable();
+    table.integer('sort').nullable().defaultTo(1);
     
 
     table.timestamp('created_at').defaultTo(knex.fn.now());

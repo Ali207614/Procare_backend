@@ -19,6 +19,8 @@ export interface RentalPhoneDevice {
   notes: string | null;
   specifications: string | null;
   sort: number;
+  rented_at?: string | null;
+  returned_at?: string | null;
   created_at: string;
   updated_at: string;
 }

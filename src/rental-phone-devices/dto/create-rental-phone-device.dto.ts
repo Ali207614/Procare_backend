@@ -70,14 +70,13 @@ export class CreateRentalPhoneDeviceDto {
   @Min(0, { context: { location: 'deposit_amount' } })
   deposit_amount?: number = 0;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: 'UZS',
     enum: ['UZS', 'USD', 'EUR'],
     description: 'Price currency',
   })
-  @IsOptional()
   @IsEnum(['UZS', 'USD', 'EUR'], { context: { location: 'currency' } })
-  currency?: 'UZS' | 'USD' | 'EUR' = 'UZS';
+  currency: 'UZS' | 'USD' | 'EUR' = 'UZS';
 
   @ApiPropertyOptional({ example: true, description: 'Whether the device is available for rent' })
   @IsOptional()

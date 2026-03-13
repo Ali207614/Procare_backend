@@ -28,7 +28,7 @@ export class RentalPhoneDevicesService {
       currency,
     } = dto;
 
-    const baseQuery = this.knex(this.table).where('is_available', true);
+    const baseQuery = this.knex(this.table);
 
     // Search functionality
     if (search) {
@@ -46,9 +46,11 @@ export class RentalPhoneDevicesService {
       void baseQuery.andWhere('brand', brand);
     }
 
-    // Status filter
-    if (status) {
-      void baseQuery.andWhere('status', status);
+    // Status filter (multi-select)
+    if (status && status.length > 0) {
+      void baseQuery.andWhere((qb) => {
+        void qb.whereIn('status', status);
+      });
     }
 
     // Condition filter
@@ -78,9 +80,11 @@ export class RentalPhoneDevicesService {
       void baseQuery.andWhere('daily_rent_price', '<=', max_price);
     }
 
-    // Currency filter
-    if (currency) {
-      void baseQuery.andWhere('currency', currency);
+    // Currency filter (multi-select)
+    if (currency && currency.length > 0) {
+      void baseQuery.andWhere((qb) => {
+        void qb.whereIn('currency', currency);
+      });
     }
 
     const rows = await baseQuery
@@ -106,6 +110,20 @@ export class RentalPhoneDevicesService {
         'sort',
         'created_at',
         'updated_at',
+        this.knex.raw(`(
+          SELECT rented_at 
+          FROM repair_order_rental_phones 
+          WHERE rental_phone_device_id = rental_phone_devices.id 
+          ORDER BY created_at DESC 
+          LIMIT 1
+        ) as rented_at`),
+        this.knex.raw(`(
+          SELECT returned_at 
+          FROM repair_order_rental_phones 
+          WHERE rental_phone_device_id = rental_phone_devices.id 
+          ORDER BY created_at DESC 
+          LIMIT 1
+        ) as returned_at`),
       )
       .orderBy('sort', 'asc')
       .orderBy('name', 'asc')
@@ -123,7 +141,26 @@ export class RentalPhoneDevicesService {
   }
 
   async findById(id: string): Promise<RentalPhoneDevice> {
-    const device = await this.knex(this.table).where('id', id).where('is_available', true).first();
+    const device = await this.knex(this.table)
+      .where('rental_phone_devices.id', id)
+      .select([
+        'rental_phone_devices.*',
+        this.knex.raw(`(
+          SELECT rented_at 
+          FROM repair_order_rental_phones 
+          WHERE rental_phone_device_id = rental_phone_devices.id 
+          ORDER BY created_at DESC 
+          LIMIT 1
+        ) as rented_at`),
+        this.knex.raw(`(
+          SELECT returned_at 
+          FROM repair_order_rental_phones 
+          WHERE rental_phone_device_id = rental_phone_devices.id 
+          ORDER BY created_at DESC 
+          LIMIT 1
+        ) as returned_at`),
+      ])
+      .first();
 
     if (!device) {
       throw new NotFoundException({
@@ -172,11 +209,14 @@ export class RentalPhoneDevicesService {
         daily_rent_price: dto.daily_rent_price,
         deposit_amount: dto.deposit_amount ?? 0,
         currency: dto.currency ?? 'UZS',
-        is_available: dto.is_available ?? true,
         status: dto.status ?? 'Available',
         condition: dto.condition ?? 'Good',
         notes: dto.notes || null,
         specifications: dto.specifications || null,
+        quantity: quantity,
+        quantity_available: quantityAvailable,
+        // Enforce logical consistency for initial state
+        is_available: dto.is_available ?? (dto.status === 'Available' && quantityAvailable > 0),
         sort: dto.sort ?? 1,
         created_at: this.knex.fn.now(),
         updated_at: this.knex.fn.now(),
@@ -228,6 +268,16 @@ export class RentalPhoneDevicesService {
       .where('id', id)
       .update({
         ...dto,
+        // Automatically update is_available if status is changed to something else
+        ...(dto.status && dto.status !== 'Available'
+          ? { is_available: false, quantity_available: 0 }
+          : {}),
+        // If status is changed back to Available, ensure quantity logic is sane
+        ...(dto.status === 'Available'
+          ? {
+              is_available: (dto.quantity_available ?? existingDevice.quantity_available) > 0,
+            }
+          : {}),
         updated_at: this.knex.fn.now(),
       })
       .returning('*');
@@ -279,6 +329,7 @@ export class RentalPhoneDevicesService {
 
   async getAvailableDevices(): Promise<RentalPhoneDevice[]> {
     return (await this.knex(this.table)
+      .where('status', 'Available')
       .where('is_available', true)
       .where('quantity_available', '>', 0)
       .orderBy('sort', 'asc')
@@ -302,7 +353,7 @@ export class RentalPhoneDevicesService {
     averagePrice: number;
   }> {
     const [stats] = await this.knex(this.table)
-      .where('is_available', true)
+      .whereNot('status', 'Retired')
       .select(
         this.knex.raw('COUNT(*) as total_devices'),
         this.knex.raw('COUNT(CASE WHEN status = ? THEN 1 END) as available_devices', ['Available']),

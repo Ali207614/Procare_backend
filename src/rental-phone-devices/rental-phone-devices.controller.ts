@@ -2,7 +2,6 @@ import {
   Controller,
   Get,
   Post,
-  Put,
   Delete,
   Patch,
   Body,
@@ -55,6 +54,7 @@ export class RentalPhoneDevicesController {
     required: false,
     enum: ['Available', 'Rented', 'Maintenance', 'Lost', 'Damaged', 'Retired'],
     description: 'Filter by status',
+    isArray: true,
   })
   @ApiQuery({
     name: 'condition',
@@ -91,6 +91,7 @@ export class RentalPhoneDevicesController {
     required: false,
     enum: ['UZS', 'USD', 'EUR'],
     description: 'Filter by currency',
+    isArray: true,
   })
   @ApiQuery({ name: 'offset', required: false, type: Number, description: 'Pagination offset' })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Pagination limit' })
@@ -153,7 +154,7 @@ export class RentalPhoneDevicesController {
     return this.rentalPhoneDevicesService.create(dto);
   }
 
-  @Put(':id')
+  @Patch(':id')
   @SetPermissions('rental_phones_update')
   @ApiOperation({ summary: 'Update rental phone device' })
   @ApiParam({ name: 'id', description: 'Device UUID' })
@@ -166,32 +167,6 @@ export class RentalPhoneDevicesController {
     @Body() dto: UpdateRentalPhoneDeviceDto,
   ): Promise<RentalPhoneDevice> {
     return this.rentalPhoneDevicesService.update(id, dto);
-  }
-
-  @Patch(':id/quantity')
-  @SetPermissions('rental_phones_update')
-  @ApiOperation({ summary: 'Update device quantity (for rentals/returns)' })
-  @ApiParam({ name: 'id', description: 'Device UUID' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        quantityChange: {
-          type: 'number',
-          description: 'Quantity change (negative for rent, positive for return)',
-        },
-      },
-      required: ['quantityChange'],
-    },
-  })
-  @ApiResponse({ status: 200, description: 'Device quantity updated successfully' })
-  @ApiResponse({ status: 404, description: 'Device not found' })
-  @ApiResponse({ status: 400, description: 'Insufficient quantity or invalid operation' })
-  async updateQuantity(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body('quantityChange') quantityChange: number,
-  ): Promise<RentalPhoneDevice> {
-    return this.rentalPhoneDevicesService.updateQuantity(id, quantityChange);
   }
 
   @Delete(':id')

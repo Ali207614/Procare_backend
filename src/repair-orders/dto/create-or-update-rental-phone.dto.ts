@@ -46,4 +46,14 @@ export class CreateOrUpdateRentalPhoneDto {
   @IsString({ context: { location: 'notes' } })
   @MaxLength(1000, { context: { location: 'notes' } })
   notes?: string;
+
+  @ApiPropertyOptional({ description: 'The date the phone was rented' })
+  @IsOptional()
+  @IsString()
+  rented_at?: string;
+
+  @ApiPropertyOptional({ description: 'The date the phone was returned' })
+  @IsOptional()
+  @IsString()
+  returned_at?: string;
 }

@@ -60,6 +60,18 @@ export class RentalPhoneUpdaterService {
       });
     }
 
+    // Check if repair order is in a status that doesn't allow rental phones
+    const orderStatus = await this.knex('repair_order_statuses')
+      .where({ id: order.status_id })
+      .first();
+
+    if (orderStatus && (orderStatus.type === 'Canceled' || orderStatus.type === 'Completed')) {
+      throw new BadRequestException({
+        message: `Cannot assign rental phone to a ${orderStatus.type.toLowerCase()} repair order`,
+        location: 'repair_order_id',
+      });
+    }
+
     const device: RentalPhone | undefined = await this.knex('rental_phone_devices')
       .where({ id: rental.rental_phone_id, status: 'Available', is_available: true })
       .first();
@@ -81,14 +93,18 @@ export class RentalPhoneUpdaterService {
         price: rental.price ?? null,
         currency: rental.currency ?? 'UZS',
         status: 'Active',
-        rented_at: now,
-        returned_at: null,
+        rented_at: rental.rented_at ? new Date(rental.rented_at) : now,
+        returned_at: rental.returned_at ? new Date(rental.returned_at) : null,
         notes: rental.notes ?? null,
         created_by: admin.id,
         created_at: now,
         updated_at: now,
       })
       .returning('*');
+
+    await this.knex('rental_phone_devices')
+      .where({ id: rental.rental_phone_id })
+      .update({ status: 'Rented', updated_at: now });
 
     // User details could be fetched here if needed for external integrations
 
@@ -163,6 +179,8 @@ export class RentalPhoneUpdaterService {
         price: rental.price ?? existing.price,
         currency: rental.currency ?? existing.currency,
         notes: rental.notes ?? existing.notes,
+        rented_at: rental.rented_at ? new Date(rental.rented_at) : existing.rented_at,
+        returned_at: rental.returned_at ? new Date(rental.returned_at) : existing.returned_at,
         updated_at: now,
       });
 
@@ -217,6 +235,10 @@ export class RentalPhoneUpdaterService {
       .where({ id: existing.id })
       .update({ status: 'Cancelled', updated_at: new Date() });
 
+    await this.knex('rental_phone_devices')
+      .where({ id: existing.rental_phone_device_id })
+      .update({ status: 'Available', updated_at: new Date() });
+
     // External system integration removed
 
     await this.changeLogger.logIfChanged(
@@ -263,8 +285,20 @@ export class RentalPhoneUpdaterService {
     }
 
     const updateFields: Partial<RepairOrderRentalPhone> = {};
-    if (updateDto.rental_phone_device_id !== undefined)
+    if (updateDto.rental_phone_device_id !== undefined) {
+      if (updateDto.rental_phone_device_id !== existingRental.rental_phone_device_id) {
+        // Mark old device as available
+        await this.knex('rental_phone_devices')
+          .where({ id: existingRental.rental_phone_device_id })
+          .update({ status: 'Available', updated_at: new Date() });
+
+        // Mark new device as rented
+        await this.knex('rental_phone_devices')
+          .where({ id: updateDto.rental_phone_device_id })
+          .update({ status: 'Rented', updated_at: new Date() });
+      }
       updateFields.rental_phone_device_id = updateDto.rental_phone_device_id;
+    }
     if (updateDto.is_free !== undefined) updateFields.is_free = updateDto.is_free;
     if (updateDto.rental_price !== undefined)
       updateFields.price = updateDto.rental_price.toString();
@@ -321,6 +355,10 @@ export class RentalPhoneUpdaterService {
     if (!deleted.length) {
       throw new NotFoundException('Rental phone not found');
     }
+
+    await this.knex('rental_phone_devices')
+      .where({ id: deleted[0].rental_phone_device_id })
+      .update({ status: 'Available', updated_at: new Date() });
 
     await this.changeLogger.logChange(
       repairOrderId,

@@ -414,6 +414,24 @@ export class RepairOrdersService {
         const dtoFieldValue = dto[field as keyof UpdateRepairOrderDto];
         if (dtoFieldValue !== undefined && dtoFieldValue !== order[field]) {
           if (field === 'status_id') {
+            // Check if there's an active rental phone and the new status is Canceled or Completed
+            const newStatus = await trx('repair_order_statuses')
+              .where({ id: dtoFieldValue as string })
+              .first();
+
+            if (newStatus && (newStatus.type === 'Canceled' || newStatus.type === 'Completed')) {
+              const activeRental = await trx('repair_order_rental_phones')
+                .where({ repair_order_id: orderId, status: 'Active' })
+                .first();
+
+              if (activeRental) {
+                throw new BadRequestException({
+                  message: `Cannot move repair order to ${newStatus.type.toLowerCase()} while a rental phone is active`,
+                  location: 'status_id',
+                });
+              }
+            }
+
             // Shift current queue items up to close the gap
             await trx(this.table)
               .where({ branch_id: order.branch_id, status_id: order.status_id, status: 'Open' })
@@ -818,7 +836,21 @@ export class RepairOrdersService {
             location: 'status_id',
           });
 
-        // await this.sendStatusChangeNotification(trx, orderId, dto.status_id, admin.id);
+        // Check if there's an active rental phone and the new status is Canceled or Completed
+        const newStatus = await trx('repair_order_statuses').where({ id: dto.status_id }).first();
+
+        if (newStatus && (newStatus.type === 'Canceled' || newStatus.type === 'Completed')) {
+          const activeRental = await trx('repair_order_rental_phones')
+            .where({ repair_order_id: orderId, status: 'Active' })
+            .first();
+
+          if (activeRental) {
+            throw new BadRequestException({
+              message: `Cannot move repair order to ${newStatus.type.toLowerCase()} while a rental phone is active`,
+              location: 'status_id',
+            });
+          }
+        }
       }
 
       const permissions: RepairOrderStatusPermission[] =
