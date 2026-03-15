@@ -582,7 +582,8 @@ export class RepairOrdersService {
 
     // Build dynamic WHERE conditions
     const whereConditions: string[] = [];
-    const queryParams: Record<string, unknown> = { branchId, statusIds, limit, offset };
+    const endRow = offset + limit;
+    const queryParams: Record<string, unknown> = { branchId, statusIds, limit, offset, endRow };
 
     // Filter by source types (assuming we add source_type field)
     if (source_types?.length) {
@@ -599,17 +600,23 @@ export class RepairOrdersService {
     // Filter by customer name
     if (customer_name) {
       whereConditions.push(
-        `(LOWER(u.first_name || ' ' || u.last_name) LIKE LOWER(:customerName) OR LOWER(u.first_name) LIKE LOWER(:customerName) OR LOWER(u.last_name) LIKE LOWER(:customerName))`,
+        `(
+          LOWER(COALESCE(u.first_name || ' ' || u.last_name, ro.name, '')) LIKE LOWER(:customerName)
+          OR LOWER(COALESCE(u.first_name, ro.name, '')) LIKE LOWER(:customerName)
+          OR LOWER(COALESCE(u.last_name, ro.name, '')) LIKE LOWER(:customerName)
+          OR LOWER(COALESCE(ro.name, '')) LIKE LOWER(:customerName)
+        )`,
       );
       queryParams.customerName = `%${customer_name}%`;
     }
 
     // Filter by phone number
     if (phone_number) {
+      const normalizedPhone = phone_number.replace(/^ /, '+');
       whereConditions.push(
-        `(u.phone_number1 LIKE :phoneNumber OR u.phone_number2 LIKE :phoneNumber)`,
+        `(u.phone_number1 LIKE :phoneNumber OR u.phone_number2 LIKE :phoneNumber OR ro.phone_number LIKE :phoneNumber)`,
       );
-      queryParams.phoneNumber = `%${phone_number}%`;
+      queryParams.phoneNumber = `%${normalizedPhone}%`;
     }
 
     // Filter by device model
@@ -658,20 +665,18 @@ export class RepairOrdersService {
     }
 
     const orderClause = `ORDER BY ro.status_id, ro.${sort_by} ${sort_order.toUpperCase()}`;
+    // The same column/direction used to rank rows inside each status column for per-status pagination.
+    const rowNumberOrder = `ORDER BY ro.${sort_by} ${sort_order.toUpperCase()}`;
 
-    let querySql = loadSQL('repair-orders/queries/find-all-by-admin-branch.sql').replace(
-      '/*ORDER_CLAUSE*/',
-      orderClause,
-    );
+    let querySql = loadSQL('repair-orders/queries/find-all-by-admin-branch.sql')
+      .replace('/*ORDER_CLAUSE*/', orderClause)
+      .replace('/*ROW_NUMBER_ORDER*/', rowNumberOrder);
 
-    // Add dynamic filters to the WHERE clause
-    if (whereConditions.length > 0) {
-      const additionalWhere = whereConditions.join(' AND ');
-      querySql = querySql.replace(
-        'AND ro.status_id = ANY(:statusIds)',
-        `AND ro.status_id = ANY(:statusIds) AND ${additionalWhere}`,
-      );
-    }
+    // Filters are now applied inside the per_status_ranked CTE so that
+    // row numbers reflect only the visible (filtered) orders per status column.
+    const additionalWhere =
+      whereConditions.length > 0 ? `\n  AND ${whereConditions.join('\n  AND ')}` : '';
+    querySql = querySql.replace('/*ADDITIONAL_WHERE*/', additionalWhere);
 
     try {
       const freshOrders: FreshRepairOrder[] = await this.knex
@@ -1119,13 +1124,27 @@ export class RepairOrdersService {
     );
 
     if (updateDto.phone_category_id) {
-      const phoneCategory = await this.knex('phone_categories')
-        .where({ id: updateDto.phone_category_id, status: 'Open' })
-        .whereNull('parent_id')
+      const phoneCategory = await this.knex('phone_categories as pc')
+        .select(
+          'pc.*',
+          this.knex.raw(
+            `EXISTS (SELECT 1 FROM phone_categories c WHERE c.parent_id = pc.id AND c.status = 'Open') as has_children`,
+          ),
+        )
+        .where({ 'pc.id': updateDto.phone_category_id, 'pc.is_active': true, 'pc.status': 'Open' })
         .first();
 
       if (!phoneCategory) {
-        throw new BadRequestException('Invalid phone category');
+        throw new BadRequestException({
+          message: 'Phone category not found or inactive',
+          location: 'phone_category_id',
+        });
+      }
+      if (phoneCategory.has_children) {
+        throw new BadRequestException({
+          message: 'Phone category must not have children (must be a specific model)',
+          location: 'phone_category_id',
+        });
       }
     }
 

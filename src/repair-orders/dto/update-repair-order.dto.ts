@@ -71,8 +71,8 @@ export class UpdateRepairOrderDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString({ message: 'IMEI must be a string' })
-  @MinLength(14, { message: 'IMEI must be exactly 14 characters' })
-  @MaxLength(14, { message: 'IMEI must be exactly 14 characters' })
+  @MinLength(15, { message: 'IMEI must be exactly 15 characters' })
+  @MaxLength(15, { message: 'IMEI must be exactly 15 characters' })
   imei?: string;
 
   @ApiPropertyOptional({ enum: ['Low', 'Medium', 'High', 'Highest'] })

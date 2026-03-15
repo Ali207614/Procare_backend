@@ -207,8 +207,8 @@ export class CreateRepairOrderDto {
   })
   @IsOptional()
   @IsString({ message: 'IMEI must be a string' })
-  @MinLength(14, { message: 'IMEI must be exactly 14 characters' })
-  @MaxLength(14, { message: 'IMEI must be exactly 14 characters' })
+  @MinLength(15, { message: 'IMEI must be exactly 15 characters' })
+  @MaxLength(15, { message: 'IMEI must be exactly 15 characters' })
   imei?: string;
 
   @ApiProperty({ description: 'Branch ID', example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec' })

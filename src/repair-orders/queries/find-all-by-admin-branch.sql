@@ -42,6 +42,20 @@ queue_deadlines AS (
                 ) * INTERVAL '1 minute'
             ) AS deadline_at
     FROM queue_orders qo
+),
+-- Assigns a per-status rank to every repair order that passes all active filters.
+-- The main query INNER JOINs this CTE and slices [offset+1 .. offset+limit] per status.
+per_status_ranked AS (
+    SELECT
+        ro.id,
+        ROW_NUMBER() OVER (PARTITION BY ro.status_id /*ROW_NUMBER_ORDER*/) AS rn
+    FROM repair_orders ro
+        LEFT JOIN users u         ON ro.user_id          = u.id
+        LEFT JOIN phone_categories pc ON ro.phone_category_id = pc.id
+    WHERE ro.branch_id   = :branchId
+      AND ro.status       = 'Open'
+      AND ro.status_id    = ANY(:statusIds)
+    /*ADDITIONAL_WHERE*/
 )
 SELECT
     ro.id,
@@ -258,17 +272,21 @@ COALESCE((
     ), '[]'::json) AS final_problems
 
 FROM repair_orders ro
-    LEFT JOIN queue_deadlines qd ON qd.id = ro.id
-    LEFT JOIN users u ON ro.user_id = u.id
-    LEFT JOIN admins ca ON ro.created_by = ca.id
-    LEFT JOIN branches b ON ro.branch_id = b.id
-    LEFT JOIN phone_categories pc ON ro.phone_category_id = pc.id
-    LEFT JOIN repair_order_statuses s ON ro.status_id = s.id
+    LEFT JOIN queue_deadlines     qd  ON qd.id              = ro.id
+    -- INNER JOIN ensures only rows that passed filters AND fall within the requested
+    -- per-status page window are returned.
+    INNER JOIN per_status_ranked  psr ON psr.id             = ro.id
+    LEFT JOIN users               u   ON ro.user_id         = u.id
+    LEFT JOIN admins              ca  ON ro.created_by      = ca.id
+    LEFT JOIN branches            b   ON ro.branch_id       = b.id
+    LEFT JOIN phone_categories    pc  ON ro.phone_category_id = pc.id
+    LEFT JOIN repair_order_statuses s ON ro.status_id       = s.id
 
-WHERE ro.branch_id = :branchId
-  AND ro.status = 'Open'
-  AND ro.status_id = ANY(:statusIds)
+WHERE ro.branch_id  = :branchId
+  AND ro.status     = 'Open'
+  AND ro.status_id  = ANY(:statusIds)
+  -- Per-status pagination: offset/limit apply independently inside each status column
+  AND psr.rn >  :offset
+  AND psr.rn <= :endRow
 
 /*ORDER_CLAUSE*/
-
-LIMIT :limit OFFSET :offset;

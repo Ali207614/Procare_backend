@@ -51,6 +51,9 @@ export class RentalPhoneDevicesService {
       void baseQuery.andWhere((qb) => {
         void qb.whereIn('status', status);
       });
+    } else {
+      // Default results: only Available and Rented
+      void baseQuery.whereIn('status', ['Available', 'Rented']);
     }
 
     // Condition filter
@@ -196,6 +199,9 @@ export class RentalPhoneDevicesService {
       });
     }
 
+    // Use status from dto or default to 'Available'
+    const status = dto.status || 'Available';
+
     const [newDevice] = await this.knex(this.table)
       .insert({
         name: dto.name,
@@ -209,14 +215,14 @@ export class RentalPhoneDevicesService {
         daily_rent_price: dto.daily_rent_price,
         deposit_amount: dto.deposit_amount ?? 0,
         currency: dto.currency ?? 'UZS',
-        status: dto.status ?? 'Available',
+        status: status,
         condition: dto.condition ?? 'Good',
         notes: dto.notes || null,
         specifications: dto.specifications || null,
         quantity: quantity,
         quantity_available: quantityAvailable,
         // Enforce logical consistency for initial state
-        is_available: dto.is_available ?? (dto.status === 'Available' && quantityAvailable > 0),
+        is_available: dto.is_available ?? (status === 'Available' && quantityAvailable > 0),
         sort: dto.sort ?? 1,
         created_at: this.knex.fn.now(),
         updated_at: this.knex.fn.now(),
@@ -263,7 +269,6 @@ export class RentalPhoneDevicesService {
         location: 'empty_update_data',
       });
     }
-
     const [updatedDevice] = await this.knex(this.table)
       .where('id', id)
       .update({
@@ -291,7 +296,7 @@ export class RentalPhoneDevicesService {
     // Soft delete - mark as unavailable and retired
     await this.knex(this.table).where('id', id).update({
       is_available: false,
-      status: 'Retired',
+      status: 'Retired', // 'Retired' is still a valid status for deletion/soft-delete
       updated_at: this.knex.fn.now(),
     });
   }

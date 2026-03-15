@@ -52,7 +52,7 @@ export class RentalPhoneDevicesController {
   @ApiQuery({
     name: 'status',
     required: false,
-    enum: ['Available', 'Rented', 'Maintenance', 'Lost', 'Damaged', 'Retired'],
+    enum: ['Available', 'Rented'],
     description: 'Filter by status',
     isArray: true,
   })

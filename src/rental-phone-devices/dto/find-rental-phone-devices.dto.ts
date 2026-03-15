@@ -18,22 +18,15 @@ export class FindRentalPhoneDevicesDto {
 
   @ApiPropertyOptional({
     description: 'Filter by device status',
-    enum: ['Available', 'Rented', 'Maintenance', 'Lost', 'Damaged', 'Retired'],
+    enum: ['Available', 'Rented'],
     isArray: true,
   })
   @IsOptional()
   @Transform(
     ({ value }) =>
-      (Array.isArray(value) ? value : value ? [value] : []) as (
-        | 'Available'
-        | 'Rented'
-        | 'Maintenance'
-        | 'Lost'
-        | 'Damaged'
-        | 'Retired'
-      )[],
+      (Array.isArray(value) ? value : value ? [value] : []) as ('Available' | 'Rented')[],
   )
-  status?: ('Available' | 'Rented' | 'Maintenance' | 'Lost' | 'Damaged' | 'Retired')[];
+  status?: ('Available' | 'Rented')[];
 
   @ApiPropertyOptional({
     description: 'Filter by device condition',

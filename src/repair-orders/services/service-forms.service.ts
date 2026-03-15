@@ -5,7 +5,13 @@ import { PdfService } from 'src/pdf/pdf.service';
 import { StorageService } from 'src/common/storage/storage.service';
 import { LoggerService } from 'src/common/logger/logger.service';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
-import { CreateServiceFormDto } from '../dto/create-service-form.dto';
+import {
+  CreateServiceFormDto,
+  DevicePointDto,
+  ServiceFormChecklistDto,
+  ServiceFormFormDto,
+} from '../dto/create-service-form.dto';
+import { GetServiceFormResponseDto } from '../dto/service-form-response.dto';
 import { PdfPayload } from 'src/pdf/interfaces/pdf-payload.interface';
 import { randomBytes } from 'crypto';
 
@@ -14,6 +20,11 @@ interface ServiceFormRow {
   warranty_id: string;
   repair_order_id: string;
   file_path: string;
+  pattern: number[] | null;
+  device_points: Record<string, DevicePointDto[]> | null;
+  form: ServiceFormFormDto | null;
+  checklist: ServiceFormChecklistDto | null;
+  comments: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -161,6 +172,11 @@ export class ServiceFormsService {
       warranty_id: warrantyId,
       repair_order_id: repairOrderId,
       file_path: filePath,
+      pattern: JSON.stringify(dto.pattern),
+      device_points: JSON.stringify(dto.device_points),
+      form: JSON.stringify(dto.form),
+      checklist: JSON.stringify(dto.checklist),
+      comments: dto.comments,
       created_at: now,
       updated_at: now,
     });
@@ -168,7 +184,7 @@ export class ServiceFormsService {
     return { warranty_id: warrantyId, message: 'Service form generated successfully' };
   }
 
-  async getServiceForm(repairOrderId: string): Promise<{ warranty_id: string; url: string }> {
+  async getServiceForm(repairOrderId: string): Promise<GetServiceFormResponseDto> {
     const record: ServiceFormRow | undefined = await this.knex<ServiceFormRow>('service_forms')
       .where({ repair_order_id: repairOrderId })
       .orderBy('created_at', 'desc')
@@ -184,6 +200,14 @@ export class ServiceFormsService {
     // Generate a presigned MinIO URL (1 hour expiry)
     const url = await this.storageService.generateUrl(record.file_path, 3600);
 
-    return { warranty_id: record.warranty_id, url };
+    return {
+      warranty_id: record.warranty_id,
+      url,
+      pattern: record.pattern ?? [],
+      device_points: record.device_points ?? {},
+      form: record.form ?? ({} as ServiceFormFormDto),
+      checklist: record.checklist ?? ({} as ServiceFormChecklistDto),
+      comments: record.comments,
+    };
   }
 }
