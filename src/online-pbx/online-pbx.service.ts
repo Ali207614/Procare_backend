@@ -240,10 +240,11 @@ export class OnlinePbxService {
               fallbackToFewestOpen: fallback,
             });
             if (newOrder) {
+              userId = newOrder.user_id || userId;
               repairOrderId = newOrder.id;
             }
             this.logger.log(
-              `Created new repair order for ${userId ? `user ${userId}` : `unknown caller ${formattedCustomerPhone}`} from ${direction} call via RepairOrdersService.`,
+              `Created new repair order for ${userId ? `user ${userId}` : `caller ${formattedCustomerPhone}`} from ${direction} call via RepairOrdersService.`,
             );
           } else {
             this.logger.warn(
@@ -309,6 +310,9 @@ export class OnlinePbxService {
     }
 
     // Upsert phone_call record using Knex's built-in support
+    this.logger.log(
+      `[OnlinePBX Webhook] Saving phone call ${uuid} with user_id: ${userId} and repair_order_id: ${repairOrderId}`,
+    );
     await this.knex<PhoneCall>('phone_calls')
       .insert({
         uuid,

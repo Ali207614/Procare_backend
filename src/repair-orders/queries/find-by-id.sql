@@ -283,7 +283,8 @@ SELECT
             'updated_at', rp.updated_at
         )
         FROM repair_order_rental_phones rp
-        WHERE rp.repair_order_id = ro.id AND rp.status != 'Cancelled'
+        WHERE rp.repair_order_id = ro.id AND rp.status IN ('Pending', 'Active')
+        ORDER BY rp.created_at DESC
         LIMIT 1
     ), '{}'::jsonb) AS rental_phone
 FROM repair_orders ro

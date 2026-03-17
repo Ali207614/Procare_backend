@@ -50,22 +50,22 @@ export class UserFiltersDto {
   @ApiPropertyOptional({
     description: 'Filter by source',
     type: [String],
-    enum: ['telegram_bot', 'employee', 'web', 'app', 'other'],
+    enum: ['telegram_bot', 'employee', 'web', 'app', 'other', 'Telefoniya'],
   })
   @IsOptional()
   @IsArray()
-  @IsIn(['telegram_bot', 'employee', 'web', 'app', 'other'], { each: true })
+  @IsIn(['telegram_bot', 'employee', 'web', 'app', 'other', 'Telefoniya'], { each: true })
   @ToArray()
   source?: string[];
 
   @ApiPropertyOptional({
     description: 'Exclude by source',
     type: [String],
-    enum: ['telegram_bot', 'employee', 'web', 'app', 'other'],
+    enum: ['telegram_bot', 'employee', 'web', 'app', 'other', 'Telefoniya'],
   })
   @IsOptional()
   @IsArray()
-  @IsIn(['telegram_bot', 'employee', 'web', 'app', 'other'], { each: true })
+  @IsIn(['telegram_bot', 'employee', 'web', 'app', 'other', 'Telefoniya'], { each: true })
   @ToArray()
   exclude_source?: string[];
 

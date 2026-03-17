@@ -4,56 +4,74 @@ import {
   IsOptional,
   IsBoolean,
   IsNumber,
-  IsEnum,
   IsString,
   MaxLength,
   ValidateIf,
   Min,
+  IsNotEmpty,
+  IsIn,
 } from 'class-validator';
 
 export class CreateOrUpdateRentalPhoneDto {
-  @ApiProperty({ description: 'ID of the rental phone' })
+  @ApiProperty({ description: 'ID of the rental phone', required: false })
+  @ValidateIf((o) => o.status === 'Active')
+  @IsNotEmpty({ message: 'rental_phone_id is required when status is Active' })
   @IsUUID('all', { context: { location: 'rental_phone_id' } })
-  rental_phone_id!: string;
+  rental_phone_id?: string | null;
+
+  @ApiPropertyOptional({ description: 'IMEI of the rental phone' })
+  @IsOptional()
+  @IsString({ context: { location: 'imei' } })
+  imei?: string | null;
 
   @ApiPropertyOptional({ description: 'Whether the rental is free (true = no price)' })
   @IsOptional()
   @IsBoolean()
-  is_free?: boolean;
+  is_free?: boolean | null;
 
   @ApiPropertyOptional({ description: 'Rental price if not free' })
-  @IsOptional()
+  @ValidateIf((o) => o.status === 'Active')
+  @IsNotEmpty({ message: 'price is required when status is Active' })
   @IsNumber({}, { context: { location: 'price' } })
-  @ValidateIf((o) => o.is_free === false || o.is_free === undefined)
-  @Min(1, {
-    context: { location: 'price' },
-    message: 'Price must be greater than 0 when is_free is false or undefined',
-  })
-  @ValidateIf((o) => o.is_free === true)
   @Min(0, {
     context: { location: 'price' },
-    message: 'Price must be 0 when is_free is true',
+    message: 'Price cannot be negative',
   })
-  price?: number;
+  price?: number | null;
 
   @ApiPropertyOptional({ enum: ['UZS', 'USD', 'EUR'], description: 'Currency of rental price' })
   @IsOptional()
-  @IsEnum(['UZS', 'USD', 'EUR'], { context: { location: 'currency' } })
-  currency?: 'UZS' | 'USD' | 'EUR';
+  @IsIn(['UZS', 'USD', 'EUR'], {
+    context: { location: 'currency' },
+    message: 'Currency must be one of the following values: UZS, USD, EUR',
+  })
+  currency?: 'UZS' | 'USD' | 'EUR' | null;
 
   @ApiPropertyOptional({ description: 'Optional notes or reason for rental' })
   @IsOptional()
   @IsString({ context: { location: 'notes' } })
   @MaxLength(1000, { context: { location: 'notes' } })
-  notes?: string;
+  notes?: string | null;
+
+  @ApiProperty({
+    enum: ['Pending', 'Active', 'Returned', 'Cancelled'],
+    description: 'Status of the rental',
+  })
+  @IsIn(['Pending', 'Active', 'Returned', 'Cancelled'], {
+    context: { location: 'status' },
+    message: 'Status must be one of the following values: Pending, Active, Returned, Cancelled',
+  })
+  status!: 'Pending' | 'Active' | 'Returned' | 'Cancelled';
 
   @ApiPropertyOptional({ description: 'The date the phone was rented' })
-  @IsOptional()
+  @ValidateIf((o) => o.status === 'Active')
+  @IsNotEmpty({ message: 'rented_at is required when status is Active' })
   @IsString()
-  rented_at?: string;
+  rented_at?: string | null;
 
   @ApiPropertyOptional({ description: 'The date the phone was returned' })
-  @IsOptional()
+  @ValidateIf((o) => o.status === 'Active')
+  @IsNotEmpty({ message: 'returned_at is required when status is Active' })
   @IsString()
-  returned_at?: string;
+  returned_at?: string | null;
 }

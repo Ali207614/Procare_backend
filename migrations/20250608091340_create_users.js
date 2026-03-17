@@ -22,7 +22,7 @@ exports.up = async function (knex) {
     table.string('telegram_username').nullable();
 
     table
-      .enu('source', ['telegram_bot', 'employee', 'web', 'app', 'other'])
+      .enu('source', ['telegram_bot', 'employee', 'web', 'app', 'other', 'Telefoniya'])
       .defaultTo('other')
       .nullable();
     table.uuid('created_by').references('id').inTable('admins').onDelete('SET NULL').nullable();

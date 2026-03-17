@@ -68,12 +68,14 @@ export class CreateUserDto {
   telegram_username?: string;
 
   @ApiProperty({
-    enum: ['telegram_bot', 'employee', 'web', 'app', 'other'],
+    enum: ['telegram_bot', 'employee', 'web', 'app', 'other', 'Telefoniya'],
     required: false,
     description: 'Registration source',
   })
   @IsOptional()
-  @IsEnum(['telegram_bot', 'employee', 'web', 'app', 'other'], { context: { location: 'source' } })
+  @IsEnum(['telegram_bot', 'employee', 'web', 'app', 'other', 'Telefoniya'], {
+    context: { location: 'source' },
+  })
   source?: string;
 
   @ApiProperty({ example: true, required: false, description: 'Phone verified status' })

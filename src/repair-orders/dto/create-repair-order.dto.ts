@@ -207,7 +207,7 @@ export class CreateRepairOrderDto {
   })
   @IsOptional()
   @IsString({ message: 'IMEI must be a string' })
-  @MinLength(15, { message: 'IMEI must be exactly 15 characters' })
+  @MinLength(1, { message: 'IMEI must be exactly 15 characters' })
   @MaxLength(15, { message: 'IMEI must be exactly 15 characters' })
   imei?: string;
 

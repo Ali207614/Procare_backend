@@ -4,14 +4,14 @@ exports.up = async function (knex) {
 
     table
       .uuid('repair_order_id')
-      .notNullable()
+      .nullable()
       .references('id')
       .inTable('repair_orders')
       .onDelete('CASCADE');
 
     table
       .uuid('rental_phone_device_id')
-      .notNullable()
+      .nullable()
       .references('id')
       .inTable('rental_phone_devices')
       .onDelete('RESTRICT');
@@ -21,10 +21,12 @@ exports.up = async function (knex) {
     table.boolean('is_free').nullable();
     table.decimal('price', 12, 2).nullable();
     table.enu('currency', ['UZS', 'USD', 'EUR']).nullable();
+    table.string('marked_as_returned_by').nullable();
+    table.string('marked_as_cancelled_by').nullable();
 
-    table.enu('status', ['Active', 'Returned', 'Cancelled']).notNullable().defaultTo('Active');
+    table.enu('status', ['Pending', 'Active', 'Returned', 'Cancelled']).notNullable().defaultTo('Pending');
 
-    table.date('rented_at').notNullable().defaultTo(knex.fn.now());
+    table.date('rented_at').nullable().defaultTo(knex.fn.now());
     table.date('returned_at').nullable();
 
     table.text('notes').nullable();

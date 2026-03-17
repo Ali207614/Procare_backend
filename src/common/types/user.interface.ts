@@ -15,7 +15,7 @@ export interface User {
   is_active: boolean;
   telegram_chat_id: string | null;
   telegram_username: string | null;
-  source: 'telegram_bot' | 'employee' | 'web' | 'app' | 'other';
+  source: 'telegram_bot' | 'employee' | 'web' | 'app' | 'other' | 'Telefoniya';
   roles: string[];
   status: 'Pending' | 'Open' | 'Deleted' | 'Banned';
   created_at: string;

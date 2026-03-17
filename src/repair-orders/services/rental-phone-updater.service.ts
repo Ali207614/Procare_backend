@@ -4,7 +4,7 @@ import { RepairOrderChangeLoggerService } from './repair-order-change-logger.ser
 import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
 import { RepairOrder } from 'src/common/types/repair-order.interface';
-import { RentalPhone } from 'src/common/types/rental-phone.interface';
+import { RentalPhoneDevice } from 'src/common/types/rental-phone-device.interface';
 import { RepairOrderRentalPhone } from 'src/common/types/repair-order-rental-phone.interface';
 import { CreateOrUpdateRentalPhoneDto } from 'src/repair-orders/dto/create-or-update-rental-phone.dto';
 import { UpdateRentalPhoneDto } from 'src/repair-orders/dto/update-rental-phone.dto';
@@ -72,39 +72,51 @@ export class RentalPhoneUpdaterService {
       });
     }
 
-    const device: RentalPhone | undefined = await this.knex('rental_phone_devices')
-      .where({ id: rental.rental_phone_id, status: 'Available', is_available: true })
-      .first();
+    let device: RentalPhoneDevice | undefined;
+    if (rental.status === 'Active' && rental.rental_phone_id) {
+      device = await this.knex('rental_phone_devices')
+        .where({ id: rental.rental_phone_id, status: 'Available', is_available: true })
+        .first();
 
-    if (!device) {
-      throw new BadRequestException({
-        message: 'Rental phone not found',
-        location: 'rental_phone.rental_phone_id',
-      });
+      if (!device) {
+        throw new BadRequestException({
+          message: 'Rental phone not found',
+          location: 'rental_phone.rental_phone_id',
+        });
+      }
     }
 
     const now = new Date();
+    const insertData: Partial<RepairOrderRentalPhone> = {
+      repair_order_id: orderId,
+      status: rental.status,
+      created_by: admin.id,
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+    };
+
+    if (rental.status === 'Active') {
+      insertData.rental_phone_device_id = rental.rental_phone_id;
+      insertData.imei = rental.imei ?? null;
+      insertData.is_free = rental.is_free ?? null;
+      insertData.price = (rental.price ?? (device ? device.daily_rent_price : null))?.toString();
+      insertData.currency = rental.currency ?? (device ? device.currency : null);
+      insertData.rented_at = rental.rented_at ? new Date(rental.rented_at).toISOString() : null;
+      insertData.returned_at = rental.returned_at
+        ? new Date(rental.returned_at).toISOString()
+        : null;
+      insertData.notes = rental.notes ?? null;
+    }
 
     const [inserted]: RepairOrderRentalPhone[] = await this.knex('repair_order_rental_phones')
-      .insert({
-        repair_order_id: orderId,
-        rental_phone_device_id: rental.rental_phone_id,
-        is_free: rental.is_free ?? null,
-        price: rental.price ?? null,
-        currency: rental.currency ?? 'UZS',
-        status: 'Active',
-        rented_at: rental.rented_at ? new Date(rental.rented_at) : now,
-        returned_at: rental.returned_at ? new Date(rental.returned_at) : null,
-        notes: rental.notes ?? null,
-        created_by: admin.id,
-        created_at: now,
-        updated_at: now,
-      })
+      .insert(insertData)
       .returning('*');
 
-    await this.knex('rental_phone_devices')
-      .where({ id: rental.rental_phone_id })
-      .update({ status: 'Rented', updated_at: now });
+    if (rental.status === 'Active' && rental.rental_phone_id) {
+      await this.knex('rental_phone_devices')
+        .where({ id: rental.rental_phone_id })
+        .update({ status: 'Rented', updated_at: now });
+    }
 
     // User details could be fetched here if needed for external integrations
 
@@ -119,7 +131,10 @@ export class RentalPhoneUpdaterService {
       admin.id,
     );
 
-    return inserted;
+    return {
+      ...inserted,
+      toggle: inserted.status === 'Pending',
+    };
   }
 
   async update(
@@ -128,7 +143,6 @@ export class RentalPhoneUpdaterService {
     admin: AdminPayload,
   ): Promise<{ message: string }> {
     const order: RepairOrder | undefined = await this.knex('repair_orders')
-      .select('status_id')
       .where({ id: orderId })
       .first();
 
@@ -153,17 +167,59 @@ export class RentalPhoneUpdaterService {
     const existing: RepairOrderRentalPhone | undefined = await this.knex(
       'repair_order_rental_phones',
     )
-      .where({ repair_order_id: orderId, status: 'Active' })
+      .where({ repair_order_id: orderId })
+      .orderBy('created_at', 'desc')
       .first();
 
     if (!existing) {
       throw new BadRequestException({
-        message: 'No active rental phone found for this repair order',
+        message: 'No rental phone records found for this repair order',
         location: 'repair_order_id',
       });
     }
 
-    if (existing.rental_phone_device_id !== rental.rental_phone_id) {
+    const currentStatus = existing.status;
+    const newStatus = rental.status || currentStatus;
+
+    if (currentStatus !== newStatus) {
+      // Logic for status transitions as requested
+      if (currentStatus === 'Active' && newStatus === 'Pending') {
+        throw new BadRequestException({
+          message: 'Status transition from Active to Pending is not allowed',
+          location: 'status',
+        });
+      }
+
+      if (['Cancelled', 'Returned'].includes(currentStatus)) {
+        throw new BadRequestException({
+          message: `Cannot change status once it is ${currentStatus}`,
+          location: 'status',
+        });
+      }
+    }
+
+    // "Also if it wants to transfer the status from Pending to Active, it must provide these fields: rental_phone_id, rented_at, returned_at and price"
+    if (currentStatus === 'Pending' && newStatus === 'Active') {
+      const missingFields = [];
+      if (!rental.rental_phone_id) missingFields.push('rental_phone_id');
+      if (!rental.rented_at) missingFields.push('rented_at');
+      if (!rental.returned_at) missingFields.push('returned_at');
+      if (rental.price === undefined || rental.price === null) missingFields.push('price');
+
+      if (missingFields.length > 0) {
+        throw new BadRequestException({
+          message: `Fields required for Active status transition: ${missingFields.join(', ')}`,
+          location: 'status',
+        });
+      }
+    }
+
+    // Safety: check rental phone ID change if already assigned
+    if (
+      rental.rental_phone_id &&
+      existing.rental_phone_device_id &&
+      existing.rental_phone_device_id !== rental.rental_phone_id
+    ) {
       throw new BadRequestException({
         message: 'Cannot change rental phone after assignment. Please cancel and create again.',
         location: 'rental_phone.rental_phone_id',
@@ -171,18 +227,63 @@ export class RentalPhoneUpdaterService {
     }
 
     const now = new Date();
+    const updateFields: Partial<RepairOrderRentalPhone> = {
+      status: newStatus as RepairOrderRentalPhone['status'],
+      updated_at: now.toISOString(),
+    };
 
-    await this.knex('repair_order_rental_phones')
-      .where({ id: existing.id })
-      .update({
-        is_free: rental.is_free ?? existing.is_free,
-        price: rental.price ?? existing.price,
-        currency: rental.currency ?? existing.currency,
-        notes: rental.notes ?? existing.notes,
-        rented_at: rental.rented_at ? new Date(rental.rented_at) : existing.rented_at,
-        returned_at: rental.returned_at ? new Date(rental.returned_at) : existing.returned_at,
-        updated_at: now,
-      });
+    if (rental.is_free !== undefined) updateFields.is_free = rental.is_free;
+    if (rental.price !== undefined) updateFields.price = rental.price?.toString();
+    if (rental.currency !== undefined) updateFields.currency = rental.currency;
+    if (rental.notes !== undefined) updateFields.notes = rental.notes;
+    if (rental.imei !== undefined) updateFields.imei = rental.imei;
+
+    if (rental.rented_at !== undefined) {
+      updateFields.rented_at = rental.rented_at ? new Date(rental.rented_at).toISOString() : null;
+    }
+    if (rental.returned_at !== undefined) {
+      updateFields.returned_at = rental.returned_at
+        ? new Date(rental.returned_at).toISOString()
+        : null;
+    }
+
+    // Specialized transition handling
+    if (currentStatus === 'Pending' && newStatus === 'Active') {
+      const device = await this.knex('rental_phone_devices')
+        .where({ id: rental.rental_phone_id, status: 'Available', is_available: true })
+        .first();
+
+      if (!device) {
+        throw new BadRequestException({
+          message: 'Selected rental phone is not found or not available',
+          location: 'rental_phone_id',
+        });
+      }
+
+      updateFields.rental_phone_device_id = rental.rental_phone_id;
+
+      // Mark device as Rented
+      await this.knex('rental_phone_devices')
+        .where({ id: rental.rental_phone_id })
+        .update({ status: 'Rented', updated_at: now });
+    }
+
+    // Release device if status becomes terminal
+    if (currentStatus === 'Active' && ['Cancelled', 'Returned'].includes(newStatus)) {
+      if (newStatus === 'Cancelled') {
+        updateFields.marked_as_cancelled_by = admin.id;
+      } else {
+        updateFields.marked_as_returned_by = admin.id;
+      }
+
+      if (existing.rental_phone_device_id) {
+        await this.knex('rental_phone_devices')
+          .where({ id: existing.rental_phone_device_id })
+          .update({ status: 'Available', updated_at: now });
+      }
+    }
+
+    await this.knex('repair_order_rental_phones').where({ id: existing.id }).update(updateFields);
 
     await this.changeLogger.logIfChanged(
       this.knex,
@@ -231,9 +332,11 @@ export class RentalPhoneUpdaterService {
       });
     }
 
-    await this.knex('repair_order_rental_phones')
-      .where({ id: existing.id })
-      .update({ status: 'Cancelled', updated_at: new Date() });
+    await this.knex('repair_order_rental_phones').where({ id: existing.id }).update({
+      status: 'Cancelled',
+      marked_as_cancelled_by: admin.id,
+      updated_at: new Date(),
+    });
 
     await this.knex('rental_phone_devices')
       .where({ id: existing.rental_phone_device_id })
@@ -320,7 +423,11 @@ export class RentalPhoneUpdaterService {
       updateFields,
       admin.id,
     );
-    return updated[0] as RepairOrderRentalPhone;
+    const updatedRental = updated[0] as RepairOrderRentalPhone;
+    return {
+      ...updatedRental,
+      toggle: updatedRental.status === 'Pending',
+    };
   }
 
   async removeRentalPhone(

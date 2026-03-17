@@ -8,7 +8,7 @@ import { RedisService } from 'src/common/redis/redis.service';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 import { User } from 'src/common/types/user.interface';
-import { RentalPhone } from 'src/common/types/rental-phone.interface';
+import { RentalPhoneDevice } from 'src/common/types/rental-phone-device.interface';
 import { LoggerService } from 'src/common/logger/logger.service';
 import { RepairNotificationMeta } from 'src/common/types/notification.interface';
 import { RepairOrder } from 'src/common/types/repair-order.interface';
@@ -73,7 +73,7 @@ export class RepairOrderCreateHelperService {
 
       const phone = dto.rental_phone;
       const cacheKey = `${this.redisKeyRentalPhoneDevice}${phone.rental_phone_id}`;
-      let device: RentalPhone | null = await this.redisService.get(cacheKey);
+      let device: RentalPhoneDevice | null = await this.redisService.get(cacheKey);
 
       if (!device) {
         device = await trx('rental_phone_devices')

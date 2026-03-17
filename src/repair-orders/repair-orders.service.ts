@@ -87,39 +87,14 @@ export class RepairOrdersService {
         resolvedPhoneNumber = user.phone_number1 || '';
         resolvedName = [user.first_name, user.last_name].filter(Boolean).join(' ') || null;
       } else if (resolvedPhoneNumber) {
-        // Flow 2: inline client info
-        const existingUser = await trx('users')
-          .whereRaw('LOWER(phone_number1) = ?', resolvedPhoneNumber.toLowerCase())
-          .andWhereNot({ status: 'Deleted' })
-          .first();
-
-        if (existingUser) {
-          resolvedUserId = existingUser.id;
-        } else if (currentStatusPermission?.can_create_user) {
-          let firstName = dto.first_name || '';
-          let lastName = dto.last_name || '';
-
-          if (dto.name && !dto.first_name) {
-            const parts = dto.name.trim().split(' ');
-            firstName = parts[0];
-            lastName = parts.slice(1).join(' ');
-          }
-
-          const [newUser] = await trx('users')
-            .insert({
-              first_name: firstName,
-              last_name: lastName,
-              phone_number1: resolvedPhoneNumber,
-              is_active: true,
-              source: 'employee',
-              created_by: admin.id,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              status: 'Open',
-            })
-            .returning('*');
-          resolvedUserId = newUser.id;
-        }
+        resolvedUserId =
+          (await this.ensureUserByPhone(trx, resolvedPhoneNumber, {
+            allowCreate: currentStatusPermission?.can_create_user === true,
+            source: 'employee',
+            createdBy: admin.id,
+            phoneVerified: false,
+            logContext: 'Manual User',
+          })) ?? undefined;
       } else {
         throw new BadRequestException({
           message: 'Either user_id or phone_number must be provided',
@@ -825,41 +800,25 @@ export class RepairOrdersService {
   ): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
-      const order: RepairOrder | undefined = await trx(this.table)
-        .where({ id: orderId, status: 'Open' })
-        .first();
-      if (!order)
-        throw new NotFoundException({ message: 'Order not found', location: 'repair_order' });
+      // 1. Fetch the order first as other validations depend on its data
+      const order = await this.getOrderOrThrow(trx, orderId);
+      const isStatusChanged = dto.status_id !== order.status_id;
 
-      if (dto.status_id !== order.status_id) {
-        const transitionExists = await trx('repair-order-status-transitions')
-          .where({ from_status_id: order.status_id, to_status_id: dto.status_id })
-          .first();
-        if (!transitionExists)
-          throw new BadRequestException({
-            message: 'Invalid status transition',
-            location: 'status_id',
-          });
+      // 2. Run independent parallel validations/fetches
+      const [permissions, transitionRule, targetStatus, activeRental] = await Promise.all([
+        this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id),
+        isStatusChanged
+          ? this.getTransitionRule(trx, order.status_id, dto.status_id)
+          : Promise.resolve<{ from_status_id: string; to_status_id: string } | null>(null),
+        isStatusChanged
+          ? this.getStatusDetails(trx, dto.status_id)
+          : Promise.resolve<RepairOrderStatus | null>(null),
+        isStatusChanged
+          ? this.getActiveRental(trx, orderId)
+          : Promise.resolve<{ id: string } | null>(null),
+      ]);
 
-        // Check if there's an active rental phone and the new status is Canceled or Completed
-        const newStatus = await trx('repair_order_statuses').where({ id: dto.status_id }).first();
-
-        if (newStatus && (newStatus.type === 'Canceled' || newStatus.type === 'Completed')) {
-          const activeRental = await trx('repair_order_rental_phones')
-            .where({ repair_order_id: orderId, status: 'Active' })
-            .first();
-
-          if (activeRental) {
-            throw new BadRequestException({
-              message: `Cannot move repair order to ${newStatus.type.toLowerCase()} while a rental phone is active`,
-              location: 'status_id',
-            });
-          }
-        }
-      }
-
-      const permissions: RepairOrderStatusPermission[] =
-        await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+      // 3. Permission and Rule Validations
       await this.permissionService.checkPermissionsOrThrow(
         admin.roles,
         order.branch_id,
@@ -869,8 +828,25 @@ export class RepairOrdersService {
         permissions,
       );
 
-      // Block the move if the target status requires an IMEI and the order has none
-      if (dto.status_id !== order.status_id) {
+      if (isStatusChanged) {
+        if (!transitionRule) {
+          throw new BadRequestException({
+            message: 'Invalid status transition',
+            location: 'status_id',
+          });
+        }
+
+        if (
+          targetStatus &&
+          (targetStatus.type === 'Cancelled' || targetStatus.type === 'Completed') &&
+          activeRental
+        ) {
+          throw new BadRequestException({
+            message: `Cannot move repair order to ${targetStatus.type.toLowerCase()} while a rental phone is active`,
+            location: 'status_id',
+          });
+        }
+
         const targetPermission = permissions.find((p) => p.status_id === dto.status_id);
         if (targetPermission?.cannot_continue_without_imei && !order.imei) {
           throw new BadRequestException({
@@ -883,14 +859,11 @@ export class RepairOrdersService {
       const updates: Partial<RepairOrder> = {};
       const logs: { key: string; oldVal: unknown; newVal: unknown }[] = [];
 
-      // If the order has no linked user yet, check whether the target status
-      // has can_create_user enabled and, if so, find-or-create the user.
-      if (!order.user_id) {
+      // 4. Handle user linking if required by the target status
+      if (!order.user_id && isStatusChanged) {
         const targetPermission = permissions.find((p) => p.status_id === dto.status_id);
-
         if (targetPermission?.can_create_user) {
           const linkedUserId = await this.ensureUserLinked(trx, order, admin.id);
-
           if (linkedUserId) {
             updates.user_id = linkedUserId;
             logs.push({ key: 'user_id', oldVal: order.user_id, newVal: linkedUserId });
@@ -898,73 +871,23 @@ export class RepairOrdersService {
         }
       }
 
-      if (dto.status_id !== order.status_id) {
-        // Shift orders in the old status up to maintain contiguity
-        await trx(this.table)
-          .where({ branch_id: order.branch_id, status_id: order.status_id, status: 'Open' })
-          .andWhere('sort', '>', order.sort)
-          .decrement('sort', 1);
-
-        const targetSort = dto.sort || 1;
-        // Shift orders in the new status down to make room
-        await trx(this.table)
-          .where({ branch_id: order.branch_id, status_id: dto.status_id, status: 'Open' })
-          .andWhere('sort', '>=', targetSort)
-          .increment('sort', 1);
-
+      // 5. Handle Re-sorting and Status Updates
+      if (isStatusChanged) {
+        await this.handleStatusChangeReordering(trx, order, dto);
         updates.status_id = dto.status_id;
-        updates.sort = targetSort;
+        updates.sort = dto.sort || 1;
         logs.push({ key: 'status_id', oldVal: order.status_id, newVal: dto.status_id });
-        logs.push({ key: 'sort', oldVal: order.sort, newVal: targetSort });
+        logs.push({ key: 'sort', oldVal: order.sort, newVal: updates.sort });
 
-        // Notify branch about the move
-        void this.helper
-          .getRepairOrderNotificationMeta(order.id)
-          .then((richMeta) => {
-            this.notificationService
-              .notifyBranch(this.knex, order.branch_id, {
-                title: 'Buyurtma holati o‘zgardi',
-                message: `Buyurtma #${order.number_id} yangi statusga o'tdi`,
-                type: 'info',
-                meta: {
-                  ...richMeta,
-                  from_status_id: order.status_id,
-                  to_status_id: dto.status_id,
-                  action: 'status_changed',
-                } as Record<string, unknown>,
-              })
-              .catch((err: Error) => {
-                this.logger.error(
-                  `Failed to send branch notification for moved order ${order.id}: ${err.message}`,
-                );
-              });
-          })
-          .catch((err: Error) => {
-            this.logger.error(
-              `Failed to fetch meta for branch notification for moved order ${order.id}: ${err.message}`,
-            );
-          });
+        // Trigger notification asynchronously
+        this.emitMoveNotification(order, dto.status_id);
       } else if (dto.sort !== undefined && dto.sort !== order.sort) {
-        // Same status, different sort -> use existing list reordering logic
-        const newSort = dto.sort;
-        if (newSort < order.sort) {
-          await trx(this.table)
-            .where({ branch_id: order.branch_id, status_id: order.status_id, status: 'Open' })
-            .andWhere('sort', '>=', newSort)
-            .andWhere('sort', '<', order.sort)
-            .update({ sort: this.knex.raw('sort + 1') });
-        } else {
-          await trx(this.table)
-            .where({ branch_id: order.branch_id, status_id: order.status_id, status: 'Open' })
-            .andWhere('sort', '<=', newSort)
-            .andWhere('sort', '>', order.sort)
-            .update({ sort: this.knex.raw('sort - 1') });
-        }
-
-        updates.sort = newSort;
-        logs.push({ key: 'sort', oldVal: order.sort, newVal: newSort });
+        await this.handleSameStatusReordering(trx, order, dto.sort);
+        updates.sort = dto.sort;
+        logs.push({ key: 'sort', oldVal: order.sort, newVal: dto.sort });
       }
 
+      // 6. Finalize updates
       if (Object.keys(updates).length) {
         await trx(this.table)
           .where({ id: orderId })
@@ -973,11 +896,12 @@ export class RepairOrdersService {
 
       await this.changeLogger.logMultipleFieldsIfChanged(trx, orderId, logs, admin.id);
       await trx.commit();
+
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
       return { message: 'Repair order moved successfully' };
     } catch (err) {
-      await trx.rollback();
-      this.logger.error(`Failed to move repair order ${orderId}`);
+      if (trx) await trx.rollback();
+      this.logger.error(`Failed to move repair order ${orderId}: ${(err as Error).message}`);
       throw err;
     }
   }
@@ -1441,9 +1365,15 @@ export class RepairOrdersService {
   }): Promise<RepairOrder> {
     const trx = await this.knex.transaction();
     try {
+      let resolvedUserId = data.userId;
+
+      if (!resolvedUserId) {
+        resolvedUserId = await this.ensureWebhookUser(trx, data.phoneNumber);
+      }
+
       const [newOrder] = await trx<RepairOrder>(this.table)
         .insert({
-          user_id: data.userId,
+          user_id: resolvedUserId,
           branch_id: data.branchId,
           priority: 'Medium',
           status_id: data.statusId,
@@ -1459,6 +1389,10 @@ export class RepairOrdersService {
           updated_at: new Date().toISOString(),
         })
         .returning('*');
+
+      this.logger.log(
+        `[Webhook Order] Created new repair order ${newOrder.id} (${newOrder.number_id}) for user ${resolvedUserId}`,
+      );
 
       // Move the new order to the top using the reusable helper
       await this.moveToTop(trx, newOrder);
@@ -1515,11 +1449,16 @@ export class RepairOrdersService {
 
       // 3. Assign the admin to the repair order if an admin was found
       if (assignedAdminId) {
+        this.logger.log(
+          `[Webhook Order] Assigning repair order ${newOrder.id} to admin ${assignedAdminId}`,
+        );
         await trx('repair_order_assign_admins').insert({
           repair_order_id: newOrder.id,
           admin_id: assignedAdminId,
           created_at: new Date(),
         });
+      } else {
+        this.logger.log(`[Webhook Order] No admin assigned to repair order ${newOrder.id}`);
       }
 
       await trx.commit();
@@ -1538,6 +1477,84 @@ export class RepairOrdersService {
     }
   }
 
+  private async findUserByPhone(
+    trx: Knex.Transaction,
+    phoneNumber: string,
+  ): Promise<{ id: string } | undefined> {
+    return trx('users')
+      .whereRaw('LOWER(phone_number1) = ?', phoneNumber.toLowerCase())
+      .andWhereNot({ status: 'Deleted' })
+      .first();
+  }
+
+  private async ensureUserByPhone(
+    trx: Knex.Transaction,
+    phoneNumber: string,
+    options: {
+      allowCreate: boolean;
+      source: 'employee' | 'Telefoniya';
+      createdBy: string | null;
+      phoneVerified?: boolean;
+      logContext: 'Webhook User' | 'Manual User';
+    },
+  ): Promise<string | null> {
+    const existingUser = await this.findUserByPhone(trx, phoneNumber);
+
+    if (existingUser) {
+      this.logger.log(
+        `[${options.logContext}] Found existing user ${existingUser.id} for phone ${phoneNumber}`,
+      );
+      return existingUser.id;
+    }
+
+    if (!options.allowCreate) {
+      this.logger.log(
+        `[${options.logContext}] No existing user found for phone ${phoneNumber}. Creation is not allowed here.`,
+      );
+      return null;
+    }
+
+    this.logger.log(
+      `[${options.logContext}] No existing user found for phone ${phoneNumber}. Creating new user...`,
+    );
+
+    const [newUser]: { id: string }[] = await trx('users')
+      .insert({
+        first_name: null,
+        last_name: null,
+        phone_number1: phoneNumber,
+        is_active: true,
+        phone_verified: options.phoneVerified ?? false,
+        source: options.source,
+        created_by: options.createdBy,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        status: 'Open',
+      })
+      .returning('id');
+
+    return newUser.id;
+  }
+
+  private async ensureWebhookUser(trx: Knex.Transaction, phoneNumber: string): Promise<string> {
+    const userId = await this.ensureUserByPhone(trx, phoneNumber, {
+      allowCreate: true,
+      source: 'Telefoniya',
+      createdBy: null,
+      phoneVerified: true,
+      logContext: 'Webhook User',
+    });
+
+    if (!userId) {
+      throw new BadRequestException({
+        message: 'Unable to resolve webhook user',
+        location: 'phone_number',
+      });
+    }
+
+    return userId;
+  }
+
   /**
    * Finds an existing user by the repair order's phone_number column,
    * or creates a new one using phone_number + name from the order.
@@ -1552,37 +1569,13 @@ export class RepairOrdersService {
     const phone = order.phone_number;
     if (!phone) return null;
 
-    // Try to find an existing, non-deleted user with the same phone
-    const existingUser: { id: string } | undefined = await trx('users')
-      .whereRaw('LOWER(phone_number1) = ?', phone.toLowerCase())
-      .andWhereNot({ status: 'Deleted' })
-      .first();
-
-    if (existingUser) {
-      return existingUser.id;
-    }
-
-    // Split the single "name" column (e.g. "Asilbek Azimov") into first/last
-    const fullName = (order.name || '').trim();
-    const spaceIndex = fullName.indexOf(' ');
-    const firstName = spaceIndex > -1 ? fullName.substring(0, spaceIndex) : fullName;
-    const lastName = spaceIndex > -1 ? fullName.substring(spaceIndex + 1) : '';
-
-    const [newUser]: { id: string }[] = await trx('users')
-      .insert({
-        first_name: firstName,
-        last_name: lastName,
-        phone_number1: phone,
-        is_active: true,
-        source: 'employee',
-        created_by: adminId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        status: 'Open',
-      })
-      .returning('id');
-
-    return newUser.id;
+    return this.ensureUserByPhone(trx, phone, {
+      allowCreate: true,
+      source: 'employee',
+      createdBy: adminId,
+      phoneVerified: false,
+      logContext: 'Manual User',
+    });
   }
 
   /**
@@ -1626,5 +1619,117 @@ export class RepairOrdersService {
 
     // Set this order's sort to 1
     await trx(this.table).where({ id: order.id }).update({ sort: 1 });
+  }
+
+  private async getOrderOrThrow(
+    trx: Knex.Transaction | Knex,
+    orderId: string,
+  ): Promise<RepairOrder> {
+    const order = await trx<RepairOrder>(this.table).where({ id: orderId, status: 'Open' }).first();
+    if (!order) {
+      throw new NotFoundException({ message: 'Order not found', location: 'repair_order' });
+    }
+    return order;
+  }
+
+  private async getTransitionRule(
+    trx: Knex.Transaction,
+    fromStatusId: string,
+    toStatusId: string,
+  ): Promise<{ from_status_id: string; to_status_id: string } | null> {
+    const rule = await trx<{ from_status_id: string; to_status_id: string }>(
+      'repair-order-status-transitions',
+    )
+      .where({ from_status_id: fromStatusId, to_status_id: toStatusId })
+      .first();
+    return rule || null;
+  }
+
+  private async getStatusDetails(
+    trx: Knex.Transaction,
+    statusId: string,
+  ): Promise<RepairOrderStatus | null> {
+    const status = await trx<RepairOrderStatus>('repair_order_statuses')
+      .where({ id: statusId })
+      .first();
+    return status || null;
+  }
+
+  private async getActiveRental(
+    trx: Knex.Transaction,
+    orderId: string,
+  ): Promise<{ id: string } | null> {
+    const rental = await trx('repair_order_rental_phones')
+      .where({ repair_order_id: orderId, status: 'Active' })
+      .first();
+    return (rental as { id: string }) || null;
+  }
+
+  private async handleStatusChangeReordering(
+    trx: Knex.Transaction,
+    order: RepairOrder,
+    dto: MoveRepairOrderDto,
+  ): Promise<void> {
+    // Shift orders in the old status up to maintain contiguity
+    await trx(this.table)
+      .where({ branch_id: order.branch_id, status_id: order.status_id, status: 'Open' })
+      .andWhere('sort', '>', order.sort)
+      .decrement('sort', 1);
+
+    const targetSort = dto.sort || 1;
+    // Shift orders in the new status down to make room
+    await trx(this.table)
+      .where({ branch_id: order.branch_id, status_id: dto.status_id, status: 'Open' })
+      .andWhere('sort', '>=', targetSort)
+      .increment('sort', 1);
+  }
+
+  private async handleSameStatusReordering(
+    trx: Knex.Transaction,
+    order: RepairOrder,
+    newSort: number,
+  ): Promise<void> {
+    if (newSort < order.sort) {
+      await trx(this.table)
+        .where({ branch_id: order.branch_id, status_id: order.status_id, status: 'Open' })
+        .andWhere('sort', '>=', newSort)
+        .andWhere('sort', '<', order.sort)
+        .update({ sort: this.knex.raw('sort + 1') });
+    } else {
+      await trx(this.table)
+        .where({ branch_id: order.branch_id, status_id: order.status_id, status: 'Open' })
+        .andWhere('sort', '<=', newSort)
+        .andWhere('sort', '>', order.sort)
+        .update({ sort: this.knex.raw('sort - 1') });
+    }
+  }
+
+  private emitMoveNotification(order: RepairOrder, toStatusId: string): void {
+    void this.helper
+      .getRepairOrderNotificationMeta(order.id)
+      .then((richMeta) => {
+        this.notificationService
+          .notifyBranch(this.knex, order.branch_id, {
+            title: 'Buyurtma holati o‘zgardi',
+            message: `Buyurtma #${order.number_id} yangi statusga o'tdi`,
+            type: 'info',
+            meta: {
+              ...richMeta,
+              from_status_id: order.status_id,
+              to_status_id: toStatusId,
+              action: 'status_changed',
+            } as Record<string, unknown>,
+          })
+          .catch((err: Error) => {
+            this.logger.error(
+              `Failed to send branch notification for moved order ${order.id}: ${err.message}`,
+            );
+          });
+      })
+      .catch((err: Error) => {
+        this.logger.error(
+          `Failed to fetch meta for branch notification for moved order ${order.id}: ${err.message}`,
+        );
+      });
   }
 }
