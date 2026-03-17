@@ -220,7 +220,7 @@ export interface FreshRepairOrder {
     is_free: boolean | null;
     price: string | null;
     currency: 'UZS' | 'USD' | 'EUR' | null;
-    status: 'Active' | 'Returned' | 'Cancelled' | null;
+    status: 'Pending' | 'Active' | 'Returned' | 'Cancelled' | null;
     rented_at: string | null;
     returned_at: string | null;
     notes: string | null;
@@ -409,7 +409,7 @@ export interface RepairOrderDetails {
     is_free: boolean | null;
     price: string | null;
     currency: 'UZS' | 'USD' | 'EUR' | null;
-    status: 'Active' | 'Returned' | 'Cancelled' | null;
+    status: 'Pending' | 'Active' | 'Returned' | 'Cancelled' | null;
     rented_at: string | null;
     returned_at: string | null;
     notes: string | null;

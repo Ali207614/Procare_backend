@@ -13,7 +13,7 @@ import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { CreateOrUpdateRentalPhoneDto } from '../dto/create-or-update-rental-phone.dto';
 import { UpdateRentalPhoneDto } from '../dto/update-rental-phone.dto';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { RepairOrderRentalPhone } from 'src/common/types/repair-order-rental-phone.interface';
 
@@ -25,6 +25,10 @@ export class RentalPhoneController {
   constructor(private readonly rentalPhoneUpdater: RentalPhoneUpdaterService) {}
 
   @Post()
+  @ApiOperation({
+    summary: 'Create a rental phone for a repair order',
+    description: 'Creates and assigns a rental phone entry to the specified repair order.',
+  })
   async create(
     @Param('repair_order_id') orderId: string,
     @Body() dto: CreateOrUpdateRentalPhoneDto,
@@ -34,6 +38,10 @@ export class RentalPhoneController {
   }
 
   @Patch()
+  @ApiOperation({
+    summary: 'Update rental phone details for a repair order',
+    description: 'Updates the rental phone information currently attached to the specified repair order.',
+  })
   async update(
     @Param('repair_order_id') orderId: string,
     @Body() dto: CreateOrUpdateRentalPhoneDto,
@@ -43,6 +51,10 @@ export class RentalPhoneController {
   }
 
   @Delete()
+  @ApiOperation({
+    summary: 'Cancel the rental phone for a repair order',
+    description: 'Removes the rental phone assignment from the specified repair order.',
+  })
   async delete(
     @Param('repair_order_id') orderId: string,
     @CurrentAdmin() admin: AdminPayload,
@@ -52,6 +64,10 @@ export class RentalPhoneController {
   }
 
   @Patch(':rental_phone_id')
+  @ApiOperation({
+    summary: 'Update a specific rental phone record',
+    description: 'Updates a rental phone record by its ID within the specified repair order.',
+  })
   async updateRentalPhone(
     @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
     @Param('rental_phone_id', ParseUUIDPipe) rentalPhoneId: string,
@@ -67,6 +83,10 @@ export class RentalPhoneController {
   }
 
   @Delete(':rental_phone_id')
+  @ApiOperation({
+    summary: 'Delete a specific rental phone record',
+    description: 'Deletes a rental phone record by its ID from the specified repair order.',
+  })
   async removeRentalPhone(
     @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
     @Param('rental_phone_id', ParseUUIDPipe) rentalPhoneId: string,
