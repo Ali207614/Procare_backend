@@ -127,10 +127,15 @@ export class RentalPhoneDevicesController {
     description: 'Maximum number of records to return.',
     example: 20,
   })
-  @ApiResponse({ status: 200, description: 'Paginated rental phone devices returned successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated rental phone devices returned successfully.',
+  })
   @ApiResponse({ status: 400, description: 'One or more query parameters are invalid.' })
   @ApiUnauthorizedResponse({ description: 'Authentication credentials were missing or invalid.' })
-  @ApiForbiddenResponse({ description: 'The authenticated admin does not have rental phone read permission.' })
+  @ApiForbiddenResponse({
+    description: 'The authenticated admin does not have rental phone read permission.',
+  })
   async findAll(
     @Query() dto: FindRentalPhoneDevicesDto,
   ): Promise<PaginationResult<RentalPhoneDevice>> {
@@ -141,11 +146,17 @@ export class RentalPhoneDevicesController {
   @SetPermissions('rental_phones_read')
   @ApiOperation({
     summary: 'List available rental phone devices',
-    description: 'Returns all rental phone devices that are currently available to be assigned or rented.',
+    description:
+      'Returns all rental phone devices that are currently available to be assigned or rented.',
   })
-  @ApiResponse({ status: 200, description: 'Available rental phone devices returned successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Available rental phone devices returned successfully.',
+  })
   @ApiUnauthorizedResponse({ description: 'Authentication credentials were missing or invalid.' })
-  @ApiForbiddenResponse({ description: 'The authenticated admin does not have rental phone read permission.' })
+  @ApiForbiddenResponse({
+    description: 'The authenticated admin does not have rental phone read permission.',
+  })
   async getAvailableDevices(): Promise<RentalPhoneDevice[]> {
     return this.rentalPhoneDevicesService.getAvailableDevices();
   }
@@ -154,11 +165,17 @@ export class RentalPhoneDevicesController {
   @SetPermissions('rental_phones_read')
   @ApiOperation({
     summary: 'Get rental phone inventory statistics',
-    description: 'Returns aggregate metrics for the rental phone inventory, including availability, pricing, and total value.',
+    description:
+      'Returns aggregate metrics for the rental phone inventory, including availability, pricing, and total value.',
   })
-  @ApiResponse({ status: 200, description: 'Rental phone inventory statistics returned successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Rental phone inventory statistics returned successfully.',
+  })
   @ApiUnauthorizedResponse({ description: 'Authentication credentials were missing or invalid.' })
-  @ApiForbiddenResponse({ description: 'The authenticated admin does not have rental phone read permission.' })
+  @ApiForbiddenResponse({
+    description: 'The authenticated admin does not have rental phone read permission.',
+  })
   async getStatistics(): Promise<{
     totalDevices: number;
     availableDevices: number;
@@ -177,9 +194,14 @@ export class RentalPhoneDevicesController {
     description: 'Returns all rental phone devices that match the provided brand name.',
   })
   @ApiParam({ name: 'brand', description: 'Brand name to filter by.', example: 'Samsung' })
-  @ApiResponse({ status: 200, description: 'Rental phone devices for the specified brand returned successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Rental phone devices for the specified brand returned successfully.',
+  })
   @ApiUnauthorizedResponse({ description: 'Authentication credentials were missing or invalid.' })
-  @ApiForbiddenResponse({ description: 'The authenticated admin does not have rental phone read permission.' })
+  @ApiForbiddenResponse({
+    description: 'The authenticated admin does not have rental phone read permission.',
+  })
   async getDevicesByBrand(@Param('brand') brand: string): Promise<RentalPhoneDevice[]> {
     return this.rentalPhoneDevicesService.getDevicesByBrand(brand);
   }
@@ -199,7 +221,9 @@ export class RentalPhoneDevicesController {
   @ApiResponse({ status: 400, description: 'The provided device ID is not a valid UUID.' })
   @ApiResponse({ status: 404, description: 'Rental phone device was not found.' })
   @ApiUnauthorizedResponse({ description: 'Authentication credentials were missing or invalid.' })
-  @ApiForbiddenResponse({ description: 'The authenticated admin does not have rental phone read permission.' })
+  @ApiForbiddenResponse({
+    description: 'The authenticated admin does not have rental phone read permission.',
+  })
   async findById(@Param('id', ParseUUIDPipe) id: string): Promise<RentalPhoneDevice> {
     return this.rentalPhoneDevicesService.findById(id);
   }
@@ -215,9 +239,14 @@ export class RentalPhoneDevicesController {
     description: 'Payload used to create a rental phone device.',
   })
   @ApiResponse({ status: 201, description: 'Rental phone device created successfully.' })
-  @ApiResponse({ status: 400, description: 'Request validation failed or the IMEI already exists.' })
+  @ApiResponse({
+    status: 400,
+    description: 'Request validation failed or the IMEI already exists.',
+  })
   @ApiUnauthorizedResponse({ description: 'Authentication credentials were missing or invalid.' })
-  @ApiForbiddenResponse({ description: 'The authenticated admin does not have rental phone create permission.' })
+  @ApiForbiddenResponse({
+    description: 'The authenticated admin does not have rental phone create permission.',
+  })
   async create(@Body() dto: CreateRentalPhoneDeviceDto): Promise<RentalPhoneDevice> {
     return this.rentalPhoneDevicesService.create(dto);
   }
@@ -238,10 +267,15 @@ export class RentalPhoneDevicesController {
     description: 'Payload used to update selected rental phone device fields.',
   })
   @ApiResponse({ status: 200, description: 'Rental phone device updated successfully.' })
-  @ApiResponse({ status: 400, description: 'The request is invalid, the ID format is invalid, or the IMEI already exists.' })
+  @ApiResponse({
+    status: 400,
+    description: 'The request is invalid, the ID format is invalid, or the IMEI already exists.',
+  })
   @ApiResponse({ status: 404, description: 'Rental phone device was not found.' })
   @ApiUnauthorizedResponse({ description: 'Authentication credentials were missing or invalid.' })
-  @ApiForbiddenResponse({ description: 'The authenticated admin does not have rental phone update permission.' })
+  @ApiForbiddenResponse({
+    description: 'The authenticated admin does not have rental phone update permission.',
+  })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateRentalPhoneDeviceDto,
@@ -264,7 +298,9 @@ export class RentalPhoneDevicesController {
   @ApiResponse({ status: 400, description: 'The provided device ID is not a valid UUID.' })
   @ApiResponse({ status: 404, description: 'Rental phone device was not found.' })
   @ApiUnauthorizedResponse({ description: 'Authentication credentials were missing or invalid.' })
-  @ApiForbiddenResponse({ description: 'The authenticated admin does not have rental phone delete permission.' })
+  @ApiForbiddenResponse({
+    description: 'The authenticated admin does not have rental phone delete permission.',
+  })
   async delete(@Param('id', ParseUUIDPipe) id: string): Promise<{ message: string }> {
     await this.rentalPhoneDevicesService.delete(id);
     return { message: 'Device deleted successfully' };

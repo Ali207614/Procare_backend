@@ -40,7 +40,8 @@ export class RentalPhoneController {
   @Patch()
   @ApiOperation({
     summary: 'Update rental phone details for a repair order',
-    description: 'Updates the rental phone information currently attached to the specified repair order.',
+    description:
+      'Updates the rental phone information currently attached to the specified repair order.',
   })
   async update(
     @Param('repair_order_id') orderId: string,

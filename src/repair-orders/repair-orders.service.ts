@@ -70,7 +70,6 @@ export class RepairOrdersService {
       );
 
       // ── Resolve user: either by user_id or by inline client info ──
-      const currentStatusPermission = permissions.find((p) => p.status_id === createStatus.id);
       let resolvedUserId: string | undefined = dto.user_id;
       let resolvedPhoneNumber = dto.phone_number || dto.phone || '';
       let resolvedName: string | null =
@@ -89,7 +88,7 @@ export class RepairOrdersService {
       } else if (resolvedPhoneNumber) {
         resolvedUserId =
           (await this.ensureUserByPhone(trx, resolvedPhoneNumber, {
-            allowCreate: currentStatusPermission?.can_create_user === true,
+            allowCreate: true,
             source: 'employee',
             createdBy: admin.id,
             phoneVerified: false,

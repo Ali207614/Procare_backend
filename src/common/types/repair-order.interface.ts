@@ -227,6 +227,39 @@ export interface FreshRepairOrder {
     created_by: string | null;
     created_at: string | null;
     updated_at: string | null;
+    rental_phone_device: {
+      id: string | null;
+      name: string | null;
+      brand: string | null;
+      model: string | null;
+      imei: string | null;
+      color: string | null;
+      storage_capacity: string | null;
+      battery_capacity: string | null;
+      is_free: boolean | null;
+      daily_rent_price: number | null;
+      deposit_amount: number | null;
+      currency: 'UZS' | 'USD' | 'EUR' | null;
+      is_available: boolean | null;
+      status:
+        | 'Available'
+        | 'Rented'
+        | 'Maintenance'
+        | 'Lost'
+        | 'Damaged'
+        | 'Retired'
+        | null;
+      condition: 'Excellent' | 'Good' | 'Fair' | 'Poor' | null;
+      quantity: number | null;
+      quantity_available: number | null;
+      notes: string | null;
+      specifications: string | null;
+      sort: number | null;
+      rented_at: string | null;
+      returned_at: string | null;
+      created_at: string | null;
+      updated_at: string | null;
+    } | null;
   };
 }
 
@@ -416,6 +449,39 @@ export interface RepairOrderDetails {
     created_by: string | null;
     created_at: string | null;
     updated_at: string | null;
+    rental_phone_device: {
+      id: string | null;
+      name: string | null;
+      brand: string | null;
+      model: string | null;
+      imei: string | null;
+      color: string | null;
+      storage_capacity: string | null;
+      battery_capacity: string | null;
+      is_free: boolean | null;
+      daily_rent_price: number | null;
+      deposit_amount: number | null;
+      currency: 'UZS' | 'USD' | 'EUR' | null;
+      is_available: boolean | null;
+      status:
+        | 'Available'
+        | 'Rented'
+        | 'Maintenance'
+        | 'Lost'
+        | 'Damaged'
+        | 'Retired'
+        | null;
+      condition: 'Excellent' | 'Good' | 'Fair' | 'Poor' | null;
+      quantity: number | null;
+      quantity_available: number | null;
+      notes: string | null;
+      specifications: string | null;
+      sort: number | null;
+      rented_at: string | null;
+      returned_at: string | null;
+      created_at: string | null;
+      updated_at: string | null;
+    } | null;
   };
 }
 

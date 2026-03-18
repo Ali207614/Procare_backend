@@ -280,9 +280,24 @@ SELECT
             'notes', rp.notes,
             'created_by', rp.created_by,
             'created_at', rp.created_at,
-            'updated_at', rp.updated_at
+            'updated_at', rp.updated_at,
+            'rental_phone_device', CASE
+                WHEN rpd.id IS NULL THEN NULL
+                ELSE jsonb_build_object(
+                    'id', rpd.id,
+                    'name', rpd.name,
+                    'imei', rpd.imei,
+                    'currency', rpd.currency,
+                    'is_available', rpd.is_available,
+                    'status', rpd.status,
+                    'created_at', rpd.created_at,
+                    'updated_at', rpd.updated_at
+                )
+            END
         )
         FROM repair_order_rental_phones rp
+        LEFT JOIN rental_phone_devices rpd
+            ON rpd.id = rp.rental_phone_device_id
         WHERE rp.repair_order_id = ro.id AND rp.status IN ('Pending', 'Active')
         ORDER BY rp.created_at DESC
         LIMIT 1
