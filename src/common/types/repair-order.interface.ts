@@ -241,14 +241,7 @@ export interface FreshRepairOrder {
       deposit_amount: number | null;
       currency: 'UZS' | 'USD' | 'EUR' | null;
       is_available: boolean | null;
-      status:
-        | 'Available'
-        | 'Rented'
-        | 'Maintenance'
-        | 'Lost'
-        | 'Damaged'
-        | 'Retired'
-        | null;
+      status: 'Available' | 'Rented' | 'Maintenance' | 'Lost' | 'Damaged' | 'Retired' | null;
       condition: 'Excellent' | 'Good' | 'Fair' | 'Poor' | null;
       quantity: number | null;
       quantity_available: number | null;
@@ -463,14 +456,7 @@ export interface RepairOrderDetails {
       deposit_amount: number | null;
       currency: 'UZS' | 'USD' | 'EUR' | null;
       is_available: boolean | null;
-      status:
-        | 'Available'
-        | 'Rented'
-        | 'Maintenance'
-        | 'Lost'
-        | 'Damaged'
-        | 'Retired'
-        | null;
+      status: 'Available' | 'Rented' | 'Maintenance' | 'Lost' | 'Damaged' | 'Retired' | null;
       condition: 'Excellent' | 'Good' | 'Fair' | 'Poor' | null;
       quantity: number | null;
       quantity_available: number | null;
