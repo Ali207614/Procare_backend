@@ -184,17 +184,14 @@ export class ServiceFormsService {
     return { warranty_id: warrantyId, message: 'Service form generated successfully' };
   }
 
-  async getServiceForm(repairOrderId: string): Promise<GetServiceFormResponseDto> {
+  async getServiceForm(repairOrderId: string): Promise<GetServiceFormResponseDto | object> {
     const record: ServiceFormRow | undefined = await this.knex<ServiceFormRow>('service_forms')
       .where({ repair_order_id: repairOrderId })
       .orderBy('created_at', 'desc')
       .first();
 
     if (!record) {
-      throw new NotFoundException({
-        message: 'No service form found for this repair order',
-        location: 'repair_order_id',
-      });
+      return {};
     }
 
     // Generate a presigned MinIO URL (1 hour expiry)

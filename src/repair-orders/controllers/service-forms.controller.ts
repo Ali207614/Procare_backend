@@ -36,10 +36,9 @@ export class ServiceFormsController {
   @ApiOperation({ summary: 'Get the latest service form warranty ID and PDF URL' })
   @ApiParam({ name: 'repair_order_id', description: 'Repair Order UUID' })
   @ApiResponse({ status: 200, description: 'Success', type: GetServiceFormResponseDto })
-  @ApiResponse({ status: 404, description: 'No service form found for this repair order' })
   getServiceForm(
     @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
-  ): Promise<GetServiceFormResponseDto> {
+  ): Promise<GetServiceFormResponseDto | object> {
     return this.serviceFormsService.getServiceForm(repairOrderId);
   }
 }
