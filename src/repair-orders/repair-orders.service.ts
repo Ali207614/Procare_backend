@@ -486,6 +486,33 @@ export class RepairOrdersService {
 
       await trx.commit();
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
+
+      // Notify branch about the update
+      void this.helper
+        .getRepairOrderNotificationMeta(orderId)
+        .then((richMeta) => {
+          this.notificationService
+            .notifyBranch(this.knex, order.branch_id, {
+              title: 'Buyurtma yangilandi',
+              message: `Buyurtma #${order.number_id} ma'lumotlari yangilandi`,
+              type: 'info',
+              meta: {
+                ...richMeta,
+                action: 'order_updated',
+              } as Record<string, unknown>,
+            })
+            .catch((err: Error) => {
+              this.logger.error(
+                `Failed to send branch notification for updated order ${orderId}: ${err.message}`,
+              );
+            });
+        })
+        .catch((err: Error) => {
+          this.logger.error(
+            `Failed to fetch meta for branch notification for updated order ${orderId}: ${err.message}`,
+          );
+        });
+
       return { message: 'Repair order updated successfully' };
     } catch (err) {
       await trx.rollback();
@@ -1022,6 +1049,32 @@ export class RepairOrdersService {
     await this.changeLogger.logChange(repairOrderId, 'client_info_updated', updateDto, admin.id);
     await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
 
+    // Notify branch about the update
+    void this.helper
+      .getRepairOrderNotificationMeta(repairOrderId)
+      .then((richMeta) => {
+        this.notificationService
+          .notifyBranch(this.knex, order.branch_id, {
+            title: 'Buyurtma yangilandi',
+            message: `Buyurtma #${order.number_id} mijoz ma'lumotlari yangilandi`,
+            type: 'info',
+            meta: {
+              ...richMeta,
+              action: 'order_updated',
+            } as Record<string, unknown>,
+          })
+          .catch((err: Error) => {
+            this.logger.error(
+              `Failed to send branch notification for client info update on order ${repairOrderId}: ${err.message}`,
+            );
+          });
+      })
+      .catch((err: Error) => {
+        this.logger.error(
+          `Failed to fetch meta for branch notification for client info update on order ${repairOrderId}: ${err.message}`,
+        );
+      });
+
     return { message: 'Client info updated successfully' };
   }
 
@@ -1094,7 +1147,33 @@ export class RepairOrdersService {
     await this.changeLogger.logChange(repairOrderId, 'product_updated', updateDto, admin.id);
     await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
 
-    return updated[0] as { message: string };
+    // Notify branch about the update
+    void this.helper
+      .getRepairOrderNotificationMeta(repairOrderId)
+      .then((richMeta) => {
+        this.notificationService
+          .notifyBranch(this.knex, order.branch_id, {
+            title: 'Buyurtma yangilandi',
+            message: `Buyurtma #${order.number_id} qurilma ma'lumotlari yangilandi`,
+            type: 'info',
+            meta: {
+              ...richMeta,
+              action: 'order_updated',
+            } as Record<string, unknown>,
+          })
+          .catch((err: Error) => {
+            this.logger.error(
+              `Failed to send branch notification for product update on order ${repairOrderId}: ${err.message}`,
+            );
+          });
+      })
+      .catch((err: Error) => {
+        this.logger.error(
+          `Failed to fetch meta for branch notification for product update on order ${repairOrderId}: ${err.message}`,
+        );
+      });
+
+    return updated[0] as unknown as { message: string };
   }
 
   async updateProblem(
@@ -1195,6 +1274,32 @@ export class RepairOrdersService {
       await this.changeLogger.logChange(repairOrderId, 'problem_updated', updateDto, admin.id);
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
 
+      // Notify branch about the update
+      void this.helper
+        .getRepairOrderNotificationMeta(repairOrderId)
+        .then((richMeta) => {
+          this.notificationService
+            .notifyBranch(this.knex, order.branch_id, {
+              title: 'Buyurtma yangilandi',
+              message: `Buyurtma #${order.number_id} muammo/narx ma'lumotlari yangilandi`,
+              type: 'info',
+              meta: {
+                ...richMeta,
+                action: 'order_updated',
+              } as Record<string, unknown>,
+            })
+            .catch((err: Error) => {
+              this.logger.error(
+                `Failed to send branch notification for problem update on order ${repairOrderId}: ${err.message}`,
+              );
+            });
+        })
+        .catch((err: Error) => {
+          this.logger.error(
+            `Failed to fetch meta for branch notification for problem update on order ${repairOrderId}: ${err.message}`,
+          );
+        });
+
       return { message: 'Problem updated successfully' };
     } catch (error) {
       await trx.rollback();
@@ -1280,7 +1385,52 @@ export class RepairOrdersService {
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
       await this.redisService.flushByPrefix(`${this.table}:${transferDto.new_branch_id}`);
 
-      return updated[0] as { message: string };
+      // Notify BOTH branches about the transfer
+      // Current (old) branch
+      void this.helper
+        .getRepairOrderNotificationMeta(repairOrderId)
+        .then((richMeta) => {
+          // Notify old branch: order removed (moved out)
+          this.notificationService
+            .notifyBranch(this.knex, order.branch_id, {
+              title: "Buyurtma ko'chirildi",
+              message: `Buyurtma #${order.number_id} boshqa filialga ko'chirildi`,
+              type: 'info',
+              meta: {
+                ...richMeta,
+                action: 'order_updated',
+              } as Record<string, unknown>,
+            })
+            .catch((err: Error) => {
+              this.logger.error(
+                `Failed to send branch notification for transfer out on order ${repairOrderId}: ${err.message}`,
+              );
+            });
+
+          // Notify new branch: order arrived
+          this.notificationService
+            .notifyBranch(this.knex, transferDto.new_branch_id, {
+              title: "Yangi buyurtma (Ko'chirildi)",
+              message: `Boshqa filialdan yangi buyurtma ko'chirib kelindi: #${order.number_id}`,
+              type: 'info',
+              meta: {
+                ...richMeta,
+                action: 'order_updated',
+              } as Record<string, unknown>,
+            })
+            .catch((err: Error) => {
+              this.logger.error(
+                `Failed to send branch notification for transfer in on order ${repairOrderId}: ${err.message}`,
+              );
+            });
+        })
+        .catch((err: Error) => {
+          this.logger.error(
+            `Failed to fetch meta for branch notification for transfer on order ${repairOrderId}: ${err.message}`,
+          );
+        });
+
+      return updated[0] as unknown as { message: string };
     } catch (error) {
       await trx.rollback();
       throw error;
