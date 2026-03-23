@@ -195,6 +195,8 @@ export class RepairOrdersService {
         order = inserted;
       }
 
+      const isUpdate = !!existingOpenOrder;
+
       // Process helpers (initial problems, comments, etc.) for either the new or existing order
       await Promise.all([
         this.helper.insertAssignAdmins(
@@ -270,12 +272,14 @@ export class RepairOrdersService {
         .then((richMeta) => {
           this.notificationService
             .notifyBranch(this.knex, order.branch_id, {
-              title: 'Yangi buyurtma',
-              message: `Filialda yangi buyurtma yaratildi: #${order.number_id}`,
+              title: isUpdate ? 'Buyurtma yangilandi' : 'Yangi buyurtma',
+              message: isUpdate
+                ? `Mavjud buyurtma yangilandi: #${order.number_id}`
+                : `Filialda yangi buyurtma yaratildi: #${order.number_id}`,
               type: 'info',
               meta: {
                 ...richMeta,
-                action: 'order_created',
+                action: isUpdate ? 'order_updated' : 'order_created',
               } as Record<string, unknown>,
             })
             .catch((err: Error) => {
@@ -1321,6 +1325,32 @@ export class RepairOrdersService {
 
       await this.moveToTop(trx, order);
       await trx.commit();
+
+      void this.helper
+        .getRepairOrderNotificationMeta(order.id)
+        .then((richMeta) => {
+          this.notificationService
+            .notifyBranch(this.knex, order.branch_id, {
+              title: 'Buyurtma yangilandi',
+              message: `Mavjud buyurtma yangilandi (Qo'ng'iroq): #${order.number_id}`,
+              type: 'info',
+              meta: {
+                ...richMeta,
+                action: 'order_updated',
+              } as Record<string, unknown>,
+            })
+            .catch((err: Error) => {
+              this.logger.error(
+                `Failed to send branch notification for order ${order.id}: ${err.message}`,
+              );
+            });
+        })
+        .catch((err: Error) => {
+          this.logger.error(
+            `Failed to fetch meta for branch notification for order ${order.id}: ${err.message}`,
+          );
+        });
+
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
     } catch (error) {
       await trx.rollback();
@@ -1346,6 +1376,32 @@ export class RepairOrdersService {
 
       await this.moveToTop(trx, order);
       await trx.commit();
+
+      void this.helper
+        .getRepairOrderNotificationMeta(order.id)
+        .then((richMeta) => {
+          this.notificationService
+            .notifyBranch(this.knex, order.branch_id, {
+              title: 'Buyurtma yangilandi',
+              message: `Mavjud buyurtma yangilandi (O'tib ketilgan qo'ng'iroq): #${order.number_id}`,
+              type: 'info',
+              meta: {
+                ...richMeta,
+                action: 'order_updated',
+              } as Record<string, unknown>,
+            })
+            .catch((err: Error) => {
+              this.logger.error(
+                `Failed to send branch notification for order ${order.id}: ${err.message}`,
+              );
+            });
+        })
+        .catch((err: Error) => {
+          this.logger.error(
+            `Failed to fetch meta for branch notification for order ${order.id}: ${err.message}`,
+          );
+        });
+
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
     } catch (error) {
       await trx.rollback();
@@ -1461,6 +1517,31 @@ export class RepairOrdersService {
       }
 
       await trx.commit();
+
+      void this.helper
+        .getRepairOrderNotificationMeta(newOrder.id)
+        .then((richMeta) => {
+          this.notificationService
+            .notifyBranch(this.knex, newOrder.branch_id, {
+              title: 'Yangi buyurtma',
+              message: `Filialda yangi buyurtma yaratildi (Telefoniya): #${newOrder.number_id}`,
+              type: 'info',
+              meta: {
+                ...richMeta,
+                action: 'order_created',
+              } as Record<string, unknown>,
+            })
+            .catch((err: Error) => {
+              this.logger.error(
+                `Failed to send branch notification for order ${newOrder.id}: ${err.message}`,
+              );
+            });
+        })
+        .catch((err: Error) => {
+          this.logger.error(
+            `Failed to fetch meta for branch notification for order ${newOrder.id}: ${err.message}`,
+          );
+        });
 
       this.webhookService.sendWebhook(newOrder.id).catch((err: unknown) => {
         this.logger.error(
@@ -1592,6 +1673,32 @@ export class RepairOrdersService {
 
       await this.moveToTop(trx, order);
       await trx.commit();
+
+      void this.helper
+        .getRepairOrderNotificationMeta(order.id)
+        .then((richMeta) => {
+          this.notificationService
+            .notifyBranch(this.knex, order.branch_id, {
+              title: 'Buyurtma yangilandi',
+              message: `Mavjud buyurtma yangilandi (Tugallangan qo'ng'iroq): #${order.number_id}`,
+              type: 'info',
+              meta: {
+                ...richMeta,
+                action: 'order_updated',
+              } as Record<string, unknown>,
+            })
+            .catch((err: Error) => {
+              this.logger.error(
+                `Failed to send branch notification for order ${order.id}: ${err.message}`,
+              );
+            });
+        })
+        .catch((err: Error) => {
+          this.logger.error(
+            `Failed to fetch meta for branch notification for order ${order.id}: ${err.message}`,
+          );
+        });
+
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
     } catch (error) {
       await trx.rollback();
