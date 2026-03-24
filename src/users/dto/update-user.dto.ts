@@ -21,8 +21,7 @@ export class UpdateUserDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @MinLength(2)
-  @MaxLength(30)
+  @MaxLength(300)
   last_name?: string;
 
   @ApiPropertyOptional()
