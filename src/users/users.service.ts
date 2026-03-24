@@ -178,10 +178,16 @@ export class UsersService {
         .clone()
         .select(this.userFields)
         .orderBy('created_at', 'desc')
+        .whereNot({ status: 'Deleted' })
         .offset(offset)
         .limit(limit),
 
-      baseQuery.clone().clearSelect().clearOrder().count<{ count: string }[]>('* as count'),
+      baseQuery
+        .clone()
+        .clearSelect()
+        .clearOrder()
+        .whereNot({ status: 'Deleted' })
+        .count<{ count: string }[]>('* as count'),
     ])) as unknown as [UserListItem[], [{ count: string }]];
 
     return {

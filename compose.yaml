@@ -13,7 +13,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      db-seed:
+      db-migrate:
         condition: service_completed_successfully
     networks:
       - procare_network
@@ -24,14 +24,14 @@ services:
       retries: 3
       start_period: 40s
 
-  db-seed:
+  db-migrate:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: procare_db_seed
+    container_name: procare_db_migrate
     env_file: .env
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=${NODE_ENV:-development}
       - DB_HOST=postgres
       - ${DB_PORT}
       - ${DB_USER}
@@ -40,7 +40,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: npm run db:setup
+    command: npm run db:migrate
     networks:
       - procare_network
     restart: "no"
