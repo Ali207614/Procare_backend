@@ -9,7 +9,6 @@ import { RedisService } from 'src/common/redis/redis.service';
 import { PhoneOsTypesService } from 'src/phone-os-types/phone-os-types.service';
 import { LoggerService } from 'src/common/logger/logger.service';
 import { PhoneCategory, PhoneCategoryWithMeta } from 'src/common/types/phone-category.interface';
-import { PhoneOsType } from 'src/common/types/phone-os-type.interface';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 
 @Injectable()
@@ -47,10 +46,7 @@ export class PhoneCategoriesService {
       const { parent_id, name_uz, name_ru, name_en, phone_os_type_id } = dto;
 
       if (phone_os_type_id) {
-        const allOsTypes: PaginationResult<PhoneOsType> = await this.phoneOsTypesService.findAll();
-        const found: PhoneOsType | undefined = allOsTypes.rows.find(
-          (os: PhoneOsType): boolean => os.id === phone_os_type_id,
-        );
+        const found = await this.phoneOsTypesService.findById(phone_os_type_id);
         if (!found || !found.is_active) {
           throw new BadRequestException({
             message: 'Phone OS type not found or inactive',
@@ -135,7 +131,10 @@ export class PhoneCategoriesService {
       if (err instanceof HttpException) {
         throw err;
       }
-      this.logger.error(`Failed to create phone category`);
+      this.logger.error(
+        `Failed to create phone category`,
+        err instanceof Error ? err.stack : undefined,
+      );
       throw new BadRequestException({
         message: 'Failed to create phone category',
         location: 'create_phone_category',
@@ -252,7 +251,10 @@ export class PhoneCategoriesService {
     } catch (err) {
       await trx.rollback();
       if (err instanceof HttpException) throw err;
-      this.logger.error(`Failed to fetch phone categories`);
+      this.logger.error(
+        `Failed to fetch phone categories`,
+        err instanceof Error ? err.stack : undefined,
+      );
       throw new BadRequestException({
         message: 'Failed to fetch phone categories',
         location: 'find_phone_categories',
@@ -344,7 +346,10 @@ export class PhoneCategoriesService {
       if (err instanceof HttpException) {
         throw err;
       }
-      this.logger.error(`Failed to update phone category ${id}`);
+      this.logger.error(
+        `Failed to update phone category ${id}`,
+        err instanceof Error ? err.stack : undefined,
+      );
       throw new BadRequestException({
         message: 'Failed to update phone category',
         location: 'update_phone_category',
@@ -397,7 +402,10 @@ export class PhoneCategoriesService {
       if (err instanceof HttpException) {
         throw err;
       }
-      this.logger.error(`Failed to update sort for phone category ${id}`);
+      this.logger.error(
+        `Failed to update sort for phone category ${id}`,
+        err instanceof Error ? err.stack : undefined,
+      );
       throw new BadRequestException({ message: 'Failed to update sort', location: 'update_sort' });
     }
   }
@@ -452,7 +460,10 @@ export class PhoneCategoriesService {
       if (err instanceof HttpException) {
         throw err;
       }
-      this.logger.error(`Failed to delete phone category ${id}`);
+      this.logger.error(
+        `Failed to delete phone category ${id}`,
+        err instanceof Error ? err.stack : undefined,
+      );
       throw new BadRequestException({
         message: 'Failed to delete phone category',
         location: 'delete_phone_category',

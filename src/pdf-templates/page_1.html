@@ -370,7 +370,14 @@
             <div class="notes-area" id="field-comments"></div>
 
             <div class="signature-row">
-                <div class="sig-box">Procare mutaxassisi:</div>
+                <div class="sig-box">
+                    Procare mutaxassisi:
+                    <div class="input-group" style="margin-top: 15px;">
+                        <span class="label">Kelishilgan summa:</span>
+                        <div class="underline" id="field-total_amount"></div>
+                        <span class="label" style="margin-left: 5px;">so'm</span>
+                    </div>
+                </div>
                 <div class="sig-box">Mijoz:</div>
             </div>
         </div>
@@ -420,11 +427,18 @@
         // Additional form fields
         const fields = [
             'customer_name', 'phone_number', 'device_name', 'imei',
-            'specialist_name', 'promo_code', 'repair_id', 'source'
+            'specialist_name', 'promo_code', 'repair_id', 'source', 'total_amount'
         ];
         fields.forEach(key => {
             const el = document.getElementById(`field-${key}`);
-            if (el) el.textContent = form[key] || '';
+            if (el) {
+                let value = form[key] || '';
+                if (key === 'total_amount' && value !== '') {
+                    // Format with spaces as thousand separators (e.g. 1 000 000)
+                    value = value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+                }
+                el.textContent = value;
+            }
         });
 
         // Comments

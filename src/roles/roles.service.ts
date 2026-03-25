@@ -119,6 +119,9 @@ export class RolesService {
             '{}'::jsonb
           ) as created_by_admin
         `),
+          this.knex.raw(`
+          (SELECT COUNT(*)::int FROM admin_roles WHERE role_id = r.id) as worker_count
+        `),
         )
         .orderBy('r.created_at', 'desc')
         .limit(limit)
@@ -154,6 +157,9 @@ export class RolesService {
           ),
           '{}'::jsonb
         ) as created_by_admin
+      `),
+        this.knex.raw(`
+        (SELECT COUNT(*)::int FROM admin_roles WHERE role_id = r.id) as worker_count
       `),
       )
       .leftJoin('admins as a', 'r.created_by', 'a.id')

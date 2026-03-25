@@ -4,6 +4,7 @@ export interface Role {
   is_active: boolean;
   is_protected: boolean;
   status: 'Open' | 'Deleted';
+  worker_count?: number;
   created_by: string | null;
   created_at: string; // yoki Date
   updated_at: string; // yoki Date

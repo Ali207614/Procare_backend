@@ -150,20 +150,25 @@ export class RepairOrderCreateHelperService {
     branchId: string,
     allPermissions: RepairOrderStatusPermission[],
   ): Promise<void> {
-    if (!dto.admin_ids?.length) return;
+    const providedAdminIds = dto.admin_ids || [];
+    const uniqueIds = [...new Set([...providedAdminIds, admin.id])];
 
     try {
       this.logger.log(`Assigning admins to repair order ${orderId}`);
-      await this.permissionService.checkPermissionsOrThrow(
-        admin.roles,
-        branchId,
-        statusId,
-        ['can_assign_admin'],
-        'repair_order_assign_admins',
-        allPermissions,
-      );
 
-      const uniqueIds = [...new Set(dto.admin_ids)];
+      // We explicitly check for assignment permission only if other admin IDs were provided manually.
+      // Automatic assignment of the creator doesn't require "can_assign_admin".
+      const assigningOthers = providedAdminIds.some((id) => id !== admin.id);
+      if (assigningOthers) {
+        await this.permissionService.checkPermissionsOrThrow(
+          admin.roles,
+          branchId,
+          statusId,
+          ['can_assign_admin'],
+          'repair_order_assign_admins',
+          allPermissions,
+        );
+      }
 
       const existingAdmins: string[] = await trx('admin_branches as ab')
         .join('branches as b', 'ab.branch_id', 'b.id')
@@ -172,21 +177,28 @@ export class RepairOrderCreateHelperService {
         .andWhere('b.status', 'Open')
         .pluck('ab.admin_id');
 
-      const notFound = uniqueIds.filter((id: string): boolean => !existingAdmins?.includes(id));
-      if (notFound.length) {
+      // Check if any manually provided IDs are missing/invalid for this branch
+      const missingProvidedIds = providedAdminIds.filter((id) => !existingAdmins.includes(id));
+      if (missingProvidedIds.length) {
         throw new BadRequestException({
           message: 'Admin(s) not found or not in specified branch',
           location: 'admin_ids',
-          missing_ids: notFound,
+          missing_ids: missingProvidedIds,
         });
       }
 
+      // Filter uniqueIds to only include those that actually exist in the branch (including the creator if they are in it)
+      const finalIdsToAssign = uniqueIds.filter((id) => existingAdmins.includes(id));
+
+      if (!finalIdsToAssign.length) return;
+
       const now = new Date();
-      const rows = uniqueIds.map((id) => ({
+      const rows = finalIdsToAssign.map((id) => ({
         repair_order_id: orderId,
         admin_id: id,
         created_at: now,
       }));
+
       await trx('repair_order_assign_admins')
         .insert(rows)
         .onConflict(['repair_order_id', 'admin_id'])
@@ -196,7 +208,7 @@ export class RepairOrderCreateHelperService {
       if (order) {
         void this.getRepairOrderNotificationMeta(order.id, trx)
           .then((richMeta) => {
-            const notifications = uniqueIds.map((adminId) => ({
+            const notifications = finalIdsToAssign.map((adminId) => ({
               admin_id: adminId,
               title: 'Yangi buyurtma tayinlandi',
               message: 'Sizga yangi repair order biriktirildi.',
@@ -214,7 +226,7 @@ export class RepairOrderCreateHelperService {
             return trx('notifications')
               .insert(notifications)
               .then(() => {
-                return this.notificationService.notifyAdmins(trx, uniqueIds, {
+                return this.notificationService.notifyAdmins(trx, finalIdsToAssign, {
                   title: 'Yangi buyurtma',
                   message: 'Sizga yangi buyurtma biriktirildi.',
                   meta: {
@@ -232,8 +244,9 @@ export class RepairOrderCreateHelperService {
           });
       }
 
-      this.logger.log(`Assigned ${uniqueIds.length} admins to repair order ${orderId}`);
+      this.logger.log(`Assigned ${finalIdsToAssign.length} admins to repair order ${orderId}`);
     } catch (err: unknown) {
+      if (err instanceof BadRequestException) throw err;
       const message = err instanceof Error ? err.message : 'Failed to assign admins';
 
       this.logger.error(`Failed to assign admins to repair order  ${orderId}: ${message}`);

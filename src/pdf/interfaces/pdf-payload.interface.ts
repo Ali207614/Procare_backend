@@ -9,6 +9,7 @@ export interface PdfFormPayload {
   promo_code: string;
   repair_id: string;
   source: string;
+  total_amount: number;
 }
 
 export interface PdfChecklistItem {
@@ -31,4 +32,5 @@ export interface PdfPayload {
   device_points: Record<string, { x: number; y: number }[]>;
   checklist: PdfChecklist;
   comments: string;
+  offer_content?: string;
 }

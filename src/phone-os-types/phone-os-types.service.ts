@@ -13,6 +13,24 @@ import { FindAllPhoneOsTypeDto } from 'src/phone-os-types/dto/find-all-phone-os-
 export class PhoneOsTypesService {
   private readonly redisKey = 'phone_os_types:all';
 
+  async findById(id: string): Promise<PhoneOsType | undefined> {
+    const trx = await this.knex.transaction();
+    try {
+      const osType = await trx<PhoneOsType>('phone_os_types').where({ id, status: 'Open' }).first();
+      await trx.commit();
+      return osType;
+    } catch (err) {
+      await trx.rollback();
+      this.logger.error(`Failed to find phone OS type ${id}`);
+      throw new BadRequestException({
+        message: 'Failed to find phone OS type',
+        location: 'findById',
+      });
+    } finally {
+      await trx.destroy();
+    }
+  }
+
   constructor(
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,

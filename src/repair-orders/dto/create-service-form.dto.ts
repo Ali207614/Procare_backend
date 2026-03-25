@@ -18,6 +18,11 @@ export class ServiceFormFormDto {
   @ApiProperty({ example: '1234' })
   @IsString()
   pin!: string;
+
+  @ApiPropertyOptional({ example: 450000 })
+  @IsOptional()
+  @IsNumber()
+  total_amount?: number;
 }
 
 export class ServiceFormChecklistItemDto {

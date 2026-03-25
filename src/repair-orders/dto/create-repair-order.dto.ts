@@ -269,4 +269,12 @@ export class CreateRepairOrderDto {
   @ValidateNested()
   @Type(() => RentalPhoneDto)
   rental_phone?: RentalPhoneDto;
+
+  @ApiPropertyOptional({
+    description: 'Status ID',
+    example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec',
+  })
+  @IsOptional()
+  @IsUUID('all', { message: 'Invalid status ID' })
+  status_id?: string;
 }

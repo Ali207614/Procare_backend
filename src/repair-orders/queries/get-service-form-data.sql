@@ -14,7 +14,16 @@ SELECT
         WHERE raa.repair_order_id = ro.id
         ORDER BY raa.created_at ASC
         LIMIT 1
-    ), '')                                                     AS specialist_name
+    ), '')                                                     AS specialist_name,
+    COALESCE((
+        SELECT SUM(price)
+        FROM repair_order_initial_problems
+        WHERE repair_order_id = ro.id
+    ), 0) + COALESCE((
+        SELECT SUM(part_price * quantity)
+        FROM repair_order_parts
+        WHERE repair_order_id = ro.id
+    ), 0)                                                      AS total_amount
 FROM repair_orders ro
     LEFT JOIN users u          ON ro.user_id = u.id
     LEFT JOIN phone_categories pc ON ro.phone_category_id = pc.id

@@ -4,6 +4,7 @@ import { RedisModule } from 'src/common/redis/redis.module';
 import { NotificationModule } from 'src/notification/notification.module';
 import { RepairOrderStatusPermissionsModule } from 'src/repair-order-status-permission/repair-order-status-permissions.module';
 import { RepairOrderStatusesModule } from 'src/repair-order-statuses/repair-order-statuses.module';
+import { OffersModule } from 'src/offers/offers.module';
 import { PdfModule } from 'src/pdf/pdf.module';
 import { AssignAdminController } from './controllers/assign-admin.controller';
 import { CommentController } from './controllers/comment.controller';
@@ -34,6 +35,7 @@ import { RepairOrderWebhookService } from './services/repair-order-webhook.servi
     NotificationModule,
     RepairOrderStatusesModule,
     LoggerModule,
+    OffersModule,
     PdfModule,
   ],
   controllers: [

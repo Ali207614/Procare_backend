@@ -57,7 +57,7 @@ export class RepairOrdersService {
   ): Promise<RepairOrder> {
     const trx = await this.knex.transaction();
     try {
-      const createStatus = await this.resolveCreateStatus(trx, branchId);
+      const createStatus = await this.resolveCreateStatus(trx, branchId, dto.status_id);
       const permissions: RepairOrderStatusPermission[] =
         await this.permissionService.findByRolesAndBranch(admin.roles, branchId);
       await this.permissionService.checkPermissionsOrThrow(
@@ -318,7 +318,21 @@ export class RepairOrdersService {
   private async resolveCreateStatus(
     trx: Knex.Transaction,
     branchId: string,
+    statusId?: string,
   ): Promise<RepairOrderStatus> {
+    if (statusId) {
+      const status = await trx<RepairOrderStatus>('repair_order_statuses')
+        .where({ id: statusId, branch_id: branchId })
+        .first();
+      if (!status) {
+        throw new BadRequestException({
+          message: 'Status not found',
+          location: 'status_id',
+        });
+      }
+      return status;
+    }
+
     const protectedStatus = await trx<RepairOrderStatus>('repair_order_statuses')
       .where({
         branch_id: branchId,

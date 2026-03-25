@@ -94,9 +94,15 @@ export class RepairPartsService {
       exclude_problem_category_ids,
     } = query;
 
-    const baseQuery = this.knex<RepairPart>('repair_parts as rp')
-      .leftJoin('repair_part_assignments as rpa', 'rp.id', 'rpa.repair_part_id')
-      .whereNot('rp.status', 'Deleted');
+    const baseQuery = this.knex<RepairPart>('repair_parts as rp').leftJoin(
+      'repair_part_assignments as rpa',
+      'rp.id',
+      'rpa.repair_part_id',
+    );
+
+    if (status?.length) {
+      void baseQuery.whereIn('rp.status', status);
+    }
 
     if (search?.length) {
       const lowered = search.toLowerCase();
@@ -108,8 +114,8 @@ export class RepairPartsService {
       });
     }
 
-    if (status) {
-      void baseQuery.andWhere('rp.status', status);
+    if (status?.length) {
+      void baseQuery.whereIn('rp.status', status);
     }
 
     if (problem_category_ids?.length) {

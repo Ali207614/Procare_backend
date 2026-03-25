@@ -4,7 +4,10 @@ import { Knex } from 'knex';
 import { PdfService } from 'src/pdf/pdf.service';
 import { StorageService } from 'src/common/storage/storage.service';
 import { LoggerService } from 'src/common/logger/logger.service';
+import { OffersService } from 'src/offers/offers.service';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
+import { marked } from 'marked';
+import sanitizeHtml from 'sanitize-html';
 import {
   CreateServiceFormDto,
   DevicePointDto,
@@ -39,6 +42,7 @@ interface RepairOrderServiceFormData {
   phone_number: string;
   device_name: string;
   specialist_name: string;
+  total_amount: string | number;
 }
 
 @Injectable()
@@ -48,6 +52,7 @@ export class ServiceFormsService {
     private readonly pdfService: PdfService,
     private readonly storageService: StorageService,
     private readonly logger: LoggerService,
+    private readonly offersService: OffersService,
   ) {}
 
   /**
@@ -129,10 +134,29 @@ export class ServiceFormsService {
         promo_code: '',
         repair_id: warrantyId,
         source: data.source_type ?? '',
+        total_amount: Number(data.total_amount || 0),
       },
+      offer_content: '',
     };
 
-    // 4. Generate PDF buffer
+    // 4. Fetch Active Offer and convert to HTML
+    try {
+      const activeOffer = await this.offersService.findActive();
+      const rawHtml = await marked.parse(activeOffer.content_uz || '');
+      payload.offer_content = sanitizeHtml(rawHtml, {
+        allowedTags: sanitizeHtml.defaults.allowedTags.concat(['h1', 'h2', 'span']),
+        allowedAttributes: {
+          ...sanitizeHtml.defaults.allowedAttributes,
+          '*': ['style', 'class'],
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to fetch active offer for repair order ${repairOrderId}: ${(error as Error).message}`,
+      );
+    }
+
+    // 5. Generate PDF buffer
     let pdfBuffer: Buffer;
     try {
       pdfBuffer = await this.pdfService.generateProcareServiceForm(payload);
@@ -174,7 +198,7 @@ export class ServiceFormsService {
       file_path: filePath,
       pattern: JSON.stringify(dto.pattern),
       device_points: JSON.stringify(dto.device_points),
-      form: JSON.stringify(dto.form),
+      form: JSON.stringify({ ...dto.form, total_amount: payload.form.total_amount }),
       checklist: JSON.stringify(dto.checklist),
       comments: dto.comments,
       created_at: now,

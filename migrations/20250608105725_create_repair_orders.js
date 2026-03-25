@@ -34,6 +34,7 @@ exports.up = async function (knex) {
     table.integer('sort').defaultTo(1).notNullable();
     table.enu('priority', ['Low', 'Medium', 'High', 'Highest']).notNullable().defaultTo('Medium');
     table.integer('priority_level').notNullable().defaultTo(2);
+    table.string('agreed_date').nullable();
 
     table.uuid('created_by').references('id').inTable('admins').onDelete('RESTRICT');
     table.enu('status', ['Open', 'Deleted','Closed','Cancelled']).defaultTo('Open');
