@@ -91,4 +91,22 @@ export class UpdateRepairOrderDto {
   @ValidateNested({ each: true })
   @Type(() => ProblemDto)
   final_problems?: ProblemDto[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'Invalid reject cause ID',
+  })
+  reject_cause_id?: string;
+
+  @ApiPropertyOptional({
+    example: '2022-01-01',
+    description: 'Agreed date (YYYY-MM-DD)',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'Agreed date must be in YYYY-MM-DD format',
+  })
+  agreed_date?: string;
 }

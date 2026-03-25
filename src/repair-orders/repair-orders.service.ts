@@ -401,10 +401,39 @@ export class RepairOrdersService {
         'priority',
         'phone_category_id',
         'imei',
+        'reject_cause_id',
+        'agreed_date',
       ];
       for (const field of fieldsToCheck) {
         const dtoFieldValue = dto[field as keyof UpdateRepairOrderDto];
         if (dtoFieldValue !== undefined && dtoFieldValue !== order[field]) {
+          if (field === 'reject_cause_id' && dtoFieldValue) {
+            const cause = await trx('repair_order_reject_causes')
+              .where({ id: dtoFieldValue })
+              .first();
+            if (!cause) {
+              throw new BadRequestException({
+                message: 'Reject cause not found',
+                location: 'reject_cause_id',
+              });
+            }
+          }
+
+          if (field === 'agreed_date' && dtoFieldValue) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const [year, month, day] = (dtoFieldValue as string).split('-').map(Number);
+            const inputDate = new Date(year, month - 1, day);
+
+            if (inputDate <= today) {
+              throw new BadRequestException({
+                message: 'Agreed date must be in the future',
+                location: 'agreed_date',
+              });
+            }
+          }
+
           if (field === 'status_id') {
             // Check if there's an active rental phone and the new status is Canceled or Completed
             const newStatus = await trx('repair_order_statuses')
@@ -896,6 +925,20 @@ export class RepairOrdersService {
           throw new BadRequestException({
             message: 'IMEI is required to move the order to this status',
             location: 'imei',
+          });
+        }
+
+        if (targetPermission?.cannot_continue_without_reject_cause && !order.reject_cause_id) {
+          throw new BadRequestException({
+            message: 'Reject cause is required to move the order to this status',
+            location: 'reason_for_rejection',
+          });
+        }
+
+        if (targetPermission?.cannot_continue_without_agreed_date && !order.agreed_date) {
+          throw new BadRequestException({
+            message: 'Agreed date is required to move the order to this status',
+            location: 'agreed_date',
           });
         }
       }

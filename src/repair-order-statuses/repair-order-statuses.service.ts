@@ -122,6 +122,7 @@ export class RepairOrderStatusesService {
 
       this.logger.error(
         `Failed to create status: ${err instanceof Error ? err.message : String(err)}`,
+        err instanceof Error ? err.stack : undefined,
       );
 
       throw new BadRequestException({

@@ -29,6 +29,7 @@ exports.up = async function (knex) {
       .onDelete('RESTRICT');
 
     table.enu('delivery_method', ['Self', 'Delivery']).notNullable();
+
     table.enu('pickup_method', ['Self', 'Pickup']).notNullable();
 
     table.integer('sort').defaultTo(1).notNullable();

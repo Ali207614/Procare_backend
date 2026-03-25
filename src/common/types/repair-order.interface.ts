@@ -18,6 +18,8 @@ export interface RepairOrder {
   sort: number;
   priority: 'Low' | 'Medium' | 'High' | 'Highest';
   priority_level: number;
+  agreed_date: string | null;
+  reject_cause_id: string | null;
 
   created_by: string | null;
   status: 'Open' | 'Deleted' | 'Closed' | 'Cancelled';

@@ -37,6 +37,8 @@ exports.up = async function (knex) {
     table.boolean('can_user_manage').defaultTo(true);
     table.boolean('can_create_user').defaultTo(false);
     table.boolean('cannot_continue_without_imei').defaultTo(false);
+    table.boolean('cannot_continue_without_reject_cause').defaultTo(false);
+    table.boolean('cannot_continue_without_agreed_date').defaultTo(false);
     table.timestamp('created_at').defaultTo(knex.fn.now());
     table.timestamp('updated_at').defaultTo(knex.fn.now());
 

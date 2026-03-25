@@ -69,7 +69,9 @@ import { OffersController } from './offers/offers.controller';
 import { StorageModule } from './common/storage/storage.module';
 import { PdfModule } from './pdf/pdf.module';
 import { OnlinePbxModule } from './online-pbx/online-pbx.module';
-
+import { RepairOrderRejectCausesModule } from './repair-order-reject-causes/repair-order-reject-causes.module';
+import { RepairOrderRejectCausesController } from './repair-order-reject-causes/repair-order-reject-causes.controller';
+import { RepairOrderRejectCausesService } from './repair-order-reject-causes/repair-order-reject-causes.service';
 @Module({
   imports: [
     BullModule.forRoot({
@@ -108,6 +110,7 @@ import { OnlinePbxModule } from './online-pbx/online-pbx.module';
     StorageModule,
     PdfModule,
     OnlinePbxModule,
+    RepairOrderRejectCausesModule,
   ],
   controllers: [
     AuthController,
@@ -125,6 +128,7 @@ import { OnlinePbxModule } from './online-pbx/online-pbx.module';
     TemplatesController,
     CampaignsController,
     OffersController,
+    RepairOrderRejectCausesController,
   ],
   providers: [
     RepairPartsService,
@@ -142,6 +146,7 @@ import { OnlinePbxModule } from './online-pbx/online-pbx.module';
     AdminsService,
     UsersService,
     OffersService,
+    RepairOrderRejectCausesService,
   ],
 })
 export class AppModule implements NestModule {

@@ -28,6 +28,8 @@ export interface RepairOrderStatusPermission {
   can_user_manage: boolean;
   can_create_user: boolean;
   cannot_continue_without_imei: boolean;
+  cannot_continue_without_reject_cause: boolean;
+  cannot_continue_without_agreed_date: boolean;
 
   created_at: string; // ISO timestamp
   updated_at: string; // ISO timestamp
