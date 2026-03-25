@@ -27,7 +27,7 @@ COPY package.json pnpm-lock.yaml ./
 
 FROM base as deps
 RUN --mount=type=cache,target=/root/.pnpm-store \
-    pnpm install --frozen-lockfile --prod
+    pnpm install --frozen-lockfile --prod --ignore-scripts
 
 
 FROM base as build
