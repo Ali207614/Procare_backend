@@ -21,19 +21,20 @@ RUN apk add --no-cache \
     ca-certificates \
     ttf-freefont
 
-COPY package*.json ./
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+COPY package.json pnpm-lock.yaml ./
 
 FROM base as deps
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci && \
-    npm prune --production
+RUN --mount=type=cache,target=/root/.pnpm-store \
+    pnpm install --frozen-lockfile --prod
 
 
 FROM base as build
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci
+RUN --mount=type=cache,target=/root/.pnpm-store \
+    pnpm install --frozen-lockfile
 COPY . .
-RUN npm run build
+RUN pnpm run build
 
 FROM base as final
 
