@@ -35,7 +35,10 @@ export class AdminsService {
   private readonly redisKeyByAdminId = 'admin:branches';
 
   async findByPhoneNumber(phone: string): Promise<Admin | undefined> {
-    return this.knex(this.table).where({ phone_number: phone }).first();
+    return this.knex(this.table)
+      .where({ phone_number: phone })
+      .andWhereNot({ status: 'Deleted' })
+      .first();
   }
 
   async findById(id: string): Promise<Admin> {

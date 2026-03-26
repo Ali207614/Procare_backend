@@ -22,22 +22,22 @@ export class FindAllAdminsDto {
   @ApiPropertyOptional({
     description: 'Filter by status',
     type: [String],
-    enum: ['Open', 'Pending', 'Deleted', 'Banned'],
+    enum: ['Open', 'Pending', 'Banned'],
   })
   @IsOptional()
   @IsArray()
-  @IsIn(['Open', 'Pending', 'Deleted', 'Banned'], { each: true })
+  @IsIn(['Open', 'Pending', 'Banned'], { each: true })
   @ToArray()
   status?: string[];
 
   @ApiPropertyOptional({
     description: 'Exclude by status',
     type: [String],
-    enum: ['Open', 'Pending', 'Deleted', 'Banned'],
+    enum: ['Open', 'Pending', 'Banned'],
   })
   @IsOptional()
   @IsArray()
-  @IsIn(['Open', 'Pending', 'Deleted', 'Banned'], { each: true })
+  @IsIn(['Open', 'Pending', 'Banned'], { each: true })
   @ToArray()
   exclude_status?: string[];
 

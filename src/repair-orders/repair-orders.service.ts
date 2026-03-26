@@ -420,13 +420,9 @@ export class RepairOrdersService {
           }
 
           if (field === 'agreed_date' && dtoFieldValue) {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            const inputDate = new Date(dtoFieldValue as string);
 
-            const [year, month, day] = (dtoFieldValue as string).split('-').map(Number);
-            const inputDate = new Date(year, month - 1, day);
-
-            if (inputDate <= today) {
+            if (inputDate <= new Date()) {
               throw new BadRequestException({
                 message: 'Agreed date must be in the future',
                 location: 'agreed_date',

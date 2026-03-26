@@ -15,6 +15,6 @@ LEFT JOIN admin_roles ar ON ar.admin_id = a.id
 LEFT JOIN roles r ON r.id = ar.role_id AND r.status = 'Open' AND r.is_active = true
 LEFT JOIN admin_branches ab ON ab.admin_id = a.id
 LEFT JOIN branches b ON b.id = ab.branch_id AND b.status = 'Open' AND b.is_active = true
-WHERE a.id = :admin_id
+WHERE a.id = :admin_id AND a.status <> 'Deleted'
 GROUP BY a.id
 LIMIT 1;

@@ -34,15 +34,17 @@ export class PdfService {
         this.logger.debug(`Rendering ${fileName}...`);
         const page = await browser.newPage();
 
-        // Resolve path to the copied templates in the dist/ directory
-        const filePath = path.join(__dirname, '..', 'pdf-templates', fileName);
-        await page.goto(`file://${filePath}`, { waitUntil: 'networkidle0' });
-
+        // Set viewport BEFORE navigation so the CSS layout is computed
+        // at the correct dimensions (critical for rotated content in page_3)
         await page.setViewport({
           width: 1122,
           height: 794,
           deviceScaleFactor: 2,
         });
+
+        // Resolve path to the copied templates in the dist/ directory
+        const filePath = path.join(__dirname, '..', 'pdf-templates', fileName);
+        await page.goto(`file://${filePath}`, { waitUntil: 'networkidle0' });
 
         // Inject payload and render
         await page.evaluate((data: PdfPayload) => {

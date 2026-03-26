@@ -13,15 +13,26 @@
             --line-color: #333;
         }
 
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             margin: 0;
             padding: 0;
             background-color: #f0f0f0;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
             min-height: 100vh;
             font-family: 'Segoe UI', Arial, sans-serif;
+        }
+
+        #pages-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
         }
 
         /* The physical paper is Landscape */
@@ -30,27 +41,37 @@
             height: 210mm;
             background: #fff;
             position: relative;
-            overflow: hidden;
+            overflow: visible;
+            clip-path: inset(0);
             box-shadow: 0 0 10px rgba(0,0,0,0.2);
             display: flex;
             justify-content: center;
             align-items: center;
+            flex: none;
+            break-after: page;
+            page-break-after: always;
         }
 
-        /* The content is Portrait, rotated -90 degrees (CCW) */
+        .page-container:last-child {
+            break-after: auto;
+            page-break-after: auto;
+        }
+
+        /* The content is Portrait, rotated -90 degrees (CCW).
+         * We let flexbox center the footprint (210x297) and rotate around center.
+         */
         .content-wrapper {
             width: 210mm;
             height: 297mm;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) rotate(-90deg);
+            transform: rotate(-90deg);
             transform-origin: center center;
-            padding: 25mm 30mm; /* Adjusted margins for better fullness */
+            padding: 30mm;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
             background: #fff;
+            flex: none;
         }
 
         /* ===== HEADER ===== */
@@ -87,6 +108,54 @@
         }
 
         /* ===== MAIN CONTENT ===== */
+        .content-render-area {
+            position: relative;
+            z-index: 2;
+            color: var(--text-black);
+            /* Explicit width prevents text from overflowing the
+             * padded content area (210mm - 30mm*2 = 150mm). */
+            max-width: 150mm;
+            width: 100%;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .content-render-area p,
+        .content-render-area ul,
+        .content-render-area ol {
+            font-size: 13.5px;
+            line-height: 1.6;
+            margin: 0 0 14px 0;
+        }
+
+        .content-render-area ul,
+        .content-render-area ol {
+            padding-left: 22px;
+        }
+
+        .content-render-area li {
+            font-size: 13px;
+            line-height: 1.55;
+            margin-bottom: 10px;
+        }
+
+        .content-render-area li:last-child {
+            margin-bottom: 0;
+        }
+
+        .content-render-area h1,
+        .content-render-area h2,
+        .content-render-area h3 {
+            color: var(--text-black);
+            font-size: 16px;
+            line-height: 1.35;
+            margin: 0 0 12px 0;
+        }
+
+        .content-render-area strong {
+            font-weight: 700;
+        }
+
         .title-blue {
             color: var(--primary-blue);
             font-size: 19px;
@@ -237,7 +306,14 @@
         }
 
         @media print {
-            body { background: none; }
+            body {
+                background: none;
+                display: block;
+                min-height: auto;
+            }
+            #pages-container {
+                display: block;
+            }
             .page-container { 
                 margin: 0; 
                 box-shadow: none; 
@@ -335,6 +411,7 @@
         const footerTemplate = document.getElementById('footer-template');
         const offerHtml = payload.offer_content || '';
         const form = payload.form || {};
+        pagesContainer.innerHTML = '';
 
         // Helper: Create a new page
         function createNewPage() {
@@ -343,17 +420,42 @@
             return pagesContainer.lastElementChild.querySelector('.content-render-area');
         }
 
+        function getMaxContentHeight(pageArea) {
+            const wrapper = pageArea.closest('.content-wrapper');
+            const wrapperRect = wrapper.getBoundingClientRect();
+            const areaRect = pageArea.getBoundingClientRect();
+            
+            // Because the wrapper is rotated -90deg:
+            // Portrait HEIGHT = Visual landscape WIDTH (297mm)
+            // Portrait TOP padding = Visual landscape LEFT distance
+            // Portrait BOTTOM padding = Visual landscape RIGHT distance
+            
+            const totalPortraitHeight = wrapperRect.width; 
+            const topDistance = areaRect.left - wrapperRect.left;
+            const wrapperStyles = window.getComputedStyle(wrapper);
+            // Visual RIGHT padding is original portrait BOTTOM padding
+            const bottomPadding = parseFloat(wrapperStyles.paddingBottom) || 0;
+            
+            return totalPortraitHeight - topDistance - bottomPadding;
+        }
+
+        function pageOverflowed(pageArea) {
+            // Check scrollHeight against the actual portrait height available
+            return pageArea.scrollHeight > getMaxContentHeight(pageArea) + 1;
+        }
+
         // 1. Create a dummy container to measure text
         const measurer = document.createElement('div');
-        measurer.style.width = '150mm'; // Available width inside content-wrapper
+        measurer.className = 'content-render-area'; // Inherit styles
+        measurer.style.width = '150mm'; // Portrait width (210 - 30 - 30)
         measurer.style.position = 'absolute';
         measurer.style.visibility = 'hidden';
-        measurer.style.fontSize = '13.5px';
-        measurer.style.lineHeight = '1.6';
         measurer.innerHTML = offerHtml;
         document.body.appendChild(measurer);
 
-        const nodes = Array.from(measurer.childNodes);
+        const nodes = Array.from(measurer.childNodes).filter((node) => {
+            return node.nodeType !== Node.TEXT_NODE || node.textContent.trim() !== '';
+        });
         let currentPageArea = createNewPage();
         
         // Always start with "Hurmatli mijoz"
@@ -362,14 +464,12 @@
         introTitle.textContent = 'Hurmatli mijoz,';
         currentPageArea.appendChild(introTitle);
 
-        const MAX_CONTENT_HEIGHT_PX = 850; // Roughly 225mm @ 96dpi
-
         function addNodeToPage(node) {
             const clone = node.cloneNode(true);
             currentPageArea.appendChild(clone);
             
             // Check if we exceeded the limit
-            if (currentPageArea.offsetHeight > MAX_CONTENT_HEIGHT_PX) {
+            if (pageOverflowed(currentPageArea)) {
                 currentPageArea.removeChild(clone);
                 currentPageArea = createNewPage();
                 currentPageArea.appendChild(clone);
@@ -385,7 +485,7 @@
         footerMeasurer.appendChild(footerClone);
         currentPageArea.appendChild(footerMeasurer);
 
-        if (currentPageArea.offsetHeight > MAX_CONTENT_HEIGHT_PX) {
+        if (pageOverflowed(currentPageArea)) {
             currentPageArea.removeChild(footerMeasurer);
             currentPageArea = createNewPage();
             currentPageArea.appendChild(footerMeasurer);

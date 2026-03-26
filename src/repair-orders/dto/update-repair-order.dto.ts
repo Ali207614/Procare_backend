@@ -100,13 +100,13 @@ export class UpdateRepairOrderDto {
   reject_cause_id?: string;
 
   @ApiPropertyOptional({
-    example: '2022-01-01',
-    description: 'Agreed date (YYYY-MM-DD)',
+    example: '2026-03-26 09:00',
+    description: 'Agreed date (YYYY-MM-DD HH:mm)',
   })
   @IsOptional()
   @IsString()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
-    message: 'Agreed date must be in YYYY-MM-DD format',
+  @Matches(/^\d{4}-\d{2}-\d{2} \d{2}(:\d{2})?$/, {
+    message: 'Agreed date must be in YYYY-MM-DD HH:mm format',
   })
   agreed_date?: string;
 }

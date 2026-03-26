@@ -34,7 +34,10 @@ WITH filtered AS (
       -- INCLUDE status
       AND (:status::text[] IS NULL OR a.status = ANY(:status::text[]))
       -- EXCLUDE status
-      AND (:exclude_status::text[] IS NULL OR a.status <> ALL(:exclude_status::text[]))
+      AND (
+          (:exclude_status::text[] IS NULL OR a.status <> ALL(:exclude_status::text[]))
+            AND a.status <> 'Deleted'
+          )
 
       -- INCLUDE branch
       AND (

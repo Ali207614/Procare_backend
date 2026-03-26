@@ -72,4 +72,22 @@ export class AssignRepairOrderStatusPermissionsDto {
   @IsOptional()
   @IsBoolean()
   cannot_continue_without_imei?: boolean;
+
+  @ApiProperty({
+    required: false,
+    description:
+      'If enabled, moving a repair order to this status is blocked unless the order has a reject cause assigned.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  cannot_continue_without_reject_cause?: boolean;
+
+  @ApiProperty({
+    required: false,
+    description:
+      'If enabled, moving a repair order to this status is blocked unless the order has an agreed date set.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  cannot_continue_without_agreed_date?: boolean;
 }

@@ -139,11 +139,16 @@ export class ServiceFormsService {
       offer_content: '',
     };
 
-    // 4. Fetch Active Offer and convert to HTML
+    // 4. Fetch Active Offer and convert to safe HTML
     try {
       const activeOffer = await this.offersService.findActive();
-      const rawHtml = await marked.parse(activeOffer.content_uz || '');
-      payload.offer_content = sanitizeHtml(rawHtml, {
+      const rawContent = activeOffer.content_uz || '';
+
+      // Detect if content is already HTML (contains HTML tags) or plain markdown
+      const isHtml = /<\/?[a-z][\s\S]*>/i.test(rawContent);
+      const htmlContent = isHtml ? rawContent : await marked.parse(rawContent);
+
+      payload.offer_content = sanitizeHtml(htmlContent, {
         allowedTags: sanitizeHtml.defaults.allowedTags.concat(['h1', 'h2', 'span']),
         allowedAttributes: {
           ...sanitizeHtml.defaults.allowedAttributes,
