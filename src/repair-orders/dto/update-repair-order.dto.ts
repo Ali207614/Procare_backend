@@ -92,7 +92,11 @@ export class UpdateRepairOrderDto {
   @Type(() => ProblemDto)
   final_problems?: ProblemDto[];
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 'c7a77f42-2f13-4b8e-b8cb-7d5f2c82fbbb',
+    description: 'Reject cause ID',
+  })
   @IsOptional()
   @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
     message: 'Invalid reject cause ID',
@@ -100,6 +104,7 @@ export class UpdateRepairOrderDto {
   reject_cause_id?: string;
 
   @ApiPropertyOptional({
+    nullable: true,
     example: '2026-03-26 09:00',
     description: 'Agreed date (YYYY-MM-DD HH:mm)',
   })

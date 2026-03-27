@@ -1,7 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 
 exports.seed = async function (knex) {
-  await knex('repair_order_reject_causes').del();
+  await knex('repair_order_reject_causes').truncate();
 
   const rejectCauses = [
     {
@@ -20,8 +20,8 @@ exports.seed = async function (knex) {
     },
     {
       id: uuidv4(),
-      name: 'Adressi viloyatda',
-      description: 'Adressi viloyatda',
+      name: 'Adressi viloyat',
+      description: 'Adressi viloyat',
       created_at: knex.fn.now(),
       updated_at: knex.fn.now(),
     },

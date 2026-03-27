@@ -16,7 +16,15 @@ import { CreateRepairOrderDto } from './dto/create-repair-order.dto';
 import { UpdateRepairOrderDto } from './dto/update-repair-order.dto';
 import { BranchExistGuard } from 'src/common/guards/branch-exist.guard';
 import { RepairOrderStatusExistGuard } from 'src/common/guards/repair-order-status-exist.guard';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiExtraModels,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+  getSchemaPath,
+} from '@nestjs/swagger';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { MoveRepairOrderDto } from './dto/move-repair-order.dto';
 import { UpdateRepairOrderSortDto } from './dto/update-repair-order-sort.dto';
@@ -30,10 +38,15 @@ import {
 } from 'src/common/types/repair-order.interface';
 import { FindAllRepairOrdersQueryDto } from 'src/repair-orders/dto/find-all-repair-orders.dto';
 import { UpdateClientInfoDto, UpdateProductDto, UpdateProblemDto, TransferBranchDto } from './dto';
+import {
+  RepairOrderDetailsSwaggerDto,
+  RepairOrderListItemSwaggerDto,
+} from './dto/repair-order-swagger.dto';
 
 @ApiTags('Repair Orders')
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
+@ApiExtraModels(RepairOrderListItemSwaggerDto, RepairOrderDetailsSwaggerDto)
 @Controller('repair-orders')
 export class RepairOrdersController {
   constructor(private readonly service: RepairOrdersService) {}
@@ -62,6 +75,16 @@ export class RepairOrdersController {
   @Get()
   @UseGuards(BranchExistGuard)
   @ApiOperation({ summary: 'Get all repair orders by branchId (can_view only)' })
+  @ApiOkResponse({
+    description: 'Repair orders grouped by status ID',
+    schema: {
+      type: 'object',
+      additionalProperties: {
+        type: 'array',
+        items: { $ref: getSchemaPath(RepairOrderListItemSwaggerDto) },
+      },
+    },
+  })
   findAllByBranch(
     @Req() req: AuthenticatedRequest,
     @Query() query: FindAllRepairOrdersQueryDto,
@@ -72,6 +95,10 @@ export class RepairOrdersController {
   @Get(':repair_order_id')
   @ApiOperation({ summary: 'Get repair order by ID (with permission)' })
   @ApiParam({ name: 'repair_order_id', description: 'Repair Order ID' })
+  @ApiOkResponse({
+    description: 'Repair order details',
+    type: RepairOrderDetailsSwaggerDto,
+  })
   findOne(
     @Param('repair_order_id', ParseUUIDPipe) id: string,
     @Req() req: AuthenticatedRequest,
