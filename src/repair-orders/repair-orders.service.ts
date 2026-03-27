@@ -10,6 +10,7 @@ import { Knex } from 'knex';
 import { RedisService } from 'src/common/redis/redis.service';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
+import { parseAgreedDateInput } from 'src/common/utils/agreed-date.util';
 import {
   RepairOrder,
   RepairOrderDetails,
@@ -420,7 +421,14 @@ export class RepairOrdersService {
           }
 
           if (field === 'agreed_date' && dtoFieldValue) {
-            const inputDate = new Date(dtoFieldValue as string);
+            const inputDate = parseAgreedDateInput(dtoFieldValue as string);
+
+            if (!inputDate) {
+              throw new BadRequestException({
+                message: 'Agreed date must be in YYYY-MM-DD HH:mm format',
+                location: 'agreed_date',
+              });
+            }
 
             if (inputDate <= new Date()) {
               throw new BadRequestException({

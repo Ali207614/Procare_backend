@@ -8,6 +8,7 @@ import { NotificationGateway } from 'src/notification/notification.gateway';
 import { RepairOrderCreateHelperService } from './repair-order-create-helper.service';
 import { RedisService } from 'src/common/redis/redis.service';
 import { BroadcastMessage, RepairNotificationMeta } from 'src/common/types/notification.interface';
+import { formatPgTimestampLocal } from 'src/common/utils/agreed-date.util';
 
 interface AgreedDateStatusId {
   status_id: string;
@@ -63,14 +64,16 @@ export class AgreedDateCronService {
         59,
         59,
       );
+      const currentHourStartSql = formatPgTimestampLocal(currentHourStart);
+      const currentHourEndSql = formatPgTimestampLocal(currentHourEnd);
 
       // 3. Find all open repair orders in those statuses whose agreed_date falls within the current hour
       const matchingOrders: RepairOrder[] = await this.knex<RepairOrder>(this.table)
         .whereIn('status_id', statusIds)
         .andWhere('status', 'Open')
         .whereNotNull('agreed_date')
-        .andWhere('agreed_date', '>=', currentHourStart.toISOString())
-        .andWhere('agreed_date', '<=', currentHourEnd.toISOString());
+        .andWhere('agreed_date', '>=', currentHourStartSql)
+        .andWhere('agreed_date', '<=', currentHourEndSql);
 
       if (!matchingOrders.length) {
         this.logger.log(
