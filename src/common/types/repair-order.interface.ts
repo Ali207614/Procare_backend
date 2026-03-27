@@ -52,6 +52,11 @@ export interface FreshRepairOrder {
   priority: 'Low' | 'Medium' | 'High' | 'Highest';
   status_id: string;
   name: string | null;
+  agreed_date: string | null;
+  reject_cause: {
+    id: string | null;
+    name: string | null;
+  };
   source:
     | 'Telegram'
     | 'Meta'
@@ -269,6 +274,11 @@ export interface RepairOrderDetails {
   priority: 'Low' | 'Medium' | 'High' | 'Highest';
   name: string | null;
   phone_number: string | null;
+  agreed_date: string | null;
+  reject_cause: {
+    id: string | null;
+    name: string | null;
+  };
   source:
     | 'Telegram'
     | 'Meta'

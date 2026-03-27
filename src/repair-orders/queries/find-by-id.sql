@@ -10,6 +10,11 @@ SELECT
     ro.name,
     ro.phone_number,
     ro.source,
+    TO_CHAR(ro.agreed_date, 'YYYY-MM-DD HH24:MI') AS agreed_date,
+    jsonb_build_object(
+        'id', rc.id,
+        'name', rc.name
+    ) AS reject_cause,
     ro.created_at,
     COALESCE((jsonb_build_object(
             'id', u.id,
@@ -307,6 +312,7 @@ FROM repair_orders ro
     LEFT JOIN admins ca ON ro.created_by = ca.id
     LEFT JOIN branches b ON ro.branch_id = b.id
     LEFT JOIN phone_categories pc ON ro.phone_category_id = pc.id
+    LEFT JOIN repair_order_reject_causes rc ON ro.reject_cause_id = rc.id
     LEFT JOIN repair_order_statuses s ON ro.status_id = s.id
 WHERE ro.id = :orderId
     LIMIT 1;
