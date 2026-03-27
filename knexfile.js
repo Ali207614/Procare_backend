@@ -6,9 +6,6 @@ const envFile = '.env';
 
 if (fs.existsSync(envFile)) {
   dotenv.config({ path: envFile });
-} else {
-  console.warn(`⚠️ ${envFile} topilmadi. Fallback: .env`);
-  dotenv.config();
 }
 
 module.exports = {
