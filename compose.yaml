@@ -40,7 +40,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: npm run db:setup:reject-causes
+    command: npm run db:migrate
     networks:
       - procare_network
     restart: "no"
