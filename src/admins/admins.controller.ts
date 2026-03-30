@@ -11,7 +11,16 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { JwtAdminAuthGuard } from '../common/guards/jwt-admin.guard';
 import { AdminsService } from './admins.service';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
@@ -36,6 +45,8 @@ import { PaginationInterceptor } from 'src/common/interceptors/pagination.interc
 export class AdminsController {
   constructor(private readonly adminsService: AdminsService) {}
 
+  @ApiOkResponse({ type: AdminProfileDto, description: 'Return current admin profile' })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized' })
   @UseInterceptors(ClassSerializerInterceptor)
   @Get('me')
   async getProfile(@CurrentAdmin() admin: AdminPayload): Promise<AdminProfileDto> {
@@ -74,6 +85,21 @@ export class AdminsController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<{ message: string }> {
     return this.adminsService.delete(req.admin, id);
+  }
+
+  @Get(':id')
+  @UseInterceptors(ClassSerializerInterceptor)
+  @UseGuards(PermissionsGuard)
+  @SetAllPermissions('admin.manage.view')
+  @ApiOkResponse({ type: AdminProfileDto, description: 'Admin details' })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+  @ApiForbiddenResponse({ description: 'Forbidden' })
+  @ApiNotFoundResponse({ description: 'Admin not found' })
+  @ApiParam({ name: 'id', description: 'Admin ID (UUID)' })
+  @ApiOperation({ summary: 'Get admin details by ID' })
+  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<AdminProfileDto> {
+    const adminData = await this.adminsService.findById(id);
+    return plainToInstance(AdminProfileDto, adminData);
   }
 
   @Get()
