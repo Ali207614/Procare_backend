@@ -378,22 +378,51 @@ export class ProblemCategoriesService {
 
       const parentId: string | null = category.parent_id;
       if (name_uz || name_ru || name_en) {
-        const conflictQuery = trx('problem_categories')
-          .whereNot({ id })
-          .andWhere({ status: 'Open' })
-          .andWhere((qb) => {
-            if (name_uz) void qb.orWhereRaw('LOWER(name_uz) = LOWER(?)', [name_uz]);
-            if (name_ru) void qb.orWhereRaw('LOWER(name_ru) = LOWER(?)', [name_ru]);
-            if (name_en) void qb.orWhereRaw('LOWER(name_en) = LOWER(?)', [name_en]);
-          });
+        let conflict;
 
         if (parentId) {
-          void conflictQuery.andWhere({ parent_id: parentId });
+          conflict = await trx('problem_categories')
+            .whereNot({ id })
+            .andWhere({ status: 'Open', parent_id: parentId })
+            .andWhere((qb) => {
+              if (name_uz) void qb.orWhereRaw('LOWER(name_uz) = LOWER(?)', [name_uz]);
+              if (name_ru) void qb.orWhereRaw('LOWER(name_ru) = LOWER(?)', [name_ru]);
+              if (name_en) void qb.orWhereRaw('LOWER(name_en) = LOWER(?)', [name_en]);
+            })
+            .first();
         } else {
-          void conflictQuery.andWhere({ parent_id: null });
+          const mapping = await trx('phone_problem_mappings')
+            .where({ problem_category_id: id })
+            .first();
+
+          if (mapping) {
+            conflict = await trx('problem_categories as p')
+              .join('phone_problem_mappings as ppm', 'ppm.problem_category_id', 'p.id')
+              .where('p.id', '!=', id)
+              .andWhere({
+                'p.parent_id': null,
+                'p.status': 'Open',
+                'ppm.phone_category_id': mapping.phone_category_id,
+              })
+              .andWhere((qb) => {
+                if (name_uz) void qb.orWhereRaw('LOWER(p.name_uz) = LOWER(?)', [name_uz]);
+                if (name_ru) void qb.orWhereRaw('LOWER(p.name_ru) = LOWER(?)', [name_ru]);
+                if (name_en) void qb.orWhereRaw('LOWER(p.name_en) = LOWER(?)', [name_en]);
+              })
+              .first();
+          } else {
+            conflict = await trx('problem_categories')
+              .whereNot({ id })
+              .andWhere({ status: 'Open', parent_id: null })
+              .andWhere((qb) => {
+                if (name_uz) void qb.orWhereRaw('LOWER(name_uz) = LOWER(?)', [name_uz]);
+                if (name_ru) void qb.orWhereRaw('LOWER(name_ru) = LOWER(?)', [name_ru]);
+                if (name_en) void qb.orWhereRaw('LOWER(name_en) = LOWER(?)', [name_en]);
+              })
+              .first();
+          }
         }
 
-        const conflict = await conflictQuery.first();
         if (conflict) {
           throw new BadRequestException({
             message: 'Problem with same name already exists',
