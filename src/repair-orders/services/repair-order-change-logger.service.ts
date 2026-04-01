@@ -37,8 +37,14 @@ export class RepairOrderChangeLoggerService {
     }
   }
 
-  async logChange(orderId: string, action: string, data: unknown, adminId: string): Promise<void> {
-    await this.knex('repair_order_change_histories').insert({
+  async logAction(
+    trx: Knex.Transaction | Knex,
+    orderId: string,
+    action: string,
+    data: unknown,
+    adminId: string,
+  ): Promise<void> {
+    await trx('repair_order_change_histories').insert({
       repair_order_id: orderId,
       field: action,
       old_value: null,
@@ -46,5 +52,9 @@ export class RepairOrderChangeLoggerService {
       created_by: adminId,
       created_at: new Date(),
     });
+  }
+
+  async logChange(orderId: string, action: string, data: unknown, adminId: string): Promise<void> {
+    await this.logAction(this.knex, orderId, action, data, adminId);
   }
 }

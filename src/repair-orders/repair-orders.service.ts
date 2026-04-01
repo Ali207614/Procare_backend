@@ -1060,83 +1060,127 @@ export class RepairOrdersService {
     updateDto: UpdateClientInfoDto,
     admin: AdminPayload,
   ): Promise<{ message: string }> {
-    const order: RepairOrder | undefined = await this.knex(this.table)
-      .where({ id: repairOrderId, status: 'Open' })
-      .first();
-    if (!order) {
-      throw new NotFoundException('Repair order not found');
-    }
-
-    const permissions = await this.permissionService.findByRolesAndBranch(
-      admin.roles,
-      order.branch_id,
-    );
-    await this.permissionService.checkPermissionsOrThrow(
-      admin.roles,
-      order.branch_id,
-      order.status_id,
-      ['can_update'],
-      'repair_order_update',
-      permissions,
-    );
-
-    const updateFields: Record<string, unknown> = {};
-
-    // Map name property if provided, otherwise reconstruct from first/last
-    if (updateDto.name !== undefined) {
-      updateFields.name = updateDto.name;
-    } else if (updateDto.first_name !== undefined || updateDto.last_name !== undefined) {
-      const nameParts = [updateDto.first_name, updateDto.last_name].filter(Boolean);
-      if (nameParts.length > 0) {
-        updateFields.name = nameParts.join(' ');
+    const trx = await this.knex.transaction();
+    try {
+      const order: RepairOrder | undefined = await trx(this.table)
+        .where({ id: repairOrderId, status: 'Open' })
+        .first();
+      if (!order) {
+        throw new NotFoundException('Repair order not found');
       }
+
+      const permissions = await this.permissionService.findByRolesAndBranch(
+        admin.roles,
+        order.branch_id,
+      );
+      await this.permissionService.checkPermissionsOrThrow(
+        admin.roles,
+        order.branch_id,
+        order.status_id,
+        ['can_update'],
+        'repair_order_update',
+        permissions,
+      );
+
+      const updateFields: Record<string, unknown> = {};
+      const userUpdateFields: Record<string, unknown> = {};
+
+      // Handle Name Update
+      if (updateDto.name !== undefined) {
+        updateFields.name = updateDto.name;
+        // Attempt to split name for the users table
+        const [firstName, ...lastNameParts] = updateDto.name.trim().split(/\s+/);
+        userUpdateFields.first_name = firstName || '';
+        userUpdateFields.last_name = lastNameParts.join(' ') || '';
+      } else if (updateDto.first_name !== undefined || updateDto.last_name !== undefined) {
+        const nameParts = [updateDto.first_name, updateDto.last_name].filter(Boolean);
+        if (nameParts.length > 0) {
+          updateFields.name = nameParts.join(' ');
+        }
+        if (updateDto.first_name !== undefined) userUpdateFields.first_name = updateDto.first_name;
+        if (updateDto.last_name !== undefined) userUpdateFields.last_name = updateDto.last_name;
+      }
+
+      // Handle Phone Update
+      const newPhone = updateDto.phone_number ?? updateDto.phone;
+      if (newPhone !== undefined) {
+        updateFields.phone_number = newPhone;
+        userUpdateFields.phone_number1 = newPhone;
+      }
+
+      if (Object.keys(updateFields).length === 0) {
+        throw new BadRequestException('No valid fields to update');
+      }
+
+      // 1. Update the linked User record if it exists
+      if (order.user_id && Object.keys(userUpdateFields).length > 0) {
+        // If phone is changing, check for duplicates
+        if (userUpdateFields.phone_number1) {
+          const existingUser = await trx('users')
+            .where({ phone_number1: userUpdateFields.phone_number1 })
+            .whereNot({ id: order.user_id })
+            .first();
+
+          if (existingUser) {
+            throw new BadRequestException({
+              message: 'This phone number is already registered with another user',
+              location: 'phone_number',
+            });
+          }
+        }
+
+        userUpdateFields.updated_at = new Date();
+        await trx('users').where({ id: order.user_id }).update(userUpdateFields);
+      }
+
+      // 2. Update the Repair Order
+      updateFields.updated_at = new Date();
+      await trx(this.table).where({ id: repairOrderId }).update(updateFields);
+
+      // 3. Log changes and clean up
+      await this.changeLogger.logAction(
+        trx,
+        repairOrderId,
+        'client_info_updated',
+        updateDto,
+        admin.id,
+      );
+      await trx.commit();
+
+      await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
+
+      // Notify branch about the update
+      void this.helper
+        .getRepairOrderNotificationMeta(repairOrderId)
+        .then((richMeta) => {
+          this.notificationService
+            .notifyBranch(this.knex, order.branch_id, {
+              title: 'Buyurtma yangilandi',
+              message: `Buyurtma #${order.number_id} mijoz ma'lumotlari yangilandi`,
+              type: 'info',
+              meta: {
+                ...richMeta,
+                action: 'order_updated',
+              } as Record<string, unknown>,
+            })
+            .catch((err: Error) => {
+              this.logger.error(
+                `Failed to send branch notification for client info update on order ${repairOrderId}: ${err.message}`,
+              );
+            });
+        })
+        .catch((err: Error) => {
+          this.logger.error(
+            `Failed to fetch meta for branch notification for client info update on order ${repairOrderId}: ${err.message}`,
+          );
+        });
+
+      return { message: 'Client info updated successfully' };
+    } catch (err) {
+      await trx.rollback();
+      this.logger.error(`Failed to update client info for repair order ${repairOrderId}`);
+      throw err;
     }
-
-    // Map phone_number property if provided, otherwise use phone
-    if (updateDto.phone_number !== undefined) {
-      updateFields.phone_number = updateDto.phone_number;
-    } else if (updateDto.phone !== undefined) {
-      updateFields.phone_number = updateDto.phone;
-    }
-
-    if (Object.keys(updateFields).length === 0) {
-      throw new BadRequestException('No valid fields to update');
-    }
-
-    updateFields.updated_at = new Date();
-
-    await this.knex(this.table).where({ id: repairOrderId }).update(updateFields);
-
-    await this.changeLogger.logChange(repairOrderId, 'client_info_updated', updateDto, admin.id);
-    await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
-
-    // Notify branch about the update
-    void this.helper
-      .getRepairOrderNotificationMeta(repairOrderId)
-      .then((richMeta) => {
-        this.notificationService
-          .notifyBranch(this.knex, order.branch_id, {
-            title: 'Buyurtma yangilandi',
-            message: `Buyurtma #${order.number_id} mijoz ma'lumotlari yangilandi`,
-            type: 'info',
-            meta: {
-              ...richMeta,
-              action: 'order_updated',
-            } as Record<string, unknown>,
-          })
-          .catch((err: Error) => {
-            this.logger.error(
-              `Failed to send branch notification for client info update on order ${repairOrderId}: ${err.message}`,
-            );
-          });
-      })
-      .catch((err: Error) => {
-        this.logger.error(
-          `Failed to fetch meta for branch notification for client info update on order ${repairOrderId}: ${err.message}`,
-        );
-      });
-
-    return { message: 'Client info updated successfully' };
   }
 
   async updateProduct(
