@@ -31,11 +31,13 @@ import { UpdateClientInfoDto, UpdateProductDto, UpdateProblemDto, TransferBranch
 import { PdfService } from 'src/pdf/pdf.service';
 import { RepairOrderWebhookService } from 'src/repair-orders/services/repair-order-webhook.service';
 import { NotificationService } from 'src/notification/notification.service';
+import { RepairNotificationMeta } from 'src/common/types/notification.interface';
 import { RepairOrderStatus } from 'src/common/types/repair-order-status.interface';
 
 @Injectable()
 export class RepairOrdersService {
   private readonly table = 'repair_orders';
+  private readonly terminalStatusTypes = new Set(['Cancelled', 'Canceled', 'Completed', 'Invalid']);
 
   constructor(
     @InjectKnex() private readonly knex: Knex,
@@ -268,32 +270,13 @@ export class RepairOrdersService {
       await trx.commit();
 
       // Notify all admins in the branch room and create DB records
-      void this.helper
-        .getRepairOrderNotificationMeta(order.id)
-        .then((richMeta) => {
-          this.notificationService
-            .notifyBranch(this.knex, order.branch_id, {
-              title: isUpdate ? 'Buyurtma yangilandi' : 'Yangi buyurtma',
-              message: isUpdate
-                ? `Mavjud buyurtma yangilandi: #${order.number_id}`
-                : `Filialda yangi buyurtma yaratildi: #${order.number_id}`,
-              type: 'info',
-              meta: {
-                ...richMeta,
-                action: isUpdate ? 'order_updated' : 'order_created',
-              } as Record<string, unknown>,
-            })
-            .catch((err: Error) => {
-              this.logger.error(
-                `Failed to send branch notification for order ${order.id}: ${err.message}`,
-              );
-            });
-        })
-        .catch((err: Error) => {
-          this.logger.error(
-            `Failed to fetch meta for branch notification for order ${order.id}: ${err.message}`,
-          );
-        });
+      void this.notifyRepairOrderUpdate(order, {
+        title: isUpdate ? 'Buyurtma yangilandi' : 'Yangi buyurtma',
+        message: isUpdate
+          ? `Mavjud buyurtma yangilandi: #${order.number_id}`
+          : `Filialda yangi buyurtma yaratildi: #${order.number_id}`,
+        action: isUpdate ? 'order_updated' : 'order_created',
+      });
 
       this.webhookService.sendWebhook(order.id).catch((err: unknown) => {
         this.logger.error(
@@ -396,6 +379,22 @@ export class RepairOrdersService {
       const logFields: { key: string; oldVal: unknown; newVal: unknown }[] = [];
       const updatedFields: Partial<RepairOrder> = {};
 
+      // Automatically move to "Invalid" status if a reject cause is selected
+      if (dto.reject_cause_id && dto.reject_cause_id !== order.reject_cause_id) {
+        const invalidStatus = await trx<RepairOrderStatus>('repair_order_statuses')
+          .where({
+            branch_id: order.branch_id,
+            type: 'Invalid',
+            status: 'Open',
+            is_active: true,
+          })
+          .first();
+
+        if (invalidStatus && dto.status_id !== invalidStatus.id) {
+          dto.status_id = invalidStatus.id;
+        }
+      }
+
       const fieldsToCheck: (keyof RepairOrder)[] = [
         'user_id',
         'status_id',
@@ -439,23 +438,14 @@ export class RepairOrdersService {
           }
 
           if (field === 'status_id') {
-            // Check if there's an active rental phone and the new status is Canceled or Completed
-            const newStatus = await trx('repair_order_statuses')
-              .where({ id: dtoFieldValue as string })
-              .first();
-
-            if (newStatus && (newStatus.type === 'Canceled' || newStatus.type === 'Completed')) {
-              const activeRental = await trx('repair_order_rental_phones')
-                .where({ repair_order_id: orderId, status: 'Active' })
-                .first();
-
-              if (activeRental) {
-                throw new BadRequestException({
-                  message: `Cannot move repair order to ${newStatus.type.toLowerCase()} while a rental phone is active`,
-                  location: 'status_id',
-                });
-              }
-            }
+            await this.validateStatusTransitionOrThrow(
+              trx,
+              admin,
+              order,
+              dtoFieldValue as string,
+              permissions,
+              orderId,
+            );
 
             // Shift current queue items up to close the gap
             await trx(this.table)
@@ -534,31 +524,11 @@ export class RepairOrdersService {
       await trx.commit();
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
 
-      // Notify branch about the update
-      void this.helper
-        .getRepairOrderNotificationMeta(orderId)
-        .then((richMeta) => {
-          this.notificationService
-            .notifyBranch(this.knex, order.branch_id, {
-              title: 'Buyurtma yangilandi',
-              message: `Buyurtma #${order.number_id} ma'lumotlari yangilandi`,
-              type: 'info',
-              meta: {
-                ...richMeta,
-                action: 'order_updated',
-              } as Record<string, unknown>,
-            })
-            .catch((err: Error) => {
-              this.logger.error(
-                `Failed to send branch notification for updated order ${orderId}: ${err.message}`,
-              );
-            });
-        })
-        .catch((err: Error) => {
-          this.logger.error(
-            `Failed to fetch meta for branch notification for updated order ${orderId}: ${err.message}`,
-          );
-        });
+      void this.notifyRepairOrderUpdate(order, {
+        title: 'Buyurtma yangilandi',
+        message: `Buyurtma #${order.number_id} ma'lumotlari yangilandi`,
+        action: 'order_updated',
+      });
 
       return { message: 'Repair order updated successfully' };
     } catch (err) {
@@ -588,6 +558,7 @@ export class RepairOrdersService {
       delivery_methods,
       pickup_methods,
       assigned_admin_ids,
+      assigned_filter,
       date_from,
       date_to,
       status_ids,
@@ -621,6 +592,7 @@ export class RepairOrdersService {
       delivery_methods,
       pickup_methods,
       assigned_admin_ids,
+      assigned_filter,
       date_from,
       date_to,
       status_ids,
@@ -695,6 +667,14 @@ export class RepairOrdersService {
     if (pickup_methods?.length) {
       whereConditions.push(`ro.pickup_method = ANY(:pickupMethods)`);
       queryParams.pickupMethods = pickup_methods;
+    }
+
+    // Filter by current admin assignments
+    if (assigned_filter === 'Mine') {
+      whereConditions.push(
+        `EXISTS (SELECT 1 FROM repair_order_assign_admins aa WHERE aa.repair_order_id = ro.id AND aa.admin_id = :currentAdminId)`,
+      );
+      queryParams.currentAdminId = admin.id;
     }
 
     // Filter by assigned admin IDs
@@ -906,45 +886,17 @@ export class RepairOrdersService {
       );
 
       if (isStatusChanged) {
-        if (!transitionRule) {
-          throw new BadRequestException({
-            message: 'Invalid status transition',
-            location: 'status_id',
-          });
-        }
-
-        if (
-          targetStatus &&
-          (targetStatus.type === 'Cancelled' || targetStatus.type === 'Completed') &&
-          activeRental
-        ) {
-          throw new BadRequestException({
-            message: `Cannot move repair order to ${targetStatus.type.toLowerCase()} while a rental phone is active`,
-            location: 'status_id',
-          });
-        }
-
-        const targetPermission = permissions.find((p) => p.status_id === dto.status_id);
-        if (targetPermission?.cannot_continue_without_imei && !order.imei) {
-          throw new BadRequestException({
-            message: 'IMEI is required to move the order to this status',
-            location: 'imei',
-          });
-        }
-
-        if (targetPermission?.cannot_continue_without_reject_cause && !order.reject_cause_id) {
-          throw new BadRequestException({
-            message: 'Reject cause is required to move the order to this status',
-            location: 'reason_for_rejection',
-          });
-        }
-
-        if (targetPermission?.cannot_continue_without_agreed_date && !order.agreed_date) {
-          throw new BadRequestException({
-            message: 'Agreed date is required to move the order to this status',
-            location: 'agreed_date',
-          });
-        }
+        await this.validateStatusTransitionOrThrow(
+          trx,
+          admin,
+          order,
+          dto.status_id,
+          permissions,
+          orderId,
+          transitionRule,
+          targetStatus,
+          activeRental,
+        );
       }
 
       const updates: Partial<RepairOrder> = {};
@@ -952,7 +904,12 @@ export class RepairOrdersService {
 
       // 4. Handle user linking if required by the target status
       if (!order.user_id && isStatusChanged) {
-        const targetPermission = permissions.find((p) => p.status_id === dto.status_id);
+        const targetPermission = this.getTargetStatusPermissionOrThrow(
+          admin,
+          permissions,
+          order.branch_id,
+          dto.status_id,
+        );
         if (targetPermission?.can_create_user) {
           const linkedUserId = await this.ensureUserLinked(trx, order, admin.id);
           if (linkedUserId) {
@@ -1581,30 +1538,11 @@ export class RepairOrdersService {
       await this.moveToTop(trx, order);
       await trx.commit();
 
-      void this.helper
-        .getRepairOrderNotificationMeta(order.id)
-        .then((richMeta) => {
-          this.notificationService
-            .notifyBranch(this.knex, order.branch_id, {
-              title: 'Buyurtma yangilandi',
-              message: `Mavjud buyurtma yangilandi (Qo'ng'iroq): #${order.number_id}`,
-              type: 'info',
-              meta: {
-                ...richMeta,
-                action: 'order_updated',
-              } as Record<string, unknown>,
-            })
-            .catch((err: Error) => {
-              this.logger.error(
-                `Failed to send branch notification for order ${order.id}: ${err.message}`,
-              );
-            });
-        })
-        .catch((err: Error) => {
-          this.logger.error(
-            `Failed to fetch meta for branch notification for order ${order.id}: ${err.message}`,
-          );
-        });
+      void this.notifyRepairOrderUpdate(order, {
+        title: 'Buyurtma yangilandi',
+        message: `Mavjud buyurtma yangilandi (Qo'ng'iroq): #${order.number_id}`,
+        action: 'order_updated',
+      });
 
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
     } catch (error) {
@@ -1632,30 +1570,11 @@ export class RepairOrdersService {
       await this.moveToTop(trx, order);
       await trx.commit();
 
-      void this.helper
-        .getRepairOrderNotificationMeta(order.id)
-        .then((richMeta) => {
-          this.notificationService
-            .notifyBranch(this.knex, order.branch_id, {
-              title: 'Buyurtma yangilandi',
-              message: `Mavjud buyurtma yangilandi (O'tib ketilgan qo'ng'iroq): #${order.number_id}`,
-              type: 'info',
-              meta: {
-                ...richMeta,
-                action: 'order_updated',
-              } as Record<string, unknown>,
-            })
-            .catch((err: Error) => {
-              this.logger.error(
-                `Failed to send branch notification for order ${order.id}: ${err.message}`,
-              );
-            });
-        })
-        .catch((err: Error) => {
-          this.logger.error(
-            `Failed to fetch meta for branch notification for order ${order.id}: ${err.message}`,
-          );
-        });
+      void this.notifyRepairOrderUpdate(order, {
+        title: 'Buyurtma yangilandi',
+        message: `Mavjud buyurtma yangilandi (O'tib ketilgan qo'ng'iroq): #${order.number_id}`,
+        action: 'order_updated',
+      });
 
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
     } catch (error) {
@@ -1773,30 +1692,12 @@ export class RepairOrdersService {
 
       await trx.commit();
 
-      void this.helper
-        .getRepairOrderNotificationMeta(newOrder.id)
-        .then((richMeta) => {
-          this.notificationService
-            .notifyBranch(this.knex, newOrder.branch_id, {
-              title: 'Yangi buyurtma',
-              message: `Filialda yangi buyurtma yaratildi (Telefoniya): #${newOrder.number_id}`,
-              type: 'info',
-              meta: {
-                ...richMeta,
-                action: 'order_created',
-              } as Record<string, unknown>,
-            })
-            .catch((err: Error) => {
-              this.logger.error(
-                `Failed to send branch notification for order ${newOrder.id}: ${err.message}`,
-              );
-            });
-        })
-        .catch((err: Error) => {
-          this.logger.error(
-            `Failed to fetch meta for branch notification for order ${newOrder.id}: ${err.message}`,
-          );
-        });
+      void this.notifyRepairOrderUpdate(newOrder, {
+        title: 'Yangi buyurtma',
+        message: `Filialda yangi buyurtma yaratildi (Telefoniya): #${newOrder.number_id}`,
+        action: 'order_created',
+        targetAdminId: assignedAdminId,
+      });
 
       this.webhookService.sendWebhook(newOrder.id).catch((err: unknown) => {
         this.logger.error(
@@ -1929,30 +1830,11 @@ export class RepairOrdersService {
       await this.moveToTop(trx, order);
       await trx.commit();
 
-      void this.helper
-        .getRepairOrderNotificationMeta(order.id)
-        .then((richMeta) => {
-          this.notificationService
-            .notifyBranch(this.knex, order.branch_id, {
-              title: 'Buyurtma yangilandi',
-              message: `Mavjud buyurtma yangilandi (Tugallangan qo'ng'iroq): #${order.number_id}`,
-              type: 'info',
-              meta: {
-                ...richMeta,
-                action: 'order_updated',
-              } as Record<string, unknown>,
-            })
-            .catch((err: Error) => {
-              this.logger.error(
-                `Failed to send branch notification for order ${order.id}: ${err.message}`,
-              );
-            });
-        })
-        .catch((err: Error) => {
-          this.logger.error(
-            `Failed to fetch meta for branch notification for order ${order.id}: ${err.message}`,
-          );
-        });
+      void this.notifyRepairOrderUpdate(order, {
+        title: 'Buyurtma yangilandi',
+        message: `Mavjud buyurtma yangilandi (Tugallangan qo'ng'iroq): #${order.number_id}`,
+        action: 'order_updated',
+      });
 
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
     } catch (error) {
@@ -1980,6 +1862,152 @@ export class RepairOrdersService {
 
     // Set this order's sort to 1
     await trx(this.table).where({ id: order.id }).update({ sort: 1 });
+  }
+
+  private async notifyRepairOrderUpdate(
+    order: RepairOrder,
+    payload: {
+      title: string;
+      message: string;
+      action: string;
+      openMenu?: boolean;
+      targetAdminId?: string | null;
+      fromStatusId?: string;
+      toStatusId?: string;
+    },
+  ): Promise<void> {
+    try {
+      const richMeta = await this.helper.getRepairOrderNotificationMeta(order.id, this.knex);
+      if (!richMeta) {
+        throw new Error(`Failed to fetch notification meta for order ${order.id}`);
+      }
+
+      const meta: RepairNotificationMeta = {
+        ...richMeta,
+        action: payload.action,
+        open_menu: payload.openMenu,
+        from_status_id: payload.fromStatusId,
+        to_status_id: payload.toStatusId,
+      };
+
+      if (payload.targetAdminId) {
+        const admins = await this.knex('admin_branches')
+          .where({ branch_id: order.branch_id })
+          .select<{ admin_id: string }[]>('admin_id');
+        const adminIds = admins.map((a) => a.admin_id);
+
+        const targetId = payload.targetAdminId;
+        const otherIds = adminIds.filter((id) => id !== targetId);
+
+        await this.notificationService.notifyAdmins(this.knex, [targetId], {
+          title: payload.title,
+          message: payload.message,
+          type: 'info',
+          meta: meta as unknown as Record<string, unknown>,
+        });
+
+        if (otherIds.length > 0) {
+          const standardMeta = { ...meta, open_menu: false };
+          await this.notificationService.notifyAdmins(this.knex, otherIds, {
+            title: payload.title,
+            message: payload.message,
+            type: 'info',
+            meta: standardMeta as unknown as Record<string, unknown>,
+          });
+        }
+      } else {
+        await this.notificationService.notifyBranch(this.knex, order.branch_id, {
+          title: payload.title,
+          message: payload.message,
+          type: 'info',
+          meta: meta as unknown as Record<string, unknown>,
+        });
+      }
+    } catch (err) {
+      this.logger.error(
+        `Failed to send notification for order ${order.id}: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  async handleCallAnswered(data: {
+    branchId: string;
+    phoneNumber: string;
+    onlinepbxCode: string;
+    userId: string | null;
+    openMenu?: boolean;
+    source: 'Kiruvchi qongiroq' | 'Chiquvchi qongiroq';
+  }): Promise<void> {
+    const trx = await this.knex.transaction();
+    try {
+      let order = await trx<RepairOrder>(this.table)
+        .where({ branch_id: data.branchId, phone_number: data.phoneNumber, status: 'Open' })
+        .first();
+
+      let targetAdminId: string | null = null;
+      if (data.onlinepbxCode) {
+        const admin = await trx('admins')
+          .where({ onlinepbx_code: data.onlinepbxCode, is_active: true, status: 'Open' })
+          .first();
+        if (admin) targetAdminId = admin.id;
+      }
+
+      const isUpdate = !!order;
+
+      if (!order) {
+        const defaultStatus = '50000000-0000-0000-0001-001000000000';
+        const [newOrder] = await trx<RepairOrder>(this.table)
+          .insert({
+            user_id: data.userId,
+            branch_id: data.branchId,
+            status_id: defaultStatus,
+            priority: 'Medium',
+            sort: 999999,
+            delivery_method: 'Self',
+            pickup_method: 'Self',
+            phone_number: data.phoneNumber,
+            source: data.source,
+            call_count: 1,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .returning('*');
+        order = newOrder;
+
+        if (targetAdminId) {
+          await trx('repair_order_assign_admins').insert({
+            repair_order_id: order.id,
+            admin_id: targetAdminId,
+            created_at: new Date(),
+          });
+        }
+      } else {
+        await trx(this.table)
+          .where({ id: order.id })
+          .update({
+            updated_at: new Date().toISOString(),
+            call_count: this.knex.raw('call_count + 1'),
+          });
+      }
+
+      await this.moveToTop(trx, order);
+      await trx.commit();
+
+      void this.notifyRepairOrderUpdate(order, {
+        title: isUpdate ? "Qo'ng'iroq qabul qilindi" : 'Yangi buyurtma (Telefoniya)',
+        message: isUpdate
+          ? `Mavjud buyurtma bo'yicha qo'ng'iroq qabul qilindi: #${order.number_id}`
+          : `Filialda yangi buyurtma yaratildi (Telefoniya): #${order.number_id}`,
+        action: isUpdate ? 'order_updated' : 'order_created',
+        openMenu: data.openMenu,
+        targetAdminId,
+      });
+
+      await this.redisService.flushByPrefix(`${this.table}:${data.branchId}`);
+    } catch (err) {
+      await trx.rollback();
+      throw err;
+    }
   }
 
   private async getOrderOrThrow(
@@ -2026,6 +2054,112 @@ export class RepairOrdersService {
     return (rental as { id: string }) || null;
   }
 
+  private getPrimaryRoleOrThrow(admin: AdminPayload): { name: string; id: string } {
+    const primaryRole = admin.roles[0];
+
+    if (!primaryRole) {
+      throw new ForbiddenException({
+        message: 'No primary role assigned for transition validation',
+        location: 'status_id',
+      });
+    }
+
+    return primaryRole;
+  }
+
+  private getTargetStatusPermissionOrThrow(
+    admin: AdminPayload,
+    permissions: RepairOrderStatusPermission[],
+    branchId: string,
+    targetStatusId: string,
+  ): RepairOrderStatusPermission {
+    const primaryRole = this.getPrimaryRoleOrThrow(admin);
+    const targetPermission = permissions.find(
+      (permission) =>
+        permission.role_id === primaryRole.id &&
+        permission.branch_id === branchId &&
+        permission.status_id === targetStatusId,
+    );
+
+    if (!targetPermission) {
+      throw new ForbiddenException({
+        message:
+          "Tanlangan status uchun sizning asosiy rolingizga ruxsat sozlanmagan. Buyurtmani bu statusga ko'chirib bo'lmaydi.",
+        location: 'status_id',
+      });
+    }
+
+    return targetPermission;
+  }
+
+  private async validateStatusTransitionOrThrow(
+    trx: Knex.Transaction,
+    admin: AdminPayload,
+    order: RepairOrder,
+    targetStatusId: string,
+    permissions: RepairOrderStatusPermission[],
+    orderId: string,
+    transitionRule?: { from_status_id: string; to_status_id: string } | null,
+    targetStatus?: RepairOrderStatus | null,
+    activeRental?: { id: string } | null,
+  ): Promise<RepairOrderStatusPermission> {
+    const resolvedTransitionRule =
+      transitionRule ?? (await this.getTransitionRule(trx, order.status_id, targetStatusId));
+
+    if (!resolvedTransitionRule) {
+      throw new BadRequestException({
+        message: "Buyurtmani tanlangan statusga ko'chirishga ruxsat berilmagan.",
+        location: 'status_id',
+      });
+    }
+
+    const resolvedTargetStatus = targetStatus ?? (await this.getStatusDetails(trx, targetStatusId));
+    const resolvedActiveRental = activeRental ?? (await this.getActiveRental(trx, orderId));
+
+    if (
+      resolvedTargetStatus &&
+      resolvedTargetStatus.type &&
+      this.terminalStatusTypes.has(resolvedTargetStatus.type) &&
+      resolvedActiveRental
+    ) {
+      throw new BadRequestException({
+        message:
+          "Aktiv ijaradagi telefon mavjud bo'lgani uchun buyurtmani ushbu statusga ko'chirib bo'lmaydi.",
+        location: 'status_id',
+      });
+    }
+
+    const targetPermission = this.getTargetStatusPermissionOrThrow(
+      admin,
+      permissions,
+      order.branch_id,
+      targetStatusId,
+    );
+
+    if (targetPermission.cannot_continue_without_imei && !order.imei) {
+      throw new BadRequestException({
+        message: "Ushbu statusga o'tish uchun IMEI kiritilishi shart.",
+        location: 'imei',
+      });
+    }
+
+    if (targetPermission.cannot_continue_without_reject_cause && !order.reject_cause_id) {
+      throw new BadRequestException({
+        message: "Ushbu statusga o'tish uchun rad etish sababi tanlanishi shart.",
+        location: 'reason_for_rejection',
+      });
+    }
+
+    if (targetPermission.cannot_continue_without_agreed_date && !order.agreed_date) {
+      throw new BadRequestException({
+        message: "Ushbu statusga o'tish uchun kelishilgan sana kiritilishi shart.",
+        location: 'agreed_date',
+      });
+    }
+
+    return targetPermission;
+  }
+
   private async handleStatusChangeReordering(
     trx: Knex.Transaction,
     order: RepairOrder,
@@ -2066,31 +2200,12 @@ export class RepairOrdersService {
   }
 
   private emitMoveNotification(order: RepairOrder, toStatusId: string): void {
-    void this.helper
-      .getRepairOrderNotificationMeta(order.id)
-      .then((richMeta) => {
-        this.notificationService
-          .notifyBranch(this.knex, order.branch_id, {
-            title: 'Buyurtma holati o‘zgardi',
-            message: `Buyurtma #${order.number_id} yangi statusga o'tdi`,
-            type: 'info',
-            meta: {
-              ...richMeta,
-              from_status_id: order.status_id,
-              to_status_id: toStatusId,
-              action: 'status_changed',
-            } as Record<string, unknown>,
-          })
-          .catch((err: Error) => {
-            this.logger.error(
-              `Failed to send branch notification for moved order ${order.id}: ${err.message}`,
-            );
-          });
-      })
-      .catch((err: Error) => {
-        this.logger.error(
-          `Failed to fetch meta for branch notification for moved order ${order.id}: ${err.message}`,
-        );
-      });
+    void this.notifyRepairOrderUpdate(order, {
+      title: 'Buyurtma holati o‘zgardi',
+      message: `Buyurtma #${order.number_id} yangi statusga o'tdi`,
+      action: 'status_changed',
+      fromStatusId: order.status_id,
+      toStatusId,
+    });
   }
 }

@@ -155,6 +155,17 @@ export class FindAllRepairOrdersQueryDto {
   assigned_admin_ids?: string[];
 
   @ApiPropertyOptional({
+    description: '"Tayinlangan hodimlar bo\'yicha maxsus filter"',
+    enum: ['Mine'],
+    example: 'Mine',
+  })
+  @IsOptional()
+  @IsIn(['Mine'], {
+    message: 'assigned_filter faqat Mine bolishi kerak',
+  })
+  assigned_filter?: 'Mine';
+
+  @ApiPropertyOptional({
     description: 'Yaratilgan sana boshlanishi (ISO 8601)',
     example: '2024-01-01T00:00:00.000Z',
   })

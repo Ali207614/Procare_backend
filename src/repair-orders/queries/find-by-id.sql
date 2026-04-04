@@ -10,7 +10,10 @@ SELECT
     ro.name,
     ro.phone_number,
     ro.source,
-    TO_CHAR(ro.agreed_date, 'YYYY-MM-DD HH24:MI') AS agreed_date,
+    CASE
+        WHEN ro.agreed_date IS NULL OR BTRIM(ro.agreed_date::text) = '' THEN NULL
+        ELSE TO_CHAR(NULLIF(BTRIM(ro.agreed_date::text), '')::timestamp, 'YYYY-MM-DD HH24:MI')
+    END AS agreed_date,
     jsonb_build_object(
         'id', rc.id,
         'name', rc.name

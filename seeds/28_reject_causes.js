@@ -21,6 +21,13 @@ exports.seed = async function (knex) {
       created_at: knex.fn.now(),
       updated_at: knex.fn.now(),
     },
+    {
+      id: "00000000-0000-4000-8000-000000000004",
+      name: 'Shunchaki qiziqdi',
+      description: 'Mijozda aniq maqsad yo\'q. Shunchaki qiziqib ko\'rdi',
+      created_at: knex.fn.now(),
+      updated_at: knex.fn.now(),
+    },
   ];
 
   // This seed can run against an existing database where repair_orders

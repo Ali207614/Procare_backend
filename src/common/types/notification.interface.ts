@@ -43,4 +43,5 @@ export interface RepairNotificationMeta {
   action?: string;
   from_status_id?: string;
   to_status_id?: string;
+  open_menu?: boolean;
 }

@@ -505,6 +505,7 @@ export class AdminsService {
       .join('roles', 'admin_roles.role_id', 'roles.id')
       .where({ admin_id: adminId })
       .andWhere('roles.status', 'Open')
+      .orderBy('admin_roles.role_id', 'asc')
       .select('roles.name', 'roles.id');
 
     const result = roles.map((r) => {

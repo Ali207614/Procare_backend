@@ -13,6 +13,7 @@ interface OnlinePbxWebhookPayload {
   callee?: string;
   direction?: string;
   event?: string;
+  gateway?: string;
   call_duration?: string | number;
   dialog_duration?: string | number;
   hangup_cause?: string;
@@ -139,6 +140,15 @@ export class OnlinePbxService {
   }
 
   async handleWebhook(payload: Record<string, unknown>): Promise<void> {
+    const { gateway: payloadGateway } = payload as unknown as OnlinePbxWebhookPayload;
+
+    if (payloadGateway !== '781133774') {
+      this.logger.log(
+        `[OnlinePBX Webhook] Ignoring payload for gateway ${payloadGateway || 'unknown'}. Not related to this project.`,
+      );
+      return;
+    }
+
     this.logger.log(`[OnlinePBX Webhook] Received payload: ${JSON.stringify(payload)}`);
 
     const {
@@ -265,6 +275,21 @@ export class OnlinePbxService {
                 `Incremented call_count for existing open repair order ${openOrder.id} via RepairOrdersService.`,
               );
             }
+          } else if (event === 'call_answered') {
+            const callerDigits = caller?.replace(/\D/g, '');
+            const specificAdminCode = callerDigits?.length === 3 ? callerDigits : onlinepbxCode;
+
+            await this.repairOrderService.handleCallAnswered({
+              branchId: defaultBranch,
+              phoneNumber: formattedCustomerPhone,
+              onlinepbxCode: specificAdminCode || '',
+              userId,
+              openMenu: true,
+              source: 'Chiquvchi qongiroq',
+            });
+            this.logger.log(
+              `Handled outbound call_answered for ${formattedCustomerPhone} via handleCallAnswered.`,
+            );
           }
         } else if (direction === 'inbound') {
           // User calling admin
@@ -276,6 +301,21 @@ export class OnlinePbxService {
                 `Incremented call_count for existing open repair order ${openOrder.id} via RepairOrdersService.`,
               );
             }
+          } else if (event === 'call_answered') {
+            const calleeDigits = callee?.replace(/\D/g, '');
+            const specificAdminCode = calleeDigits?.length === 3 ? calleeDigits : onlinepbxCode;
+
+            await this.repairOrderService.handleCallAnswered({
+              branchId: defaultBranch,
+              phoneNumber: formattedCustomerPhone,
+              onlinepbxCode: specificAdminCode || '',
+              userId,
+              openMenu: true,
+              source: 'Kiruvchi qongiroq',
+            });
+            this.logger.log(
+              `Handled call_answered for ${formattedCustomerPhone} via handleCallAnswered.`,
+            );
           } else if (event === 'call_missed') {
             if (!openOrder) {
               // Missed call: create and use fallback logic

@@ -147,6 +147,7 @@
 | `delivery_methods` | string[] | ❌ | — | `Self`, `Delivery` |
 | `pickup_methods` | string[] | ❌ | — | `Self`, `Pickup` |
 | `assigned_admin_ids` | UUID[] | ❌ | — | Filter by assigned admin IDs |
+| `assigned_filter` | string | ❌ | — | Special assigned-admin filter. Use `Mine` to return only orders assigned to the current admin |
 | `date_from` | ISO 8601 | ❌ | — | Created date from |
 | date_to | ISO 8601 | ❌ | — | Created date to |
 

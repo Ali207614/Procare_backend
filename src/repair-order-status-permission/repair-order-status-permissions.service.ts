@@ -13,6 +13,13 @@ export class RepairOrderStatusPermissionsService {
   private readonly redisKeyByRoleBranch = 'repair_order_status_role_permissions:by_role_branch';
   private readonly table: string = 'repair_order_status_permissions';
   private readonly redisKeyView = 'status_viewable:';
+  private readonly permissionErrorMessages: Partial<
+    Record<keyof RepairOrderStatusPermission, string>
+  > = {
+    can_change_status: "Buyurtma statusini o'zgartirish uchun sizda ruxsat yo'q.",
+    can_update: "Buyurtmani tahrirlash uchun sizda ruxsat yo'q.",
+    can_user_manage: "Mijoz ma'lumotlarini boshqarish uchun sizda ruxsat yo'q.",
+  };
 
   constructor(
     @InjectKnex() private readonly knex: Knex,
@@ -181,6 +188,23 @@ export class RepairOrderStatusPermissionsService {
   ): Promise<RepairOrderStatusPermission[]> {
     try {
       const roleIds = roles.map((role) => role.id);
+      const sortPermissions = (
+        items: RepairOrderStatusPermission[],
+      ): RepairOrderStatusPermission[] => {
+        const roleOrder = new Map(roleIds.map((roleId, index) => [roleId, index]));
+
+        return [...items].sort((left, right) => {
+          const leftIndex = roleOrder.get(left.role_id) ?? Number.MAX_SAFE_INTEGER;
+          const rightIndex = roleOrder.get(right.role_id) ?? Number.MAX_SAFE_INTEGER;
+
+          if (leftIndex !== rightIndex) {
+            return leftIndex - rightIndex;
+          }
+
+          return left.status_id.localeCompare(right.status_id);
+        });
+      };
+
       if (!roleIds.length) {
         return [];
       }
@@ -198,7 +222,7 @@ export class RepairOrderStatusPermissionsService {
       const missingRoleIds: string[] = roleIds.filter(
         (_, idx: number): boolean => cachedResults[idx] === null,
       );
-      if (missingRoleIds.length === 0) return found;
+      if (missingRoleIds.length === 0) return sortPermissions(found);
 
       const missingPermissions: RepairOrderStatusPermission[] =
         await this.knex<RepairOrderStatusPermission>(this.table)
@@ -214,13 +238,13 @@ export class RepairOrderStatusPermissionsService {
 
       await Promise.all(
         missingRoleIds.map((roleId) => {
-          const perRole = missingPermissions.filter((p) => p.role_id === roleId);
+          const perRole = sortPermissions(missingPermissions.filter((p) => p.role_id === roleId));
           const key = `${this.redisKeyByRoleBranch}:${roleId}:${branchId}`;
           return this.redisService.set(key, perRole, 3600);
         }),
       );
 
-      return [...found, ...missingPermissions];
+      return sortPermissions([...found, ...missingPermissions]);
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
@@ -276,7 +300,8 @@ export class RepairOrderStatusPermissionsService {
 
     if (!matched) {
       throw new ForbiddenException({
-        message: 'No permission record found for the current status.',
+        message:
+          "Joriy status uchun sizning rolingizga ruxsat sozlanmagan. Shu sabab bu amalni bajarib bo'lmaydi.",
         location,
       });
     }
@@ -284,7 +309,9 @@ export class RepairOrderStatusPermissionsService {
     for (const field of requiredFields) {
       if (!matched[field]) {
         throw new ForbiddenException({
-          message: `Permission denied: ${field}`,
+          message:
+            this.permissionErrorMessages[field] ??
+            "Ushbu amalni bajarish uchun sizda yetarli ruxsat yo'q.",
           location,
         });
       }
