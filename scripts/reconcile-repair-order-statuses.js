@@ -45,59 +45,66 @@ async function run() {
     for (const branch of branches) {
       console.log(`Checking branch ${branch.id}...`);
       for (const required of REQUIRED_STATUSES) {
-        // 1. Check if status with this type already exists for this branch
-        let status = await knex('repair_order_statuses')
+        // 1. Try to find by name first (strongest match for reconciliation)
+        let statusByName = await knex('repair_order_statuses')
+          .where({ branch_id: branch.id, name_uz: required.name_uz, status: 'Open' })
+          .first();
+
+        // 2. Try to find by type
+        let statusByType = await knex('repair_order_statuses')
           .where({ branch_id: branch.id, type: required.type, status: 'Open' })
           .first();
 
-        if (status) {
-          // If it exists, ensure it has the correct name and is protected
-          await knex('repair_order_statuses').where({ id: status.id }).update({
+        if (statusByName) {
+          // If found by name, ensure it has the correct type and is protected
+          await knex('repair_order_statuses').where({ id: statusByName.id }).update({
+            type: required.type,
+            is_protected: true,
+            updated_at: new Date(),
+          });
+          console.log(`  Updated status '${required.name_uz}' (id: ${statusByName.id}) to type '${required.type}' and protected.`);
+
+          // If there was ANOTHER record with this type, we should clear its type to avoid ambiguity
+          if (statusByType && statusByType.id !== statusByName.id) {
+            await knex('repair_order_statuses').where({ id: statusByType.id }).update({ type: null });
+            console.log(`  Cleared duplicate type '${required.type}' from status id: ${statusByType.id}.`);
+          }
+        } else if (statusByType) {
+          // If only found by type, update its name (Safe because we know no one has this name)
+          await knex('repair_order_statuses').where({ id: statusByType.id }).update({
             name_uz: required.name_uz,
             is_protected: true,
             updated_at: new Date(),
           });
-          console.log(`  Updated type '${required.type}' (id: ${status.id}) to protected and name '${required.name_uz}'.`);
+          console.log(`  Updated type '${required.type}' (id: ${statusByType.id}) to name '${required.name_uz}'.`);
         } else {
-          // 2. If not found by type, check if it exists by name_uz
-          status = await knex('repair_order_statuses')
-            .where({ branch_id: branch.id, name_uz: required.name_uz, status: 'Open' })
-          .first();
+          // 3. Optional: Check for old names to rename
+          const oldNames = {
+            'Open': 'Yangi buyurtma',
+            'Completed': 'Yakunlangan'
+          };
 
-          if (status) {
-            // If found by name, set the type and make it protected
-            await knex('repair_order_statuses').where({ id: status.id }).update({
-              type: required.type,
-              is_protected: true,
-              updated_at: new Date(),
-            });
-            console.log(`  Assigned type '${required.type}' to existing status '${required.name_uz}' (id: ${status.id}).`);
-          } else {
-            // 3. Optional: Check for old names to rename
-            const oldNames = {
-              'Open': 'Yangi buyurtma',
-              'Completed': 'Yakunlangan'
-            };
-            
-            if (oldNames[required.type]) {
-               status = await knex('repair_order_statuses')
-                .where({ branch_id: branch.id, name_uz: oldNames[required.type], status: 'Open' })
-                .first();
-               
-               if (status) {
-                  await knex('repair_order_statuses').where({ id: status.id }).update({
-                    type: required.type,
-                    name_uz: required.name_uz,
-                    name_ru: required.name_ru,
-                    name_en: required.name_en,
-                    is_protected: true,
-                    updated_at: new Date(),
-                  });
-                  console.log(`  Renamed and typed old status '${oldNames[required.type]}' to '${required.type}' for branch ${branch.id}.`);
-                  continue;
-               }
+          let foundOld = false;
+          if (oldNames[required.type]) {
+            const statusOld = await knex('repair_order_statuses')
+              .where({ branch_id: branch.id, name_uz: oldNames[required.type], status: 'Open' })
+              .first();
+
+            if (statusOld) {
+              await knex('repair_order_statuses').where({ id: statusOld.id }).update({
+                type: required.type,
+                name_uz: required.name_uz,
+                name_ru: required.name_ru,
+                name_en: required.name_en,
+                is_protected: true,
+                updated_at: new Date(),
+              });
+              console.log(`  Renamed and typed old status '${oldNames[required.type]}' to '${required.type}' for branch ${branch.id}.`);
+              foundOld = true;
             }
+          }
 
+          if (!foundOld) {
             // 4. Create new status
             const maxSortResult = await knex('repair_order_statuses')
               .where({ branch_id: branch.id })
