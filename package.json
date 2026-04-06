@@ -25,7 +25,7 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
-    "db:migrate": "knex migrate:latest && node scripts/reconcile-repair-order-statuses.js",
+    "db:migrate": "node scripts/fix-corrupt-migration.js && knex migrate:latest && node scripts/reconcile-repair-order-statuses.js",
     "db:seed": "knex seed:run",
     "db:seed:reject-causes": "knex seed:run --specific=28_reject_causes.js",
     "db:setup": "npm run db:migrate && npm run db:seed",
