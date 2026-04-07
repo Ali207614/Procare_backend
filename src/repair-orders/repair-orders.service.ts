@@ -1630,11 +1630,7 @@ export class RepairOrdersService {
 
       // 1. Try to assign based on onlinepbxCode
       if (data.onlinepbxCode) {
-        assignedAdminId = await this.resolveWebhookAdminId(
-          trx,
-          data.branchId,
-          data.onlinepbxCode,
-        );
+        assignedAdminId = await this.resolveWebhookAdminId(trx, data.branchId, data.onlinepbxCode);
       }
 
       // 2. If no admin found or no code provided, find the least busy active admin (only if allowed)
