@@ -1630,12 +1630,11 @@ export class RepairOrdersService {
 
       // 1. Try to assign based on onlinepbxCode
       if (data.onlinepbxCode) {
-        const adminWithCode = await trx('admins')
-          .where({ onlinepbx_code: data.onlinepbxCode, is_active: true, status: 'Open' })
-          .first();
-        if (adminWithCode) {
-          assignedAdminId = adminWithCode.id;
-        }
+        assignedAdminId = await this.resolveWebhookAdminId(
+          trx,
+          data.branchId,
+          data.onlinepbxCode,
+        );
       }
 
       // 2. If no admin found or no code provided, find the least busy active admin (only if allowed)
@@ -1649,6 +1648,7 @@ export class RepairOrdersService {
 
         const leastBusyAdmin = await trx('admins')
           .select('admins.id')
+          .join('admin_branches as ab', 'admins.id', 'ab.admin_id')
           .leftJoin('repair_order_assign_admins as roaa', 'admins.id', 'roaa.admin_id')
           .leftJoin('repair_orders as ro', (builder) => {
             builder
@@ -1661,6 +1661,9 @@ export class RepairOrdersService {
               .andOn('ros.type', '=', trx.raw('?', ['Open']));
           })
           .where({ 'admins.is_active': true, 'admins.status': 'Open' })
+          .andWhere('ab.branch_id', data.branchId)
+          .whereNotNull('admins.onlinepbx_code')
+          .andWhereRaw(`NULLIF(BTRIM(admins.onlinepbx_code), '') IS NOT NULL`)
           // Check that the admin works today using JSONB extraction
           .andWhereRaw(`(admins.work_days->>?)::boolean = true`, [currentDayStr])
           // Check that the admin is currently in their working hours
@@ -1681,11 +1684,7 @@ export class RepairOrdersService {
         this.logger.log(
           `[Webhook Order] Assigning repair order ${newOrder.id} to admin ${assignedAdminId}`,
         );
-        await trx('repair_order_assign_admins').insert({
-          repair_order_id: newOrder.id,
-          admin_id: assignedAdminId,
-          created_at: new Date(),
-        });
+        await this.assignAdminToOrderIfNeeded(trx, newOrder.id, assignedAdminId);
       } else {
         this.logger.log(`[Webhook Order] No admin assigned to repair order ${newOrder.id}`);
       }
@@ -1944,13 +1943,11 @@ export class RepairOrdersService {
         .where({ branch_id: data.branchId, phone_number: data.phoneNumber, status: 'Open' })
         .first();
 
-      let targetAdminId: string | null = null;
-      if (data.onlinepbxCode) {
-        const admin = await trx('admins')
-          .where({ onlinepbx_code: data.onlinepbxCode, is_active: true, status: 'Open' })
-          .first();
-        if (admin) targetAdminId = admin.id;
-      }
+      const targetAdminId = await this.resolveWebhookAdminId(
+        trx,
+        data.branchId,
+        data.onlinepbxCode,
+      );
 
       const isUpdate = !!order;
 
@@ -1975,11 +1972,7 @@ export class RepairOrdersService {
         order = newOrder;
 
         if (targetAdminId) {
-          await trx('repair_order_assign_admins').insert({
-            repair_order_id: order.id,
-            admin_id: targetAdminId,
-            created_at: new Date(),
-          });
+          await this.assignAdminToOrderIfNeeded(trx, order.id, targetAdminId);
         }
       } else {
         await trx(this.table)
@@ -1988,6 +1981,10 @@ export class RepairOrdersService {
             updated_at: new Date().toISOString(),
             call_count: this.knex.raw('call_count + 1'),
           });
+
+        if (targetAdminId) {
+          await this.assignAdminToOrderIfNeeded(trx, order.id, targetAdminId);
+        }
       }
 
       await this.moveToTop(trx, order);
@@ -2019,6 +2016,42 @@ export class RepairOrdersService {
       throw new NotFoundException({ message: 'Order not found', location: 'repair_order' });
     }
     return order;
+  }
+
+  private async resolveWebhookAdminId(
+    trx: Knex.Transaction,
+    branchId: string,
+    onlinepbxCode: string | null | undefined,
+  ): Promise<string | null> {
+    if (!onlinepbxCode) return null;
+
+    const admin = await trx('admins as a')
+      .join('admin_branches as ab', 'a.id', 'ab.admin_id')
+      .where({
+        'a.onlinepbx_code': onlinepbxCode,
+        'a.is_active': true,
+        'a.status': 'Open',
+        'ab.branch_id': branchId,
+      })
+      .select('a.id')
+      .first<{ id: string }>();
+
+    return admin?.id ?? null;
+  }
+
+  private async assignAdminToOrderIfNeeded(
+    trx: Knex.Transaction,
+    orderId: string,
+    adminId: string,
+  ): Promise<void> {
+    await trx('repair_order_assign_admins')
+      .insert({
+        repair_order_id: orderId,
+        admin_id: adminId,
+        created_at: new Date(),
+      })
+      .onConflict(['repair_order_id', 'admin_id'])
+      .ignore();
   }
 
   private async getTransitionRule(

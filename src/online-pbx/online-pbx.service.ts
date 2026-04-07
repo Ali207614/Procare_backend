@@ -139,10 +139,18 @@ export class OnlinePbxService {
     return phone;
   }
 
+  private normalizeGatewayValue(value: unknown): string | null {
+    if (value === null || value === undefined) return null;
+
+    return this.formatPhone(String(value));
+  }
+
   async handleWebhook(payload: Record<string, unknown>): Promise<void> {
     const { gateway: payloadGateway } = payload as unknown as OnlinePbxWebhookPayload;
+    const normalizedPayloadGateway = this.normalizeGatewayValue(payloadGateway);
+    const normalizedProjectGateway = this.formatPhone('781133774');
 
-    if (payloadGateway !== '781133774') {
+    if (!normalizedPayloadGateway || normalizedPayloadGateway !== normalizedProjectGateway) {
       this.logger.log(
         `[OnlinePBX Webhook] Ignoring payload for gateway ${payloadGateway || 'unknown'}. Not related to this project.`,
       );
