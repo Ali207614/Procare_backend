@@ -156,8 +156,14 @@ describe('Repair Orders - Deadline Calculation', () => {
     expect(third?.deadline_at).toBeTruthy();
 
     expectMinutesWithin(diffMinutes(first?.created_at as string, first?.deadline_at as string), 40);
-    expectMinutesWithin(diffMinutes(second?.created_at as string, second?.deadline_at as string), 90);
-    expectMinutesWithin(diffMinutes(third?.created_at as string, third?.deadline_at as string), 110);
+    expectMinutesWithin(
+      diffMinutes(second?.created_at as string, second?.deadline_at as string),
+      90,
+    );
+    expectMinutesWithin(
+      diffMinutes(third?.created_at as string, third?.deadline_at as string),
+      110,
+    );
   });
 
   it('recomputes deadline_at after sort changes and ignores completed elapsed work', async () => {
@@ -268,7 +274,9 @@ describe('Repair Orders - Deadline Calculation', () => {
 
     const waitingAfter = await fetchStatusOrders();
     const waitingAfterById = new Map(waitingAfter.map((order) => [order.id as string, order]));
-    const inProgressAfter = await fetchStatusOrders(RepairOrderTestSetup.testData.inProgressStatus.id);
+    const inProgressAfter = await fetchStatusOrders(
+      RepairOrderTestSetup.testData.inProgressStatus.id,
+    );
     const inProgressById = new Map(inProgressAfter.map((order) => [order.id as string, order]));
 
     expect(waitingAfterById.has(moveId)).toBe(false);

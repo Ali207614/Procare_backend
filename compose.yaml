@@ -39,7 +39,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: npm run db:migrate
+    command: npm run db:bootstrap:compose
     networks:
       - procare_network
     restart: "no"

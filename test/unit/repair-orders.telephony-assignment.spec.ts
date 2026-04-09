@@ -67,7 +67,9 @@ describe('RepairOrdersService telephony assignment', () => {
     );
 
     jest.spyOn(service as any, 'moveToTop').mockResolvedValue(undefined);
-    jest.spyOn(service as any, 'notifyRepairOrderUpdate').mockImplementation(() => Promise.resolve());
+    jest
+      .spyOn(service as any, 'notifyRepairOrderUpdate')
+      .mockImplementation(() => Promise.resolve());
   });
 
   it('scopes PBX-code assignment to the webhook branch when creating an order', async () => {

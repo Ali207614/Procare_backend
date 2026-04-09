@@ -9,6 +9,7 @@ import {
   IsString,
   MinLength,
   MaxLength,
+  IsPhoneNumber,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
@@ -49,6 +50,26 @@ class ProblemDto {
 }
 
 export class UpdateRepairOrderDto {
+  @ApiPropertyOptional({
+    description: 'Client full name',
+    example: 'Alisher Rizayev',
+    maxLength: 200,
+  })
+  @IsOptional()
+  @IsString({ context: { location: 'name' } })
+  @MinLength(1, { context: { location: 'name' } })
+  @MaxLength(200, { context: { location: 'name' } })
+  name?: string;
+
+  @ApiPropertyOptional({
+    description: 'Client phone number',
+    example: '+998901234567',
+  })
+  @IsOptional()
+  @IsPhoneNumber('UZ', { context: { location: 'phone_number' } })
+  @Matches(/^\+998[0-9]{9}$/, { message: 'Invalid phone number format' })
+  phone_number?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUID('all', { context: { location: 'user_id' } })

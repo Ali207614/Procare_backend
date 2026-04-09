@@ -33,6 +33,7 @@ import { RepairOrderWebhookService } from 'src/repair-orders/services/repair-ord
 import { NotificationService } from 'src/notification/notification.service';
 import { RepairNotificationMeta } from 'src/common/types/notification.interface';
 import { RepairOrderStatus } from 'src/common/types/repair-order-status.interface';
+import { User } from 'src/common/types/user.interface';
 
 @Injectable()
 export class RepairOrdersService {
@@ -96,6 +97,7 @@ export class RepairOrdersService {
             createdBy: admin.id,
             phoneVerified: false,
             logContext: 'Manual User',
+            name: resolvedName,
           })) ?? undefined;
       } else {
         throw new BadRequestException({
@@ -378,9 +380,60 @@ export class RepairOrdersService {
 
       const logFields: { key: string; oldVal: unknown; newVal: unknown }[] = [];
       const updatedFields: Partial<RepairOrder> = {};
+      const userUpdateFields: Record<string, unknown> = {};
+      const shouldAutoMoveToInvalid =
+        !!dto.reject_cause_id && dto.reject_cause_id !== order.reject_cause_id;
+
+      if (dto.name !== undefined) {
+        const parsedName = this.parseCustomerNameOrThrow(dto.name);
+        if (parsedName.fullName !== order.name) {
+          updatedFields.name = parsedName.fullName;
+          userUpdateFields.first_name = parsedName.firstName;
+          userUpdateFields.last_name = parsedName.lastName;
+          logFields.push({
+            key: 'name',
+            oldVal: order.name,
+            newVal: parsedName.fullName,
+          });
+        }
+      }
+
+      if (dto.phone_number !== undefined && dto.phone_number !== order.phone_number) {
+        updatedFields.phone_number = dto.phone_number;
+        userUpdateFields.phone_number1 = dto.phone_number;
+        logFields.push({
+          key: 'phone_number',
+          oldVal: order.phone_number,
+          newVal: dto.phone_number,
+        });
+      }
+
+      if (dto.reject_cause_id !== undefined && dto.reject_cause_id !== order.reject_cause_id) {
+        const cause = await trx('repair_order_reject_causes')
+          .where({ id: dto.reject_cause_id })
+          .first();
+        if (!cause) {
+          throw new BadRequestException({
+            message: 'Reject cause not found',
+            location: 'reject_cause_id',
+          });
+        }
+
+        await trx(this.table).where({ id: orderId }).update({
+          reject_cause_id: dto.reject_cause_id,
+          updated_at: new Date(),
+        });
+
+        logFields.push({
+          key: 'reject_cause_id',
+          oldVal: order.reject_cause_id,
+          newVal: dto.reject_cause_id,
+        });
+        order.reject_cause_id = dto.reject_cause_id;
+      }
 
       // Automatically move to "Invalid" status if a reject cause is selected
-      if (dto.reject_cause_id && dto.reject_cause_id !== order.reject_cause_id) {
+      if (shouldAutoMoveToInvalid) {
         const invalidStatus = await trx<RepairOrderStatus>('repair_order_statuses')
           .where({
             branch_id: order.branch_id,
@@ -401,24 +454,11 @@ export class RepairOrdersService {
         'priority',
         'phone_category_id',
         'imei',
-        'reject_cause_id',
         'agreed_date',
       ];
       for (const field of fieldsToCheck) {
         const dtoFieldValue = dto[field as keyof UpdateRepairOrderDto];
         if (dtoFieldValue !== undefined && dtoFieldValue !== order[field]) {
-          if (field === 'reject_cause_id' && dtoFieldValue) {
-            const cause = await trx('repair_order_reject_causes')
-              .where({ id: dtoFieldValue })
-              .first();
-            if (!cause) {
-              throw new BadRequestException({
-                message: 'Reject cause not found',
-                location: 'reject_cause_id',
-              });
-            }
-          }
-
           if (field === 'agreed_date' && dtoFieldValue) {
             const inputDate = parseAgreedDateInput(dtoFieldValue as string);
 
@@ -501,6 +541,66 @@ export class RepairOrdersService {
             message: 'Phone category must not have children',
             location: 'phone_category_id',
           });
+      }
+
+      const linkedUserId =
+        typeof updatedFields.user_id === 'string' ? updatedFields.user_id : order.user_id;
+
+      if (linkedUserId && Object.keys(userUpdateFields).length > 0) {
+        if (userUpdateFields.phone_number1) {
+          const existingUser = await trx('users')
+            .where({ phone_number1: userUpdateFields.phone_number1 })
+            .whereNot({ id: linkedUserId })
+            .andWhereNot({ status: 'Deleted' })
+            .first();
+
+          if (existingUser) {
+            throw new BadRequestException({
+              message: 'This phone number is already registered with another user',
+              location: 'phone_number',
+            });
+          }
+        }
+
+        await trx('users')
+          .where({ id: linkedUserId })
+          .update({
+            ...userUpdateFields,
+            updated_at: new Date(),
+          });
+      } else if (
+        !order.user_id &&
+        !dto.user_id &&
+        (updatedFields.status_id !== undefined ||
+          dto.name !== undefined ||
+          dto.phone_number !== undefined)
+      ) {
+        const nextName =
+          (typeof updatedFields.name === 'string' ? updatedFields.name : order.name) ?? null;
+        const nextPhone =
+          (typeof updatedFields.phone_number === 'string'
+            ? updatedFields.phone_number
+            : order.phone_number) ?? null;
+
+        if (nextName && nextPhone) {
+          const linkedUserId = await this.ensureUserByPhone(trx, nextPhone, {
+            allowCreate: true,
+            source: 'employee',
+            createdBy: admin.id,
+            phoneVerified: false,
+            logContext: 'Manual User',
+            name: nextName,
+          });
+
+          if (linkedUserId && linkedUserId !== order.user_id) {
+            updatedFields.user_id = linkedUserId;
+            logFields.push({
+              key: 'user_id',
+              oldVal: order.user_id,
+              newVal: linkedUserId,
+            });
+          }
+        }
       }
 
       if (Object.keys(updatedFields).length) {
@@ -902,20 +1002,12 @@ export class RepairOrdersService {
       const updates: Partial<RepairOrder> = {};
       const logs: { key: string; oldVal: unknown; newVal: unknown }[] = [];
 
-      // 4. Handle user linking if required by the target status
+      // 4. Auto-link a user on status change when the order still has no user.
       if (!order.user_id && isStatusChanged) {
-        const targetPermission = this.getTargetStatusPermissionOrThrow(
-          admin,
-          permissions,
-          order.branch_id,
-          dto.status_id,
-        );
-        if (targetPermission?.can_create_user) {
-          const linkedUserId = await this.ensureUserLinked(trx, order, admin.id);
-          if (linkedUserId) {
-            updates.user_id = linkedUserId;
-            logs.push({ key: 'user_id', oldVal: order.user_id, newVal: linkedUserId });
-          }
+        const linkedUserId = await this.ensureUserLinked(trx, order, admin.id);
+        if (linkedUserId) {
+          updates.user_id = linkedUserId;
+          logs.push({ key: 'user_id', oldVal: order.user_id, newVal: linkedUserId });
         }
       }
 
@@ -1711,11 +1803,42 @@ export class RepairOrdersService {
   private async findUserByPhone(
     trx: Knex.Transaction,
     phoneNumber: string,
-  ): Promise<{ id: string } | undefined> {
-    return trx('users')
+  ): Promise<User | undefined> {
+    return trx<User>('users')
       .whereRaw('LOWER(phone_number1) = ?', phoneNumber.toLowerCase())
       .andWhereNot({ status: 'Deleted' })
       .first();
+  }
+
+  private async enrichExistingUserNameIfMissing(
+    trx: Knex.Transaction,
+    user: Pick<User, 'id' | 'first_name' | 'last_name'>,
+    name: string,
+    logContext: 'Webhook User' | 'Manual User',
+  ): Promise<void> {
+    const parsedName = this.parseCustomerNameOrThrow(name);
+    const nextUserFields: Partial<User> = {};
+
+    if (!user.first_name?.trim()) {
+      nextUserFields.first_name = parsedName.firstName;
+    }
+
+    if (!user.last_name?.trim() && parsedName.lastName) {
+      nextUserFields.last_name = parsedName.lastName;
+    }
+
+    if (!Object.keys(nextUserFields).length) {
+      return;
+    }
+
+    await trx('users')
+      .where({ id: user.id })
+      .update({
+        ...nextUserFields,
+        updated_at: new Date().toISOString(),
+      });
+
+    this.logger.log(`[${logContext}] Enriched existing user ${user.id} with missing name fields.`);
   }
 
   private async ensureUserByPhone(
@@ -1727,11 +1850,21 @@ export class RepairOrdersService {
       createdBy: string | null;
       phoneVerified?: boolean;
       logContext: 'Webhook User' | 'Manual User';
+      name?: string | null;
     },
   ): Promise<string | null> {
     const existingUser = await this.findUserByPhone(trx, phoneNumber);
 
     if (existingUser) {
+      if (options.name) {
+        await this.enrichExistingUserNameIfMissing(
+          trx,
+          existingUser,
+          options.name,
+          options.logContext,
+        );
+      }
+
       this.logger.log(
         `[${options.logContext}] Found existing user ${existingUser.id} for phone ${phoneNumber}`,
       );
@@ -1749,10 +1882,11 @@ export class RepairOrdersService {
       `[${options.logContext}] No existing user found for phone ${phoneNumber}. Creating new user...`,
     );
 
+    const parsedName = options.name ? this.parseCustomerNameOrThrow(options.name) : null;
     const [newUser]: { id: string }[] = await trx('users')
       .insert({
-        first_name: null,
-        last_name: null,
+        first_name: parsedName?.firstName ?? null,
+        last_name: parsedName?.lastName ?? null,
         phone_number1: phoneNumber,
         is_active: true,
         phone_verified: options.phoneVerified ?? false,
@@ -1806,7 +1940,30 @@ export class RepairOrdersService {
       createdBy: adminId,
       phoneVerified: false,
       logContext: 'Manual User',
+      name: order.name,
     });
+  }
+
+  private parseCustomerNameOrThrow(name: string): {
+    fullName: string;
+    firstName: string;
+    lastName: string | null;
+  } {
+    const fullName = name.trim().replace(/\s+/g, ' ');
+
+    if (!fullName) {
+      throw new BadRequestException({
+        message: 'Name must not be empty',
+        location: 'name',
+      });
+    }
+
+    const [firstName, ...lastNameParts] = fullName.split(' ');
+    return {
+      fullName,
+      firstName,
+      lastName: lastNameParts.join(' ') || null,
+    };
   }
 
   /**

@@ -23,6 +23,7 @@ function createQueryBuilder(result: unknown) {
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     whereNotIn: jest.fn().mockReturnThis(),
+    whereNot: jest.fn().mockReturnThis(),
     first: jest.fn().mockResolvedValue(result),
     update: jest.fn().mockResolvedValue(1),
     decrement: jest.fn().mockResolvedValue(1),
@@ -185,6 +186,7 @@ describe('RepairOrdersService transition hardening', () => {
 
     logger = {
       error: jest.fn(),
+      log: jest.fn(),
     } as unknown as Mocked<LoggerService>;
 
     pdfService = {} as Mocked<PdfService>;
@@ -209,12 +211,16 @@ describe('RepairOrdersService transition hardening', () => {
 
     jest.spyOn(service as any, 'moveToTop').mockResolvedValue(undefined);
     jest.spyOn(service as any, 'emitMoveNotification').mockImplementation(() => undefined);
+    jest.spyOn(service as any, 'notifyRepairOrderUpdate').mockResolvedValue(undefined);
   });
 
   it('rejects move when target permission is missing for the primary role', async () => {
     const trx = createTransactionMock({
       repair_orders: [order, undefined],
-      'repair-order-status-transitions': { from_status_id: 'status-old', to_status_id: 'status-new' },
+      'repair-order-status-transitions': {
+        from_status_id: 'status-old',
+        to_status_id: 'status-new',
+      },
       repair_order_statuses: { id: 'status-new', type: 'Open' },
       repair_order_rental_phones: undefined,
     });
@@ -234,7 +240,10 @@ describe('RepairOrdersService transition hardening', () => {
   it('rejects move when agreed date is required by the primary role target policy', async () => {
     const trx = createTransactionMock({
       repair_orders: [order, undefined],
-      'repair-order-status-transitions': { from_status_id: 'status-old', to_status_id: 'status-new' },
+      'repair-order-status-transitions': {
+        from_status_id: 'status-old',
+        to_status_id: 'status-new',
+      },
       repair_order_statuses: { id: 'status-new', type: 'Open' },
       repair_order_rental_phones: undefined,
     });
@@ -269,7 +278,10 @@ describe('RepairOrdersService transition hardening', () => {
   it('applies the same strict destination policy in update()', async () => {
     const trx = createTransactionMock({
       repair_orders: [order, { ...order, status_id: 'status-new', sort: 999999 }],
-      'repair-order-status-transitions': { from_status_id: 'status-old', to_status_id: 'status-new' },
+      'repair-order-status-transitions': {
+        from_status_id: 'status-old',
+        to_status_id: 'status-new',
+      },
       repair_order_statuses: { id: 'status-new', type: 'Open' },
       repair_order_rental_phones: undefined,
     });
@@ -284,5 +296,157 @@ describe('RepairOrdersService transition hardening', () => {
     await expect(
       service.update(admin, order.id, { status_id: 'status-new' } as any),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('auto-links a user during update when valid name and phone_number are provided', async () => {
+    const orderWithoutUser: RepairOrder = {
+      ...order,
+      user_id: null,
+      name: null,
+      phone_number: '+998901234567',
+    };
+    const trx = createTransactionMock({
+      repair_orders: [orderWithoutUser],
+    });
+
+    knex.transaction.mockResolvedValue(trx);
+    permissionService.findByRolesAndBranch.mockResolvedValue([currentStatusPermission]);
+    permissionService.checkPermissionsOrThrow.mockResolvedValue(undefined);
+
+    const ensureUserByPhoneSpy = jest
+      .spyOn(service as any, 'ensureUserByPhone')
+      .mockResolvedValue('linked-user-id');
+
+    await expect(
+      service.update(admin, order.id, {
+        name: 'Alisher Rizayev',
+        phone_number: '+998901234567',
+      } as any),
+    ).resolves.toEqual({ message: 'Repair order updated successfully' });
+
+    expect(ensureUserByPhoneSpy).toHaveBeenCalledWith(
+      trx,
+      '+998901234567',
+      expect.objectContaining({
+        allowCreate: true,
+        name: 'Alisher Rizayev',
+      }),
+    );
+  });
+
+  it('moves with auto-linking even when can_create_user is false', async () => {
+    const orderWithoutUser: RepairOrder = {
+      ...order,
+      user_id: null,
+    };
+    const trx = createTransactionMock({
+      repair_orders: [orderWithoutUser],
+      'repair-order-status-transitions': {
+        from_status_id: 'status-old',
+        to_status_id: 'status-new',
+      },
+      repair_order_statuses: { id: 'status-new', type: 'Open' },
+      repair_order_rental_phones: undefined,
+    });
+    const targetPermission = {
+      ...currentStatusPermission,
+      id: 'perm-primary-target-no-create',
+      status_id: 'status-new',
+      can_create_user: false,
+    } satisfies RepairOrderStatusPermission;
+
+    knex.transaction.mockResolvedValue(trx);
+    permissionService.findByRolesAndBranch.mockResolvedValue([
+      currentStatusPermission,
+      targetPermission,
+    ]);
+    permissionService.checkPermissionsOrThrow.mockResolvedValue(undefined);
+
+    const ensureUserLinkedSpy = jest
+      .spyOn(service as any, 'ensureUserLinked')
+      .mockResolvedValue('linked-user-id');
+
+    await expect(
+      service.move(admin, order.id, { status_id: 'status-new', sort: 1 }),
+    ).resolves.toEqual({ message: 'Repair order moved successfully' });
+
+    expect(ensureUserLinkedSpy).toHaveBeenCalledWith(trx, orderWithoutUser, admin.id);
+  });
+
+  it('stores parsed first and last name when creating a user from a full name', async () => {
+    const existingUserQuery = {
+      whereRaw: jest.fn().mockReturnThis(),
+      andWhereNot: jest.fn().mockReturnThis(),
+      first: jest.fn().mockResolvedValue(undefined),
+    };
+    const insertQuery = {
+      insert: jest.fn().mockReturnThis(),
+      returning: jest.fn().mockResolvedValue([{ id: 'new-user-id' }]),
+    };
+    const trx = jest
+      .fn()
+      .mockReturnValueOnce(existingUserQuery)
+      .mockReturnValueOnce(insertQuery) as any;
+
+    const userId = await (service as any).ensureUserByPhone(trx, '+998901234567', {
+      allowCreate: true,
+      source: 'employee',
+      createdBy: admin.id,
+      phoneVerified: false,
+      logContext: 'Manual User',
+      name: 'Alisher Rizayev',
+    });
+
+    expect(userId).toBe('new-user-id');
+    expect(insertQuery.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        first_name: 'Alisher',
+        last_name: 'Rizayev',
+        phone_number1: '+998901234567',
+      }),
+    );
+    expect((service as any).parseCustomerNameOrThrow('Alisher')).toEqual({
+      fullName: 'Alisher',
+      firstName: 'Alisher',
+      lastName: null,
+    });
+  });
+
+  it('fills missing name fields on an existing user matched by phone number', async () => {
+    const existingUserQuery = {
+      whereRaw: jest.fn().mockReturnThis(),
+      andWhereNot: jest.fn().mockReturnThis(),
+      first: jest.fn().mockResolvedValue({
+        id: 'existing-user-id',
+        first_name: null,
+        last_name: null,
+      }),
+    };
+    const updateQuery = {
+      where: jest.fn().mockReturnThis(),
+      update: jest.fn().mockResolvedValue(1),
+    };
+    const trx = jest
+      .fn()
+      .mockReturnValueOnce(existingUserQuery)
+      .mockReturnValueOnce(updateQuery) as any;
+
+    const userId = await (service as any).ensureUserByPhone(trx, '+998901234567', {
+      allowCreate: true,
+      source: 'employee',
+      createdBy: admin.id,
+      phoneVerified: false,
+      logContext: 'Manual User',
+      name: 'Alisher Rizayev',
+    });
+
+    expect(userId).toBe('existing-user-id');
+    expect(updateQuery.where).toHaveBeenCalledWith({ id: 'existing-user-id' });
+    expect(updateQuery.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        first_name: 'Alisher',
+        last_name: 'Rizayev',
+      }),
+    );
   });
 });
