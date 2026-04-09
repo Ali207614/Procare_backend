@@ -18,6 +18,7 @@ describe('OnlinePbxService gateway filtering', () => {
     handleCallAnswered: jest.Mock;
     incrementMissedCallCount: jest.Mock;
     moveToTopById: jest.Mock;
+    notifyAvailableAssignedAdminsForIncomingCall: jest.Mock;
   };
   let insertChain: {
     onConflict: jest.Mock;
@@ -68,6 +69,7 @@ describe('OnlinePbxService gateway filtering', () => {
       handleCallAnswered: jest.fn(),
       incrementMissedCallCount: jest.fn(),
       moveToTopById: jest.fn(),
+      notifyAvailableAssignedAdminsForIncomingCall: jest.fn(),
     };
 
     service = new OnlinePbxService(
@@ -107,4 +109,24 @@ describe('OnlinePbxService gateway filtering', () => {
       expect(mergeSpy).toHaveBeenCalled();
     },
   );
+
+  it('notifies available assigned admins on inbound call_start for an existing open order', async () => {
+    repairOrderService.findOpenOrderByPhoneNumber.mockResolvedValue({
+      id: 'order-1',
+    });
+
+    await service.handleWebhook({
+      uuid: 'call-start-1',
+      gateway: '+998781133774',
+      direction: 'inbound',
+      event: 'call_start',
+      caller: '+998901234567',
+      callee: '120',
+    });
+
+    expect(repairOrderService.incrementCallCount).toHaveBeenCalledWith('order-1');
+    expect(repairOrderService.notifyAvailableAssignedAdminsForIncomingCall).toHaveBeenCalledWith(
+      'order-1',
+    );
+  });
 });

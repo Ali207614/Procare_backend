@@ -1772,7 +1772,7 @@ export class RepairOrdersService {
         this.logger.log(
           `[Webhook Order] Assigning repair order ${newOrder.id} to admin ${assignedAdminId}`,
         );
-        await this.assignAdminToOrderIfNeeded(trx, newOrder.id, assignedAdminId);
+        await this.assignTelephonyAdminToOrderIfEligible(trx, newOrder.id, assignedAdminId);
       } else {
         this.logger.log(`[Webhook Order] No admin assigned to repair order ${newOrder.id}`);
       }
@@ -2125,7 +2125,7 @@ export class RepairOrdersService {
         order = newOrder;
 
         if (targetAdminId) {
-          await this.assignAdminToOrderIfNeeded(trx, order.id, targetAdminId);
+          await this.assignTelephonyAdminToOrderIfEligible(trx, order.id, targetAdminId);
         }
       } else {
         await trx(this.table)
@@ -2136,7 +2136,7 @@ export class RepairOrdersService {
           });
 
         if (targetAdminId) {
-          await this.assignAdminToOrderIfNeeded(trx, order.id, targetAdminId);
+          await this.assignTelephonyAdminToOrderIfEligible(trx, order.id, targetAdminId);
         }
       }
 
@@ -2157,6 +2157,45 @@ export class RepairOrdersService {
     } catch (err) {
       await trx.rollback();
       throw err;
+    }
+  }
+
+  async notifyAvailableAssignedAdminsForIncomingCall(orderId: string): Promise<void> {
+    try {
+      const order = await this.knex<RepairOrder>(this.table).where({ id: orderId, status: 'Open' }).first();
+      if (!order) return;
+
+      const availableAdminIds = await this.findAvailableAssignedAdminIds(orderId);
+      if (!availableAdminIds.length) {
+        this.logger.log(
+          `[Webhook Order] No available assigned admins found for incoming call on repair order ${orderId}.`,
+        );
+        return;
+      }
+
+      const richMeta = await this.helper.getRepairOrderNotificationMeta(order.id, this.knex);
+      if (!richMeta) {
+        throw new Error(`Failed to fetch notification meta for order ${order.id}`);
+      }
+
+      const meta: RepairNotificationMeta = {
+        ...richMeta,
+        action: 'order_updated',
+        open_menu: true,
+      };
+
+      this.notificationService.broadcastToAdmins(availableAdminIds, {
+        title: "Kiruvchi qo'ng'iroq",
+        message: `Buyurtma #${order.number_id} bo'yicha kiruvchi qo'ng'iroq mavjud`,
+        type: 'info',
+        meta: meta as unknown as Record<string, unknown>,
+      });
+    } catch (err) {
+      this.logger.error(
+        `[RepairOrdersService] Failed to notify assigned admins for incoming call on order ${orderId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
     }
   }
 
@@ -2205,6 +2244,81 @@ export class RepairOrdersService {
       })
       .onConflict(['repair_order_id', 'admin_id'])
       .ignore();
+  }
+
+  private async assignTelephonyAdminToOrderIfEligible(
+    trx: Knex.Transaction,
+    orderId: string,
+    adminId: string,
+  ): Promise<void> {
+    const hasSameRoleAssigned = await this.hasAssignedAdminWithSameRole(trx, orderId, adminId);
+    if (hasSameRoleAssigned) {
+      this.logger.log(
+        `[Webhook Order] Skipping telephony assignment of admin ${adminId} to repair order ${orderId} because an assigned admin already has the same role.`,
+      );
+      return;
+    }
+
+    await this.assignAdminToOrderIfNeeded(trx, orderId, adminId);
+  }
+
+  private async hasAssignedAdminWithSameRole(
+    trx: Knex.Transaction,
+    orderId: string,
+    adminId: string,
+  ): Promise<boolean> {
+    const roleIds = await this.getActiveRoleIdsByAdminId(trx, adminId);
+    if (!roleIds.length) return false;
+
+    const existingMatch = await trx('repair_order_assign_admins as raa')
+      .join('admin_roles as ar', 'raa.admin_id', 'ar.admin_id')
+      .join('roles as r', 'ar.role_id', 'r.id')
+      .where('raa.repair_order_id', orderId)
+      .whereNot('raa.admin_id', adminId)
+      .whereIn('ar.role_id', roleIds)
+      .andWhere('r.status', 'Open')
+      .andWhere('r.is_active', true)
+      .first();
+
+    return !!existingMatch;
+  }
+
+  private async getActiveRoleIdsByAdminId(
+    trx: Knex.Transaction,
+    adminId: string,
+  ): Promise<string[]> {
+    return trx('admin_roles as ar')
+      .join('roles as r', 'ar.role_id', 'r.id')
+      .where('ar.admin_id', adminId)
+      .andWhere('r.status', 'Open')
+      .andWhere('r.is_active', true)
+      .pluck('ar.role_id');
+  }
+
+  private async findAvailableAssignedAdminIds(orderId: string): Promise<string[]> {
+    const { currentDayStr, currentHHmm } = this.getCurrentWorkContext();
+
+    return this.knex('repair_order_assign_admins as raa')
+      .join('admins as a', 'raa.admin_id', 'a.id')
+      .where('raa.repair_order_id', orderId)
+      .andWhere('a.is_active', true)
+      .andWhere('a.status', 'Open')
+      .whereRaw(`(a.work_days->>?)::boolean = true`, [currentDayStr])
+      .andWhere('a.work_start_time', '<=', currentHHmm)
+      .andWhere('a.work_end_time', '>=', currentHHmm)
+      .pluck('a.id');
+  }
+
+  private getCurrentWorkContext(
+    now: Date = new Date(),
+  ): { currentDayStr: string; currentHHmm: string } {
+    const currentDayIndex = now.getDay();
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+    return {
+      currentDayStr: days[currentDayIndex],
+      currentHHmm: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+    };
   }
 
   private async getTransitionRule(

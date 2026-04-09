@@ -49,6 +49,18 @@ export class NotificationService {
     this.gateway.broadcastToAdmins(adminIds, message);
   }
 
+  broadcastToAdmins(adminIds: string[], payload: NotificationPayload): void {
+    if (adminIds.length === 0) return;
+
+    const message: BroadcastMessage<RepairNotificationMeta> = {
+      title: payload.title,
+      message: payload.message,
+      meta: payload.meta as unknown as RepairNotificationMeta,
+    };
+
+    this.gateway.broadcastToAdmins(adminIds, message);
+  }
+
   /**
    * Notifies all admins associated with a specific branch.
    * Persists notifications in DB and broadcasts via branch-specific socket room.

@@ -305,6 +305,9 @@ export class OnlinePbxService {
             if (openOrder) {
               // Only increment if already exists; don't create yet
               await this.repairOrderService.incrementCallCount(openOrder.id);
+              await this.repairOrderService.notifyAvailableAssignedAdminsForIncomingCall(
+                openOrder.id,
+              );
               this.logger.log(
                 `Incremented call_count for existing open repair order ${openOrder.id} via RepairOrdersService.`,
               );
