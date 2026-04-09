@@ -2162,7 +2162,9 @@ export class RepairOrdersService {
 
   async notifyAvailableAssignedAdminsForIncomingCall(orderId: string): Promise<void> {
     try {
-      const order = await this.knex<RepairOrder>(this.table).where({ id: orderId, status: 'Open' }).first();
+      const order = await this.knex<RepairOrder>(this.table)
+        .where({ id: orderId, status: 'Open' })
+        .first();
       if (!order) return;
 
       const availableAdminIds = await this.findAvailableAssignedAdminIds(orderId);
@@ -2309,9 +2311,10 @@ export class RepairOrdersService {
       .pluck('a.id');
   }
 
-  private getCurrentWorkContext(
-    now: Date = new Date(),
-  ): { currentDayStr: string; currentHHmm: string } {
+  private getCurrentWorkContext(now: Date = new Date()): {
+    currentDayStr: string;
+    currentHHmm: string;
+  } {
     const currentDayIndex = now.getDay();
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
