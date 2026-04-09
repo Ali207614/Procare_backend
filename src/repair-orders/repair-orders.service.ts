@@ -410,7 +410,7 @@ export class RepairOrdersService {
 
       if (dto.reject_cause_id !== undefined && dto.reject_cause_id !== order.reject_cause_id) {
         const cause = await trx('repair_order_reject_causes')
-          .where({ id: dto.reject_cause_id })
+          .where({ id: dto.reject_cause_id, status: 'Open', is_active: true })
           .first();
         if (!cause) {
           throw new BadRequestException({

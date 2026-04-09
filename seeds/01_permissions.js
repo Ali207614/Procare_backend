@@ -120,6 +120,10 @@ exports.seed = async function (knex) {
     { id: '00000000-0000-4000-8000-000000000084', name: 'repair_order_payments.read', description: "To'lovlarni ko'rish" },
     { id: '00000000-0000-4000-8000-000000000085', name: 'repair_order_payments.update', description: "To'lovni tahrirlash" },
     { id: '00000000-0000-4000-8000-000000000086', name: 'repair_order_payments.delete', description: "To'lovni o'chirish" },
+    { id: '00000000-0000-4000-8000-000000000087', name: 'repair.order.reject.cause.view', description: 'Reject sabablarini korish' },
+    { id: '00000000-0000-4000-8000-000000000088', name: 'repair.order.reject.cause.create', description: 'Reject sababini yaratish' },
+    { id: '00000000-0000-4000-8000-000000000089', name: 'repair.order.reject.cause.update', description: 'Reject sababini tahrirlash' },
+    { id: '00000000-0000-4000-8000-000000000090', name: 'repair.order.reject.cause.delete', description: 'Reject sababini ochirish' },
   ];
 
 
