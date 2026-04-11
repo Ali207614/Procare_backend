@@ -62,14 +62,25 @@ export class FindAllRepairOrdersQueryDto {
   // Filters
   @ApiPropertyOptional({
     description: 'Qabul qilingan manba boyicha filter',
-    enum: ['Organic', 'App', 'Meta', 'Web', 'Bot', 'Other'],
+    enum: [
+      'Telegram',
+      'Meta',
+      'Qolda',
+      'Boshqa',
+      'Kiruvchi qongiroq',
+      'Chiquvchi qongiroq',
+      'Organic',
+    ],
     isArray: true,
-    example: ['Organic', 'App'],
+    example: ['Organic', 'Telegram'],
   })
   @IsOptional()
   @ToArray()
   @IsArray()
-  @IsIn(['Organic', 'App', 'Meta', 'Web', 'Bot', 'Other'], { each: true })
+  @IsIn(
+    ['Telegram', 'Meta', 'Qolda', 'Boshqa', 'Kiruvchi qongiroq', 'Chiquvchi qongiroq', 'Organic'],
+    { each: true },
+  )
   source_types?: string[];
 
   @ApiPropertyOptional({

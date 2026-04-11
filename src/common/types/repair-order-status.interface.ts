@@ -23,4 +23,7 @@ export interface RepairOrderStatus {
 export interface RepairOrderStatusWithPermissions extends RepairOrderStatus {
   permissions: RepairOrderStatusPermission;
   transitions: string[];
+  metrics: {
+    total_repair_orders: number;
+  };
 }

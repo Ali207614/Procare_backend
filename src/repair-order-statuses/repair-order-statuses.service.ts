@@ -201,13 +201,20 @@ export class RepairOrderStatusesService {
         .whereIn('id', viewableIds)
         .andWhere({ is_active: true, status: 'Open', branch_id: branchId });
 
-      const [statuses, countResult, transitionsRaw] = await Promise.all([
+      const [statuses, countResult, transitionsRaw, countsRaw] = await Promise.all([
         baseQuery.clone().orderBy('sort', 'asc').offset(offset).limit(limit),
         baseQuery.clone().count<{ count: string }[]>('* as count'),
         trx<RepairOrderStatusTransition>('repair-order-status-transitions').whereIn(
           'from_status_id',
           viewableIds,
         ),
+        trx('repair_orders')
+          .whereIn('status_id', viewableIds)
+          .andWhere('branch_id', branchId)
+          .andWhereNot('status', 'Deleted')
+          .groupBy('status_id')
+          .select('status_id')
+          .count<{ status_id: string; count: string }[]>('* as count'),
       ]);
 
       const total: number = Number(countResult[0].count);
@@ -218,11 +225,19 @@ export class RepairOrderStatusesService {
         return acc;
       }, {});
 
+      const countsMap = countsRaw.reduce<Record<string, number>>((acc, c) => {
+        acc[c.status_id] = Number(c.count);
+        return acc;
+      }, {});
+
       const merged: RepairOrderStatusWithPermissions[] = statuses.map((status) => ({
         ...status,
         permissions:
           permissions.find((p) => p.status_id === status.id) ?? ({} as RepairOrderStatusPermission),
         transitions: transitionsMap[status.id] || [],
+        metrics: {
+          total_repair_orders: countsMap[status.id] || 0,
+        },
       }));
 
       await trx.commit();

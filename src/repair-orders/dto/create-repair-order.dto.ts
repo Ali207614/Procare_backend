@@ -18,6 +18,7 @@ import {
   IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { RepairOrderSource } from 'src/common/types/repair-order.interface';
 
 export class ProblemPartInputDto {
   @ApiProperty({
@@ -281,11 +282,34 @@ export class CreateRepairOrderDto {
   @Type(() => LocationDto)
   delivery?: LocationDto;
 
-  @ApiProperty({ description: 'Rental phone details', type: RentalPhoneDto })
+  @ApiPropertyOptional({
+    description: 'Rental phone details',
+    type: RentalPhoneDto,
+  })
   @IsOptional()
   @ValidateNested()
   @Type(() => RentalPhoneDto)
   rental_phone?: RentalPhoneDto;
+
+  @ApiPropertyOptional({
+    description: 'Source of the repair order',
+    enum: [
+      'Telegram',
+      'Meta',
+      'Qolda',
+      'Boshqa',
+      'Kiruvchi qongiroq',
+      'Chiquvchi qongiroq',
+      'Organic',
+    ],
+    example: 'Qolda',
+  })
+  @IsOptional()
+  @IsEnum(
+    ['Telegram', 'Meta', 'Qolda', 'Boshqa', 'Kiruvchi qongiroq', 'Chiquvchi qongiroq', 'Organic'],
+    { message: 'Invalid source type' },
+  )
+  source?: RepairOrderSource;
 
   @ApiPropertyOptional({
     description: 'Status ID',

@@ -13,6 +13,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { RepairOrderSource } from 'src/common/types/repair-order.interface';
 
 class ProblemPartDto {
   @ApiPropertyOptional()
@@ -143,4 +144,24 @@ export class UpdateRepairOrderDto {
     message: 'Agreed date must be in YYYY-MM-DD HH:mm format',
   })
   agreed_date?: string;
+
+  @ApiPropertyOptional({
+    description: 'Source of the repair order',
+    enum: [
+      'Telegram',
+      'Meta',
+      'Qolda',
+      'Boshqa',
+      'Kiruvchi qongiroq',
+      'Chiquvchi qongiroq',
+      'Organic',
+    ],
+    example: 'Organic',
+  })
+  @IsOptional()
+  @IsEnum(
+    ['Telegram', 'Meta', 'Qolda', 'Boshqa', 'Kiruvchi qongiroq', 'Chiquvchi qongiroq', 'Organic'],
+    { message: 'Invalid source type' },
+  )
+  source?: RepairOrderSource;
 }

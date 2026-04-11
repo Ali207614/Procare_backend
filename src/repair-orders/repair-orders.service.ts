@@ -169,6 +169,7 @@ export class RepairOrdersService {
         if (dto.region_id) updateData.region_id = dto.region_id;
         if (dto.imei) updateData.imei = dto.imei;
         if (dto.priority) updateData.priority = dto.priority;
+        if (dto.source) updateData.source = dto.source;
 
         // Move existing order to the top of its current status list using helper
         await this.moveToTop(trx, existingOpenOrder);
@@ -200,6 +201,7 @@ export class RepairOrdersService {
           created_by: admin.id,
           phone_number: resolvedPhoneNumber,
           name: resolvedName,
+          source: dto.source || 'Qolda',
           created_at: createdAt,
           updated_at: createdAt,
         };
@@ -466,6 +468,7 @@ export class RepairOrdersService {
         'region_id',
         'imei',
         'agreed_date',
+        'source',
       ];
       for (const field of fieldsToCheck) {
         const dtoFieldValue = dto[field as keyof UpdateRepairOrderDto];
@@ -724,9 +727,9 @@ export class RepairOrdersService {
     const endRow = offset + limit;
     const queryParams: Record<string, unknown> = { branchId, statusIds, limit, offset, endRow };
 
-    // Filter by source types (assuming we add source_type field)
+    // Filter by source types
     if (source_types?.length) {
-      whereConditions.push(`ro.source_type = ANY(:sourceTypes)`);
+      whereConditions.push(`ro.source = ANY(:sourceTypes)`);
       queryParams.sourceTypes = source_types;
     }
 

@@ -1,5 +1,14 @@
 import { UserListItem } from 'src/common/types/user.interface';
 
+export type RepairOrderSource =
+  | 'Telegram'
+  | 'Meta'
+  | 'Qolda'
+  | 'Boshqa'
+  | 'Kiruvchi qongiroq'
+  | 'Chiquvchi qongiroq'
+  | 'Organic';
+
 export interface RepairOrder {
   id: string;
   number_id: number;
@@ -27,14 +36,7 @@ export interface RepairOrder {
 
   phone_number: string;
   name: string | null;
-  source:
-    | 'Telegram'
-    | 'Meta'
-    | 'Qolda'
-    | 'Boshqa'
-    | 'Kiruvchi qongiroq'
-    | 'Chiquvchi qongiroq'
-    | null;
+  source: RepairOrderSource | null;
   call_count: number;
   missed_calls: number;
 
@@ -63,14 +65,7 @@ export interface FreshRepairOrder {
     title: string | null;
     description: string | null;
   };
-  source:
-    | 'Telegram'
-    | 'Meta'
-    | 'Qolda'
-    | 'Boshqa'
-    | 'Kiruvchi qongiroq'
-    | 'Chiquvchi qongiroq'
-    | null;
+  source: RepairOrderSource | null;
   phone_number: string | null;
   deadline_at: string | null;
   user: {
@@ -290,14 +285,7 @@ export interface RepairOrderDetails {
     title: string | null;
     description: string | null;
   };
-  source:
-    | 'Telegram'
-    | 'Meta'
-    | 'Qolda'
-    | 'Boshqa'
-    | 'Kiruvchi qongiroq'
-    | 'Chiquvchi qongiroq'
-    | null;
+  source: RepairOrderSource | null;
   user: {
     id: string | null;
     first_name: string | null;
