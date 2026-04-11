@@ -45,6 +45,14 @@ const USER_CHILD_TABLES = [
   { table: 'user_phone_category_assignment', foreignKey: 'user_id' },
 ];
 
+function isComposeBootstrap() {
+  return process.argv.includes('--compose-bootstrap');
+}
+
+function shouldRunComposeBootstrapCleanup() {
+  return process.env.DB_COMPOSE_RUN_CLEANUP === 'true';
+}
+
 function getArgValue(flagName) {
   const exactArg = process.argv.find((arg) => arg.startsWith(`${flagName}=`));
   if (exactArg) {
@@ -80,6 +88,84 @@ function shouldAutoConfirm() {
 
 function isDryRun() {
   return process.argv.includes('--dry-run');
+}
+
+async function getExistingTables(trx, tableNames) {
+  const rows = await trx('information_schema.tables')
+    .select('table_name')
+    .where({ table_schema: 'public' })
+    .whereIn('table_name', tableNames);
+
+  return new Set(rows.map((row) => row.table_name));
+}
+
+async function getTablesWithCreatedAt(trx, tableNames) {
+  const rows = await trx('information_schema.columns')
+    .select('table_name')
+    .where({
+      table_schema: 'public',
+      column_name: 'created_at',
+    })
+    .whereIn('table_name', tableNames);
+
+  return new Set(rows.map((row) => row.table_name));
+}
+
+async function getChildTablesFromDatabase(trx, parentTableName) {
+  const rows = await trx('information_schema.table_constraints as tc')
+    .join('information_schema.key_column_usage as kcu', function () {
+      this.on('tc.constraint_name', '=', 'kcu.constraint_name')
+        .andOn('tc.table_schema', '=', 'kcu.table_schema')
+        .andOn('tc.table_name', '=', 'kcu.table_name');
+    })
+    .join('information_schema.constraint_column_usage as ccu', function () {
+      this.on('tc.constraint_name', '=', 'ccu.constraint_name')
+        .andOn('tc.table_schema', '=', 'ccu.table_schema');
+    })
+    .select('tc.table_name as table', 'kcu.column_name as foreignKey')
+    .where({
+      'tc.constraint_type': 'FOREIGN KEY',
+      'tc.table_schema': 'public',
+      'ccu.table_schema': 'public',
+      'ccu.table_name': parentTableName,
+    });
+
+  const seen = new Set();
+
+  return rows.filter((row) => {
+    const key = `${row.table}:${row.foreignKey}`;
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
+function mergeChildTables(preferredTables, discoveredTables) {
+  const merged = [];
+  const seen = new Set();
+
+  for (const table of [...preferredTables, ...discoveredTables]) {
+    const key = `${table.table}:${table.foreignKey}`;
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    merged.push(table);
+  }
+
+  return merged;
+}
+
+function logSkippedTables(tableNames, reason) {
+  if (tableNames.length === 0) {
+    return;
+  }
+
+  console.log(`Skipping ${reason}: ${tableNames.join(', ')}`);
 }
 
 async function countRowsBefore(trx, tableName, cutoffDate) {
@@ -157,6 +243,13 @@ async function run() {
   const autoConfirm = shouldAutoConfirm();
   const dryRun = isDryRun();
 
+  if (isComposeBootstrap() && !shouldRunComposeBootstrapCleanup()) {
+    console.log(
+      'Skipping compose cleanup. Set DB_COMPOSE_RUN_CLEANUP=true if you want docker compose bootstrap to delete old rows.',
+    );
+    process.exit(0);
+  }
+
   if (!autoConfirm) {
     console.log('WARNING: This script performs date-filtered cleanup on selected tables.');
     console.log(`Only rows with created_at before ${cutoffDate} will be eligible for deletion.`);
@@ -171,29 +264,56 @@ async function run() {
 
   try {
     await knex.transaction(async (trx) => {
+      const configuredTables = [...DATE_FILTERED_TABLES, 'repair_orders', 'users'];
+      const existingTables = await getExistingTables(trx, configuredTables);
+      const tablesWithCreatedAt = await getTablesWithCreatedAt(trx, DATE_FILTERED_TABLES);
+
+      const missingDateFilteredTables = DATE_FILTERED_TABLES.filter((tableName) => !existingTables.has(tableName));
+      const dateFilteredTables = DATE_FILTERED_TABLES.filter((tableName) => tablesWithCreatedAt.has(tableName));
+      const tablesMissingCreatedAt = DATE_FILTERED_TABLES.filter(
+        (tableName) => existingTables.has(tableName) && !tablesWithCreatedAt.has(tableName),
+      );
+
+      logSkippedTables(missingDateFilteredTables, 'missing tables');
+      logSkippedTables(tablesMissingCreatedAt, 'tables without created_at');
+
+      const repairOrderChildTables = mergeChildTables(
+        REPAIR_ORDER_CHILD_TABLES,
+        await getChildTablesFromDatabase(trx, 'repair_orders'),
+      );
+      const userChildTables = mergeChildTables(USER_CHILD_TABLES, await getChildTablesFromDatabase(trx, 'users'));
+
       let totalAffectedRows = 0;
 
-      for (const tableName of DATE_FILTERED_TABLES) {
+      for (const tableName of dateFilteredTables) {
         totalAffectedRows += await deleteRowsBefore(trx, tableName, cutoffDate, dryRun);
       }
 
-      totalAffectedRows += await deleteParentRows(trx, {
-        label: 'repair_orders',
-        tableName: 'repair_orders',
-        alias: 'ro',
-        childTables: REPAIR_ORDER_CHILD_TABLES,
-        cutoffDate,
-        dryRun,
-      });
+      if (existingTables.has('repair_orders')) {
+        totalAffectedRows += await deleteParentRows(trx, {
+          label: 'repair_orders',
+          tableName: 'repair_orders',
+          alias: 'ro',
+          childTables: repairOrderChildTables,
+          cutoffDate,
+          dryRun,
+        });
+      } else {
+        logSkippedTables(['repair_orders'], 'missing tables');
+      }
 
-      totalAffectedRows += await deleteParentRows(trx, {
-        label: 'users',
-        tableName: 'users',
-        alias: 'u',
-        childTables: USER_CHILD_TABLES,
-        cutoffDate,
-        dryRun,
-      });
+      if (existingTables.has('users')) {
+        totalAffectedRows += await deleteParentRows(trx, {
+          label: 'users',
+          tableName: 'users',
+          alias: 'u',
+          childTables: userChildTables,
+          cutoffDate,
+          dryRun,
+        });
+      } else {
+        logSkippedTables(['users'], 'missing tables');
+      }
 
       console.log(
         `${dryRun ? 'Preview complete' : 'Cleanup complete'}: ${totalAffectedRows} rows ${

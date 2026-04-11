@@ -39,7 +39,11 @@ exports.up = async function (knex) {
       .ignore();
   }
 
-  const superAdminRoleId = '00000000-0000-4000-8000-000000000000';
+  const superAdminRole = await knex('roles')
+    .select('id')
+    .where({ id: '00000000-0000-4000-8000-000000000000' })
+    .orWhere({ name: 'Super Admin' })
+    .first();
   const persistedPermissions = await knex('permissions')
     .select('id', 'name')
     .whereIn(
@@ -47,10 +51,14 @@ exports.up = async function (knex) {
       permissions.map((permission) => permission.name),
     );
 
+  if (!superAdminRole) {
+    return;
+  }
+
   for (const permission of persistedPermissions) {
     await knex('role_permissions')
       .insert({
-        role_id: superAdminRoleId,
+        role_id: superAdminRole.id,
         permission_id: permission.id,
       })
       .onConflict(['role_id', 'permission_id'])

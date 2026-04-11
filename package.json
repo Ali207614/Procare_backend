@@ -29,7 +29,7 @@
     "db:seed": "knex seed:run",
     "db:seed:reject-causes": "knex seed:run --specific=28_reject_causes.js",
     "db:bootstrap:reject-causes": "npm run db:migrate && npm run db:seed:reject-causes",
-    "db:bootstrap:compose": "npm run db:bootstrap:reject-causes && node scripts/clear-tables.js --yes --before=2026-04-08",
+    "db:bootstrap:compose": "npm run db:bootstrap:reject-causes && node scripts/clear-tables.js --yes --before=2026-04-08 --compose-bootstrap",
     "db:setup": "npm run db:migrate && npm run db:seed",
     "db:setup:reject-causes": "npm run db:migrate && npm run db:seed:reject-causes",
     "db:clear": "node scripts/clear-tables.js",

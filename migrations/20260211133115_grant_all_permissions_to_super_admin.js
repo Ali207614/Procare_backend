@@ -1,14 +1,19 @@
 exports.up = async function (knex) {
   const SUPER_ADMIN_ROLE_ID = '00000000-0000-4000-8000-000000000000';
+  const superAdminRole = await knex('roles')
+    .select('id')
+    .where({ id: SUPER_ADMIN_ROLE_ID })
+    .orWhere({ name: 'Super Admin' })
+    .first();
 
   // Get all permission IDs
   const permissions = await knex('permissions').select('id');
 
-  if (permissions.length === 0) return;
+  if (!superAdminRole || permissions.length === 0) return;
 
   // Prepare role_permissions entries for Super Admin
   const rolePermissions = permissions.map((p) => ({
-    role_id: SUPER_ADMIN_ROLE_ID,
+    role_id: superAdminRole.id,
     permission_id: p.id,
   }));
 
