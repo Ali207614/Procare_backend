@@ -8,6 +8,17 @@ export class RepairOrderRejectCauseSwaggerDto {
   name!: string | null;
 }
 
+export class RepairOrderRegionSwaggerDto {
+  @ApiProperty({ nullable: true, example: 'f1493a1f-26f6-45c0-8b8b-7f5c4f92f0d7' })
+  id!: string | null;
+
+  @ApiProperty({ nullable: true, example: 'Tashkent City' })
+  title!: string | null;
+
+  @ApiProperty({ nullable: true, example: 'Central dispatch region' })
+  description!: string | null;
+}
+
 export class RepairOrderListItemSwaggerDto {
   @ApiProperty({ example: 'c7a77f42-2f13-4b8e-b8cb-7d5f2c82fbbb' })
   id!: string;
@@ -48,6 +59,9 @@ export class RepairOrderListItemSwaggerDto {
 
   @ApiProperty({ type: RepairOrderRejectCauseSwaggerDto })
   reject_cause!: RepairOrderRejectCauseSwaggerDto;
+
+  @ApiProperty({ type: RepairOrderRegionSwaggerDto })
+  region!: RepairOrderRegionSwaggerDto;
 
   @ApiProperty({ nullable: true, example: '+998901234567' })
   phone_number!: string | null;

@@ -33,6 +33,7 @@ import { RepairOrderWebhookService } from 'src/repair-orders/services/repair-ord
 import { NotificationService } from 'src/notification/notification.service';
 import { RepairNotificationMeta } from 'src/common/types/notification.interface';
 import { RepairOrderStatus } from 'src/common/types/repair-order-status.interface';
+import { RepairOrderRegion } from 'src/common/types/repair-order-region.interface';
 import { User } from 'src/common/types/user.interface';
 
 @Injectable()
@@ -128,6 +129,10 @@ export class RepairOrdersService {
           });
       }
 
+      if (dto.region_id) {
+        await this.ensureRegionExists(trx, dto.region_id);
+      }
+
       let existingOpenOrder: RepairOrder | undefined;
       if (resolvedUserId || resolvedPhoneNumber) {
         let query = trx(this.table)
@@ -161,6 +166,7 @@ export class RepairOrdersService {
         if (resolvedUserId && !existingOpenOrder.user_id) updateData.user_id = resolvedUserId;
         if (resolvedName && !existingOpenOrder.name) updateData.name = resolvedName;
         if (dto.phone_category_id) updateData.phone_category_id = dto.phone_category_id;
+        if (dto.region_id) updateData.region_id = dto.region_id;
         if (dto.imei) updateData.imei = dto.imei;
         if (dto.priority) updateData.priority = dto.priority;
 
@@ -177,10 +183,14 @@ export class RepairOrdersService {
         );
       } else {
         const sort = 999999;
+        const createdAt = dto.created_at
+          ? new Date(dto.created_at).toISOString()
+          : new Date().toISOString();
         const insertData: Partial<RepairOrder> = {
           user_id: resolvedUserId,
           branch_id: branchId,
           phone_category_id: dto.phone_category_id,
+          region_id: dto.region_id,
           imei: dto.imei,
           priority: dto.priority || 'Medium',
           status_id: createStatus.id,
@@ -190,8 +200,8 @@ export class RepairOrdersService {
           created_by: admin.id,
           phone_number: resolvedPhoneNumber,
           name: resolvedName,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          created_at: createdAt,
+          updated_at: createdAt,
         };
 
         const [inserted]: RepairOrder[] = await trx(this.table).insert(insertData).returning('*');
@@ -453,6 +463,7 @@ export class RepairOrdersService {
         'status_id',
         'priority',
         'phone_category_id',
+        'region_id',
         'imei',
         'agreed_date',
       ];
@@ -541,6 +552,10 @@ export class RepairOrdersService {
             message: 'Phone category must not have children',
             location: 'phone_category_id',
           });
+      }
+
+      if (dto.region_id) {
+        await this.ensureRegionExists(trx, dto.region_id);
       }
 
       const linkedUserId =
@@ -725,10 +740,10 @@ export class RepairOrdersService {
     if (customer_name) {
       whereConditions.push(
         `(
-          LOWER(COALESCE(u.first_name || ' ' || u.last_name, ro.name, '')) LIKE LOWER(:customerName)
-          OR LOWER(COALESCE(u.first_name, ro.name, '')) LIKE LOWER(:customerName)
-          OR LOWER(COALESCE(u.last_name, ro.name, '')) LIKE LOWER(:customerName)
-          OR LOWER(COALESCE(ro.name, '')) LIKE LOWER(:customerName)
+          LOWER(COALESCE(u.first_name || ' ' || u.last_name, ro.name, '')) ILIKE LOWER(:customerName)
+          OR LOWER(COALESCE(u.first_name, ro.name, '')) ILIKE LOWER(:customerName)
+          OR LOWER(COALESCE(u.last_name, ro.name, '')) ILIKE LOWER(:customerName)
+          OR LOWER(COALESCE(ro.name, '')) ILIKE LOWER(:customerName)
         )`,
       );
       queryParams.customerName = `%${customer_name}%`;
@@ -738,7 +753,7 @@ export class RepairOrdersService {
     if (phone_number) {
       const normalizedPhone = phone_number.replace(/^ /, '+');
       whereConditions.push(
-        `(u.phone_number1 LIKE :phoneNumber OR u.phone_number2 LIKE :phoneNumber OR ro.phone_number LIKE :phoneNumber)`,
+        `(u.phone_number1 ILIKE :phoneNumber OR u.phone_number2 ILIKE :phoneNumber OR ro.phone_number LIKE :phoneNumber)`,
       );
       queryParams.phoneNumber = `%${normalizedPhone}%`;
     }
@@ -746,14 +761,14 @@ export class RepairOrdersService {
     // Filter by device model
     if (device_model) {
       whereConditions.push(
-        `LOWER(pc.name_uz) LIKE LOWER(:deviceModel) OR LOWER(pc.name_ru) LIKE LOWER(:deviceModel) OR LOWER(pc.name_en) LIKE LOWER(:deviceModel)`,
+        `LOWER(pc.name_uz) ILIKE LOWER(:deviceModel) OR LOWER(pc.name_ru) ILIKE LOWER(:deviceModel) OR LOWER(pc.name_en) LIKE LOWER(:deviceModel)`,
       );
       queryParams.deviceModel = `%${device_model}%`;
     }
 
     // Filter by order number
     if (order_number) {
-      whereConditions.push(`ro.number_id::text LIKE :orderNumber`);
+      whereConditions.push(`ro.number_id::text ILIKE :orderNumber`);
       queryParams.orderNumber = `%${order_number}%`;
     }
 
@@ -1596,16 +1611,16 @@ export class RepairOrdersService {
     phoneNumber: string,
     userId?: string | null,
   ): Promise<RepairOrder | undefined> {
-    let query = this.knex<RepairOrder>(this.table)
-      .where({ branch_id: branchId })
-      .whereNotIn('status', ['Cancelled', 'Deleted', 'Closed']);
+    let query = this.buildTelephonyWorkflowOpenOrderQuery(this.knex).where({
+      'ro.branch_id': branchId,
+    });
 
     if (userId) {
       query = query.andWhere((qb): void => {
-        void qb.where({ user_id: userId }).orWhere({ phone_number: phoneNumber });
+        void qb.where({ 'ro.user_id': userId }).orWhere({ 'ro.phone_number': phoneNumber });
       });
     } else {
-      query = query.where({ phone_number: phoneNumber });
+      query = query.where({ 'ro.phone_number': phoneNumber });
     }
 
     return query.first();
@@ -1920,6 +1935,24 @@ export class RepairOrdersService {
     return userId;
   }
 
+  private async ensureRegionExists(
+    trx: Knex.Transaction | Knex,
+    regionId: string,
+  ): Promise<RepairOrderRegion> {
+    const region = await trx<RepairOrderRegion>('repair_order_regions')
+      .where({ id: regionId })
+      .first();
+
+    if (!region) {
+      throw new BadRequestException({
+        message: 'Repair order region not found',
+        location: 'region_id',
+      });
+    }
+
+    return region;
+  }
+
   /**
    * Finds an existing user by the repair order's phone_number column,
    * or creates a new one using phone_number + name from the order.
@@ -2092,9 +2125,9 @@ export class RepairOrdersService {
   }): Promise<void> {
     const trx = await this.knex.transaction();
     try {
-      let order = await trx<RepairOrder>(this.table)
-        .where({ branch_id: data.branchId, phone_number: data.phoneNumber, status: 'Open' })
-        .first();
+      let order = (await this.buildTelephonyWorkflowOpenOrderQuery(trx)
+        .where({ 'ro.branch_id': data.branchId, 'ro.phone_number': data.phoneNumber })
+        .first()) as RepairOrder | undefined;
 
       const targetAdminId = await this.resolveWebhookAdminId(
         trx,
@@ -2106,7 +2139,7 @@ export class RepairOrdersService {
 
       if (!order) {
         const defaultStatus = '50000000-0000-0000-0001-001000000000';
-        const [newOrder] = await trx<RepairOrder>(this.table)
+        const [newOrder] = (await trx<RepairOrder>(this.table)
           .insert({
             user_id: data.userId,
             branch_id: data.branchId,
@@ -2121,7 +2154,7 @@ export class RepairOrdersService {
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
-          .returning('*');
+          .returning('*')) as RepairOrder[];
         order = newOrder;
 
         if (targetAdminId) {
@@ -2322,6 +2355,18 @@ export class RepairOrdersService {
       currentDayStr: days[currentDayIndex],
       currentHHmm: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
     };
+  }
+
+  private buildTelephonyWorkflowOpenOrderQuery(db: Knex | Knex.Transaction): Knex.QueryBuilder {
+    return db<RepairOrder>(`${this.table} as ro`)
+      .select('ro.*')
+      .join('repair_order_statuses as ros', 'ro.status_id', 'ros.id')
+      .whereNotIn('ro.status', ['Cancelled', 'Deleted', 'Closed'])
+      .andWhere({
+        'ros.type': 'Open',
+        'ros.status': 'Open',
+        'ros.is_active': true,
+      });
   }
 
   private async getTransitionRule(

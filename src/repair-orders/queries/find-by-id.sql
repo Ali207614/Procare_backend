@@ -18,6 +18,11 @@ SELECT
         'id', rc.id,
         'name', rc.name
     ) AS reject_cause,
+    jsonb_build_object(
+        'id', ror.id,
+        'title', ror.title,
+        'description', ror.description
+    ) AS region,
     ro.created_at,
     COALESCE((jsonb_build_object(
             'id', u.id,
@@ -316,6 +321,7 @@ FROM repair_orders ro
     LEFT JOIN branches b ON ro.branch_id = b.id
     LEFT JOIN phone_categories pc ON ro.phone_category_id = pc.id
     LEFT JOIN repair_order_reject_causes rc ON ro.reject_cause_id = rc.id
+    LEFT JOIN repair_order_regions ror ON ro.region_id = ror.id
     LEFT JOIN repair_order_statuses s ON ro.status_id = s.id
 WHERE ro.id = :orderId
     LIMIT 1;

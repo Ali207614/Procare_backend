@@ -89,6 +89,7 @@ describe('RepairOrdersService transition hardening', () => {
     agreed_date: null,
     imei: null,
     reject_cause_id: null,
+    region_id: null,
     phone_number: '+998900000001',
     priority: 'Medium',
     priority_level: 2,

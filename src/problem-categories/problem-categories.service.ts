@@ -178,9 +178,9 @@ export class ProblemCategoriesService {
           void query.andWhere(
             (builder) =>
               void builder
-                .whereRaw('LOWER(p.name_uz) LIKE ?', [searchTerm])
-                .orWhereRaw('LOWER(p.name_ru) LIKE ?', [searchTerm])
-                .orWhereRaw('LOWER(p.name_en) LIKE ?', [searchTerm]),
+                .whereRaw('LOWER(p.name_uz) ILIKE ?', [searchTerm])
+                .orWhereRaw('LOWER(p.name_ru) ILIKE ?', [searchTerm])
+                .orWhereRaw('LOWER(p.name_en) ILIKE ?', [searchTerm]),
           );
         }
       };
@@ -281,9 +281,9 @@ export class ProblemCategoriesService {
           void query.andWhere(
             (builder) =>
               void builder
-                .whereRaw('LOWER(p.name_uz) LIKE ?', [searchTerm])
-                .orWhereRaw('LOWER(p.name_ru) LIKE ?', [searchTerm])
-                .orWhereRaw('LOWER(p.name_en) LIKE ?', [searchTerm]),
+                .whereRaw('LOWER(p.name_uz) ILIKE ?', [searchTerm])
+                .orWhereRaw('LOWER(p.name_ru) ILIKE ?', [searchTerm])
+                .orWhereRaw('LOWER(p.name_en) ILIKE ?', [searchTerm]),
           );
         }
       };

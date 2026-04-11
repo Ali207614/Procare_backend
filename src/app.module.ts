@@ -72,6 +72,9 @@ import { OnlinePbxModule } from './online-pbx/online-pbx.module';
 import { RepairOrderRejectCausesModule } from './repair-order-reject-causes/repair-order-reject-causes.module';
 import { RepairOrderRejectCausesController } from './repair-order-reject-causes/repair-order-reject-causes.controller';
 import { RepairOrderRejectCausesService } from './repair-order-reject-causes/repair-order-reject-causes.service';
+import { RepairOrderRegionsModule } from './repair-order-regions/repair-order-regions.module';
+import { RepairOrderRegionsController } from './repair-order-regions/repair-order-regions.controller';
+import { RepairOrderRegionsService } from './repair-order-regions/repair-order-regions.service';
 @Module({
   imports: [
     BullModule.forRoot({
@@ -111,6 +114,7 @@ import { RepairOrderRejectCausesService } from './repair-order-reject-causes/rep
     PdfModule,
     OnlinePbxModule,
     RepairOrderRejectCausesModule,
+    RepairOrderRegionsModule,
   ],
   controllers: [
     AuthController,
@@ -129,6 +133,7 @@ import { RepairOrderRejectCausesService } from './repair-order-reject-causes/rep
     CampaignsController,
     OffersController,
     RepairOrderRejectCausesController,
+    RepairOrderRegionsController,
   ],
   providers: [
     RepairPartsService,
@@ -147,6 +152,7 @@ import { RepairOrderRejectCausesService } from './repair-order-reject-causes/rep
     UsersService,
     OffersService,
     RepairOrderRejectCausesService,
+    RepairOrderRegionsService,
   ],
 })
 export class AppModule implements NestModule {

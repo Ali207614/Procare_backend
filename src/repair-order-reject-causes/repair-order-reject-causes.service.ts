@@ -85,7 +85,7 @@ export class RepairOrderRejectCausesService {
     }
 
     if (normalizedSearch) {
-      void baseQuery.andWhereRaw('LOWER(name) LIKE ?', [`%${normalizedSearch}%`]);
+      void baseQuery.andWhereRaw('LOWER(name) ILIKE ?', [`%${normalizedSearch}%`]);
     }
 
     const [rows, countResult] = await Promise.all([

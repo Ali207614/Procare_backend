@@ -72,7 +72,7 @@ export class TemplatesService {
           void qb.where('t.language', dto.language);
         }
         if (dto.search) {
-          void qb.whereRaw('LOWER(t.title) LIKE ?', [`%${dto.search.toLowerCase()}%`]);
+          void qb.whereRaw('LOWER(t.title) ILIKE ?', [`%${dto.search.toLowerCase()}%`]);
         }
       })
       .orderBy('t.created_at', 'desc');

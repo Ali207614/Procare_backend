@@ -3,6 +3,7 @@ import { RepairOrdersService } from '../../src/repair-orders/repair-orders.servi
 type Builder = {
   where: jest.Mock;
   andWhere: jest.Mock;
+  whereNotIn: jest.Mock;
   whereNot: jest.Mock;
   whereIn: jest.Mock;
   whereRaw: jest.Mock;
@@ -24,6 +25,7 @@ const createBuilder = (): Builder => {
   const builder: Partial<Builder> = {};
   builder.where = jest.fn().mockReturnValue(builder);
   builder.andWhere = jest.fn().mockReturnValue(builder);
+  builder.whereNotIn = jest.fn().mockReturnValue(builder);
   builder.whereNot = jest.fn().mockReturnValue(builder);
   builder.whereIn = jest.fn().mockReturnValue(builder);
   builder.whereRaw = jest.fn().mockReturnValue(builder);
@@ -175,6 +177,7 @@ describe('RepairOrdersService telephony assignment', () => {
     const assignBuilder = createBuilder();
 
     const trx = jest.fn((table: string) => {
+      if (table === 'repair_orders as ro') return orderBuilder;
       if (table === 'repair_orders') return orderBuilder;
       if (table === 'admins as a') return adminsBuilder;
       if (table === 'admin_roles as ar') return targetRolesBuilder;
@@ -235,6 +238,7 @@ describe('RepairOrdersService telephony assignment', () => {
     const assignBuilder = createBuilder();
 
     const trx = jest.fn((table: string) => {
+      if (table === 'repair_orders as ro') return orderBuilder;
       if (table === 'repair_orders') return orderBuilder;
       if (table === 'admins as a') return adminsBuilder;
       if (table === 'admin_roles as ar') return targetRolesBuilder;
@@ -335,5 +339,46 @@ describe('RepairOrdersService telephony assignment', () => {
     );
 
     workContextSpy.mockRestore();
+  });
+
+  it('treats only workflow-open statuses as reusable for PBX lookups', async () => {
+    const orderBuilder = createBuilder();
+    orderBuilder.first.mockResolvedValue({
+      id: 'order-1',
+      number_id: 1,
+      branch_id: 'branch-1',
+      status_id: 'status-open',
+      sort: 1,
+      status: 'Open',
+      phone_number: '+998901234567',
+    });
+
+    knex.mockImplementation((table: string) => {
+      if (table === 'repair_orders as ro') return orderBuilder;
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    const result = await service.findOpenOrderByPhoneNumber('branch-1', '+998901234567', 'user-1');
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: 'order-1',
+      }),
+    );
+    expect(orderBuilder.join).toHaveBeenCalledWith(
+      'repair_order_statuses as ros',
+      'ro.status_id',
+      'ros.id',
+    );
+    expect(orderBuilder.whereNotIn).toHaveBeenCalledWith('ro.status', [
+      'Cancelled',
+      'Deleted',
+      'Closed',
+    ]);
+    expect(orderBuilder.andWhere).toHaveBeenCalledWith({
+      'ros.type': 'Open',
+      'ros.status': 'Open',
+      'ros.is_active': true,
+    });
   });
 });

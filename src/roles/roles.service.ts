@@ -82,7 +82,7 @@ export class RolesService {
       .where('r.status', 'Open')
       .modify((qb) => {
         if (search) {
-          void qb.andWhereRaw('LOWER(r.name) LIKE ?', [`%${search.toLowerCase()}%`]);
+          void qb.andWhereRaw('LOWER(r.name) ILIKE ?', [`%${search.toLowerCase()}%`]);
         }
 
         if (is_active === EnumBooleanString.TRUE) {

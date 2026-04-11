@@ -106,9 +106,9 @@ export class RepairPartsService {
       const lowered = search.toLowerCase();
       void baseQuery.andWhere((qb) => {
         void qb
-          .whereRaw('LOWER(rp.part_name_uz) LIKE ?', [`%${lowered}%`])
-          .orWhereRaw('LOWER(rp.part_name_ru) LIKE ?', [`%${lowered}%`])
-          .orWhereRaw('LOWER(rp.part_name_en) LIKE ?', [`%${lowered}%`]);
+          .whereRaw('LOWER(rp.part_name_uz) ILIKE ?', [`%${lowered}%`])
+          .orWhereRaw('LOWER(rp.part_name_ru) ILIKE ?', [`%${lowered}%`])
+          .orWhereRaw('LOWER(rp.part_name_en) ILIKE ?', [`%${lowered}%`]);
       });
     }
 

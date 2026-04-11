@@ -7,17 +7,17 @@ import { JwtAdminAuthGuard } from '../src/common/guards/jwt-admin.guard';
 import { PermissionsGuard } from '../src/common/guards/permission.guard';
 import { LoggerService } from '../src/common/logger/logger.service';
 import { RedisService } from '../src/common/redis/redis.service';
-import { RepairOrderRejectCause } from '../src/common/types/repair-order-reject-cause.interface';
-import { RepairOrderRejectCausesController } from '../src/repair-order-reject-causes/repair-order-reject-causes.controller';
-import { RepairOrderRejectCausesService } from '../src/repair-order-reject-causes/repair-order-reject-causes.service';
+import { RepairOrderRegion } from '../src/common/types/repair-order-region.interface';
+import { RepairOrderRegionsController } from '../src/repair-order-regions/repair-order-regions.controller';
+import { RepairOrderRegionsService } from '../src/repair-order-regions/repair-order-regions.service';
 
 type RepairOrderRow = {
   id: string;
-  reject_cause_id: string | null;
+  region_id: string | null;
 };
 
 type FakeState = {
-  repair_order_reject_causes: RepairOrderRejectCause[];
+  repair_order_regions: RepairOrderRegion[];
   repair_orders: RepairOrderRow[];
 };
 
@@ -33,7 +33,7 @@ class FakeQueryBuilder<TTable extends TableName> {
   private offsetValue: number;
   private limitValue: number | null;
   private aggregate: {
-    type: 'count' | 'max';
+    type: 'count';
     column: string;
   } | null;
 
@@ -48,7 +48,7 @@ class FakeQueryBuilder<TTable extends TableName> {
     offsetValue = 0,
     limitValue: number | null = null,
     aggregate: {
-      type: 'count' | 'max';
+      type: 'count';
       column: string;
     } | null = null,
   ) {
@@ -100,31 +100,27 @@ class FakeQueryBuilder<TTable extends TableName> {
   }
 
   whereRaw(sql: string, bindings: unknown[]): FakeQueryBuilder<TTable> {
-    if (sql.includes('LOWER(name) = LOWER(?)')) {
+    if (sql.includes('LOWER(title) = LOWER(?)')) {
       const value = String(bindings[0] ?? '').toLowerCase();
       return this.addPredicate((row) => {
         const record = row as Record<string, unknown>;
-        return String(record['name'] ?? '').toLowerCase() === value;
+        return String(record['title'] ?? '').toLowerCase() === value;
       });
     }
 
-    if (sql.includes('LOWER(name) ILIKE ?')) {
+    if (sql.includes('LOWER(title) LIKE ?')) {
       const pattern = String(bindings[0] ?? '')
         .toLowerCase()
         .split('%')
         .join('');
       return this.addPredicate((row) => {
         const record = row as Record<string, unknown>;
-        return String(record['name'] ?? '')
+        return String(record['title'] ?? '')
           .toLowerCase()
           .includes(pattern);
       });
     }
 
-    return this;
-  }
-
-  select(..._fields: string[]): FakeQueryBuilder<TTable> {
     return this;
   }
 
@@ -150,18 +146,10 @@ class FakeQueryBuilder<TTable extends TableName> {
     return Promise.resolve(this.getRows()[0]);
   }
 
-  count(_column: string): FakeQueryBuilder<TTable> {
+  count(column: string): FakeQueryBuilder<TTable> {
     this.aggregate = {
       type: 'count',
-      column: _column,
-    };
-    return this;
-  }
-
-  max(_column: string): FakeQueryBuilder<TTable> {
-    this.aggregate = {
-      type: 'max',
-      column: _column,
+      column,
     };
     return this;
   }
@@ -171,26 +159,21 @@ class FakeQueryBuilder<TTable extends TableName> {
     rows.forEach((row) => {
       Object.assign(row, data);
     });
+
     return Promise.resolve(rows.length);
   }
 
-  increment(field: keyof TableRow<TTable> & string, amount: number): Promise<number> {
+  del(): Promise<number> {
     const rows = this.getRows();
-    rows.forEach((row) => {
-      const current = Number(row[field] ?? 0);
-      const mutableRow = row as Record<string, unknown>;
-      mutableRow[field] = current + amount;
-    });
-    return Promise.resolve(rows.length);
-  }
+    const tableData = this.getTableData();
 
-  decrement(field: keyof TableRow<TTable> & string, amount: number): Promise<number> {
-    const rows = this.getRows();
     rows.forEach((row) => {
-      const current = Number(row[field] ?? 0);
-      const mutableRow = row as Record<string, unknown>;
-      mutableRow[field] = current - amount;
+      const index = tableData.indexOf(row);
+      if (index >= 0) {
+        tableData.splice(index, 1);
+      }
     });
+
     return Promise.resolve(rows.length);
   }
 
@@ -214,6 +197,13 @@ class FakeQueryBuilder<TTable extends TableName> {
     };
   }
 
+  then<TResult1 = unknown, TResult2 = never>(
+    onfulfilled?: ((value: unknown) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+  ): Promise<TResult1 | TResult2> {
+    return this.resolve().then(onfulfilled ?? undefined, onrejected ?? undefined);
+  }
+
   private addFilter(
     arg1: string | Record<string, unknown>,
     arg2?: unknown,
@@ -229,7 +219,6 @@ class FakeQueryBuilder<TTable extends TableName> {
 
     return this.addPredicate((row) => {
       const value = row[arg1 as keyof TableRow<TTable>];
-
       if (typeof value !== 'number') {
         return false;
       }
@@ -304,36 +293,9 @@ class FakeQueryBuilder<TTable extends TableName> {
     return this.state[this.table] as Array<TableRow<TTable>>;
   }
 
-  then<TResult1 = unknown, TResult2 = never>(
-    onfulfilled?: ((value: unknown) => TResult1 | PromiseLike<TResult1>) | null,
-    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
-  ): Promise<TResult1 | TResult2> {
-    return this.resolve().then(onfulfilled ?? undefined, onrejected ?? undefined);
-  }
-
   private resolve(): Promise<unknown> {
     if (this.aggregate?.type === 'count') {
       return Promise.resolve([{ count: String(this.getRows().length) }]);
-    }
-
-    if (this.aggregate?.type === 'max') {
-      const column = this.aggregate.column.split(' as ')[0].trim();
-      const max = this.getRows().reduce<number | null>((current, row) => {
-        const record = row as Record<string, unknown>;
-        const rawValue = record[column];
-        const value = typeof rawValue === 'number' ? rawValue : null;
-        if (value === null) {
-          return current;
-        }
-
-        if (current === null) {
-          return value;
-        }
-
-        return value > current ? value : current;
-      }, null);
-
-      return Promise.resolve([{ max }]);
     }
 
     return Promise.resolve(this.getRows());
@@ -365,22 +327,22 @@ function createFakeKnex(state: FakeState): FakeKnex {
   return fakeKnex;
 }
 
-describe('RepairOrderRejectCauses endpoints', () => {
+describe('RepairOrderRegions endpoints', () => {
   let app: INestApplication;
   let state: FakeState;
 
   beforeEach(async () => {
     state = {
-      repair_order_reject_causes: [],
+      repair_order_regions: [],
       repair_orders: [],
     };
 
     const fakeKnex = createFakeKnex(state);
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      controllers: [RepairOrderRejectCausesController],
+      controllers: [RepairOrderRegionsController],
       providers: [
-        RepairOrderRejectCausesService,
+        RepairOrderRegionsService,
         {
           provide: getKnexConnectionToken('default'),
           useValue: fakeKnex,
@@ -431,32 +393,27 @@ describe('RepairOrderRejectCauses endpoints', () => {
     await app.close();
   });
 
-  function seedRejectCause(
-    overrides: Partial<RepairOrderRejectCause> = {},
-  ): RepairOrderRejectCause {
-    const row: RepairOrderRejectCause = {
+  function seedRegion(overrides: Partial<RepairOrderRegion> = {}): RepairOrderRegion {
+    const row: RepairOrderRegion = {
       id: uuidv4(),
-      name: 'Default cause',
+      title: 'Default region',
       description: 'Default description',
-      sort: 1,
-      is_active: true,
-      status: 'Open',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       ...overrides,
     };
 
-    state.repair_order_reject_causes.push(row);
+    state.repair_order_regions.push(row);
     return row;
   }
 
-  it('lists reject causes with pagination metadata and filters', async () => {
-    seedRejectCause({ name: 'Too expensive', sort: 2 });
-    seedRejectCause({ name: 'No time', sort: 1 });
-    seedRejectCause({ name: 'Inactive cause', sort: 3, is_active: false });
+  it('lists repair order regions with pagination metadata and filters', async () => {
+    seedRegion({ title: 'Tashkent City' });
+    seedRegion({ title: 'Samarkand' });
+    seedRegion({ title: 'Tashkent Region' });
 
     const response = await request(app.getHttpServer())
-      .get('/api/v1/repair-order-reject-causes?search=o&is_active=true&limit=5&offset=0')
+      .get('/api/v1/repair-order-regions?search=tashkent&limit=5&offset=0')
       .expect(200);
 
     expect(response.body.meta).toEqual({
@@ -464,111 +421,98 @@ describe('RepairOrderRejectCauses endpoints', () => {
       limit: 5,
       offset: 0,
     });
-    expect(response.body.data.map((item: RepairOrderRejectCause) => item.name)).toEqual([
-      'No time',
-      'Too expensive',
+    expect(response.body.data.map((item: RepairOrderRegion) => item.title)).toEqual([
+      'Tashkent City',
+      'Tashkent Region',
     ]);
   });
 
-  it('returns a single reject cause by id', async () => {
-    const cause = seedRejectCause({ name: 'Moved away' });
+  it('returns a single repair order region by id', async () => {
+    const region = seedRegion({ title: 'Andijan' });
 
     const response = await request(app.getHttpServer())
-      .get(`/api/v1/repair-order-reject-causes/${cause.id}`)
+      .get(`/api/v1/repair-order-regions/${region.id}`)
       .expect(200);
 
     expect(response.body).toMatchObject({
-      id: cause.id,
-      name: 'Moved away',
-      status: 'Open',
+      id: region.id,
+      title: 'Andijan',
     });
   });
 
-  it('creates a reject cause and assigns the next sort order', async () => {
-    seedRejectCause({ name: 'Too expensive', sort: 1 });
-    seedRejectCause({ name: 'No time', sort: 2 });
-
+  it('creates a repair order region', async () => {
     const response = await request(app.getHttpServer())
-      .post('/api/v1/repair-order-reject-causes')
+      .post('/api/v1/repair-order-regions')
       .send({
-        name: 'Wrong branch',
-        description: 'Customer prefers another branch.',
+        title: 'Fergana Valley',
+        description: 'Covers dispatches across the valley.',
       })
       .expect(201);
 
     expect(response.body).toMatchObject({
       id: expect.any(String),
-      name: 'Wrong branch',
-      description: 'Customer prefers another branch.',
-      sort: 3,
-      is_active: true,
-      status: 'Open',
+      title: 'Fergana Valley',
+      description: 'Covers dispatches across the valley.',
     });
   });
 
   it('rejects invalid create payloads at the endpoint boundary', async () => {
     await request(app.getHttpServer())
-      .post('/api/v1/repair-order-reject-causes')
+      .post('/api/v1/repair-order-regions')
       .send({
-        name: '',
+        title: '',
       })
       .expect(400);
   });
 
-  it('updates reject cause fields', async () => {
-    const cause = seedRejectCause({ name: 'Too expensive', description: 'Old description' });
+  it('updates repair order region fields', async () => {
+    const region = seedRegion({ title: 'Old title', description: 'Old description' });
 
     const response = await request(app.getHttpServer())
-      .patch(`/api/v1/repair-order-reject-causes/${cause.id}`)
+      .patch(`/api/v1/repair-order-regions/${region.id}`)
       .send({
-        name: 'Price mismatch',
-        description: 'Updated description',
-        is_active: false,
+        title: 'New title',
+        description: 'New description',
       })
       .expect(200);
 
-    expect(response.body).toEqual({ message: 'Reject cause updated successfully' });
-    expect(state.repair_order_reject_causes[0]).toMatchObject({
-      id: cause.id,
-      name: 'Price mismatch',
-      description: 'Updated description',
-      is_active: false,
+    expect(response.body).toEqual({ message: 'Repair order region updated successfully' });
+    expect(state.repair_order_regions[0]).toMatchObject({
+      id: region.id,
+      title: 'New title',
+      description: 'New description',
     });
   });
 
-  it('reorders reject causes through the sort endpoint', async () => {
-    const first = seedRejectCause({ name: 'First', sort: 1 });
-    const second = seedRejectCause({ name: 'Second', sort: 2 });
-    const third = seedRejectCause({ name: 'Third', sort: 3 });
+  it('deletes an unused repair order region', async () => {
+    const region = seedRegion({ title: 'Delete me' });
 
     const response = await request(app.getHttpServer())
-      .patch(`/api/v1/repair-order-reject-causes/${third.id}/sort`)
-      .send({ sort: 1 })
+      .delete(`/api/v1/repair-order-regions/${region.id}`)
       .expect(200);
 
-    expect(response.body).toEqual({ message: 'Reject cause sort updated successfully' });
-    expect(
-      state.repair_order_reject_causes
-        .slice()
-        .sort((left, right) => left.sort - right.sort)
-        .map((item) => item.id),
-    ).toEqual([third.id, first.id, second.id]);
+    expect(response.body).toEqual({ message: 'Repair order region deleted successfully' });
+    expect(state.repair_order_regions).toHaveLength(0);
   });
 
-  it('soft deletes reject causes', async () => {
-    const cause = seedRejectCause({ name: 'Delete me' });
+  it('prevents deleting a repair order region that is linked to repair orders', async () => {
+    const region = seedRegion({ title: 'Busy region' });
+    state.repair_orders.push({
+      id: uuidv4(),
+      region_id: region.id,
+    });
 
     const response = await request(app.getHttpServer())
-      .delete(`/api/v1/repair-order-reject-causes/${cause.id}`)
-      .expect(200);
+      .delete(`/api/v1/repair-order-regions/${region.id}`)
+      .expect(409);
 
-    expect(response.body).toEqual({ message: 'Reject cause deleted successfully' });
-    expect(state.repair_order_reject_causes[0].status).toBe('Deleted');
+    expect(response.body).toMatchObject({
+      message: 'Repair order region cannot be deleted because it is used by repair orders',
+      location: 'repair_order_region_id',
+    });
   });
 
   it('rejects invalid UUIDs on path parameters', async () => {
-    await request(app.getHttpServer())
-      .get('/api/v1/repair-order-reject-causes/not-a-uuid')
-      .expect(400);
+    await request(app.getHttpServer()).get('/api/v1/repair-order-regions/not-a-uuid').expect(400);
   });
 });

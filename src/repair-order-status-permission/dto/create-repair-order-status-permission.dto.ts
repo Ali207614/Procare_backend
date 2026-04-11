@@ -67,7 +67,7 @@ export class AssignRepairOrderStatusPermissionsDto {
   @ApiProperty({
     required: false,
     description:
-      'If enabled, the repair order cannot continue past this status without an IMEI number. Only one status per branch can have this permission enabled.',
+      'If enabled, the repair order cannot continue past this status without an IMEI number.',
   })
   @IsOptional()
   @IsBoolean()

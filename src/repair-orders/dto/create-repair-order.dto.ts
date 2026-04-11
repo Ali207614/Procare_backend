@@ -15,6 +15,7 @@ import {
   Max,
   Matches,
   MinLength,
+  IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -146,6 +147,14 @@ class RentalPhoneDto {
 
 export class CreateRepairOrderDto {
   @ApiPropertyOptional({
+    description: 'Temporary manual creation timestamp override for new repair orders',
+    example: '2026-04-01T09:30:00.000Z',
+  })
+  @IsOptional()
+  @IsDateString({}, { context: { location: 'created_at' } })
+  created_at?: string;
+
+  @ApiPropertyOptional({
     description: 'User ID (optional if first_name + phone provided)',
     example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec',
   })
@@ -200,6 +209,14 @@ export class CreateRepairOrderDto {
     message: 'Invalid phone category ID',
   })
   phone_category_id?: string;
+
+  @ApiPropertyOptional({
+    description: 'Repair order region ID',
+    example: 'f1493a1f-26f6-45c0-8b8b-7f5c4f92f0d7',
+  })
+  @IsOptional()
+  @IsUUID('all', { message: 'Invalid repair order region ID' })
+  region_id?: string;
 
   @ApiPropertyOptional({
     description: 'IMEI number',
@@ -275,6 +292,8 @@ export class CreateRepairOrderDto {
     example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec',
   })
   @IsOptional()
-  @IsUUID('all', { message: 'Invalid status ID' })
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'Invalid status ID',
+  })
   status_id?: string;
 }

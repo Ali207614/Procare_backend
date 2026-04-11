@@ -89,6 +89,14 @@ export class UpdateRepairOrderDto {
   })
   phone_category_id?: string;
 
+  @ApiPropertyOptional({
+    description: 'Repair order region ID',
+    example: 'f1493a1f-26f6-45c0-8b8b-7f5c4f92f0d7',
+  })
+  @IsOptional()
+  @IsUUID('all', { context: { location: 'region_id' } })
+  region_id?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString({ message: 'IMEI must be a string' })

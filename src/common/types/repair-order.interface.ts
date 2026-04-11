@@ -20,6 +20,7 @@ export interface RepairOrder {
   priority_level: number;
   agreed_date: string | null;
   reject_cause_id: string | null;
+  region_id: string | null;
 
   created_by: string | null;
   status: 'Open' | 'Deleted' | 'Closed' | 'Cancelled';
@@ -56,6 +57,11 @@ export interface FreshRepairOrder {
   reject_cause: {
     id: string | null;
     name: string | null;
+  };
+  region: {
+    id: string | null;
+    title: string | null;
+    description: string | null;
   };
   source:
     | 'Telegram'
@@ -278,6 +284,11 @@ export interface RepairOrderDetails {
   reject_cause: {
     id: string | null;
     name: string | null;
+  };
+  region: {
+    id: string | null;
+    title: string | null;
+    description: string | null;
   };
   source:
     | 'Telegram'

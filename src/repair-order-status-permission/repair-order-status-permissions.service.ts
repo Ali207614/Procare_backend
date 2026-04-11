@@ -57,54 +57,6 @@ export class RepairOrderStatusPermissionsService {
         });
       }
 
-      if (permissions.can_create_user === true) {
-        if (status_ids.length > 1) {
-          throw new BadRequestException({
-            message: 'Only one repair order status can have can_create_user enabled',
-            location: 'can_create_user',
-          });
-        }
-
-        const conflicting = await trx(this.table)
-          .join('repair_order_statuses', `${this.table}.status_id`, 'repair_order_statuses.id')
-          .where(`${this.table}.branch_id`, branch_id)
-          .andWhere(`${this.table}.can_create_user`, true)
-          .andWhereNot(`${this.table}.status_id`, status_ids[0])
-          .andWhere('repair_order_statuses.status', 'Open')
-          .first();
-
-        if (conflicting) {
-          throw new BadRequestException({
-            message: 'Only one repair order status can have can_create_user enabled',
-            location: 'can_create_user',
-          });
-        }
-      }
-
-      if (permissions.cannot_continue_without_imei === true) {
-        if (status_ids.length > 1) {
-          throw new BadRequestException({
-            message: 'Only one repair order status can have cannot_continue_without_imei enabled',
-            location: 'cannot_continue_without_imei',
-          });
-        }
-
-        const conflicting = await trx(this.table)
-          .join('repair_order_statuses', `${this.table}.status_id`, 'repair_order_statuses.id')
-          .where(`${this.table}.branch_id`, branch_id)
-          .andWhere(`${this.table}.cannot_continue_without_imei`, true)
-          .andWhereNot(`${this.table}.status_id`, status_ids[0])
-          .andWhere('repair_order_statuses.status', 'Open')
-          .first();
-
-        if (conflicting) {
-          throw new BadRequestException({
-            message: 'Only one repair order status can have cannot_continue_without_imei enabled',
-            location: 'cannot_continue_without_imei',
-          });
-        }
-      }
-
       await trx(this.table).where({ branch_id, role_id }).whereIn('status_id', status_ids).del();
 
       const now = new Date().toISOString();

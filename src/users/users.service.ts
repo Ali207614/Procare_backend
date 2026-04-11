@@ -264,8 +264,8 @@ export class UsersService {
       const term = `%${filters.search.toLowerCase()}%`;
       void query.andWhere((qb) => {
         void qb
-          .whereRaw('LOWER(first_name) LIKE ?', [term])
-          .orWhereRaw('LOWER(last_name) LIKE ?', [term])
+          .whereRaw('LOWER(first_name) ILIKE ?', [term])
+          .orWhereRaw('LOWER(last_name) ILIKE ?', [term])
           .orWhereRaw('phone_number1 ILIKE ?', [term])
           .orWhereRaw('phone_number2 ILIKE ?', [term])
           .orWhereRaw('passport_series ILIKE ?', [term])

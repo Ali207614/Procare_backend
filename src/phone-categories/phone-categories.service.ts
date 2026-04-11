@@ -206,9 +206,9 @@ export class PhoneCategoriesService {
         void baseQuery.andWhere(
           (builder: Knex.QueryBuilder) =>
             void builder
-              .whereRaw('LOWER(pc.name_uz) LIKE ?', [searchTerm])
-              .orWhereRaw('LOWER(pc.name_ru) LIKE ?', [searchTerm])
-              .orWhereRaw('LOWER(pc.name_en) LIKE ?', [searchTerm]),
+              .whereRaw('LOWER(pc.name_uz) ILIKE ?', [searchTerm])
+              .orWhereRaw('LOWER(pc.name_ru) ILIKE ?', [searchTerm])
+              .orWhereRaw('LOWER(pc.name_en) ILIKE ?', [searchTerm]),
         );
       }
 
@@ -225,9 +225,9 @@ export class PhoneCategoriesService {
               void qb.andWhere(
                 (builder) =>
                   void builder
-                    .whereRaw('LOWER(pc.name_uz) LIKE ?', [searchTerm])
-                    .orWhereRaw('LOWER(pc.name_ru) LIKE ?', [searchTerm])
-                    .orWhereRaw('LOWER(pc.name_en) LIKE ?', [searchTerm]),
+                    .whereRaw('LOWER(pc.name_uz) ILIKE ?', [searchTerm])
+                    .orWhereRaw('LOWER(pc.name_ru) ILIKE ?', [searchTerm])
+                    .orWhereRaw('LOWER(pc.name_en) ILIKE ?', [searchTerm]),
               );
             }
           })
