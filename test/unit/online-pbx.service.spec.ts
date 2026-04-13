@@ -14,6 +14,7 @@ describe('OnlinePbxService gateway filtering', () => {
   let repairOrderService: {
     findOpenOrderByPhoneNumber: jest.Mock;
     createFromWebhook: jest.Mock;
+    assignTelephonyAdminToExistingOrder: jest.Mock;
     incrementCallCount: jest.Mock;
     handleCallAnswered: jest.Mock;
     incrementMissedCallCount: jest.Mock;
@@ -65,6 +66,7 @@ describe('OnlinePbxService gateway filtering', () => {
     repairOrderService = {
       findOpenOrderByPhoneNumber: jest.fn(),
       createFromWebhook: jest.fn(),
+      assignTelephonyAdminToExistingOrder: jest.fn(),
       incrementCallCount: jest.fn(),
       handleCallAnswered: jest.fn(),
       incrementMissedCallCount: jest.fn(),
@@ -128,5 +130,27 @@ describe('OnlinePbxService gateway filtering', () => {
     expect(repairOrderService.notifyAvailableAssignedAdminsForIncomingCall).toHaveBeenCalledWith(
       'order-1',
     );
+  });
+
+  it('assigns the calling admin on outbound call_start for an existing open order', async () => {
+    repairOrderService.findOpenOrderByPhoneNumber.mockResolvedValue({
+      id: 'order-1',
+    });
+
+    await service.handleWebhook({
+      uuid: 'call-start-outbound-1',
+      gateway: '+998781133774',
+      direction: 'outbound',
+      event: 'call_start',
+      caller: '120',
+      callee: '+998901234567',
+    });
+
+    expect(repairOrderService.assignTelephonyAdminToExistingOrder).toHaveBeenCalledWith({
+      branchId: '00000000-0000-4000-8000-000000000000',
+      orderId: 'order-1',
+      onlinepbxCode: '120',
+    });
+    expect(repairOrderService.incrementCallCount).toHaveBeenCalledWith('order-1');
   });
 });

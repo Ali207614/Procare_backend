@@ -193,10 +193,15 @@ SELECT
         WHERE fp.repair_order_id = ro.id
     ), '[]'::json) AS final_problems,
   COALESCE((
-    SELECT json_agg(jsonb_build_object(
+    SELECT json_agg(
+      jsonb_build_object(
         'id', c.id,
         'text', c.text,
         'status', c.status,
+        'comment_type', c.comment_type,
+        'history_change_id', c.history_change_id,
+        'is_editable', c.comment_type = 'manual',
+        'is_deletable', c.comment_type = 'manual',
         'created_by_admin', COALESCE((
             SELECT jsonb_build_object(
                 'id', a1.id,
@@ -222,7 +227,9 @@ SELECT
         ), '{}'::jsonb),
         'created_at', c.created_at,
         'updated_at', c.updated_at
-    ))
+      )
+      ORDER BY c.created_at DESC, c.id DESC
+    )
     FROM repair_order_comments c
     WHERE c.repair_order_id = ro.id
       AND c.status = 'Open'

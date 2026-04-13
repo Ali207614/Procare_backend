@@ -417,13 +417,17 @@ export class RentalPhoneUpdaterService {
       .update(updateFields)
       .returning('*');
 
-    await this.changeLogger.logChange(
+    const updatedRental = updated[0] as RepairOrderRentalPhone;
+
+    await this.changeLogger.logIfChanged(
+      this.knex,
       repairOrderId,
-      'rental_phone_updated',
-      updateFields,
+      'rental_phone',
+      existingRental,
+      updatedRental,
       admin.id,
     );
-    const updatedRental = updated[0] as RepairOrderRentalPhone;
+
     return {
       ...updatedRental,
       toggle: updatedRental.status === 'Pending',
@@ -467,12 +471,12 @@ export class RentalPhoneUpdaterService {
       .where({ id: deleted[0].rental_phone_device_id })
       .update({ status: 'Available', updated_at: new Date() });
 
-    await this.changeLogger.logChange(
+    await this.changeLogger.logIfChanged(
+      this.knex,
       repairOrderId,
-      'rental_phone_removed',
-      {
-        rental_phone_id: rentalPhoneId,
-      },
+      'rental_phone',
+      deleted[0] as RepairOrderRentalPhone,
+      null,
       admin.id,
     );
 

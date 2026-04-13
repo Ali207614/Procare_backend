@@ -278,6 +278,14 @@ export class OnlinePbxService {
               // Create if doesn't exist, assigning to caller without fallback
               await createOrderHelper(onlinepbxCode, false);
             } else {
+              const callerDigits = caller?.replace(/\D/g, '');
+              const specificAdminCode = callerDigits?.length === 3 ? callerDigits : onlinepbxCode;
+
+              await this.repairOrderService.assignTelephonyAdminToExistingOrder({
+                branchId: defaultBranch,
+                orderId: openOrder.id,
+                onlinepbxCode: specificAdminCode,
+              });
               await this.repairOrderService.incrementCallCount(openOrder.id);
               this.logger.log(
                 `Incremented call_count for existing open repair order ${openOrder.id} via RepairOrdersService.`,

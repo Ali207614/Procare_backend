@@ -1,4 +1,5 @@
 import { UserListItem } from 'src/common/types/user.interface';
+import { RepairOrderCommentResponse } from 'src/common/types/repair-order-comment.interface';
 
 export type RepairOrderSource =
   | 'Telegram'
@@ -180,15 +181,7 @@ export interface FreshRepairOrder {
       updated_at: string;
     }[];
   }[];
-  comments: {
-    id: string;
-    text: string;
-    status: 'Open' | 'Deleted';
-    created_by: string;
-    status_by: string;
-    created_at: string;
-    updated_at: string;
-  }[];
+  comments: RepairOrderCommentResponse[];
   pickups: {
     id: string;
     lat: string;
@@ -398,15 +391,7 @@ export interface RepairOrderDetails {
       updated_at: string;
     }[];
   }[];
-  comments: {
-    id: string;
-    text: string;
-    status: 'Open' | 'Deleted';
-    created_by: string;
-    status_by: string;
-    created_at: string;
-    updated_at: string;
-  }[];
+  comments: RepairOrderCommentResponse[];
   pickups: {
     id: string;
     lat: string;

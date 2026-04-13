@@ -20,9 +20,15 @@ interface FinalProblemInput {
 }
 
 interface ExistingFinalProblem {
+  id?: string;
   problem_category_id: string;
   price: string;
   estimated_minutes: number;
+  parts?: Array<{
+    repair_part_id: string;
+    quantity: number;
+    part_price: string;
+  }>;
 }
 
 @Injectable()
@@ -118,6 +124,8 @@ export class FinalProblemUpdaterService {
       });
     }
 
+    const old = await this.getProblemSnapshot(trx, orderId);
+
     // Delete old problems and parts
     await trx('repair_order_final_problems').where({ repair_order_id: orderId }).delete();
     await trx('repair_order_parts')
@@ -210,10 +218,64 @@ export class FinalProblemUpdaterService {
       await trx('repair_order_parts').insert(partRowsToInsert);
     }
 
-    const old: ExistingFinalProblem[] = await trx('repair_order_final_problems')
-      .where({ repair_order_id: orderId })
-      .select('problem_category_id', 'price', 'estimated_minutes');
+    const current = await this.getProblemSnapshot(trx, orderId);
 
-    await this.changeLogger.logIfChanged(trx, orderId, 'final_problems', old, problems, admin.id);
+    await this.changeLogger.logIfChanged(trx, orderId, 'final_problems', old, current, admin.id);
+  }
+
+  private async getProblemSnapshot(
+    trx: Knex.Transaction,
+    orderId: string,
+  ): Promise<ExistingFinalProblem[]> {
+    const problems = await trx<{
+      id: string;
+      repair_order_id: string;
+      problem_category_id: string;
+      price: string | number;
+      estimated_minutes: number;
+    }>('repair_order_final_problems')
+      .where({ repair_order_id: orderId })
+      .select('id', 'problem_category_id', 'price', 'estimated_minutes')
+      .orderBy('created_at', 'asc');
+
+    if (!problems.length) return [];
+
+    const parts = await trx<{
+      repair_order_id: string;
+      repair_order_final_problem_id: string;
+      repair_part_id: string;
+      quantity: number;
+      part_price: string | number;
+    }>('repair_order_parts')
+      .where({ repair_order_id: orderId })
+      .whereIn(
+        'repair_order_final_problem_id',
+        problems.map((problem) => problem.id),
+      )
+      .select('repair_order_final_problem_id', 'repair_part_id', 'quantity', 'part_price')
+      .orderBy('created_at', 'asc');
+
+    const partsByProblemId = new Map<
+      string,
+      Array<{ repair_part_id: string; quantity: number; part_price: string }>
+    >();
+
+    for (const part of parts) {
+      const key = String(part.repair_order_final_problem_id);
+      const current = partsByProblemId.get(key) ?? [];
+      current.push({
+        repair_part_id: String(part.repair_part_id),
+        quantity: Number(part.quantity),
+        part_price: String(part.part_price),
+      });
+      partsByProblemId.set(key, current);
+    }
+
+    return problems.map((problem) => ({
+      problem_category_id: String(problem.problem_category_id),
+      price: String(problem.price),
+      estimated_minutes: Number(problem.estimated_minutes),
+      parts: partsByProblemId.get(String(problem.id)) ?? [],
+    }));
   }
 }

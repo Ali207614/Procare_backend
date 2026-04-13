@@ -117,9 +117,16 @@ describe('Repair Orders - Complete E2E', () => {
         .query({ limit: 3, offset: 0 })
         .expect(200);
 
-      expect(response.body).toHaveProperty('Open');
-      expect(Array.isArray(response.body.Open)).toBe(true);
-      expect(response.body.Open.length).toBeLessThanOrEqual(3);
+      const keys = Object.keys(response.body);
+      expect(keys.length).toBeGreaterThan(0);
+      
+      const firstStatusKey = keys[0];
+      const statusGroup = response.body[firstStatusKey];
+
+      expect(statusGroup).toHaveProperty('total_repair_orders');
+      expect(statusGroup).toHaveProperty('repair_orders');
+      expect(Array.isArray(statusGroup.repair_orders)).toBe(true);
+      expect(statusGroup.repair_orders.length).toBeLessThanOrEqual(3);
     });
 
     it('should filter by status', async () => {

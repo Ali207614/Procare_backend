@@ -35,6 +35,7 @@ import { RepairNotificationMeta } from 'src/common/types/notification.interface'
 import { RepairOrderStatus } from 'src/common/types/repair-order-status.interface';
 import { RepairOrderRegion } from 'src/common/types/repair-order-region.interface';
 import { User } from 'src/common/types/user.interface';
+import { formatUzPhoneToE164, getUzPhoneLookupCandidates } from 'src/common/utils/phone.util';
 
 @Injectable()
 export class RepairOrdersService {
@@ -76,7 +77,7 @@ export class RepairOrdersService {
 
       // ── Resolve user: either by user_id or by inline client info ──
       let resolvedUserId: string | undefined = dto.user_id;
-      let resolvedPhoneNumber = dto.phone_number || dto.phone || '';
+      let resolvedPhoneNumber = this.normalizePhoneNumber(dto.phone_number || dto.phone || '');
       let resolvedName: string | null =
         dto.name || [dto.first_name, dto.last_name].filter(Boolean).join(' ') || null;
 
@@ -138,17 +139,20 @@ export class RepairOrdersService {
         let query = trx(this.table)
           .where({ branch_id: branchId })
           .whereNotIn('status', ['Cancelled', 'Deleted', 'Closed']);
+        const phoneCandidates = resolvedPhoneNumber
+          ? this.getPhoneLookupCandidates(resolvedPhoneNumber)
+          : [];
 
         if (resolvedUserId && resolvedPhoneNumber) {
           query = query.andWhere((qb) => {
-            void qb
-              .where({ user_id: resolvedUserId })
-              .orWhere({ phone_number: resolvedPhoneNumber });
+            void qb.where({ user_id: resolvedUserId }).orWhere((phoneQb) => {
+              void phoneQb.whereIn('phone_number', phoneCandidates);
+            });
           });
         } else if (resolvedUserId) {
           query = query.where({ user_id: resolvedUserId });
         } else if (resolvedPhoneNumber) {
-          query = query.where({ phone_number: resolvedPhoneNumber });
+          query = query.whereIn('phone_number', phoneCandidates);
         }
 
         existingOpenOrder = await query.first();
@@ -165,6 +169,9 @@ export class RepairOrdersService {
         // Update fields if they are missing or provided in DTO
         if (resolvedUserId && !existingOpenOrder.user_id) updateData.user_id = resolvedUserId;
         if (resolvedName && !existingOpenOrder.name) updateData.name = resolvedName;
+        if (resolvedPhoneNumber && existingOpenOrder.phone_number !== resolvedPhoneNumber) {
+          updateData.phone_number = resolvedPhoneNumber;
+        }
         if (dto.phone_category_id) updateData.phone_category_id = dto.phone_category_id;
         if (dto.region_id) updateData.region_id = dto.region_id;
         if (dto.imei) updateData.imei = dto.imei;
@@ -410,14 +417,17 @@ export class RepairOrdersService {
         }
       }
 
-      if (dto.phone_number !== undefined && dto.phone_number !== order.phone_number) {
-        updatedFields.phone_number = dto.phone_number;
-        userUpdateFields.phone_number1 = dto.phone_number;
-        logFields.push({
-          key: 'phone_number',
-          oldVal: order.phone_number,
-          newVal: dto.phone_number,
-        });
+      if (dto.phone_number !== undefined) {
+        const normalizedPhone = this.normalizePhoneNumber(dto.phone_number);
+        if (normalizedPhone !== order.phone_number) {
+          updatedFields.phone_number = normalizedPhone;
+          userUpdateFields.phone_number1 = normalizedPhone;
+          logFields.push({
+            key: 'phone_number',
+            oldVal: order.phone_number,
+            newVal: normalizedPhone,
+          });
+        }
       }
 
       if (dto.reject_cause_id !== undefined && dto.reject_cause_id !== order.reject_cause_id) {
@@ -660,7 +670,9 @@ export class RepairOrdersService {
     admin: AdminPayload,
     branchId: string,
     query: FindAllRepairOrdersQueryDto,
-  ): Promise<Record<string, FreshRepairOrder[]>> {
+  ): Promise<
+    Record<string, { metrics: { total_repair_orders: number }; repair_orders: FreshRepairOrder[] }>
+  > {
     const {
       offset,
       limit,
@@ -717,7 +729,10 @@ export class RepairOrdersService {
     });
 
     const cacheKey = `${this.table}:${branchId}:${admin.id}:${sort_by}:${sort_order}:${offset}:${limit}:${Buffer.from(filterHash).toString('base64')}`;
-    const cached: Record<string, FreshRepairOrder[]> | null = await this.redisService.get(cacheKey);
+    const cached: Record<
+      string,
+      { metrics: { total_repair_orders: number }; repair_orders: FreshRepairOrder[] }
+    > | null = await this.redisService.get(cacheKey);
     if (cached) {
       return cached;
     }
@@ -754,7 +769,7 @@ export class RepairOrdersService {
 
     // Filter by phone number
     if (phone_number) {
-      const normalizedPhone = phone_number.replace(/^ /, '+');
+      const normalizedPhone = this.normalizePhoneNumber(phone_number);
       whereConditions.push(
         `(u.phone_number1 ILIKE :phoneNumber OR u.phone_number2 ILIKE :phoneNumber OR ro.phone_number LIKE :phoneNumber)`,
       );
@@ -829,15 +844,48 @@ export class RepairOrdersService {
     querySql = querySql.replace('/*ADDITIONAL_WHERE*/', additionalWhere);
 
     try {
-      const freshOrders: FreshRepairOrder[] = await this.knex
-        .raw(querySql, queryParams)
-        .then((r) => r.rows as FreshRepairOrder[]);
+      const countSql = `
+        SELECT ro.status_id, COUNT(*) as total_count
+        FROM repair_orders ro
+          LEFT JOIN users u         ON ro.user_id          = u.id
+          LEFT JOIN phone_categories pc ON ro.phone_category_id = pc.id
+        WHERE ro.branch_id   = :branchId
+          AND ro.status       = 'Open'
+          AND ro.status_id    = ANY(:statusIds)
+          ${additionalWhere}
+        GROUP BY ro.status_id
+      `;
 
-      const result: Record<string, FreshRepairOrder[]> = {};
+      const [freshOrders, countResults] = await Promise.all([
+        this.knex.raw(querySql, queryParams).then((r) => r.rows as FreshRepairOrder[]),
+        this.knex
+          .raw(countSql, queryParams)
+          .then((r) => r.rows as { status_id: string; total_count: string }[]),
+      ]);
+
+      const countMap = countResults.reduce(
+        (acc, row) => {
+          acc[row.status_id] = parseInt(row.total_count, 10);
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
+
+      const result: Record<
+        string,
+        { metrics: { total_repair_orders: number }; repair_orders: FreshRepairOrder[] }
+      > = {};
       for (const statusId of statusIds) {
-        result[statusId] = freshOrders.filter(
+        const ordersForStatus = freshOrders.filter(
           (o: FreshRepairOrder) => o.repair_order_status.id === statusId,
         );
+
+        result[statusId] = {
+          metrics: {
+            total_repair_orders: countMap[statusId] || 0,
+          },
+          repair_orders: ordersForStatus,
+        };
       }
 
       await this.redisService.set(cacheKey, result, 1800);
@@ -1169,7 +1217,9 @@ export class RepairOrdersService {
       }
 
       // Handle Phone Update
-      const newPhone = updateDto.phone_number ?? updateDto.phone;
+      const rawNewPhone = updateDto.phone_number ?? updateDto.phone;
+      const newPhone =
+        rawNewPhone !== undefined ? this.normalizePhoneNumber(rawNewPhone) : undefined;
       if (newPhone !== undefined) {
         updateFields.phone_number = newPhone;
         userUpdateFields.phone_number1 = newPhone;
@@ -1301,9 +1351,26 @@ export class RepairOrdersService {
     }
 
     const updateFields: Record<string, unknown> = {};
+    const historyFields: { key: string; oldVal: unknown; newVal: unknown }[] = [];
     if (updateDto.phone_category_id !== undefined)
       updateFields.phone_category_id = updateDto.phone_category_id;
     if (updateDto.imei !== undefined) updateFields.imei = updateDto.imei;
+
+    if (updateDto.phone_category_id !== undefined) {
+      historyFields.push({
+        key: 'phone_category_id',
+        oldVal: order.phone_category_id,
+        newVal: updateDto.phone_category_id,
+      });
+    }
+
+    if (updateDto.imei !== undefined) {
+      historyFields.push({
+        key: 'imei',
+        oldVal: order.imei,
+        newVal: updateDto.imei,
+      });
+    }
 
     if (Object.keys(updateFields).length === 0) {
       throw new BadRequestException('No valid fields to update');
@@ -1316,7 +1383,12 @@ export class RepairOrdersService {
       .update(updateFields)
       .returning('*');
 
-    await this.changeLogger.logChange(repairOrderId, 'product_updated', updateDto, admin.id);
+    await this.changeLogger.logMultipleFieldsIfChanged(
+      this.knex,
+      repairOrderId,
+      historyFields,
+      admin.id,
+    );
     await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
 
     // Notify branch about the update
@@ -1364,6 +1436,7 @@ export class RepairOrdersService {
     const trx = await this.knex.transaction();
     try {
       let problemType: 'initial' | 'final' | null = null;
+      let historyField: 'initial_problems' | 'final_problems' | null = null;
 
       // 1. Identify if it's an initial or final problem
       let existingProblem = await trx('repair_order_initial_problems')
@@ -1372,12 +1445,14 @@ export class RepairOrdersService {
 
       if (existingProblem) {
         problemType = 'initial';
+        historyField = 'initial_problems';
       } else {
         existingProblem = await trx('repair_order_final_problems')
           .where({ id: problemId, repair_order_id: repairOrderId })
           .first();
         if (existingProblem) {
           problemType = 'final';
+          historyField = 'final_problems';
         }
       }
 
@@ -1402,6 +1477,7 @@ export class RepairOrdersService {
       // 2. Update problem details
       const problemTableName =
         problemType === 'initial' ? 'repair_order_initial_problems' : 'repair_order_final_problems';
+      const oldProblems = await this.getProblemHistorySnapshot(trx, repairOrderId, problemType);
 
       const updateFields: Record<string, unknown> = {};
       if (updateDto.problem_category_id !== undefined)
@@ -1442,8 +1518,19 @@ export class RepairOrdersService {
         }
       }
 
+      const newProblems = await this.getProblemHistorySnapshot(trx, repairOrderId, problemType);
+      if (historyField) {
+        await this.changeLogger.logIfChanged(
+          trx,
+          repairOrderId,
+          historyField,
+          oldProblems,
+          newProblems,
+          admin.id,
+        );
+      }
+
       await trx.commit();
-      await this.changeLogger.logChange(repairOrderId, 'problem_updated', updateDto, admin.id);
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
 
       // Notify branch about the update
@@ -1542,13 +1629,12 @@ export class RepairOrdersService {
 
       await this.moveToTop(trx, updated[0] as RepairOrder);
 
-      await this.changeLogger.logChange(
+      await this.changeLogger.logIfChanged(
+        trx,
         repairOrderId,
-        'branch_transferred',
-        {
-          old_branch_id: order.branch_id,
-          new_branch_id: transferDto.new_branch_id,
-        },
+        'branch_id',
+        order.branch_id,
+        transferDto.new_branch_id,
         admin.id,
       );
 
@@ -1614,16 +1700,20 @@ export class RepairOrdersService {
     phoneNumber: string,
     userId?: string | null,
   ): Promise<RepairOrder | undefined> {
+    const normalizedPhone = this.normalizePhoneNumber(phoneNumber);
+    const phoneCandidates = this.getPhoneLookupCandidates(normalizedPhone);
     let query = this.buildTelephonyWorkflowOpenOrderQuery(this.knex).where({
       'ro.branch_id': branchId,
     });
 
     if (userId) {
       query = query.andWhere((qb): void => {
-        void qb.where({ 'ro.user_id': userId }).orWhere({ 'ro.phone_number': phoneNumber });
+        void qb.where({ 'ro.user_id': userId }).orWhere((phoneQb) => {
+          void phoneQb.whereIn('ro.phone_number', phoneCandidates);
+        });
       });
     } else {
-      query = query.where({ 'ro.phone_number': phoneNumber });
+      query = query.whereIn('ro.phone_number', phoneCandidates);
     }
 
     return query.first();
@@ -1704,10 +1794,11 @@ export class RepairOrdersService {
   }): Promise<RepairOrder> {
     const trx = await this.knex.transaction();
     try {
+      const normalizedPhoneNumber = this.normalizePhoneNumber(data.phoneNumber);
       let resolvedUserId = data.userId;
 
       if (!resolvedUserId) {
-        resolvedUserId = await this.ensureWebhookUser(trx, data.phoneNumber);
+        resolvedUserId = await this.ensureWebhookUser(trx, normalizedPhoneNumber);
       }
 
       const [newOrder] = await trx<RepairOrder>(this.table)
@@ -1720,7 +1811,7 @@ export class RepairOrdersService {
           delivery_method: 'Self',
           pickup_method: 'Self',
           created_by: null,
-          phone_number: data.phoneNumber,
+          phone_number: normalizedPhoneNumber,
           name: null,
           source: data.source,
           call_count: 1,
@@ -1822,8 +1913,11 @@ export class RepairOrdersService {
     trx: Knex.Transaction,
     phoneNumber: string,
   ): Promise<User | undefined> {
+    const normalizedPhone = this.normalizePhoneNumber(phoneNumber);
+    const phoneCandidates = this.getPhoneLookupCandidates(normalizedPhone);
+
     return trx<User>('users')
-      .whereRaw('LOWER(phone_number1) = ?', phoneNumber.toLowerCase())
+      .whereIn('phone_number1', phoneCandidates)
       .andWhereNot({ status: 'Deleted' })
       .first();
   }
@@ -1871,9 +1965,12 @@ export class RepairOrdersService {
       name?: string | null;
     },
   ): Promise<string | null> {
+    const normalizedPhone = this.normalizePhoneNumber(phoneNumber);
     const existingUser = await this.findUserByPhone(trx, phoneNumber);
 
     if (existingUser) {
+      await this.normalizeExistingUserPhoneIfNeeded(trx, existingUser, normalizedPhone);
+
       if (options.name) {
         await this.enrichExistingUserNameIfMissing(
           trx,
@@ -1884,7 +1981,7 @@ export class RepairOrdersService {
       }
 
       this.logger.log(
-        `[${options.logContext}] Found existing user ${existingUser.id} for phone ${phoneNumber}`,
+        `[${options.logContext}] Found existing user ${existingUser.id} for phone ${normalizedPhone}`,
       );
       return existingUser.id;
     }
@@ -1897,7 +1994,7 @@ export class RepairOrdersService {
     }
 
     this.logger.log(
-      `[${options.logContext}] No existing user found for phone ${phoneNumber}. Creating new user...`,
+      `[${options.logContext}] No existing user found for phone ${normalizedPhone}. Creating new user...`,
     );
 
     const parsedName = options.name ? this.parseCustomerNameOrThrow(options.name) : null;
@@ -1905,7 +2002,7 @@ export class RepairOrdersService {
       .insert({
         first_name: parsedName?.firstName ?? null,
         last_name: parsedName?.lastName ?? null,
-        phone_number1: phoneNumber,
+        phone_number1: normalizedPhone,
         is_active: true,
         phone_verified: options.phoneVerified ?? false,
         source: options.source,
@@ -2128,8 +2225,11 @@ export class RepairOrdersService {
   }): Promise<void> {
     const trx = await this.knex.transaction();
     try {
+      const normalizedPhoneNumber = this.normalizePhoneNumber(data.phoneNumber);
+      const phoneCandidates = this.getPhoneLookupCandidates(normalizedPhoneNumber);
       let order = (await this.buildTelephonyWorkflowOpenOrderQuery(trx)
-        .where({ 'ro.branch_id': data.branchId, 'ro.phone_number': data.phoneNumber })
+        .where({ 'ro.branch_id': data.branchId })
+        .whereIn('ro.phone_number', phoneCandidates)
         .first()) as RepairOrder | undefined;
 
       const targetAdminId = await this.resolveWebhookAdminId(
@@ -2151,7 +2251,7 @@ export class RepairOrdersService {
             sort: 999999,
             delivery_method: 'Self',
             pickup_method: 'Self',
-            phone_number: data.phoneNumber,
+            phone_number: normalizedPhoneNumber,
             source: data.source,
             call_count: 1,
             created_at: new Date().toISOString(),
@@ -2189,6 +2289,40 @@ export class RepairOrdersService {
         targetAdminId,
       });
 
+      await this.redisService.flushByPrefix(`${this.table}:${data.branchId}`);
+    } catch (err) {
+      await trx.rollback();
+      throw err;
+    }
+  }
+
+  async assignTelephonyAdminToExistingOrder(data: {
+    branchId: string;
+    orderId: string;
+    onlinepbxCode: string | null | undefined;
+  }): Promise<void> {
+    if (!data.onlinepbxCode) return;
+
+    const trx = await this.knex.transaction();
+    try {
+      const order = await this.getOrderOrThrow(trx, data.orderId);
+      if (order.branch_id !== data.branchId) {
+        await trx.rollback();
+        return;
+      }
+
+      const targetAdminId = await this.resolveWebhookAdminId(
+        trx,
+        data.branchId,
+        data.onlinepbxCode,
+      );
+      if (!targetAdminId) {
+        await trx.rollback();
+        return;
+      }
+
+      await this.assignTelephonyAdminToOrderIfEligible(trx, data.orderId, targetAdminId);
+      await trx.commit();
       await this.redisService.flushByPrefix(`${this.table}:${data.branchId}`);
     } catch (err) {
       await trx.rollback();
@@ -2358,6 +2492,38 @@ export class RepairOrdersService {
       currentDayStr: days[currentDayIndex],
       currentHHmm: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
     };
+  }
+
+  private normalizePhoneNumber(phoneNumber: string): string {
+    return formatUzPhoneToE164(phoneNumber);
+  }
+
+  private getPhoneLookupCandidates(phoneNumber: string): string[] {
+    return getUzPhoneLookupCandidates(phoneNumber);
+  }
+
+  private async normalizeExistingUserPhoneIfNeeded(
+    trx: Knex.Transaction,
+    user: Pick<User, 'id' | 'phone_number1'>,
+    normalizedPhone: string,
+  ): Promise<void> {
+    if (!user.phone_number1 || user.phone_number1 === normalizedPhone) {
+      return;
+    }
+
+    const conflictingUser = await trx<User>('users')
+      .where({ phone_number1: normalizedPhone })
+      .whereNot({ id: user.id })
+      .first();
+
+    if (conflictingUser) {
+      return;
+    }
+
+    await trx('users').where({ id: user.id }).update({
+      phone_number1: normalizedPhone,
+      updated_at: new Date().toISOString(),
+    });
   }
 
   private buildTelephonyWorkflowOpenOrderQuery(db: Knex | Knex.Transaction): Knex.QueryBuilder {
@@ -2548,6 +2714,73 @@ export class RepairOrdersService {
         .andWhere('sort', '>', order.sort)
         .update({ sort: this.knex.raw('sort - 1') });
     }
+  }
+
+  private async getProblemHistorySnapshot(
+    trx: Knex.Transaction,
+    repairOrderId: string,
+    problemType: 'initial' | 'final',
+  ): Promise<
+    Array<{
+      problem_category_id: string;
+      price: string;
+      estimated_minutes: number;
+      parts: Array<{
+        repair_part_id: string;
+        quantity: number;
+        part_price: string;
+      }>;
+    }>
+  > {
+    const problemTableName =
+      problemType === 'initial' ? 'repair_order_initial_problems' : 'repair_order_final_problems';
+    const problemIdColumn =
+      problemType === 'initial'
+        ? 'repair_order_initial_problem_id'
+        : 'repair_order_final_problem_id';
+
+    const problems = await trx<{
+      id: string;
+      repair_order_id: string;
+      problem_category_id: string;
+      price: string;
+      estimated_minutes: number;
+    }>(problemTableName)
+      .where({ repair_order_id: repairOrderId })
+      .select('id', 'problem_category_id', 'price', 'estimated_minutes')
+      .orderBy('created_at', 'asc');
+
+    const problemIds = problems.map((problem) => problem.id);
+    const partsByProblemId = new Map<
+      string,
+      Array<{ repair_part_id: string; quantity: number; part_price: string }>
+    >();
+
+    if (problemIds.length) {
+      const parts = await trx<Record<string, string | number>>('repair_order_parts')
+        .where({ repair_order_id: repairOrderId })
+        .whereIn(problemIdColumn, problemIds)
+        .select(problemIdColumn, 'repair_part_id', 'quantity', 'part_price')
+        .orderBy('created_at', 'asc');
+
+      for (const part of parts) {
+        const key = String(part[problemIdColumn]);
+        const current = partsByProblemId.get(key) ?? [];
+        current.push({
+          repair_part_id: String(part.repair_part_id),
+          quantity: Number(part.quantity),
+          part_price: String(part.part_price),
+        });
+        partsByProblemId.set(key, current);
+      }
+    }
+
+    return problems.map((problem) => ({
+      problem_category_id: String(problem.problem_category_id),
+      price: String(problem.price),
+      estimated_minutes: Number(problem.estimated_minutes),
+      parts: partsByProblemId.get(String(problem.id)) ?? [],
+    }));
   }
 
   private emitMoveNotification(order: RepairOrder, toStatusId: string): void {

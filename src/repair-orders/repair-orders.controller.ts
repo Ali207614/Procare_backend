@@ -76,19 +76,33 @@ export class RepairOrdersController {
   @UseGuards(BranchExistGuard)
   @ApiOperation({ summary: 'Get all repair orders by branchId (can_view only)' })
   @ApiOkResponse({
-    description: 'Repair orders grouped by status ID',
+    description:
+      'Repair orders grouped by status ID, including the total count of orders for each status',
     schema: {
       type: 'object',
       additionalProperties: {
-        type: 'array',
-        items: { $ref: getSchemaPath(RepairOrderListItemSwaggerDto) },
+        type: 'object',
+        properties: {
+          metrics: {
+            type: 'object',
+            properties: {
+              total_repair_orders: { type: 'number' },
+            },
+          },
+          repair_orders: {
+            type: 'array',
+            items: { $ref: getSchemaPath(RepairOrderListItemSwaggerDto) },
+          },
+        },
       },
     },
   })
   findAllByBranch(
     @Req() req: AuthenticatedRequest,
     @Query() query: FindAllRepairOrdersQueryDto,
-  ): Promise<Record<string, FreshRepairOrder[]>> {
+  ): Promise<
+    Record<string, { metrics: { total_repair_orders: number }; repair_orders: FreshRepairOrder[] }>
+  > {
     return this.service.findAllByAdminBranch(req.admin, req.branch.id, query);
   }
 

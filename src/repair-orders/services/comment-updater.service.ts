@@ -75,7 +75,7 @@ export class CommentUpdaterService {
   ): Promise<{ message: string }> {
     return await this.knex.transaction(async (trx) => {
       const comment: RepairOrderComment | undefined = await trx('repair_order_comments')
-        .select('repair_order_id', 'status_by', 'created_by', 'status', 'text')
+        .select('repair_order_id', 'status_by', 'created_by', 'status', 'text', 'comment_type')
         .where({ id: commentId })
         .first();
 
@@ -89,6 +89,13 @@ export class CommentUpdaterService {
       if (comment.created_by !== admin.id) {
         throw new BadRequestException({
           message: 'You are not the author of this comment',
+          location: 'comment_id',
+        });
+      }
+
+      if (comment.comment_type === 'history') {
+        throw new BadRequestException({
+          message: 'History comments cannot be edited',
           location: 'comment_id',
         });
       }
@@ -140,13 +147,20 @@ export class CommentUpdaterService {
   async delete(commentId: string, admin: AdminPayload): Promise<void> {
     await this.knex.transaction(async (trx) => {
       const comment: RepairOrderComment | undefined = await trx('repair_order_comments')
-        .select('repair_order_id', 'status_by')
+        .select('repair_order_id', 'status_by', 'text', 'comment_type')
         .where({ id: commentId, status: 'Open' })
         .first();
 
       if (!comment) {
         throw new BadRequestException({
           message: 'Comment not found or already deleted',
+          location: 'comment_id',
+        });
+      }
+
+      if (comment.comment_type === 'history') {
+        throw new BadRequestException({
+          message: 'History comments cannot be deleted',
           location: 'comment_id',
         });
       }
@@ -181,8 +195,8 @@ export class CommentUpdaterService {
         trx,
         comment.repair_order_id,
         'comments',
-        'deleted',
-        commentId,
+        comment.text,
+        null,
         admin.id,
       );
     });
