@@ -219,6 +219,73 @@ describe('RepairOrderHistoryCommentManager', () => {
     expect(result).toBe(`Filial o'zgardi: "Chilonzor" -> "Yunusobod"`);
   });
 
+  it('includes repair order parts when formatting problem history changes', async () => {
+    const db = createDbMock({
+      problem_categories: [{ id: 'problem-1', name_uz: 'Ekran' }],
+      repair_parts: [{ id: 'part-1', part_name_uz: 'Batareya' }],
+    });
+    const manager = new RepairOrderHistoryCommentManager(db);
+
+    const result = await manager.buildCommentText(db, {
+      id: 'history-parts-in-problem',
+      repair_order_id: 'order-1',
+      field: 'initial_problems',
+      old_value: [
+        {
+          problem_category_id: 'problem-1',
+          price: 120,
+          estimated_minutes: 45,
+          parts: [],
+        },
+      ],
+      new_value: [
+        {
+          problem_category_id: 'problem-1',
+          price: 120,
+          estimated_minutes: 45,
+          parts: [
+            {
+              repair_part_id: 'part-1',
+              quantity: 1,
+              part_price: 50,
+            },
+          ],
+        },
+      ],
+      created_by: 'admin-1',
+      created_at: '2026-04-13T00:00:00.000Z',
+    } as RepairOrderChangeHistory);
+
+    expect(result).toBe(
+      `Boshlang'ich muammolar o'zgardi: "Ekran, 120 so'm, 45 daqiqa" -> "Ekran, 120 so'm, 45 daqiqa, Qismlar: Batareya, 1 dona, 50 so'm"`,
+    );
+  });
+
+  it('formats direct repair_order_parts history rows with resolved part names', async () => {
+    const db = createDbMock({
+      repair_parts: [{ id: 'part-1', part_name_uz: 'Batareya' }],
+    });
+    const manager = new RepairOrderHistoryCommentManager(db);
+
+    const result = await manager.buildCommentText(db, {
+      id: 'history-parts-direct',
+      repair_order_id: 'order-1',
+      field: 'repair_order_parts',
+      old_value: [],
+      new_value: [
+        {
+          repair_part_id: 'part-1',
+          quantity: 2,
+          part_price: 50,
+        },
+      ],
+      created_by: 'admin-1',
+      created_at: '2026-04-13T00:00:00.000Z',
+    } as RepairOrderChangeHistory);
+
+    expect(result).toBe(`Ehtiyot qismlar qo'shildi: "Batareya, 2 dona, 50 so'm"`);
+  });
+
   it('creates exactly one linked history comment with history metadata', async () => {
     const db = createDbMock({
       repair_order_comments: [],

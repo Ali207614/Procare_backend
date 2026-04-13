@@ -228,7 +228,10 @@ SELECT
         'created_at', c.created_at,
         'updated_at', c.updated_at
       )
-      ORDER BY c.created_at DESC, c.id DESC
+      ORDER BY 
+        CASE WHEN c.comment_type = 'manual' THEN 1 ELSE 2 END ASC,
+        c.created_at DESC, 
+        c.id DESC
     )
     FROM repair_order_comments c
     WHERE c.repair_order_id = ro.id

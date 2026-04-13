@@ -15,6 +15,9 @@ type NameLookupRow = {
   name_uz?: string | null;
   name_ru?: string | null;
   name_en?: string | null;
+  part_name_uz?: string | null;
+  part_name_ru?: string | null;
+  part_name_en?: string | null;
   name?: string | null;
   title?: string | null;
   first_name?: string | null;
@@ -50,6 +53,7 @@ const FIELD_LABELS: Record<string, string> = {
   delivery: "Yetkazib berish ma'lumoti",
   rental_phone: 'Ijara telefoni',
   comments: 'Izoh',
+  repair_order_parts: 'Ehtiyot qismlar',
 };
 
 const PRIORITY_LABELS: Record<string, string> = {
@@ -137,6 +141,8 @@ export class RepairOrderHistoryCommentManager {
         return this.formatRentalDiff(trx, history.old_value, history.new_value);
       case 'comments':
         return this.formatCommentDiff(history.old_value, history.new_value);
+      case 'repair_order_parts':
+        return this.formatRepairPartsDiff(trx, history.old_value, history.new_value);
       case 'branch_transferred':
         return this.formatLegacyBranchTransfer(trx, history.new_value);
       case 'attachment_uploaded':
@@ -329,6 +335,34 @@ export class RepairOrderHistoryCommentManager {
 
     if (!oldDisplay && newDisplay) {
       return `${label} belgilandi: "${newDisplay}"`;
+    }
+
+    if (oldDisplay && !newDisplay) {
+      return `${label} olib tashlandi: "${oldDisplay}"`;
+    }
+
+    return null;
+  }
+
+  private async formatRepairPartsDiff(
+    trx: DbClient,
+    oldValue: unknown,
+    newValue: unknown,
+  ): Promise<string | null> {
+    const label = FIELD_LABELS.repair_order_parts;
+    const oldDisplay = await this.summarizeProblemParts(trx, oldValue);
+    const newDisplay = await this.summarizeProblemParts(trx, newValue);
+
+    if (oldDisplay && newDisplay && oldDisplay === newDisplay) {
+      return `${label} yangilandi`;
+    }
+
+    if (oldDisplay && newDisplay) {
+      return `${label} o'zgardi: "${oldDisplay}" -> "${newDisplay}"`;
+    }
+
+    if (!oldDisplay && newDisplay) {
+      return `${label} qo'shildi: "${newDisplay}"`;
     }
 
     if (oldDisplay && !newDisplay) {
@@ -534,9 +568,36 @@ export class RepairOrderHistoryCommentManager {
         const segments = [category];
         const price = this.formatMoney(item.price);
         const minutes = this.formatMinutes(item.estimated_minutes);
+        const partsSummary = await this.summarizeProblemParts(trx, item.parts);
 
         if (price) segments.push(price);
         if (minutes) segments.push(minutes);
+        if (partsSummary) segments.push(`Qismlar: ${partsSummary}`);
+
+        return segments.join(', ');
+      }),
+    );
+
+    const filtered = parts.filter((item): item is string => Boolean(item));
+    return filtered.length ? this.joinLimited(filtered) : null;
+  }
+
+  private async summarizeProblemParts(trx: DbClient, value: unknown): Promise<string | null> {
+    const items = Array.isArray(value) ? value : [];
+    if (!items.length) return null;
+
+    const parts = await Promise.all(
+      items.map(async (item) => {
+        if (!this.isRecord(item)) return null;
+
+        const partId = this.asString(item.repair_part_id ?? item.id);
+        const partName = (await this.resolveRepairPartName(trx, partId)) ?? "Noma'lum qism";
+        const segments = [partName];
+        const quantity = this.formatQuantity(item.quantity);
+        const price = this.formatMoney(item.part_price);
+
+        if (quantity) segments.push(quantity);
+        if (price) segments.push(price);
 
         return segments.join(', ');
       }),
@@ -679,6 +740,25 @@ export class RepairOrderHistoryCommentManager {
     categoryId: string | null,
   ): Promise<string | null> {
     return this.resolveLookupLabel(trx, 'problem_categories', categoryId);
+  }
+
+  private async resolveRepairPartName(
+    trx: DbClient,
+    partId: string | null,
+  ): Promise<string | null> {
+    if (!partId) return null;
+
+    const cacheKey = `repair_parts:${partId}`;
+    const cached = this.lookupCache.get(cacheKey);
+    if (cached !== undefined) return cached;
+
+    const part = await trx('repair_parts')
+      .where({ id: partId })
+      .first<NameLookupRow>('id', 'part_name_uz', 'part_name_ru', 'part_name_en');
+
+    const value = part?.part_name_uz ?? part?.part_name_ru ?? part?.part_name_en ?? null;
+    this.lookupCache.set(cacheKey, value);
+    return value;
   }
 
   private async resolveRejectCauseName(
@@ -855,6 +935,12 @@ export class RepairOrderHistoryCommentManager {
     const parsed = Number(value);
     if (Number.isNaN(parsed) || parsed <= 0) return null;
     return `${parsed} daqiqa`;
+  }
+
+  private formatQuantity(value: unknown): string | null {
+    const parsed = Number(value);
+    if (Number.isNaN(parsed) || parsed <= 0) return null;
+    return `${parsed} dona`;
   }
 
   private joinLimited(values: string[]): string {
