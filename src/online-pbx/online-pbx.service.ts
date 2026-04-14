@@ -467,7 +467,12 @@ export class OnlinePbxService {
       return call.event === 'call_missed';
     }
 
-    return event === 'call_end' && dialogDuration > 0 && call.event === 'call_end' && Number(call.dialog_duration) > 0;
+    return (
+      event === 'call_end' &&
+      dialogDuration > 0 &&
+      call.event === 'call_end' &&
+      Number(call.dialog_duration) > 0
+    );
   }
 
   private resolveConversationAdminCode(
