@@ -39,6 +39,9 @@ interface PhoneCall {
 
 import { RepairOrdersService } from 'src/repair-orders/repair-orders.service';
 
+const DEFAULT_BRANCH_ID = '00000000-0000-4000-8000-000000000000';
+const DEFAULT_SYSTEM_ADMIN_ID = '00000000-0000-4000-8000-000000000000';
+
 @Injectable()
 export class OnlinePbxService {
   private readonly apiUrl: string;
@@ -177,6 +180,11 @@ export class OnlinePbxService {
 
     if (!uuid) return;
 
+    const existingCall = await this.knex<PhoneCall>('phone_calls')
+      .where({ uuid })
+      .first('uuid', 'event', 'dialog_duration', 'repair_order_id');
+
+    const parsedDialogDuration = this.parsePositiveDuration(dialog_duration);
     const gateway = this.config.get<string>('GATEWAY');
     let userId: string | null = null;
     let repairOrderId: string | null = null;
@@ -231,9 +239,8 @@ export class OnlinePbxService {
       } else {
         // Inbound & Outbound call handling logic (tracking customer's repair orders)
         // Look for an existing open repair order for this customer
-        const defaultBranch = '00000000-0000-4000-8000-000000000000';
         const openOrder = await this.repairOrderService.findOpenOrderByPhoneNumber(
-          defaultBranch,
+          DEFAULT_BRANCH_ID,
           formattedCustomerPhone,
           userId,
         );
@@ -247,10 +254,10 @@ export class OnlinePbxService {
           fallback: boolean,
         ): Promise<void> => {
           const defaultStatus = '50000000-0000-0000-0001-001000000000';
-          if (defaultBranch && defaultStatus) {
+          if (DEFAULT_BRANCH_ID && defaultStatus) {
             const newOrder = await this.repairOrderService.createFromWebhook({
               userId,
-              branchId: defaultBranch,
+              branchId: DEFAULT_BRANCH_ID,
               statusId: defaultStatus,
               phoneNumber: formattedCustomerPhone,
               source: direction === 'inbound' ? 'Kiruvchi qongiroq' : 'Chiquvchi qongiroq',
@@ -266,7 +273,7 @@ export class OnlinePbxService {
             );
           } else {
             this.logger.warn(
-              `[OnlinePBX Webhook] Cannot create repair order. Missing master data: Branch=${!!defaultBranch}, Status=${!!defaultStatus}`,
+              `[OnlinePBX Webhook] Cannot create repair order. Missing master data: Branch=${!!DEFAULT_BRANCH_ID}, Status=${!!defaultStatus}`,
             );
           }
         };
@@ -282,7 +289,7 @@ export class OnlinePbxService {
               const specificAdminCode = callerDigits?.length === 3 ? callerDigits : onlinepbxCode;
 
               await this.repairOrderService.assignTelephonyAdminToExistingOrder({
-                branchId: defaultBranch,
+                branchId: DEFAULT_BRANCH_ID,
                 orderId: openOrder.id,
                 onlinepbxCode: specificAdminCode,
               });
@@ -296,7 +303,7 @@ export class OnlinePbxService {
             const specificAdminCode = callerDigits?.length === 3 ? callerDigits : onlinepbxCode;
 
             await this.repairOrderService.handleCallAnswered({
-              branchId: defaultBranch,
+              branchId: DEFAULT_BRANCH_ID,
               phoneNumber: formattedCustomerPhone,
               onlinepbxCode: specificAdminCode || '',
               userId,
@@ -306,6 +313,17 @@ export class OnlinePbxService {
             this.logger.log(
               `Handled outbound call_answered for ${formattedCustomerPhone} via handleCallAnswered.`,
             );
+          } else if (event === 'call_end' && parsedDialogDuration > 0) {
+            if (!openOrder) {
+              const callerDigits = caller?.replace(/\D/g, '');
+              const specificAdminCode = callerDigits?.length === 3 ? callerDigits : onlinepbxCode;
+              await createOrderHelper(specificAdminCode, false);
+            } else {
+              await this.repairOrderService.moveToTopById(openOrder.id);
+              this.logger.log(
+                `Moved existing open repair order ${openOrder.id} to top on outbound call_end with duration > 0.`,
+              );
+            }
           }
         } else if (direction === 'inbound') {
           // User calling admin
@@ -325,7 +343,7 @@ export class OnlinePbxService {
             const specificAdminCode = calleeDigits?.length === 3 ? calleeDigits : onlinepbxCode;
 
             await this.repairOrderService.handleCallAnswered({
-              branchId: defaultBranch,
+              branchId: DEFAULT_BRANCH_ID,
               phoneNumber: formattedCustomerPhone,
               onlinepbxCode: specificAdminCode || '',
               userId,
@@ -348,7 +366,7 @@ export class OnlinePbxService {
             }
           } else if (event === 'call_end') {
             // Check if admin actually talked to user
-            if (Number(dialog_duration) > 0) {
+            if (parsedDialogDuration > 0) {
               if (!openOrder) {
                 // Determine which admin answered from callee directly
                 const calleeDigits = callee?.replace(/\D/g, '');
@@ -368,36 +386,210 @@ export class OnlinePbxService {
       }
     }
 
+    const shouldCreateTalkComment =
+      Boolean(repairOrderId) &&
+      this.shouldCreateRepairOrderComment(event, parsedDialogDuration) &&
+      !this.hasCallCommentRecorded(existingCall, event, parsedDialogDuration);
+    const conversationAdminCode = this.resolveConversationAdminCode(
+      direction,
+      caller,
+      callee,
+      onlinepbxCode,
+    );
+
     // Upsert phone_call record using Knex's built-in support
     this.logger.log(
       `[OnlinePBX Webhook] Saving phone call ${uuid} with user_id: ${userId} and repair_order_id: ${repairOrderId}`,
     );
-    await this.knex<PhoneCall>('phone_calls')
-      .insert({
-        uuid,
-        caller: formattedCaller,
-        callee: formattedCallee,
-        direction: (direction as string) || null,
-        event: (event as string) || null,
-        call_duration: call_duration ? Number(call_duration) : null,
-        dialog_duration: dialog_duration ? Number(dialog_duration) : null,
-        hangup_cause: hangup_cause || null,
-        download_url: download_url || null,
-        user_id: userId,
-        repair_order_id: repairOrderId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .onConflict('uuid')
-      .merge({
-        event: event || undefined,
-        call_duration: call_duration ? Number(call_duration) : undefined,
-        dialog_duration: dialog_duration ? Number(dialog_duration) : undefined,
-        hangup_cause: hangup_cause || undefined,
-        download_url: download_url || undefined,
-        user_id: userId || undefined,
-        repair_order_id: repairOrderId || undefined,
-        updated_at: new Date().toISOString(),
-      });
+    await this.knex.transaction(async (trx) => {
+      await trx<PhoneCall>('phone_calls')
+        .insert({
+          uuid,
+          caller: formattedCaller,
+          callee: formattedCallee,
+          direction: (direction as string) || null,
+          event: (event as string) || null,
+          call_duration: call_duration ? Number(call_duration) : null,
+          dialog_duration: parsedDialogDuration || null,
+          hangup_cause: hangup_cause || null,
+          download_url: download_url || null,
+          user_id: userId,
+          repair_order_id: repairOrderId,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .onConflict('uuid')
+        .merge({
+          event: event || undefined,
+          call_duration: call_duration ? Number(call_duration) : undefined,
+          dialog_duration: parsedDialogDuration || undefined,
+          hangup_cause: hangup_cause || undefined,
+          download_url: download_url || undefined,
+          user_id: userId || undefined,
+          repair_order_id: repairOrderId || undefined,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (shouldCreateTalkComment && repairOrderId) {
+        await this.insertRepairOrderComment(trx, {
+          repairOrderId,
+          onlinepbxCode: conversationAdminCode,
+          event,
+          direction,
+          dialogDuration: parsedDialogDuration,
+        });
+      }
+    });
+  }
+
+  private parsePositiveDuration(value: string | number | undefined): number {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  }
+
+  private shouldCreateRepairOrderComment(
+    event: string | undefined,
+    dialogDuration: number,
+  ): boolean {
+    return event === 'call_missed' || (event === 'call_end' && dialogDuration > 0);
+  }
+
+  private hasCallCommentRecorded(
+    call: Pick<PhoneCall, 'event' | 'dialog_duration'> | undefined,
+    event: string | undefined,
+    dialogDuration: number,
+  ): boolean {
+    if (!call) {
+      return false;
+    }
+
+    if (event === 'call_missed') {
+      return call.event === 'call_missed';
+    }
+
+    return event === 'call_end' && dialogDuration > 0 && call.event === 'call_end' && Number(call.dialog_duration) > 0;
+  }
+
+  private resolveConversationAdminCode(
+    direction: string | undefined,
+    caller: string | undefined,
+    callee: string | undefined,
+    fallbackCode: string | null,
+  ): string | null {
+    const callerDigits = caller?.replace(/\D/g, '');
+    const calleeDigits = callee?.replace(/\D/g, '');
+
+    if (direction === 'outbound') {
+      return callerDigits?.length === 3 ? callerDigits : fallbackCode;
+    }
+
+    if (direction === 'inbound') {
+      return calleeDigits?.length === 3 ? calleeDigits : fallbackCode;
+    }
+
+    return fallbackCode;
+  }
+
+  private async insertRepairOrderComment(
+    trx: Knex.Transaction,
+    data: {
+      repairOrderId: string;
+      onlinepbxCode: string | null;
+      event?: string;
+      direction?: string;
+      dialogDuration: number;
+    },
+  ): Promise<void> {
+    const order = await trx('repair_orders')
+      .where({ id: data.repairOrderId, status: 'Open' })
+      .first<{ status_id: string }>('status_id');
+
+    if (!order?.status_id) {
+      return;
+    }
+
+    const createdBy = await this.resolveTalkCommentCreatorId(trx, data.onlinepbxCode);
+    const text = this.buildRepairOrderCommentText(data.event, data.direction, data.dialogDuration);
+
+    await trx('repair_order_comments').insert({
+      repair_order_id: data.repairOrderId,
+      text,
+      status: 'Open',
+      created_by: createdBy,
+      status_by: order.status_id,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  private async resolveTalkCommentCreatorId(
+    trx: Knex.Transaction,
+    onlinepbxCode: string | null,
+  ): Promise<string> {
+    if (onlinepbxCode) {
+      const adminByCode = await trx('admins')
+        .where({
+          onlinepbx_code: onlinepbxCode,
+          is_active: true,
+          status: 'Open',
+        })
+        .first<{ id: string }>('id');
+
+      if (adminByCode?.id) {
+        return adminByCode.id;
+      }
+    }
+
+    const systemAdmin = await trx('admins')
+      .where({ id: DEFAULT_SYSTEM_ADMIN_ID })
+      .first<{ id: string }>('id');
+    if (systemAdmin?.id) {
+      return systemAdmin.id;
+    }
+
+    const firstAdmin = await trx('admins').orderBy('created_at', 'asc').first<{ id: string }>('id');
+    if (!firstAdmin?.id) {
+      throw new Error('No admin found to attribute telephony talk comment');
+    }
+
+    return firstAdmin.id;
+  }
+
+  private buildRepairOrderCommentText(
+    event: string | undefined,
+    direction: string | undefined,
+    dialogDuration: number,
+  ): string {
+    if (event === 'call_missed') {
+      if (direction === 'outbound') {
+        return `Chiquvchi qo'ng'iroq o'tkazib yuborildi`;
+      }
+
+      return `Kiruvchi qo'ng'iroq o'tkazib yuborildi`;
+    }
+
+    const directionLabel =
+      direction === 'inbound'
+        ? "kiruvchi qo'ng'iroq"
+        : direction === 'outbound'
+          ? "chiquvchi qo'ng'iroq"
+          : 'telefon suhbati';
+
+    return `Mijoz bilan ${directionLabel} bo'lib o'tdi (${this.formatDuration(dialogDuration)})`;
+  }
+
+  private formatDuration(totalSeconds: number): string {
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+
+    if (minutes > 0 && seconds > 0) {
+      return `${minutes} daqiqa ${seconds} soniya`;
+    }
+
+    if (minutes > 0) {
+      return `${minutes} daqiqa`;
+    }
+
+    return `${seconds} soniya`;
   }
 }

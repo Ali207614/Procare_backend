@@ -25,6 +25,13 @@ describe('OnlinePbxService gateway filtering', () => {
     onConflict: jest.Mock;
   };
   let mergeSpy: jest.Mock;
+  let commentInsertSpy: jest.Mock;
+  let firstAdminSpy: jest.Mock;
+  let adminWhereSpy: jest.Mock;
+  let phoneCallsWhereSpy: jest.Mock;
+  let phoneCallFirstSpy: jest.Mock;
+  let repairOrdersWhereSpy: jest.Mock;
+  let repairOrderFirstSpy: jest.Mock;
 
   beforeEach(() => {
     logger = {
@@ -51,17 +58,74 @@ describe('OnlinePbxService gateway filtering', () => {
     };
 
     mergeSpy = jest.fn().mockResolvedValue(undefined);
+    commentInsertSpy = jest.fn().mockResolvedValue(undefined);
+    phoneCallFirstSpy = jest.fn().mockResolvedValue(undefined);
+    phoneCallsWhereSpy = jest.fn().mockReturnValue({
+      first: phoneCallFirstSpy,
+    });
+    repairOrderFirstSpy = jest.fn().mockResolvedValue(undefined);
+    repairOrdersWhereSpy = jest.fn().mockReturnValue({
+      first: repairOrderFirstSpy,
+    });
+    firstAdminSpy = jest.fn().mockResolvedValue({ id: 'admin-1' });
+    adminWhereSpy = jest.fn().mockReturnValue({
+      first: jest.fn().mockResolvedValue(undefined),
+    });
     insertChain = {
       onConflict: jest.fn().mockReturnValue({
         merge: mergeSpy,
       }),
     };
 
-    knex = jest.fn().mockReturnValue({
-      where: jest.fn().mockReturnThis(),
-      first: jest.fn().mockResolvedValue(undefined),
-      insert: jest.fn().mockReturnValue(insertChain),
+    knex = jest.fn((table: string) => {
+      if (table === 'phone_calls') {
+        return {
+          where: phoneCallsWhereSpy,
+          first: phoneCallFirstSpy,
+          insert: jest.fn().mockReturnValue(insertChain),
+        };
+      }
+
+      if (table === 'repair_order_comments') {
+        return {
+          insert: commentInsertSpy,
+        };
+      }
+
+      if (table === 'repair_orders') {
+        return {
+          where: repairOrdersWhereSpy,
+        };
+      }
+
+      if (table === 'admins') {
+        return {
+          where: adminWhereSpy,
+          orderBy: jest.fn().mockReturnValue({
+            first: firstAdminSpy,
+          }),
+        };
+      }
+
+      if (table === 'users') {
+        return {
+          where: jest.fn().mockReturnValue({
+            first: jest.fn().mockResolvedValue(undefined),
+          }),
+        };
+      }
+
+      return {
+        where: jest.fn().mockReturnValue({
+          first: jest.fn().mockResolvedValue(undefined),
+        }),
+        first: jest.fn().mockResolvedValue(undefined),
+        insert: jest.fn().mockReturnValue(insertChain),
+      };
     }) as unknown as jest.Mock;
+    (knex as any).transaction = jest.fn(async (callback: (trx: any) => Promise<unknown>) =>
+      callback(knex as any),
+    );
 
     repairOrderService = {
       findOpenOrderByPhoneNumber: jest.fn(),
@@ -152,5 +216,76 @@ describe('OnlinePbxService gateway filtering', () => {
       onlinepbxCode: '120',
     });
     expect(repairOrderService.incrementCallCount).toHaveBeenCalledWith('order-1');
+  });
+
+  it('creates a repair order comment on inbound call_end when dialog_duration is greater than zero', async () => {
+    repairOrderService.findOpenOrderByPhoneNumber.mockResolvedValue({
+      id: 'order-1',
+    });
+    repairOrderFirstSpy.mockResolvedValue({ status_id: 'status-1' });
+
+    await service.handleWebhook({
+      uuid: 'call-end-inbound-1',
+      gateway: '+998781133774',
+      direction: 'inbound',
+      event: 'call_end',
+      caller: '+998901234567',
+      callee: '120',
+      dialog_duration: 125,
+    });
+
+    expect(repairOrderService.moveToTopById).toHaveBeenCalledWith('order-1');
+    expect(commentInsertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repair_order_id: 'order-1',
+        status_by: 'status-1',
+        created_by: 'admin-1',
+        text: "Mijoz bilan kiruvchi qo'ng'iroq bo'lib o'tdi (2 daqiqa 5 soniya)",
+      }),
+    );
+  });
+
+  it('does not create a repair order comment when dialog_duration is zero', async () => {
+    repairOrderService.findOpenOrderByPhoneNumber.mockResolvedValue({
+      id: 'order-1',
+    });
+
+    await service.handleWebhook({
+      uuid: 'call-end-inbound-2',
+      gateway: '+998781133774',
+      direction: 'inbound',
+      event: 'call_end',
+      caller: '+998901234567',
+      callee: '120',
+      dialog_duration: 0,
+    });
+
+    expect(commentInsertSpy).not.toHaveBeenCalled();
+  });
+
+  it('creates a repair order comment for missed inbound calls', async () => {
+    repairOrderService.findOpenOrderByPhoneNumber.mockResolvedValue({
+      id: 'order-1',
+    });
+    repairOrderFirstSpy.mockResolvedValue({ status_id: 'status-1' });
+
+    await service.handleWebhook({
+      uuid: 'call-missed-inbound-1',
+      gateway: '+998781133774',
+      direction: 'inbound',
+      event: 'call_missed',
+      caller: '+998901234567',
+      callee: '120',
+    });
+
+    expect(repairOrderService.incrementMissedCallCount).toHaveBeenCalledWith('order-1');
+    expect(commentInsertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repair_order_id: 'order-1',
+        status_by: 'status-1',
+        created_by: 'admin-1',
+        text: "Kiruvchi qo'ng'iroq o'tkazib yuborildi",
+      }),
+    );
   });
 });

@@ -116,42 +116,7 @@ export class RepairOrderHistoryCommentManager {
     switch (history.field) {
       case 'status_id':
       case 'status':
-      case 'branch_id':
-      case 'name':
-      case 'phone_number':
-      case 'priority':
-      case 'phone_category_id':
-      case 'region_id':
-      case 'imei':
-      case 'agreed_date':
-      case 'source':
-      case 'reject_cause_id':
-      case 'user_id':
-      case 'sort':
         return this.formatScalarDiff(trx, history.field, history.old_value, history.new_value);
-      case 'admin_ids':
-        return this.formatAdminDiff(trx, history.old_value, history.new_value);
-      case 'initial_problems':
-      case 'final_problems':
-        return this.formatProblemDiff(trx, history.field, history.old_value, history.new_value);
-      case 'pickup':
-      case 'delivery':
-        return this.formatRouteDiff(trx, history.field, history.old_value, history.new_value);
-      case 'rental_phone':
-        return this.formatRentalDiff(trx, history.old_value, history.new_value);
-      case 'comments':
-        return this.formatCommentDiff(history.old_value, history.new_value);
-      case 'repair_order_parts':
-        return this.formatRepairPartsDiff(trx, history.old_value, history.new_value);
-      case 'branch_transferred':
-        return this.formatLegacyBranchTransfer(trx, history.new_value);
-      case 'attachment_uploaded':
-      case 'attachment_deleted':
-      case 'product_updated':
-      case 'problem_updated':
-      case 'rental_phone_updated':
-      case 'rental_phone_removed':
-        return this.formatLegacyAction(trx, history.field, history.new_value);
       default:
         return null;
     }

@@ -194,7 +194,7 @@ describe('RepairOrderHistoryCommentManager', () => {
     expect(result).toBe(`Holat o'zgardi: "Yangi buyurtma (lead)" -> "Diagnostika"`);
   });
 
-  it('formats legacy branch transfer rows without exposing raw ids', async () => {
+  it('ignores non-status history rows for comment generation', async () => {
     const db = createDbMock({
       branches: [
         { id: 'branch-old', name_uz: 'Chilonzor' },
@@ -216,74 +216,7 @@ describe('RepairOrderHistoryCommentManager', () => {
       created_at: '2026-04-13T00:00:00.000Z',
     });
 
-    expect(result).toBe(`Filial o'zgardi: "Chilonzor" -> "Yunusobod"`);
-  });
-
-  it('includes repair order parts when formatting problem history changes', async () => {
-    const db = createDbMock({
-      problem_categories: [{ id: 'problem-1', name_uz: 'Ekran' }],
-      repair_parts: [{ id: 'part-1', part_name_uz: 'Batareya' }],
-    });
-    const manager = new RepairOrderHistoryCommentManager(db);
-
-    const result = await manager.buildCommentText(db, {
-      id: 'history-parts-in-problem',
-      repair_order_id: 'order-1',
-      field: 'initial_problems',
-      old_value: [
-        {
-          problem_category_id: 'problem-1',
-          price: 120,
-          estimated_minutes: 45,
-          parts: [],
-        },
-      ],
-      new_value: [
-        {
-          problem_category_id: 'problem-1',
-          price: 120,
-          estimated_minutes: 45,
-          parts: [
-            {
-              repair_part_id: 'part-1',
-              quantity: 1,
-              part_price: 50,
-            },
-          ],
-        },
-      ],
-      created_by: 'admin-1',
-      created_at: '2026-04-13T00:00:00.000Z',
-    } as RepairOrderChangeHistory);
-
-    expect(result).toBe(
-      `Boshlang'ich muammolar o'zgardi: "Ekran, 120 so'm, 45 daqiqa" -> "Ekran, 120 so'm, 45 daqiqa, Qismlar: Batareya, 1 dona, 50 so'm"`,
-    );
-  });
-
-  it('formats direct repair_order_parts history rows with resolved part names', async () => {
-    const db = createDbMock({
-      repair_parts: [{ id: 'part-1', part_name_uz: 'Batareya' }],
-    });
-    const manager = new RepairOrderHistoryCommentManager(db);
-
-    const result = await manager.buildCommentText(db, {
-      id: 'history-parts-direct',
-      repair_order_id: 'order-1',
-      field: 'repair_order_parts',
-      old_value: [],
-      new_value: [
-        {
-          repair_part_id: 'part-1',
-          quantity: 2,
-          part_price: 50,
-        },
-      ],
-      created_by: 'admin-1',
-      created_at: '2026-04-13T00:00:00.000Z',
-    } as RepairOrderChangeHistory);
-
-    expect(result).toBe(`Ehtiyot qismlar qo'shildi: "Batareya, 2 dona, 50 so'm"`);
+    expect(result).toBeNull();
   });
 
   it('creates exactly one linked history comment with history metadata', async () => {
@@ -309,9 +242,9 @@ describe('RepairOrderHistoryCommentManager', () => {
     const created = await manager.ensureCommentForHistory(db, {
       id: 'history-3',
       repair_order_id: 'order-1',
-      field: 'attachment_uploaded',
-      old_value: null,
-      new_value: { file_name: 'invoice.pdf' },
+      field: 'status_id',
+      old_value: 'status-0',
+      new_value: 'status-1',
       created_by: 'admin-1',
       created_at: '2026-04-13T01:05:00.000Z',
     } as RepairOrderChangeHistory);
@@ -321,7 +254,7 @@ describe('RepairOrderHistoryCommentManager', () => {
     expect(db.__rows.repair_order_comments[0]).toEqual(
       expect.objectContaining({
         repair_order_id: 'order-1',
-        text: 'Fayl qo\'shildi: "invoice.pdf"',
+        text: `Holat belgilandi: "Diagnostika"`,
         comment_type: 'history',
         history_change_id: 'history-3',
         created_by: 'admin-1',
@@ -352,29 +285,5 @@ describe('RepairOrderHistoryCommentManager', () => {
 
     expect(created).toBe(false);
     expect(db.__rows.repair_order_comments).toHaveLength(1);
-  });
-
-  it('formats legacy product update actions for startup backfill support', async () => {
-    const db = createDbMock({
-      phone_categories: [{ id: 'category-1', name_uz: 'iPhone 15 Pro' }],
-    });
-    const manager = new RepairOrderHistoryCommentManager(db);
-
-    const result = await manager.buildCommentText(db, {
-      id: 'history-5',
-      repair_order_id: 'order-1',
-      field: 'product_updated',
-      old_value: null,
-      new_value: {
-        phone_category_id: 'category-1',
-        imei: '123456789012345',
-      },
-      created_by: 'admin-1',
-      created_at: '2026-04-13T01:05:00.000Z',
-    } as RepairOrderChangeHistory);
-
-    expect(result).toBe(
-      `Qurilma ma'lumoti yangilandi: model "iPhone 15 Pro", IMEI "123456789012345"`,
-    );
   });
 });
