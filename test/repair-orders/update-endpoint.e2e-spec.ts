@@ -27,6 +27,7 @@ type FakeState = {
   users: Array<Record<string, unknown>>;
   repair_order_statuses: Array<Record<string, unknown>>;
   repair_order_status_permissions: RepairOrderStatusPermission[];
+  repair_order_reject_causes: Array<Record<string, unknown>>;
   'repair-order-status-transitions': Array<Record<string, unknown>>;
   repair_order_rental_phones: Array<Record<string, unknown>>;
 };
@@ -45,6 +46,11 @@ class FakeQueryBuilder {
 
   andWhere(arg1: string | Record<string, unknown>, arg2?: unknown, arg3?: unknown): this {
     return this.addFilter(arg1, arg2, arg3);
+  }
+
+  whereIn(column: string, values: unknown[]): this {
+    this.filters.push((row) => values.includes(row[column]));
+    return this;
   }
 
   whereNot(criteria: Record<string, unknown>): this {
@@ -197,6 +203,7 @@ describe('PATCH /api/v1/repair-orders/:repair_order_id', () => {
       users: [],
       repair_order_statuses: [],
       repair_order_status_permissions: [],
+      repair_order_reject_causes: [],
       'repair-order-status-transitions': [],
       repair_order_rental_phones: [],
     };
@@ -397,6 +404,7 @@ describe('PATCH /api/v1/repair-orders/:repair_order_id', () => {
       priority_level: 2,
       agreed_date: null,
       reject_cause_id: null,
+      region_id: null,
       created_by: admin.id,
       status: 'Open',
       phone_number: '+998901111111',
@@ -530,6 +538,108 @@ describe('PATCH /api/v1/repair-orders/:repair_order_id', () => {
     expect(state.repair_orders[0].user_id).toBe(state.users[0].id);
     expect(state.users[0].first_name).toBe('Alisher');
     expect(state.users[0].last_name).toBe('Rizayev');
+  });
+
+  it('keeps the admin-selected status when reject cause is provided', async () => {
+    const openStatusId = uuidv4();
+    const targetStatusId = uuidv4();
+    const invalidStatusId = uuidv4();
+    const rejectCauseId = uuidv4();
+
+    const targetPermission = makePermission(targetStatusId);
+    targetPermission.cannot_continue_without_reject_cause = true;
+
+    state.repair_order_status_permissions.push(makePermission(openStatusId));
+    state.repair_order_status_permissions.push(targetPermission);
+    state.repair_order_status_permissions.push(makePermission(invalidStatusId));
+
+    state.repair_order_statuses.push(
+      { id: targetStatusId, branch_id: 'branch-id', status: 'Open', type: 'Open', is_active: true },
+      {
+        id: invalidStatusId,
+        branch_id: 'branch-id',
+        status: 'Open',
+        type: 'Invalid',
+        is_active: true,
+      },
+    );
+
+    state['repair-order-status-transitions'].push(
+      {
+        id: uuidv4(),
+        from_status_id: openStatusId,
+        to_status_id: targetStatusId,
+      },
+      {
+        id: uuidv4(),
+        from_status_id: openStatusId,
+        to_status_id: invalidStatusId,
+      },
+    );
+
+    state.repair_order_reject_causes.push({
+      id: rejectCauseId,
+      status: 'Open',
+      is_active: true,
+    });
+
+    const order = seedOrder({
+      status_id: openStatusId,
+    });
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/repair-orders/${order.id}`)
+      .send({
+        status_id: targetStatusId,
+        reject_cause_id: rejectCauseId,
+      })
+      .expect(200);
+
+    expect(state.repair_orders[0].status_id).toBe(targetStatusId);
+    expect(state.repair_orders[0].reject_cause_id).toBe(rejectCauseId);
+  });
+
+  it('does not auto-move to Invalid when only reject cause is updated', async () => {
+    const openStatusId = uuidv4();
+    const invalidStatusId = uuidv4();
+    const rejectCauseId = uuidv4();
+
+    state.repair_order_status_permissions.push(makePermission(openStatusId));
+    state.repair_order_status_permissions.push(makePermission(invalidStatusId));
+
+    state.repair_order_statuses.push({
+      id: invalidStatusId,
+      branch_id: 'branch-id',
+      status: 'Open',
+      type: 'Invalid',
+      is_active: true,
+    });
+
+    state['repair-order-status-transitions'].push({
+      id: uuidv4(),
+      from_status_id: openStatusId,
+      to_status_id: invalidStatusId,
+    });
+
+    state.repair_order_reject_causes.push({
+      id: rejectCauseId,
+      status: 'Open',
+      is_active: true,
+    });
+
+    const order = seedOrder({
+      status_id: openStatusId,
+    });
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/repair-orders/${order.id}`)
+      .send({
+        reject_cause_id: rejectCauseId,
+      })
+      .expect(200);
+
+    expect(state.repair_orders[0].status_id).toBe(openStatusId);
+    expect(state.repair_orders[0].reject_cause_id).toBe(rejectCauseId);
   });
 
   it('rejects invalid phone_number payloads at the endpoint boundary', async () => {

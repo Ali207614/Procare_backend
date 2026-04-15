@@ -5,8 +5,10 @@ type Builder = {
   andWhere: jest.Mock;
   whereNotIn: jest.Mock;
   whereNot: jest.Mock;
+  whereNotNull: jest.Mock;
   whereIn: jest.Mock;
   whereRaw: jest.Mock;
+  andWhereRaw: jest.Mock;
   first: jest.Mock;
   pluck: jest.Mock;
   insert: jest.Mock;
@@ -27,8 +29,10 @@ const createBuilder = (): Builder => {
   builder.andWhere = jest.fn().mockReturnValue(builder);
   builder.whereNotIn = jest.fn().mockReturnValue(builder);
   builder.whereNot = jest.fn().mockReturnValue(builder);
+  builder.whereNotNull = jest.fn().mockReturnValue(builder);
   builder.whereIn = jest.fn().mockReturnValue(builder);
   builder.whereRaw = jest.fn().mockReturnValue(builder);
+  builder.andWhereRaw = jest.fn().mockReturnValue(builder);
   builder.first = jest.fn();
   builder.pluck = jest.fn();
   builder.insert = jest.fn().mockReturnValue(builder);
@@ -399,7 +403,7 @@ describe('RepairOrdersService telephony assignment', () => {
     workContextSpy.mockRestore();
   });
 
-  it('treats only workflow-open statuses as reusable for PBX lookups', async () => {
+  it('treats active non-terminal statuses as reusable for PBX lookups', async () => {
     const orderBuilder = createBuilder();
     orderBuilder.first.mockResolvedValue({
       id: 'order-1',
@@ -434,10 +438,77 @@ describe('RepairOrdersService telephony assignment', () => {
       'Closed',
     ]);
     expect(orderBuilder.andWhere).toHaveBeenCalledWith({
-      'ros.type': 'Open',
       'ros.status': 'Open',
       'ros.is_active': true,
     });
+    expect(orderBuilder.andWhere).toHaveBeenCalledWith(expect.any(Function));
+  });
+
+  it('counts null-typed workflow statuses as active when selecting the fallback telephony admin', async () => {
+    const repairOrdersBuilder = createBuilder();
+    repairOrdersBuilder.returning.mockResolvedValue([
+      {
+        id: 'order-1',
+        number_id: 1,
+        branch_id: 'branch-1',
+        status_id: 'status-new',
+        sort: 999999,
+      },
+    ]);
+
+    const adminsBuilder = createBuilder();
+    adminsBuilder.first.mockResolvedValue({ id: 'admin-least-busy' });
+
+    const targetRolesBuilder = createBuilder();
+    targetRolesBuilder.pluck.mockResolvedValue(['role-1']);
+
+    const sharedRoleBuilder = createBuilder();
+    sharedRoleBuilder.first.mockResolvedValue(undefined);
+
+    const assignBuilder = createBuilder();
+
+    const trx = jest.fn((table: string) => {
+      if (table === 'repair_orders') return repairOrdersBuilder;
+      if (table === 'admins') return adminsBuilder;
+      if (table === 'admin_roles as ar') return targetRolesBuilder;
+      if (table === 'repair_order_assign_admins as raa') return sharedRoleBuilder;
+      if (table === 'repair_order_assign_admins') return assignBuilder;
+      throw new Error(`Unexpected table ${table}`);
+    }) as TransactionMock;
+
+    trx.commit = jest.fn().mockResolvedValue(undefined);
+    trx.rollback = jest.fn().mockResolvedValue(undefined);
+    (trx as unknown as { raw: jest.Mock }).raw = jest.fn((sql: string, bindings?: unknown[]) => ({
+      sql,
+      bindings,
+    }));
+
+    knex.transaction.mockResolvedValue(trx);
+
+    const workContextSpy = jest
+      .spyOn(service as any, 'getCurrentWorkContext')
+      .mockReturnValue({ currentDayStr: 'monday', currentHHmm: '10:00' });
+
+    await service.createFromWebhook({
+      userId: 'user-1',
+      branchId: 'branch-1',
+      statusId: 'status-new',
+      phoneNumber: '+998901234567',
+      source: 'Kiruvchi qongiroq',
+      fallbackToFewestOpen: true,
+    });
+
+    expect(adminsBuilder.leftJoin).toHaveBeenCalledWith(
+      'repair_order_statuses as ros',
+      'ro.status_id',
+      'ros.id',
+    );
+    expect(adminsBuilder.orderByRaw).toHaveBeenCalledWith(
+      `COUNT(CASE WHEN ros.status = ? AND ros.is_active = true AND (ros.type IS NULL OR ros.type NOT IN (?, ?, ?, ?)) THEN 1 END) ASC`,
+      ['Open', 'Cancelled', 'Canceled', 'Completed', 'Invalid'],
+    );
+
+    workContextSpy.mockRestore();
   });
 
   it('matches legacy raw local-phone orders during PBX lookups', async () => {

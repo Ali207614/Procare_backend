@@ -145,6 +145,14 @@ export class UpdateRepairOrderDto {
   })
   agreed_date?: string;
 
+  @IsString()
+  @IsOptional()
+  first_name?: string;
+
+  @IsString()
+  @IsOptional()
+  last_name?: string;
+
   @ApiPropertyOptional({
     description: 'Source of the repair order',
     enum: [

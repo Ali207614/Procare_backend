@@ -400,20 +400,44 @@ export class RepairOrdersService {
       const logFields: { key: string; oldVal: unknown; newVal: unknown }[] = [];
       const updatedFields: Partial<RepairOrder> = {};
       const userUpdateFields: Record<string, unknown> = {};
-      const shouldAutoMoveToInvalid =
-        !!dto.reject_cause_id && dto.reject_cause_id !== order.reject_cause_id;
+      const hasSpecificNames = dto.first_name !== undefined || dto.last_name !== undefined;
 
-      if (dto.name !== undefined) {
-        const parsedName = this.parseCustomerNameOrThrow(dto.name);
-        if (parsedName.fullName !== order.name) {
-          updatedFields.name = parsedName.fullName;
-          userUpdateFields.first_name = parsedName.firstName;
-          userUpdateFields.last_name = parsedName.lastName;
+      if (dto.name !== undefined || hasSpecificNames) {
+        let finalFirstName: string | undefined;
+        let finalLastName: string | undefined;
+        let finalFullName: string | null = null;
+
+        if (dto.name !== undefined) {
+          const parsedName = this.parseCustomerNameOrThrow(dto.name);
+          finalFirstName = parsedName.firstName;
+          finalLastName = parsedName.lastName || undefined;
+          finalFullName = parsedName.fullName;
+        } else {
+          let currentFirstName = '';
+          let currentLastName = '';
+          if (order.name) {
+            const parts = order.name.trim().replace(/\s+/g, ' ').split(' ');
+            currentFirstName = parts[0] || '';
+            currentLastName = parts.slice(1).join(' ');
+          }
+
+          finalFirstName = dto.first_name !== undefined ? dto.first_name : currentFirstName;
+          finalLastName = dto.last_name !== undefined ? dto.last_name : currentLastName;
+          finalFullName = [finalFirstName, finalLastName].filter(Boolean).join(' ') || null;
+        }
+
+        if (finalFullName !== order.name) {
+          updatedFields.name = finalFullName;
+          userUpdateFields.first_name = finalFirstName;
+          userUpdateFields.last_name = finalLastName;
           logFields.push({
             key: 'name',
             oldVal: order.name,
-            newVal: parsedName.fullName,
+            newVal: finalFullName,
           });
+        } else if (hasSpecificNames) {
+          userUpdateFields.first_name = finalFirstName;
+          userUpdateFields.last_name = finalLastName;
         }
       }
 
@@ -452,22 +476,6 @@ export class RepairOrdersService {
           newVal: dto.reject_cause_id,
         });
         order.reject_cause_id = dto.reject_cause_id;
-      }
-
-      // Automatically move to "Invalid" status if a reject cause is selected
-      if (shouldAutoMoveToInvalid) {
-        const invalidStatus = await trx<RepairOrderStatus>('repair_order_statuses')
-          .where({
-            branch_id: order.branch_id,
-            type: 'Invalid',
-            status: 'Open',
-            is_active: true,
-          })
-          .first();
-
-        if (invalidStatus && dto.status_id !== invalidStatus.id) {
-          dto.status_id = invalidStatus.id;
-        }
       }
 
       const fieldsToCheck: (keyof RepairOrder)[] = [
@@ -1852,11 +1860,7 @@ export class RepairOrdersService {
               .on('roaa.repair_order_id', '=', 'ro.id')
               .andOn('ro.status', '=', trx.raw('?', ['Open']));
           })
-          .leftJoin('repair_order_statuses as ros', (builder) => {
-            builder
-              .on('ro.status_id', '=', 'ros.id')
-              .andOn('ros.type', '=', trx.raw('?', ['Open']));
-          })
+          .leftJoin('repair_order_statuses as ros', 'ro.status_id', 'ros.id')
           .where({ 'admins.is_active': true, 'admins.status': 'Open' })
           .andWhere('ab.branch_id', data.branchId)
           .whereNotNull('admins.onlinepbx_code')
@@ -1867,8 +1871,11 @@ export class RepairOrdersService {
           .andWhere('admins.work_start_time', '<=', currentHHmm)
           .andWhere('admins.work_end_time', '>=', currentHHmm)
           .groupBy('admins.id')
-          // Count only repair orders where the joined status actually has type 'Open'
-          .orderByRaw('COUNT(CASE WHEN ros.type = ? THEN 1 END) ASC', ['Open'])
+          // Count only repair orders whose workflow status is still non-terminal.
+          .orderByRaw(
+            `COUNT(CASE WHEN ros.status = ? AND ros.is_active = true AND (ros.type IS NULL OR ros.type NOT IN (?, ?, ?, ?)) THEN 1 END) ASC`,
+            ['Open', ...Array.from(this.terminalStatusTypes)],
+          )
           .first();
 
         if (leastBusyAdmin) {
@@ -2532,9 +2539,11 @@ export class RepairOrdersService {
       .join('repair_order_statuses as ros', 'ro.status_id', 'ros.id')
       .whereNotIn('ro.status', ['Cancelled', 'Deleted', 'Closed'])
       .andWhere({
-        'ros.type': 'Open',
         'ros.status': 'Open',
         'ros.is_active': true,
+      })
+      .andWhere((qb): void => {
+        void qb.whereNull('ros.type').orWhereNotIn('ros.type', Array.from(this.terminalStatusTypes));
       });
   }
 
