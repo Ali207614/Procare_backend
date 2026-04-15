@@ -2543,7 +2543,9 @@ export class RepairOrdersService {
         'ros.is_active': true,
       })
       .andWhere((qb): void => {
-        void qb.whereNull('ros.type').orWhereNotIn('ros.type', Array.from(this.terminalStatusTypes));
+        void qb
+          .whereNull('ros.type')
+          .orWhereNotIn('ros.type', Array.from(this.terminalStatusTypes));
       });
   }
 
