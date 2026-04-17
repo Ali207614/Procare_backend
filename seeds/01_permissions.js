@@ -7,7 +7,6 @@ exports.seed = async function (knex) {
       .replace(/[^\x00-\x7F]/g, '')
       .trim();
   }
-  await knex('permissions').del();
 
   const permissions = [
     // 👤 Admin profili
@@ -15,7 +14,8 @@ exports.seed = async function (knex) {
     { id: '00000000-0000-4000-8000-000000000003', name: 'admin.profile.edit.sensitive', description: 'Maxfiy maʼlumot tahriri' },
 
     // 👥 Admin boshqaruvi
-    { id: '00000000-0000-4000-8000-000000000004', name: 'admin.manage.view', description: 'Adminlarni ko‘rish' },
+    { id: '00000000-0000-4000-8000-000000000004', name: 'admin.manage.view_all', description: 'Adminlar royxatini korish' },
+    { id: '00000000-0000-4000-8000-000000000095', name: 'admin.manage.view_details', description: 'Admin tafsilotlarini korish' },
     { id: '00000000-0000-4000-8000-000000000005', name: 'admin.manage.create', description: 'Admin yaratish' },
     { id: '00000000-0000-4000-8000-000000000006', name: 'admin.manage.update', description: 'Adminni tahrirlash' },
     { id: '00000000-0000-4000-8000-000000000007', name: 'admin.manage.delete', description: 'Adminni o‘chirish' },
@@ -129,14 +129,23 @@ exports.seed = async function (knex) {
 
 
   for (const perm of permissions) {
-    await knex('permissions').insert({
-      id: perm.id,
-      name: perm.name,
-      description: sanitizeDescription(perm.description),
-      is_active: true,
-      status: 'Open',
-      created_at: knex.fn.now(),
-      updated_at: knex.fn.now(),
-    });
+    await knex('permissions')
+      .insert({
+        id: perm.id,
+        name: perm.name,
+        description: sanitizeDescription(perm.description),
+        is_active: true,
+        status: 'Open',
+        created_at: knex.fn.now(),
+        updated_at: knex.fn.now(),
+      })
+      .onConflict('id')
+      .merge({
+        name: perm.name,
+        description: sanitizeDescription(perm.description),
+        is_active: true,
+        status: 'Open',
+        updated_at: knex.fn.now(),
+      });
   }
 };

@@ -16,11 +16,11 @@ import { extractDefinedFields } from 'src/common/utils/extract-defined-fields.ut
 import { FindAllAdminsDto } from './dto/find-all-admins.dto';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
 import { ParseUUIDPipe } from '../common/pipe/parse-uuid.pipe';
-import { Admin } from 'src/common/types/admin.interface';
+import { Admin, AdminListItem } from 'src/common/types/admin.interface';
 import { Branch } from 'src/common/types/branch.interface';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 
-type AdminWithTotal = Admin & { total: number };
+type AdminListItemWithTotal = AdminListItem & { total: number };
 
 @Injectable()
 export class AdminsService {
@@ -58,7 +58,7 @@ export class AdminsService {
     return admin;
   }
 
-  async findAll(query: FindAllAdminsDto): Promise<PaginationResult<Admin>> {
+  async findAll(query: FindAllAdminsDto): Promise<PaginationResult<AdminListItem>> {
     const sql = loadSQL('admins/queries/find-all.sql');
 
     const data = await this.knex.raw(sql, {
@@ -73,7 +73,7 @@ export class AdminsService {
       offset: query.offset ?? 0,
     });
 
-    const rows = data.rows as AdminWithTotal[];
+    const rows = data.rows as AdminListItemWithTotal[];
     const total: number = rows.length > 0 ? Number(rows[0].total) : 0;
 
     return {

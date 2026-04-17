@@ -89,7 +89,8 @@ describe('Admins Controller Complete E2E', () => {
 
     // Create permissions
     const permissions = [
-      'admin.manage.view',
+      'admin.manage.view_all',
+      'admin.manage.view_details',
       'admin.manage.create',
       'admin.manage.update',
       'admin.manage.delete',

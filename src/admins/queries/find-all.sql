@@ -1,6 +1,13 @@
 WITH filtered AS (
     SELECT
-        a.*,
+        a.id,
+        a.first_name,
+        a.last_name,
+        a.phone_number,
+        a.is_active,
+        a.language,
+        a.status,
+        a.created_at AS sort_created_at,
         COALESCE(
                 json_agg(DISTINCT jsonb_build_object(
                 'id', r.id,
@@ -80,11 +87,27 @@ WITH filtered AS (
                 AND ar3.role_id = ANY(:exclude_role_ids::uuid[])
           )
         )
-    GROUP BY a.id
+    GROUP BY
+        a.id,
+        a.first_name,
+        a.last_name,
+        a.phone_number,
+        a.is_active,
+        a.language,
+        a.status,
+        a.created_at
 )
 SELECT
-    f.*,
+    f.id,
+    f.first_name,
+    f.last_name,
+    f.phone_number,
+    f.is_active,
+    f.language,
+    f.status,
+    f.roles,
+    f.branches,
     COUNT(*) OVER() AS total
 FROM filtered f
-ORDER BY f.created_at DESC
+ORDER BY f.sort_created_at DESC
     LIMIT :limit OFFSET :offset;

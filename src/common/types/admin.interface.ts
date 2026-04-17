@@ -8,6 +8,18 @@ export interface WorkDays {
   sunday: boolean;
 }
 
+export interface AdminRoleSummary {
+  id: string;
+  name: string;
+}
+
+export interface AdminBranchSummary {
+  id: string;
+  name_uz: string;
+  name_ru: string;
+  name_en: string;
+}
+
 export interface Admin {
   id: string;
   first_name: string | null;
@@ -34,4 +46,16 @@ export interface Admin {
   created_at: Date;
   updated_at: Date;
   created_by: string | null;
+}
+
+export interface AdminListItem {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  phone_number: string;
+  is_active: boolean;
+  language: string;
+  status: Admin['status'];
+  roles: AdminRoleSummary[];
+  branches: AdminBranchSummary[];
 }

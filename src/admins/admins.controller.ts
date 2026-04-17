@@ -34,9 +34,10 @@ import { CreateAdminDto } from './dto/create-admin.dto';
 import { UpdateAdminDto } from './dto/update-admin.dto';
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { FindAllAdminsDto } from './dto/find-all-admins.dto';
-import { Admin } from 'src/common/types/admin.interface';
+import { Admin, AdminListItem } from 'src/common/types/admin.interface';
 import { AuthenticatedRequest } from 'src/common/types/authenticated-request.type';
 import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
+import { AdminListItemDto } from './dto/admin-list-item.dto';
 
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
@@ -90,7 +91,7 @@ export class AdminsController {
   @Get(':id')
   @UseInterceptors(ClassSerializerInterceptor)
   @UseGuards(PermissionsGuard)
-  @SetAllPermissions('admin.manage.view')
+  @SetAllPermissions('admin.manage.view_details')
   @ApiOkResponse({ type: AdminProfileDto, description: 'Admin details' })
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
   @ApiForbiddenResponse({ description: 'Forbidden' })
@@ -105,16 +106,16 @@ export class AdminsController {
   @Get()
   @UseInterceptors(ClassSerializerInterceptor, PaginationInterceptor)
   @UseGuards(PermissionsGuard)
-  @SetAllPermissions('admin.manage.view')
+  @SetAllPermissions('admin.manage.view_all')
   @ApiOperation({ summary: 'Get all admins with filters and pagination' })
   async findAll(
     @Query() query: FindAllAdminsDto,
-  ): Promise<{ rows: AdminProfileDto[]; total: number; limit: number; offset: number }> {
+  ): Promise<{ rows: AdminListItemDto[]; total: number; limit: number; offset: number }> {
     const result = await this.adminsService.findAll(query);
 
     return {
       ...result,
-      rows: result.rows.map((admin: Admin) => plainToInstance(AdminProfileDto, admin)),
+      rows: result.rows.map((admin: AdminListItem) => plainToInstance(AdminListItemDto, admin)),
     };
   }
 }
