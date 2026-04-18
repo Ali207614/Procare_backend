@@ -174,6 +174,17 @@ export class CreateRepairOrderDto {
   @MaxLength(200, { message: 'Name must not exceed 200 characters' })
   name?: string;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'General repair order description or comment',
+    example: 'Customer mentioned intermittent charging issue after water exposure.',
+    maxLength: 10000,
+  })
+  @IsOptional()
+  @IsString({ message: 'Description must be a string' })
+  @MaxLength(10000, { message: 'Description must not exceed 10000 characters' })
+  description?: string | null;
+
   @ApiPropertyOptional({ description: 'Client first name', example: 'Asilbek', maxLength: 100 })
   @IsOptional()
   @IsString({ message: 'First name must be a string' })

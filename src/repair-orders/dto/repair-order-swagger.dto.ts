@@ -52,6 +52,12 @@ export class RepairOrderListItemSwaggerDto {
 
   @ApiProperty({
     nullable: true,
+    example: 'Customer asked for a callback before replacing any parts.',
+  })
+  description!: string | null;
+
+  @ApiProperty({
+    nullable: true,
     example: '2026-03-25 10:00',
     description: 'Agreed date in YYYY-MM-DD HH:mm format',
   })

@@ -409,6 +409,7 @@ describe('PATCH /api/v1/repair-orders/:repair_order_id', () => {
       status: 'Open',
       phone_number: '+998901111111',
       name: null,
+      description: null,
       source: 'Qolda',
       call_count: 0,
       missed_calls: 0,
@@ -642,7 +643,7 @@ describe('PATCH /api/v1/repair-orders/:repair_order_id', () => {
     expect(state.repair_orders[0].reject_cause_id).toBe(rejectCauseId);
   });
 
-  it('rejects invalid phone_number payloads at the endpoint boundary', async () => {
+  it('normalizes phone_number payloads before validation', async () => {
     state.repair_order_status_permissions.push(makePermission('status-open'));
     const order = seedOrder();
 
@@ -652,9 +653,29 @@ describe('PATCH /api/v1/repair-orders/:repair_order_id', () => {
         name: 'Alisher Rizayev',
         phone_number: '901234567',
       })
-      .expect(400);
+      .expect(200);
 
-    expect(state.users).toHaveLength(0);
-    expect(state.repair_orders[0].user_id).toBeNull();
+    expect(state.users).toHaveLength(1);
+    expect(state.repair_orders[0].user_id).toBe(state.users[0].id);
+    expect(state.repair_orders[0].phone_number).toBe('+998901234567');
+    expect(state.users[0].phone_number1).toBe('+998901234567');
+  });
+
+  it('accepts phone alias and normalizes it the same way as phone_number', async () => {
+    state.repair_order_status_permissions.push(makePermission('status-open'));
+    const order = seedOrder();
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/repair-orders/${order.id}`)
+      .send({
+        name: 'Alisher Rizayev',
+        phone: '998901234568',
+      })
+      .expect(200);
+
+    expect(state.users).toHaveLength(1);
+    expect(state.repair_orders[0].user_id).toBe(state.users[0].id);
+    expect(state.repair_orders[0].phone_number).toBe('+998901234568');
+    expect(state.users[0].phone_number1).toBe('+998901234568');
   });
 });

@@ -64,6 +64,7 @@ export class UsersService {
         'ro.priority',
         'ro.status',
         'ro.created_at',
+        'ro.description',
 
         // === Branch ===
         'b.id as branch_id',
@@ -97,6 +98,7 @@ export class UsersService {
       priority: row.priority,
       status: row.status,
       created_at: row.created_at,
+      description: row.description,
 
       branch: {
         id: row.branch_id,

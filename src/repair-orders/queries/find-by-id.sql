@@ -8,6 +8,7 @@ SELECT
     ro.sort,
     ro.priority,
     ro.name,
+    ro.description,
     ro.phone_number,
     ro.source,
     CASE

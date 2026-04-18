@@ -22,8 +22,10 @@ function createQueryBuilder(result: unknown) {
   return {
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
+    whereIn: jest.fn().mockReturnThis(),
     whereNotIn: jest.fn().mockReturnThis(),
     whereNot: jest.fn().mockReturnThis(),
+    andWhereNot: jest.fn().mockReturnThis(),
     first: jest.fn().mockResolvedValue(result),
     update: jest.fn().mockResolvedValue(1),
     decrement: jest.fn().mockResolvedValue(1),
@@ -97,6 +99,7 @@ describe('RepairOrdersService transition hardening', () => {
     call_count: 0,
     missed_calls: 0,
     name: 'Test User',
+    description: null,
     source: null,
     created_by: admin.id,
     updated_at: new Date().toISOString(),
@@ -376,7 +379,7 @@ describe('RepairOrdersService transition hardening', () => {
 
   it('stores parsed first and last name when creating a user from a full name', async () => {
     const existingUserQuery = {
-      whereRaw: jest.fn().mockReturnThis(),
+      whereIn: jest.fn().mockReturnThis(),
       andWhereNot: jest.fn().mockReturnThis(),
       first: jest.fn().mockResolvedValue(undefined),
     };
@@ -415,7 +418,7 @@ describe('RepairOrdersService transition hardening', () => {
 
   it('fills missing name fields on an existing user matched by phone number', async () => {
     const existingUserQuery = {
-      whereRaw: jest.fn().mockReturnThis(),
+      whereIn: jest.fn().mockReturnThis(),
       andWhereNot: jest.fn().mockReturnThis(),
       first: jest.fn().mockResolvedValue({
         id: 'existing-user-id',

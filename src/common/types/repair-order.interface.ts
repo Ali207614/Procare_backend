@@ -37,6 +37,7 @@ export interface RepairOrder {
 
   phone_number: string;
   name: string | null;
+  description: string | null;
   source: RepairOrderSource | null;
   call_count: number;
   missed_calls: number;
@@ -56,6 +57,7 @@ export interface FreshRepairOrder {
   priority: 'Low' | 'Medium' | 'High' | 'Highest';
   status_id: string;
   name: string | null;
+  description: string | null;
   agreed_date: string | null;
   reject_cause: {
     id: string | null;
@@ -267,6 +269,7 @@ export interface RepairOrderDetails {
   sort: number;
   priority: 'Low' | 'Medium' | 'High' | 'Highest';
   name: string | null;
+  description: string | null;
   phone_number: string | null;
   agreed_date: string | null;
   reject_cause: {
@@ -476,6 +479,7 @@ export interface JoinedRepairOrder {
   priority: 'Low' | 'Medium' | 'High' | 'Highest';
   status: 'Open' | 'Deleted' | 'Closed' | 'Cancelled';
   created_at: string;
+  description: string | null;
 
   branch: {
     id: string | null;

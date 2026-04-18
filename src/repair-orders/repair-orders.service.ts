@@ -80,6 +80,7 @@ export class RepairOrdersService {
       let resolvedPhoneNumber = this.normalizePhoneNumber(dto.phone_number || dto.phone || '');
       let resolvedName: string | null =
         dto.name || [dto.first_name, dto.last_name].filter(Boolean).join(' ') || null;
+      const resolvedDescription = this.normalizeDescription(dto.description);
 
       if (dto.user_id) {
         // Flow 1: existing user_id provided
@@ -172,6 +173,12 @@ export class RepairOrdersService {
         if (resolvedPhoneNumber && existingOpenOrder.phone_number !== resolvedPhoneNumber) {
           updateData.phone_number = resolvedPhoneNumber;
         }
+        if (
+          dto.description !== undefined &&
+          existingOpenOrder.description !== resolvedDescription
+        ) {
+          updateData.description = resolvedDescription;
+        }
         if (dto.phone_category_id) updateData.phone_category_id = dto.phone_category_id;
         if (dto.region_id) updateData.region_id = dto.region_id;
         if (dto.imei) updateData.imei = dto.imei;
@@ -208,6 +215,7 @@ export class RepairOrdersService {
           created_by: admin.id,
           phone_number: resolvedPhoneNumber,
           name: resolvedName,
+          description: resolvedDescription ?? null,
           source: dto.source || 'Qolda',
           created_at: createdAt,
           updated_at: createdAt,
@@ -441,8 +449,9 @@ export class RepairOrdersService {
         }
       }
 
-      if (dto.phone_number !== undefined) {
-        const normalizedPhone = this.normalizePhoneNumber(dto.phone_number);
+      const rawPhoneNumber = dto.phone_number ?? dto.phone;
+      if (rawPhoneNumber !== undefined) {
+        const normalizedPhone = this.normalizePhoneNumber(rawPhoneNumber);
         if (normalizedPhone !== order.phone_number) {
           updatedFields.phone_number = normalizedPhone;
           userUpdateFields.phone_number1 = normalizedPhone;
@@ -486,10 +495,14 @@ export class RepairOrdersService {
         'region_id',
         'imei',
         'agreed_date',
+        'description',
         'source',
       ];
       for (const field of fieldsToCheck) {
-        const dtoFieldValue = dto[field as keyof UpdateRepairOrderDto];
+        let dtoFieldValue = dto[field as keyof UpdateRepairOrderDto];
+        if (field === 'description') {
+          dtoFieldValue = this.normalizeDescription(dtoFieldValue as string | null | undefined);
+        }
         if (dtoFieldValue !== undefined && dtoFieldValue !== order[field]) {
           if (field === 'agreed_date' && dtoFieldValue) {
             const inputDate = parseAgreedDateInput(dtoFieldValue as string);
@@ -609,7 +622,7 @@ export class RepairOrdersService {
         !dto.user_id &&
         (updatedFields.status_id !== undefined ||
           dto.name !== undefined ||
-          dto.phone_number !== undefined)
+          rawPhoneNumber !== undefined)
       ) {
         const nextName =
           (typeof updatedFields.name === 'string' ? updatedFields.name : order.name) ?? null;
@@ -1821,6 +1834,7 @@ export class RepairOrdersService {
           created_by: null,
           phone_number: normalizedPhoneNumber,
           name: null,
+          description: null,
           source: data.source,
           call_count: 1,
           created_at: new Date().toISOString(),
@@ -2259,6 +2273,7 @@ export class RepairOrdersService {
             delivery_method: 'Self',
             pickup_method: 'Self',
             phone_number: normalizedPhoneNumber,
+            description: null,
             source: data.source,
             call_count: 1,
             created_at: new Date().toISOString(),
@@ -2499,6 +2514,19 @@ export class RepairOrdersService {
       currentDayStr: days[currentDayIndex],
       currentHHmm: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
     };
+  }
+
+  private normalizeDescription(description?: string | null): string | null | undefined {
+    if (description === undefined) {
+      return undefined;
+    }
+
+    if (description === null) {
+      return null;
+    }
+
+    const normalized = description.trim();
+    return normalized.length ? normalized : null;
   }
 
   private normalizePhoneNumber(phoneNumber: string): string {

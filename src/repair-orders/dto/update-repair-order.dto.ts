@@ -11,9 +11,25 @@ import {
   MaxLength,
   IsPhoneNumber,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, TransformFnParams, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { RepairOrderSource } from 'src/common/types/repair-order.interface';
+import { formatUzPhoneToE164 } from 'src/common/utils/phone.util';
+
+const normalizeUzbekPhone = ({ value }: TransformFnParams): unknown => {
+  const input: unknown = value;
+
+  if (input === undefined || input === null) {
+    return undefined;
+  }
+
+  if (typeof input !== 'string') {
+    return input;
+  }
+
+  const trimmed = input.trim();
+  return trimmed ? formatUzPhoneToE164(trimmed) : undefined;
+};
 
 class ProblemPartDto {
   @ApiPropertyOptional()
@@ -63,13 +79,35 @@ export class UpdateRepairOrderDto {
   name?: string;
 
   @ApiPropertyOptional({
+    nullable: true,
+    description: 'General repair order description or comment',
+    example: 'Client asked to preserve data and avoid factory reset unless approved.',
+    maxLength: 10000,
+  })
+  @IsOptional()
+  @IsString({ message: 'Description must be a string' })
+  @MaxLength(10000, { message: 'Description must not exceed 10000 characters' })
+  description?: string | null;
+
+  @ApiPropertyOptional({
     description: 'Client phone number',
     example: '+998901234567',
   })
   @IsOptional()
+  @Transform(normalizeUzbekPhone)
   @IsPhoneNumber('UZ', { context: { location: 'phone_number' } })
   @Matches(/^\+998[0-9]{9}$/, { message: 'Invalid phone number format' })
   phone_number?: string;
+
+  @ApiPropertyOptional({
+    description: 'Client phone number alias',
+    example: '+998901234567',
+  })
+  @IsOptional()
+  @Transform(normalizeUzbekPhone)
+  @IsPhoneNumber('UZ', { context: { location: 'phone' } })
+  @Matches(/^\+998[0-9]{9}$/, { message: 'Invalid phone number format' })
+  phone?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

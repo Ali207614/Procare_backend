@@ -26,6 +26,7 @@ type QueryBuilderRecorder = {
 type QueryBuilderMock = {
   where: jest.Mock<QueryBuilderMock, [string | Record<string, unknown>, unknown?, unknown?]>;
   andWhere: jest.Mock<QueryBuilderMock, [string | Record<string, unknown>, unknown?, unknown?]>;
+  whereIn: jest.Mock<QueryBuilderMock, [string, unknown[]]>;
   whereNot: jest.Mock<QueryBuilderMock, [string | Record<string, unknown>, unknown?]>;
   whereNotIn: jest.Mock<QueryBuilderMock, [string, unknown[]]>;
   orderBy: jest.Mock<QueryBuilderMock, [string, ('asc' | 'desc')?]>;
@@ -52,6 +53,7 @@ function createQueryBuilder(result: unknown, recorder: QueryBuilderRecorder): Qu
   const builder = {
     where: jest.fn(),
     andWhere: jest.fn(),
+    whereIn: jest.fn(),
     whereNot: jest.fn(),
     whereNotIn: jest.fn(),
     orderBy: jest.fn(),
@@ -88,6 +90,7 @@ function createQueryBuilder(result: unknown, recorder: QueryBuilderRecorder): Qu
 
   builder.where.mockReturnValue(builder);
   builder.andWhere.mockReturnValue(builder);
+  builder.whereIn.mockReturnValue(builder);
   builder.whereNot.mockReturnValue(builder);
   builder.whereNotIn.mockReturnValue(builder);
   builder.orderBy.mockReturnValue(builder);
@@ -197,6 +200,7 @@ describe('RepairOrdersService region validation', () => {
     status: 'Open',
     phone_number: '+998901234567',
     name: 'Client Name',
+    description: null,
     source: 'Qolda',
     call_count: 0,
     missed_calls: 0,
