@@ -666,8 +666,8 @@ export class RepairOrdersService {
 
       await Promise.all([
         this.changeLogger.logMultipleFieldsIfChanged(trx, orderId, logFields, admin.id),
-        this.initialProblemUpdater.update(trx, orderId, dto.initial_problems || [], admin),
-        this.finalProblemUpdater.update(trx, orderId, dto.final_problems || [], admin),
+        this.initialProblemUpdater.update(trx, orderId, dto.initial_problems, admin),
+        this.finalProblemUpdater.update(trx, orderId, dto.final_problems, admin),
       ]);
 
       await trx.commit();

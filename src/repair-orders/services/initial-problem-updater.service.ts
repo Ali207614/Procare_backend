@@ -41,10 +41,10 @@ export class InitialProblemUpdaterService {
   async update(
     trx: Knex.Transaction,
     orderId: string,
-    problems: ProblemInput[],
+    problems: ProblemInput[] | undefined,
     admin: AdminPayload,
   ): Promise<void> {
-    if (!problems?.length) return;
+    if (problems === undefined) return;
 
     const order: RepairOrder | undefined = await trx('repair_orders')
       .where({ id: orderId })
@@ -67,6 +67,19 @@ export class InitialProblemUpdaterService {
       'repair_order_initial_problems',
       allPermissions,
     );
+
+    if (problems.length === 0) {
+      const old = await this.getProblemSnapshot(trx, orderId);
+
+      await trx('repair_order_initial_problems').where({ repair_order_id: orderId }).delete();
+      await trx('repair_order_parts')
+        .where({ repair_order_id: orderId })
+        .whereNotNull('repair_order_initial_problem_id')
+        .delete();
+
+      await this.changeLogger.logIfChanged(trx, orderId, 'initial_problems', old, [], admin.id);
+      return;
+    }
 
     const phoneCategoryId = order.phone_category_id;
     if (!phoneCategoryId) {

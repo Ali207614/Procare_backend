@@ -4,6 +4,7 @@ import { RepairOrderFactory } from '../factories/repair-order.factory';
 import { AdminFactory } from '../factories/admin.factory';
 import { UserFactory } from '../factories/user.factory';
 import { BranchFactory } from '../factories/branch.factory';
+import { RepairOrder } from '../../src/common/types/repair-order.interface';
 
 import { RepairOrderStatusPermissionsService } from '../../src/repair-order-status-permission/repair-order-status-permissions.service';
 import { RepairOrderChangeLoggerService } from '../../src/repair-orders/services/repair-order-change-logger.service';
@@ -16,6 +17,43 @@ import { PdfService } from '../../src/pdf/pdf.service';
 import { RepairOrderWebhookService } from '../../src/repair-orders/services/repair-order-webhook.service';
 import { NotificationService } from '../../src/notification/notification.service';
 import { getKnexConnectionToken } from 'nestjs-knex';
+
+function createUpdateTransaction(order: RepairOrder) {
+  const builder = {
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    whereIn: jest.fn().mockReturnThis(),
+    whereNotIn: jest.fn().mockReturnThis(),
+    whereNot: jest.fn().mockReturnThis(),
+    andWhereNot: jest.fn().mockReturnThis(),
+    whereNotNull: jest.fn().mockReturnThis(),
+    select: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    first: jest.fn().mockResolvedValue(order),
+    update: jest.fn().mockResolvedValue(1),
+    decrement: jest.fn().mockResolvedValue(1),
+    increment: jest.fn().mockResolvedValue(1),
+    insert: jest.fn().mockReturnThis(),
+    returning: jest.fn().mockResolvedValue([order]),
+    del: jest.fn().mockResolvedValue(1),
+  };
+
+  const trx = ((table: string) => {
+    if (table === 'repair_orders') {
+      return builder;
+    }
+    return builder;
+  }) as unknown as {
+    commit: jest.Mock;
+    rollback: jest.Mock;
+  };
+
+  trx.commit = jest.fn().mockResolvedValue(undefined);
+  trx.rollback = jest.fn().mockResolvedValue(undefined);
+  Object.assign(trx, builder);
+
+  return trx;
+}
 
 describe('RepairOrdersService', () => {
   let service: RepairOrdersService;
@@ -95,32 +133,78 @@ describe('RepairOrdersService', () => {
       const mockAdmin = { id: 'admin-123', roles: [] };
       const mockRepairOrder = { id: repairOrderId, name: 'OldName Smith', branch_id: 'b', status: 'Open', status_id: 's' };
 
-      mockKnex.first.mockResolvedValueOnce(mockRepairOrder);
-      mockKnex.update.mockResolvedValueOnce(1);
-      
-      const mockTrx: any = jest.fn().mockReturnThis();
-      mockTrx.where = jest.fn().mockReturnThis();
-      mockTrx.whereNot = jest.fn().mockReturnThis();
-      mockTrx.andWhereNot = jest.fn().mockReturnThis();
-      mockTrx.first = jest.fn();
-      mockTrx.update = jest.fn().mockReturnThis();
-      mockTrx.commit = jest.fn();
-      mockTrx.rollback = jest.fn();
-      mockTrx.insert = jest.fn().mockReturnThis();
-      mockTrx.returning = jest.fn().mockResolvedValue([]);
-      
-      mockTrx.first.mockResolvedValueOnce(mockRepairOrder);
-      mockTrx.first.mockResolvedValueOnce(null); // for user phone validation
-      
-      mockKnex.transaction.mockResolvedValue(mockTrx);
+      const mockTrx = createUpdateTransaction(mockRepairOrder as RepairOrder);
+      mockKnex.transaction.mockResolvedValue(mockTrx as never);
 
       // Act
       const result = await service.update(mockAdmin as any, repairOrderId, updateDto);
 
       // Assert
       expect(result.message).toBe('Repair order updated successfully');
-      expect(mockTrx.update).toHaveBeenCalledWith(
+      expect((mockTrx as any).update).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'John Doe' })
+      );
+    });
+
+    it('should forward omitted problem fields as undefined', async () => {
+      const repairOrderId = 'repair-order-123';
+      const updateDto = { name: 'John Doe' };
+      const mockAdmin = { id: 'admin-123', roles: [] };
+      const mockRepairOrder = {
+        id: repairOrderId,
+        name: 'OldName Smith',
+        branch_id: 'b',
+        status: 'Open',
+        status_id: 's',
+      } as RepairOrder;
+
+      const mockTrx = createUpdateTransaction(mockRepairOrder);
+      mockKnex.transaction.mockResolvedValue(mockTrx as never);
+
+      await service.update(mockAdmin as any, repairOrderId, updateDto as never);
+
+      expect((service as any).initialProblemUpdater.update).toHaveBeenCalledWith(
+        mockTrx,
+        repairOrderId,
+        undefined,
+        mockAdmin,
+      );
+      expect((service as any).finalProblemUpdater.update).toHaveBeenCalledWith(
+        mockTrx,
+        repairOrderId,
+        undefined,
+        mockAdmin,
+      );
+    });
+
+    it('should forward explicit empty problem arrays unchanged', async () => {
+      const repairOrderId = 'repair-order-123';
+      const updateDto = { initial_problems: [], final_problems: [] };
+      const mockAdmin = { id: 'admin-123', roles: [] };
+      const mockRepairOrder = {
+        id: repairOrderId,
+        name: 'OldName Smith',
+        branch_id: 'b',
+        status: 'Open',
+        status_id: 's',
+      } as RepairOrder;
+
+      const mockTrx = createUpdateTransaction(mockRepairOrder);
+      mockKnex.transaction.mockResolvedValue(mockTrx as never);
+
+      await service.update(mockAdmin as any, repairOrderId, updateDto as never);
+
+      expect((service as any).initialProblemUpdater.update).toHaveBeenCalledWith(
+        mockTrx,
+        repairOrderId,
+        [],
+        mockAdmin,
+      );
+      expect((service as any).finalProblemUpdater.update).toHaveBeenCalledWith(
+        mockTrx,
+        repairOrderId,
+        [],
+        mockAdmin,
       );
     });
   });
