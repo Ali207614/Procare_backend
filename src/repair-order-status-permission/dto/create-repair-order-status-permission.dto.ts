@@ -90,4 +90,13 @@ export class AssignRepairOrderStatusPermissionsDto {
   @IsOptional()
   @IsBoolean()
   cannot_continue_without_agreed_date?: boolean;
+
+  @ApiProperty({
+    required: false,
+    description:
+      'If enabled, moving a repair order to this status is blocked unless the order has a service form.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  cannot_continue_without_service_form?: boolean;
 }

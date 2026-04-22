@@ -175,6 +175,7 @@ describe('RepairOrdersService region validation', () => {
     cannot_continue_without_imei: false,
     cannot_continue_without_reject_cause: false,
     cannot_continue_without_agreed_date: false,
+    cannot_continue_without_service_form: false,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   } satisfies RepairOrderStatusPermission;

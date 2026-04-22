@@ -30,6 +30,7 @@ export interface RepairOrderStatusPermission {
   cannot_continue_without_imei: boolean;
   cannot_continue_without_reject_cause: boolean;
   cannot_continue_without_agreed_date: boolean;
+  cannot_continue_without_service_form: boolean;
 
   created_at: string; // ISO timestamp
   updated_at: string; // ISO timestamp

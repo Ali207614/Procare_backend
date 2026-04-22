@@ -98,6 +98,7 @@ describe('Repair order problem updaters', () => {
     cannot_continue_without_imei: false,
     cannot_continue_without_reject_cause: false,
     cannot_continue_without_agreed_date: false,
+    cannot_continue_without_service_form: false,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
@@ -175,47 +176,48 @@ describe('Repair order problem updaters', () => {
   it.each([
     ['initial', () => initialProblemUpdater, 'repair_order_initial_problems', 'repair_order_parts'],
     ['final', () => finalProblemUpdater, 'repair_order_final_problems', 'repair_order_parts'],
-  ] as const)('clears all %s problems when an empty array is provided', async (
-    _label,
-    getUpdater,
-    problemsTable,
-    partsTable,
-  ) => {
-    const problemsDelete = jest.fn().mockResolvedValue(1);
-    const partsDelete = jest.fn().mockResolvedValue(1);
+  ] as const)(
+    'clears all %s problems when an empty array is provided',
+    async (_label, getUpdater, problemsTable, partsTable) => {
+      const problemsDelete = jest.fn().mockResolvedValue(1);
+      const partsDelete = jest.fn().mockResolvedValue(1);
 
-    const trx = createTransactionMock({
-      repair_orders: [{ firstResult: order }],
-      [problemsTable]: [{ result: [] }, { deleteMock: problemsDelete }],
-      [partsTable]: [{ deleteMock: partsDelete }],
-    });
+      const trx = createTransactionMock({
+        repair_orders: [{ firstResult: order }],
+        [problemsTable]: [{ result: [] }, { deleteMock: problemsDelete }],
+        [partsTable]: [{ deleteMock: partsDelete }],
+      });
 
-    await getUpdater().update(trx as never, order.id, [], admin);
+      await getUpdater().update(trx as never, order.id, [], admin);
 
-    expect(permissionService.findByRolesAndBranch).toHaveBeenCalledWith(admin.roles, order.branch_id);
-    expect(permissionService.checkPermissionsOrThrow).toHaveBeenCalledWith(
-      admin.roles,
-      order.branch_id,
-      order.status_id,
-      [
+      expect(permissionService.findByRolesAndBranch).toHaveBeenCalledWith(
+        admin.roles,
+        order.branch_id,
+      );
+      expect(permissionService.checkPermissionsOrThrow).toHaveBeenCalledWith(
+        admin.roles,
+        order.branch_id,
+        order.status_id,
+        [
+          problemsTable === 'repair_order_initial_problems'
+            ? 'can_change_initial_problems'
+            : 'can_change_final_problems',
+        ],
         problemsTable === 'repair_order_initial_problems'
-          ? 'can_change_initial_problems'
-          : 'can_change_final_problems',
-      ],
-      problemsTable === 'repair_order_initial_problems'
-        ? 'repair_order_initial_problems'
-        : 'repair_order_delivery',
-      [permission],
-    );
-    expect(problemsDelete).toHaveBeenCalledWith();
-    expect(partsDelete).toHaveBeenCalledWith();
-    expect(changeLogger.logIfChanged).toHaveBeenCalledWith(
-      expect.anything(),
-      order.id,
-      problemsTable === 'repair_order_initial_problems' ? 'initial_problems' : 'final_problems',
-      [],
-      [],
-      admin.id,
-    );
-  });
+          ? 'repair_order_initial_problems'
+          : 'repair_order_delivery',
+        [permission],
+      );
+      expect(problemsDelete).toHaveBeenCalledWith();
+      expect(partsDelete).toHaveBeenCalledWith();
+      expect(changeLogger.logIfChanged).toHaveBeenCalledWith(
+        expect.anything(),
+        order.id,
+        problemsTable === 'repair_order_initial_problems' ? 'initial_problems' : 'final_problems',
+        [],
+        [],
+        admin.id,
+      );
+    },
+  );
 });

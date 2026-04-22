@@ -30,6 +30,7 @@ type FakeState = {
   repair_order_reject_causes: Array<Record<string, unknown>>;
   'repair-order-status-transitions': Array<Record<string, unknown>>;
   repair_order_rental_phones: Array<Record<string, unknown>>;
+  service_forms: Array<Record<string, unknown>>;
 };
 
 class FakeQueryBuilder {
@@ -206,6 +207,7 @@ describe('PATCH /api/v1/repair-orders/:repair_order_id', () => {
       repair_order_reject_causes: [],
       'repair-order-status-transitions': [],
       repair_order_rental_phones: [],
+      service_forms: [],
     };
 
     permissionService = {
@@ -382,6 +384,7 @@ describe('PATCH /api/v1/repair-orders/:repair_order_id', () => {
       cannot_continue_without_imei: false,
       cannot_continue_without_reject_cause: false,
       cannot_continue_without_agreed_date: false,
+      cannot_continue_without_service_form: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -598,6 +601,44 @@ describe('PATCH /api/v1/repair-orders/:repair_order_id', () => {
 
     expect(state.repair_orders[0].status_id).toBe(targetStatusId);
     expect(state.repair_orders[0].reject_cause_id).toBe(rejectCauseId);
+  });
+
+  it('returns Uzbek message and location when target status requires a service form', async () => {
+    const openStatusId = uuidv4();
+    const targetStatusId = uuidv4();
+    const targetPermission = makePermission(targetStatusId);
+    targetPermission.cannot_continue_without_service_form = true;
+
+    state.repair_order_status_permissions.push(makePermission(openStatusId));
+    state.repair_order_status_permissions.push(targetPermission);
+    state.repair_order_statuses.push({
+      id: targetStatusId,
+      branch_id: 'branch-id',
+      status: 'Open',
+      type: 'Open',
+      is_active: true,
+    });
+    state['repair-order-status-transitions'].push({
+      id: uuidv4(),
+      from_status_id: openStatusId,
+      to_status_id: targetStatusId,
+    });
+    const order = seedOrder({
+      status_id: openStatusId,
+    });
+
+    const response = await request(app.getHttpServer())
+      .patch(`/api/v1/repair-orders/${order.id}`)
+      .send({
+        status_id: targetStatusId,
+      })
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      message: "Ushbu statusga o'tish uchun servis formasi yaratilishi shart.",
+      location: 'service_form',
+    });
+    expect(state.repair_orders[0].status_id).toBe(openStatusId);
   });
 
   it('does not auto-move to Invalid when only reject cause is updated', async () => {

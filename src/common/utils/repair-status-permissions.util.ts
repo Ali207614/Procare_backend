@@ -19,4 +19,5 @@ export const defaultRepairOrderStatusPermissions = {
   can_delivery_manage: false,
   can_view_payments: true,
   can_view_history: true,
+  cannot_continue_without_service_form: false,
 };

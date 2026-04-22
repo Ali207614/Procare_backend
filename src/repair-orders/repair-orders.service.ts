@@ -2610,6 +2610,14 @@ export class RepairOrdersService {
     return (rental as { id: string }) || null;
   }
 
+  private async hasServiceForm(trx: Knex.Transaction, orderId: string): Promise<boolean> {
+    const serviceForm = await trx('service_forms')
+      .where({ repair_order_id: orderId })
+      .first<{ id: string }>('id');
+
+    return !!serviceForm;
+  }
+
   private getPrimaryRoleOrThrow(admin: AdminPayload): { name: string; id: string } {
     const primaryRole = admin.roles[0];
 
@@ -2711,6 +2719,16 @@ export class RepairOrdersService {
         message: "Ushbu statusga o'tish uchun kelishilgan sana kiritilishi shart.",
         location: 'agreed_date',
       });
+    }
+
+    if (targetPermission.cannot_continue_without_service_form) {
+      const hasServiceForm = await this.hasServiceForm(trx, orderId);
+      if (!hasServiceForm) {
+        throw new BadRequestException({
+          message: "Ushbu statusga o'tish uchun servis formasi yaratilishi shart.",
+          location: 'service_form',
+        });
+      }
     }
 
     return targetPermission;

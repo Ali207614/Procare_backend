@@ -137,6 +137,7 @@ describe('RepairOrdersService transition hardening', () => {
     cannot_continue_without_imei: false,
     cannot_continue_without_reject_cause: false,
     cannot_continue_without_agreed_date: false,
+    cannot_continue_without_service_form: false,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   } satisfies RepairOrderStatusPermission;
@@ -263,6 +264,41 @@ describe('RepairOrdersService transition hardening', () => {
     await expect(
       service.move(admin, order.id, { status_id: 'status-new', sort: 1 }),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('rejects move with location when service form is required but missing', async () => {
+    const trx = createTransactionMock({
+      repair_orders: [order, undefined],
+      'repair-order-status-transitions': {
+        from_status_id: 'status-old',
+        to_status_id: 'status-new',
+      },
+      repair_order_statuses: { id: 'status-new', type: 'Open' },
+      repair_order_rental_phones: undefined,
+      service_forms: undefined,
+    });
+    const targetPermission = {
+      ...currentStatusPermission,
+      id: 'perm-primary-target-service-form',
+      status_id: 'status-new',
+      cannot_continue_without_service_form: true,
+    } satisfies RepairOrderStatusPermission;
+
+    knex.transaction.mockResolvedValue(trx);
+    permissionService.findByRolesAndBranch.mockResolvedValue([
+      currentStatusPermission,
+      targetPermission,
+    ]);
+    permissionService.checkPermissionsOrThrow.mockResolvedValue(undefined);
+
+    await expect(
+      service.move(admin, order.id, { status_id: 'status-new', sort: 1 }),
+    ).rejects.toMatchObject({
+      response: {
+        message: "Ushbu statusga o'tish uchun servis formasi yaratilishi shart.",
+        location: 'service_form',
+      },
+    });
   });
 
   it('allows same-status move reordering without destination validation', async () => {

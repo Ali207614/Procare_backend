@@ -19,6 +19,7 @@ interface StatusPermissionFields {
   can_delivery_manage: boolean;
   can_view_payments: boolean;
   can_view_history: boolean;
+  cannot_continue_without_service_form: boolean;
 }
 
 export function extractStatusPermissionFields(
@@ -45,6 +46,7 @@ export function extractStatusPermissionFields(
     can_delivery_manage,
     can_view_payments,
     can_view_history,
+    cannot_continue_without_service_form,
   } = row as unknown as StatusPermissionFields;
 
   return {
@@ -68,5 +70,6 @@ export function extractStatusPermissionFields(
     can_delivery_manage,
     can_view_payments,
     can_view_history,
+    cannot_continue_without_service_form,
   };
 }
