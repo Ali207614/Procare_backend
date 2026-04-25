@@ -198,6 +198,36 @@ describe('OnlinePbxService gateway filtering', () => {
     );
   });
 
+  it('creates a repair order on inbound call_start when no open order exists', async () => {
+    repairOrderService.findOpenOrderByPhoneNumber.mockResolvedValue(undefined);
+    repairOrderService.createFromWebhook.mockResolvedValue({
+      id: 'order-2',
+      user_id: null,
+    });
+
+    await service.handleWebhook({
+      uuid: 'call-start-new-1',
+      gateway: '+998781133774',
+      direction: 'inbound',
+      event: 'call_start',
+      caller: '+998901234567',
+      callee: '120',
+    });
+
+    expect(repairOrderService.createFromWebhook).toHaveBeenCalledWith({
+      userId: null,
+      branchId: '00000000-0000-4000-8000-000000000000',
+      statusId: '50000000-0000-0000-0001-001000000000',
+      phoneNumber: '+998901234567',
+      source: 'Kiruvchi qongiroq',
+      onlinepbxCode: '120',
+      fallbackToFewestOpen: false,
+    });
+    expect(logger.log).toHaveBeenCalledWith(
+      '[OnlinePBX Webhook] Saving phone call call-start-new-1 with user_id: null and repair_order_id: order-2',
+    );
+  });
+
   it('assigns the calling admin on outbound call_start for an existing open order', async () => {
     repairOrderService.findOpenOrderByPhoneNumber.mockResolvedValue({
       id: 'order-1',

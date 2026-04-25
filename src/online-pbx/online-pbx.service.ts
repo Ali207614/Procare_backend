@@ -352,6 +352,11 @@ export class OnlinePbxService {
               this.logger.log(
                 `Incremented call_count for existing open repair order ${openOrder.id} via RepairOrdersService.`,
               );
+            } else {
+              const calleeDigits = callee?.replace(/\D/g, '');
+              const specificAdminCode = calleeDigits?.length === 3 ? calleeDigits : onlinepbxCode;
+
+              await createOrderHelper(specificAdminCode, !specificAdminCode);
             }
           } else if (event === 'call_answered') {
             const calleeDigits = callee?.replace(/\D/g, '');

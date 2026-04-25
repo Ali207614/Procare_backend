@@ -87,6 +87,7 @@ export class RepairOrdersService {
       let resolvedName: string | null =
         dto.name || [dto.first_name, dto.last_name].filter(Boolean).join(' ') || null;
       const resolvedDescription = this.normalizeDescription(dto.description);
+      const normalizedImei = dto.imei?.trim() || undefined;
 
       if (dto.user_id) {
         // Flow 1: existing user_id provided
@@ -112,6 +113,19 @@ export class RepairOrdersService {
         throw new BadRequestException({
           message: 'Either user_id or phone_number must be provided',
           location: 'phone_number',
+        });
+      }
+
+      const existingCustomerOrders = await this.findExistingCustomerRepairOrders(
+        trx,
+        resolvedUserId,
+        resolvedPhoneNumber,
+      );
+
+      if (existingCustomerOrders.length && !dto.phone_category_id) {
+        throw new BadRequestException({
+          message: 'Mijozda avvalgi vazifalar mavjud bo‘lsa, telefon turi kiritilishi shart',
+          location: 'phone_category_id',
         });
       }
 
@@ -141,101 +155,43 @@ export class RepairOrdersService {
         await this.ensureRegionExists(trx, dto.region_id);
       }
 
-      let existingOpenOrder: RepairOrder | undefined;
-      if (resolvedUserId || resolvedPhoneNumber) {
-        let query = trx(this.table)
-          .where({ branch_id: branchId })
-          .whereNotIn('status', ['Cancelled', 'Deleted', 'Closed']);
-        const phoneCandidates = resolvedPhoneNumber
-          ? this.getPhoneLookupCandidates(resolvedPhoneNumber)
-          : [];
-
-        if (resolvedUserId && resolvedPhoneNumber) {
-          query = query.andWhere((qb) => {
-            void qb.where({ user_id: resolvedUserId }).orWhere((phoneQb) => {
-              void phoneQb.whereIn('phone_number', phoneCandidates);
-            });
-          });
-        } else if (resolvedUserId) {
-          query = query.where({ user_id: resolvedUserId });
-        } else if (resolvedPhoneNumber) {
-          query = query.whereIn('phone_number', phoneCandidates);
-        }
-
-        existingOpenOrder = await query.first();
-      }
-
-      let order: RepairOrder;
-
-      if (existingOpenOrder) {
-        // Instead of throwing an error, we update the existing open order
-        const updateData: Partial<RepairOrder> = {
-          updated_at: new Date().toISOString(),
-        };
-
-        // Update fields if they are missing or provided in DTO
-        if (resolvedUserId && !existingOpenOrder.user_id) updateData.user_id = resolvedUserId;
-        if (resolvedName && !existingOpenOrder.name) updateData.name = resolvedName;
-        if (resolvedPhoneNumber && existingOpenOrder.phone_number !== resolvedPhoneNumber) {
-          updateData.phone_number = resolvedPhoneNumber;
-        }
-        if (
-          dto.description !== undefined &&
-          existingOpenOrder.description !== resolvedDescription
-        ) {
-          updateData.description = resolvedDescription;
-        }
-        if (dto.phone_category_id) updateData.phone_category_id = dto.phone_category_id;
-        if (dto.region_id) updateData.region_id = dto.region_id;
-        if (dto.imei) updateData.imei = dto.imei;
-        if (dto.priority) updateData.priority = dto.priority;
-        if (dto.source) updateData.source = dto.source;
-
-        // Move existing order to the top of its current status list using helper
-        await this.moveToTop(trx, existingOpenOrder);
-
-        const [updated]: RepairOrder[] = await trx(this.table)
-          .where({ id: existingOpenOrder.id })
-          .update(updateData)
-          .returning('*');
-        order = updated;
-        this.logger.log(
-          `Updating existing open repair order ${order.id} for ${resolvedUserId ? `user ${resolvedUserId}` : `phone ${resolvedPhoneNumber}`}`,
+      if (dto.phone_category_id) {
+        this.ensureImeiForMatchingPhoneCategory(
+          existingCustomerOrders,
+          dto.phone_category_id,
+          normalizedImei,
         );
-      } else {
-        const sort = 999999;
-        const createdAt = dto.created_at
-          ? new Date(dto.created_at).toISOString()
-          : new Date().toISOString();
-        const insertData: Partial<RepairOrder> = {
-          user_id: resolvedUserId,
-          branch_id: branchId,
-          phone_category_id: dto.phone_category_id,
-          region_id: dto.region_id,
-          imei: dto.imei,
-          priority: dto.priority || 'Medium',
-          status_id: createStatus.id,
-          sort,
-          delivery_method: 'Self',
-          pickup_method: 'Self',
-          created_by: admin.id,
-          phone_number: resolvedPhoneNumber,
-          name: resolvedName,
-          description: resolvedDescription ?? null,
-          source: dto.source || 'Qolda',
-          created_at: createdAt,
-          updated_at: createdAt,
-        };
-
-        const [inserted]: RepairOrder[] = await trx(this.table).insert(insertData).returning('*');
-        // Move the new order to the top
-        await this.moveToTop(trx, inserted);
-        order = inserted;
       }
 
-      const isUpdate = !!existingOpenOrder;
+      const sort = 999999;
+      const createdAt = dto.created_at
+        ? new Date(dto.created_at).toISOString()
+        : new Date().toISOString();
+      const insertData: Partial<RepairOrder> = {
+        user_id: resolvedUserId,
+        branch_id: branchId,
+        phone_category_id: dto.phone_category_id,
+        region_id: dto.region_id,
+        imei: normalizedImei,
+        priority: dto.priority || 'Medium',
+        status_id: createStatus.id,
+        sort,
+        delivery_method: 'Self',
+        pickup_method: 'Self',
+        created_by: admin.id,
+        phone_number: resolvedPhoneNumber,
+        name: resolvedName,
+        description: resolvedDescription ?? null,
+        source: dto.source || 'Qolda',
+        created_at: createdAt,
+        updated_at: createdAt,
+      };
 
-      // Process helpers (initial problems, comments, etc.) for either the new or existing order
+      const [inserted]: RepairOrder[] = await trx(this.table).insert(insertData).returning('*');
+      await this.moveToTop(trx, inserted);
+      const order = inserted;
+
+      // Process helpers (initial problems, comments, etc.) for the new order
       await Promise.all([
         this.helper.insertAssignAdmins(
           trx,
@@ -306,11 +262,9 @@ export class RepairOrdersService {
 
       // Notify all admins in the branch room and create DB records
       void this.notifyRepairOrderUpdate(order, {
-        title: isUpdate ? 'Buyurtma yangilandi' : 'Yangi buyurtma',
-        message: isUpdate
-          ? `Mavjud buyurtma yangilandi: #${order.number_id}`
-          : `Filialda yangi buyurtma yaratildi: #${order.number_id}`,
-        action: isUpdate ? 'order_updated' : 'order_created',
+        title: 'Yangi buyurtma',
+        message: `Filialda yangi buyurtma yaratildi: #${order.number_id}`,
+        action: 'order_created',
       });
 
       this.webhookService.sendWebhook(order.id).catch((err: unknown) => {
@@ -2308,6 +2262,52 @@ export class RepairOrdersService {
     return region;
   }
 
+  private async findExistingCustomerRepairOrders(
+    trx: Knex.Transaction,
+    userId: string | undefined,
+    phoneNumber: string,
+  ): Promise<RepairOrder[]> {
+    if (!userId && !phoneNumber) {
+      return [];
+    }
+
+    const phoneCandidates = phoneNumber ? this.getPhoneLookupCandidates(phoneNumber) : [];
+    let query = trx<RepairOrder>(this.table).andWhereNot({ status: 'Deleted' });
+
+    if (userId && phoneCandidates.length) {
+      query = query.andWhere((qb) => {
+        void qb.where({ user_id: userId }).orWhere((phoneQb) => {
+          void phoneQb.whereIn('phone_number', phoneCandidates);
+        });
+      });
+    } else if (userId) {
+      query = query.where({ user_id: userId });
+    } else if (phoneCandidates.length) {
+      query = query.whereIn('phone_number', phoneCandidates);
+    }
+
+    return query.select('*') as unknown as Promise<RepairOrder[]>;
+  }
+
+  private ensureImeiForMatchingPhoneCategory(
+    existingOrders: RepairOrder[],
+    phoneCategoryId: string,
+    imei?: string,
+  ): void {
+    const hasSameCategoryOrder = existingOrders.some(
+      (order) => order.phone_category_id === phoneCategoryId,
+    );
+
+    if (!hasSameCategoryOrder || imei) {
+      return;
+    }
+
+    throw new BadRequestException({
+      message: 'Mijozda ayni telefon turi bo‘yicha vazifa mavjud bo‘lsa, IMEI kiritilishi shart',
+      location: 'imei',
+    });
+  }
+
   /**
    * Finds an existing user by the repair order's phone_number column,
    * or creates a new one using phone_number + name from the order.
@@ -2806,15 +2806,27 @@ export class RepairOrdersService {
     orderId: string,
     adminId: string,
   ): Promise<boolean> {
-    const roleIds = await this.getActiveRoleIdsByAdminId(trx, adminId);
-    if (!roleIds.length) return false;
+    const roles = await this.getActiveRolesByAdminId(trx, adminId);
+    if (!roles.length) return false;
+
+    const roleIds = roles.map((role) => role.role_id);
+    const roleNames = [
+      ...new Set(
+        roles.map((role) => this.normalizeRoleName(role.role_name)).filter((name) => name),
+      ),
+    ];
 
     const existingMatch = await trx('repair_order_assign_admins as raa')
       .join('admin_roles as ar', 'raa.admin_id', 'ar.admin_id')
       .join('roles as r', 'ar.role_id', 'r.id')
       .where('raa.repair_order_id', orderId)
       .whereNot('raa.admin_id', adminId)
-      .whereIn('ar.role_id', roleIds)
+      .andWhere((qb) => {
+        void qb.whereIn('ar.role_id', roleIds);
+        if (roleNames.length) {
+          void qb.orWhereRaw('LOWER(BTRIM(r.name)) = ANY(?::text[])', [roleNames]);
+        }
+      })
       .andWhere('r.status', 'Open')
       .andWhere('r.is_active', true)
       .first();
@@ -2822,16 +2834,20 @@ export class RepairOrdersService {
     return !!existingMatch;
   }
 
-  private async getActiveRoleIdsByAdminId(
+  private async getActiveRolesByAdminId(
     trx: Knex.Transaction,
     adminId: string,
-  ): Promise<string[]> {
+  ): Promise<{ role_id: string; role_name: string }[]> {
     return trx('admin_roles as ar')
       .join('roles as r', 'ar.role_id', 'r.id')
       .where('ar.admin_id', adminId)
       .andWhere('r.status', 'Open')
       .andWhere('r.is_active', true)
-      .pluck('ar.role_id');
+      .select('ar.role_id', 'r.name as role_name');
+  }
+
+  private normalizeRoleName(roleName: string | null | undefined): string {
+    return roleName?.trim().toLowerCase() ?? '';
   }
 
   private async findAvailableAssignedAdminIds(orderId: string): Promise<string[]> {

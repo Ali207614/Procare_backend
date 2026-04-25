@@ -26,11 +26,12 @@ type QueryBuilderRecorder = {
 type QueryBuilderMock = {
   where: jest.Mock<QueryBuilderMock, [string | Record<string, unknown>, unknown?, unknown?]>;
   andWhere: jest.Mock<QueryBuilderMock, [string | Record<string, unknown>, unknown?, unknown?]>;
+  andWhereNot: jest.Mock<QueryBuilderMock, [string | Record<string, unknown>, unknown?]>;
   whereIn: jest.Mock<QueryBuilderMock, [string, unknown[]]>;
   whereNot: jest.Mock<QueryBuilderMock, [string | Record<string, unknown>, unknown?]>;
   whereNotIn: jest.Mock<QueryBuilderMock, [string, unknown[]]>;
   orderBy: jest.Mock<QueryBuilderMock, [string, ('asc' | 'desc')?]>;
-  select: jest.Mock<QueryBuilderMock, unknown[]>;
+  select: jest.Mock<unknown, unknown[]>;
   first: jest.Mock<Promise<unknown>, []>;
   update: jest.Mock<Promise<number>, [Record<string, unknown>]>;
   insert: jest.Mock<
@@ -50,18 +51,31 @@ type TransactionMock = ((table: string) => QueryBuilderMock) & {
 };
 
 function createQueryBuilder(result: unknown, recorder: QueryBuilderRecorder): QueryBuilderMock {
-  const builder = {
+  const builder = {} as QueryBuilderMock;
+
+  Object.assign(builder, {
     where: jest.fn(),
     andWhere: jest.fn(),
+    andWhereNot: jest.fn(),
     whereIn: jest.fn(),
     whereNot: jest.fn(),
     whereNotIn: jest.fn(),
     orderBy: jest.fn(),
-    select: jest.fn(),
+    select: jest.fn().mockImplementation((...args: unknown[]) => {
+      if (args.length === 1 && args[0] === '*') {
+        if (Array.isArray(result)) {
+          return Promise.resolve(result);
+        }
+
+        return Promise.resolve(result === undefined ? [] : [result]);
+      }
+
+      return builder;
+    }),
     first: jest.fn().mockResolvedValue(result),
-    update: jest.fn().mockImplementation(async (payload: Record<string, unknown>) => {
+    update: jest.fn().mockImplementation((payload: Record<string, unknown>) => {
       recorder.updates.push(payload);
-      return 1;
+      return Promise.resolve(1);
     }),
     insert: jest.fn().mockImplementation((payload: Record<string, unknown>) => {
       recorder.inserts.push(payload);
@@ -86,20 +100,19 @@ function createQueryBuilder(result: unknown, recorder: QueryBuilderRecorder): Qu
     }),
     decrement: jest.fn().mockResolvedValue(1),
     increment: jest.fn().mockResolvedValue(1),
-  } satisfies QueryBuilderMock;
+  } satisfies QueryBuilderMock);
 
   builder.where.mockReturnValue(builder);
   builder.andWhere.mockReturnValue(builder);
+  builder.andWhereNot.mockReturnValue(builder);
   builder.whereIn.mockReturnValue(builder);
   builder.whereNot.mockReturnValue(builder);
   builder.whereNotIn.mockReturnValue(builder);
   builder.orderBy.mockReturnValue(builder);
-  builder.select.mockReturnValue(builder);
-
   return builder;
 }
 
-function createTransactionMock(resolvers: Record<string, unknown | unknown[]>): TransactionMock {
+function createTransactionMock(resolvers: Record<string, unknown>): TransactionMock {
   const recorders: Record<string, QueryBuilderRecorder[]> = {};
   const counters = new Map<string, number>();
 
@@ -350,6 +363,124 @@ describe('RepairOrdersService region validation', () => {
     expect(insertRecorder?.inserts[0]).toMatchObject({
       region_id: 'region-id',
     });
+  });
+
+  it('rejects create without IMEI when the client already has a repair order with the same phone category', async () => {
+    const trx = createTransactionMock({
+      'phone_categories as pc': {
+        id: baseOrder.phone_category_id,
+        has_children: false,
+        is_active: true,
+        status: 'Open',
+      },
+      repair_orders: [baseOrder],
+    });
+    knex.transaction.mockResolvedValue(trx);
+
+    await expect(
+      service.create(admin, 'branch-id', {
+        branch_id: 'branch-id',
+        phone_number: baseOrder.phone_number,
+        phone_category_id: baseOrder.phone_category_id,
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        location: 'imei',
+      }),
+    });
+
+    const repairOrderRecorders = trx.recorders['repair_orders'] ?? [];
+    expect(repairOrderRecorders.some((recorder) => recorder.inserts.length > 0)).toBe(false);
+  });
+
+  it('rejects create without phone category when the client already has repair order history', async () => {
+    const trx = createTransactionMock({
+      repair_orders: [baseOrder],
+    });
+    knex.transaction.mockResolvedValue(trx);
+
+    await expect(
+      service.create(admin, 'branch-id', {
+        branch_id: 'branch-id',
+        phone_number: baseOrder.phone_number,
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        location: 'phone_category_id',
+      }),
+    });
+
+    const repairOrderRecorders = trx.recorders['repair_orders'] ?? [];
+    expect(repairOrderRecorders.some((recorder) => recorder.inserts.length > 0)).toBe(false);
+  });
+
+  it('creates a new repair order without IMEI when no matching same-category repair order is found', async () => {
+    const trx = createTransactionMock({
+      'phone_categories as pc': {
+        id: baseOrder.phone_category_id,
+        has_children: false,
+        is_active: true,
+        status: 'Open',
+      },
+      repair_orders: [[{ ...baseOrder, phone_category_id: 'different-phone-category-id' }]],
+    });
+    knex.transaction.mockResolvedValue(trx);
+
+    await expect(
+      service.create(admin, 'branch-id', {
+        branch_id: 'branch-id',
+        phone_number: baseOrder.phone_number,
+        phone_category_id: baseOrder.phone_category_id,
+      }),
+    ).resolves.toMatchObject({
+      phone_category_id: baseOrder.phone_category_id,
+    });
+
+    const insertRecorder = (trx.recorders['repair_orders'] ?? []).find(
+      (recorder) => recorder.inserts.length > 0,
+    );
+
+    expect(insertRecorder?.inserts[0]).toMatchObject({
+      phone_category_id: baseOrder.phone_category_id,
+      imei: undefined,
+    });
+  });
+
+  it('creates a new repair order when IMEI is provided even if the client has the same phone category already', async () => {
+    const trx = createTransactionMock({
+      'phone_categories as pc': {
+        id: baseOrder.phone_category_id,
+        has_children: false,
+        is_active: true,
+        status: 'Open',
+      },
+      repair_orders: [[baseOrder]],
+    });
+    knex.transaction.mockResolvedValue(trx);
+
+    await expect(
+      service.create(admin, 'branch-id', {
+        branch_id: 'branch-id',
+        phone_number: baseOrder.phone_number,
+        phone_category_id: baseOrder.phone_category_id,
+        imei: '123456789012345',
+      }),
+    ).resolves.toMatchObject({
+      imei: '123456789012345',
+      phone_category_id: baseOrder.phone_category_id,
+    });
+
+    const insertRecorder = (trx.recorders['repair_orders'] ?? []).find(
+      (recorder) => recorder.inserts.length > 0,
+    );
+
+    expect(insertRecorder?.inserts[0]).toMatchObject({
+      imei: '123456789012345',
+      phone_category_id: baseOrder.phone_category_id,
+    });
+    expect(
+      (trx.recorders['repair_orders'] ?? []).every((recorder) => recorder.updates.length === 0),
+    ).toBe(true);
   });
 
   it('rejects update when region_id does not exist', async () => {

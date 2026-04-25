@@ -119,7 +119,7 @@ describe('RepairOrdersService telephony assignment', () => {
     adminsBuilder.first.mockResolvedValue({ id: 'admin-in-branch' });
 
     const targetRolesBuilder = createBuilder();
-    targetRolesBuilder.pluck.mockResolvedValue(['role-1']);
+    targetRolesBuilder.select.mockResolvedValue([{ role_id: 'role-1', role_name: 'Master' }]);
 
     const sharedRoleBuilder = createBuilder();
     sharedRoleBuilder.first.mockResolvedValue(undefined);
@@ -183,7 +183,7 @@ describe('RepairOrdersService telephony assignment', () => {
     adminsBuilder.first.mockResolvedValue({ id: 'admin-120' });
 
     const targetRolesBuilder = createBuilder();
-    targetRolesBuilder.pluck.mockResolvedValue(['role-1']);
+    targetRolesBuilder.select.mockResolvedValue([{ role_id: 'role-1', role_name: 'Master' }]);
 
     const sharedRoleBuilder = createBuilder();
     sharedRoleBuilder.first.mockResolvedValue(undefined);
@@ -247,7 +247,7 @@ describe('RepairOrdersService telephony assignment', () => {
     adminsBuilder.first.mockResolvedValue({ id: 'admin-120' });
 
     const targetRolesBuilder = createBuilder();
-    targetRolesBuilder.pluck.mockResolvedValue(['role-1']);
+    targetRolesBuilder.select.mockResolvedValue([{ role_id: 'role-1', role_name: 'Master' }]);
 
     const sharedRoleBuilder = createBuilder();
     sharedRoleBuilder.first.mockResolvedValue(undefined);
@@ -307,7 +307,7 @@ describe('RepairOrdersService telephony assignment', () => {
     adminsBuilder.first.mockResolvedValue({ id: 'admin-120' });
 
     const targetRolesBuilder = createBuilder();
-    targetRolesBuilder.pluck.mockResolvedValue(['role-1']);
+    targetRolesBuilder.select.mockResolvedValue([{ role_id: 'role-1', role_name: 'Master' }]);
 
     const sharedRoleBuilder = createBuilder();
     sharedRoleBuilder.first.mockResolvedValue({ admin_id: 'existing-admin' });
@@ -339,6 +339,39 @@ describe('RepairOrdersService telephony assignment', () => {
     });
 
     expect(assignBuilder.insert).not.toHaveBeenCalled();
+  });
+
+  it('treats active roles with the same name as the same role during telephony assignment', async () => {
+    const targetRolesBuilder = createBuilder();
+    targetRolesBuilder.select.mockResolvedValue([{ role_id: 'role-answered', role_name: 'Master' }]);
+
+    const sharedRoleBuilder = createBuilder();
+    sharedRoleBuilder.andWhere.mockImplementation((arg: unknown) => {
+      if (typeof arg === 'function') {
+        arg(sharedRoleBuilder);
+      }
+      return sharedRoleBuilder;
+    });
+    sharedRoleBuilder.first.mockResolvedValue({ admin_id: 'existing-admin' });
+
+    const trx = jest.fn((table: string) => {
+      if (table === 'admin_roles as ar') return targetRolesBuilder;
+      if (table === 'repair_order_assign_admins as raa') return sharedRoleBuilder;
+      throw new Error(`Unexpected table ${table}`);
+    }) as TransactionMock;
+
+    const result = await (service as any).hasAssignedAdminWithSameRole(
+      trx,
+      'order-1',
+      'admin-answered',
+    );
+
+    expect(result).toBe(true);
+    expect(sharedRoleBuilder.whereIn).toHaveBeenCalledWith('ar.role_id', ['role-answered']);
+    expect(sharedRoleBuilder.orWhereRaw).toHaveBeenCalledWith(
+      'LOWER(BTRIM(r.name)) = ANY(?::text[])',
+      [['master']],
+    );
   });
 
   it('broadcasts open_menu only to available assigned admins for incoming calls', async () => {
@@ -521,7 +554,7 @@ describe('RepairOrdersService telephony assignment', () => {
     adminsBuilder.first.mockResolvedValue({ id: 'admin-least-busy' });
 
     const targetRolesBuilder = createBuilder();
-    targetRolesBuilder.pluck.mockResolvedValue(['role-1']);
+    targetRolesBuilder.select.mockResolvedValue([{ role_id: 'role-1', role_name: 'Master' }]);
 
     const sharedRoleBuilder = createBuilder();
     sharedRoleBuilder.first.mockResolvedValue(undefined);
