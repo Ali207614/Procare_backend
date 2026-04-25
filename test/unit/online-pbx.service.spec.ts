@@ -18,6 +18,7 @@ describe('OnlinePbxService gateway filtering', () => {
     incrementCallCount: jest.Mock;
     handleCallAnswered: jest.Mock;
     incrementMissedCallCount: jest.Mock;
+    recordCustomerNoAnswer: jest.Mock;
     moveToTopById: jest.Mock;
     notifyAvailableAssignedAdminsForIncomingCall: jest.Mock;
   };
@@ -134,6 +135,7 @@ describe('OnlinePbxService gateway filtering', () => {
       incrementCallCount: jest.fn(),
       handleCallAnswered: jest.fn(),
       incrementMissedCallCount: jest.fn(),
+      recordCustomerNoAnswer: jest.fn(),
       moveToTopById: jest.fn(),
       notifyAvailableAssignedAdminsForIncomingCall: jest.fn(),
     };
@@ -287,5 +289,53 @@ describe('OnlinePbxService gateway filtering', () => {
         text: "Kiruvchi qo'ng'iroq o'tkazib yuborildi",
       }),
     );
+  });
+
+  it('records customer no-answer on outbound call_end when dialog_duration is zero', async () => {
+    repairOrderService.findOpenOrderByPhoneNumber.mockResolvedValue({
+      id: 'order-1',
+    });
+
+    await service.handleWebhook({
+      uuid: 'call-end-outbound-no-answer-1',
+      gateway: '+998781133774',
+      direction: 'outbound',
+      event: 'call_end',
+      caller: '120',
+      callee: '+998901234567',
+      dialog_duration: 0,
+      date: '1775549295',
+    });
+
+    expect(repairOrderService.recordCustomerNoAnswer).toHaveBeenCalledWith(
+      'order-1',
+      new Date(1775549295 * 1000),
+    );
+    expect(repairOrderService.moveToTopById).not.toHaveBeenCalled();
+    expect(commentInsertSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not count duplicate outbound no-answer call_end webhooks for the same call', async () => {
+    phoneCallFirstSpy.mockResolvedValue({
+      uuid: 'call-end-outbound-no-answer-duplicate',
+      event: 'call_end',
+      dialog_duration: null,
+      repair_order_id: 'order-1',
+    });
+    repairOrderService.findOpenOrderByPhoneNumber.mockResolvedValue({
+      id: 'order-1',
+    });
+
+    await service.handleWebhook({
+      uuid: 'call-end-outbound-no-answer-duplicate',
+      gateway: '+998781133774',
+      direction: 'outbound',
+      event: 'call_end',
+      caller: '120',
+      callee: '+998901234567',
+      dialog_duration: 0,
+    });
+
+    expect(repairOrderService.recordCustomerNoAnswer).not.toHaveBeenCalled();
   });
 });

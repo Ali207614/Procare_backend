@@ -41,9 +41,9 @@ exports.seed = async function (knex) {
       const currentStatus = branchStatuses[i];
       const nextStatus = branchStatuses[i + 1];
 
-      // Don't create transitions to/from completed or cancelled statuses
-      if (currentStatus.type !== 'Completed' && currentStatus.type !== 'Cancelled' &&
-          nextStatus.type !== 'Completed' && nextStatus.type !== 'Cancelled') {
+      // Don't create transitions to/from terminal statuses
+      if (!['Completed', 'Cancelled', 'Invalid'].includes(currentStatus.type) &&
+          !['Completed', 'Cancelled', 'Invalid'].includes(nextStatus.type)) {
         await insertTransition(currentStatus.id, nextStatus.id);
       }
     }
@@ -53,16 +53,16 @@ exports.seed = async function (knex) {
       const currentStatus = branchStatuses[i];
       const prevStatus = branchStatuses[i - 1];
 
-      // Don't create transitions from completed or cancelled statuses
-      if (currentStatus.type !== 'Completed' && currentStatus.type !== 'Cancelled' &&
-          prevStatus.type !== 'Completed' && prevStatus.type !== 'Cancelled') {
+      // Don't create transitions from terminal statuses
+      if (!['Completed', 'Cancelled', 'Invalid'].includes(currentStatus.type) &&
+          !['Completed', 'Cancelled', 'Invalid'].includes(prevStatus.type)) {
         await insertTransition(currentStatus.id, prevStatus.id);
       }
     }
 
     // Create transitions to completion statuses from appropriate statuses
-    const completionStatuses = branchStatuses.filter(s => s.type === 'Completed' || s.type === 'Cancelled');
-    const workflowStatuses = branchStatuses.filter(s => !s.type || (s.type !== 'Completed' && s.type !== 'Cancelled'));
+    const completionStatuses = branchStatuses.filter(s => s.type === 'Completed' || s.type === 'Cancelled' || s.type === 'Invalid');
+    const workflowStatuses = branchStatuses.filter(s => !s.type || !['Completed', 'Cancelled', 'Invalid'].includes(s.type));
 
     for (const workflowStatus of workflowStatuses) {
       for (const completionStatus of completionStatuses) {
@@ -74,6 +74,11 @@ exports.seed = async function (knex) {
 
         // Allow transition to "Cancelled" from any workflow status
         if (completionStatus.type === 'Cancelled') {
+          await insertTransition(workflowStatus.id, completionStatus.id);
+        }
+
+        // Allow transition to "Invalid" from Missed status
+        if (completionStatus.type === 'Invalid' && workflowStatus.type === 'Missed') {
           await insertTransition(workflowStatus.id, completionStatus.id);
         }
       }

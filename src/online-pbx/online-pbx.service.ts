@@ -14,6 +14,7 @@ interface OnlinePbxWebhookPayload {
   direction?: string;
   event?: string;
   gateway?: string;
+  date?: string | number;
   call_duration?: string | number;
   dialog_duration?: string | number;
   hangup_cause?: string;
@@ -166,6 +167,7 @@ export class OnlinePbxService {
       uuid,
       direction,
       event,
+      date,
       call_duration,
       dialog_duration,
       hangup_cause,
@@ -324,6 +326,19 @@ export class OnlinePbxService {
                 `Moved existing open repair order ${openOrder.id} to top on outbound call_end with duration > 0.`,
               );
             }
+          } else if (
+            event === 'call_end' &&
+            parsedDialogDuration === 0 &&
+            openOrder &&
+            !this.hasCustomerNoAnswerRecorded(existingCall, event, parsedDialogDuration)
+          ) {
+            await this.repairOrderService.recordCustomerNoAnswer(
+              openOrder.id,
+              this.parseWebhookDate(date),
+            );
+            this.logger.log(
+              `Recorded customer no-answer for existing open repair order ${openOrder.id}.`,
+            );
           }
         } else if (direction === 'inbound') {
           // User calling admin
@@ -447,6 +462,22 @@ export class OnlinePbxService {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
   }
 
+  private parseWebhookDate(value: string | number | undefined): Date {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric > 0) {
+      return new Date(numeric * 1000);
+    }
+
+    if (typeof value === 'string' && value.trim()) {
+      const parsed = new Date(value);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+
+    return new Date();
+  }
+
   private shouldCreateRepairOrderComment(
     event: string | undefined,
     dialogDuration: number,
@@ -472,6 +503,19 @@ export class OnlinePbxService {
       dialogDuration > 0 &&
       call.event === 'call_end' &&
       Number(call.dialog_duration) > 0
+    );
+  }
+
+  private hasCustomerNoAnswerRecorded(
+    call: Pick<PhoneCall, 'event' | 'dialog_duration'> | undefined,
+    event: string | undefined,
+    dialogDuration: number,
+  ): boolean {
+    return (
+      event === 'call_end' &&
+      dialogDuration === 0 &&
+      call?.event === 'call_end' &&
+      Number(call.dialog_duration ?? 0) === 0
     );
   }
 

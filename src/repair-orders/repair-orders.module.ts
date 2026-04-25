@@ -28,6 +28,7 @@ import { RepairOrderCreateHelperService } from './services/repair-order-create-h
 import { AttachmentsService } from './services/attachments.service';
 import { RepairOrderWebhookService } from './services/repair-order-webhook.service';
 import { AgreedDateCronService } from './services/agreed-date-cron.service';
+import { CustomerNoAnswerCronService } from './services/customer-no-answer-cron.service';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { AgreedDateCronService } from './services/agreed-date-cron.service';
     ServiceFormsService,
     RepairOrderWebhookService,
     AgreedDateCronService,
+    CustomerNoAnswerCronService,
   ],
   exports: [
     AssignAdminUpdaterService,

@@ -37,10 +37,16 @@ import { RepairOrderRegion } from 'src/common/types/repair-order-region.interfac
 import { User } from 'src/common/types/user.interface';
 import { formatUzPhoneToE164, getUzPhoneLookupCandidates } from 'src/common/utils/phone.util';
 
+const SYSTEM_ADMIN_ID = '00000000-0000-4000-8000-000000000000';
+const NO_ANSWER_REJECT_CAUSE_NAME = "Qo'ng'iroqqa javob bermadi";
+
 @Injectable()
 export class RepairOrdersService {
   private readonly table = 'repair_orders';
   private readonly terminalStatusTypes = new Set(['Cancelled', 'Canceled', 'Completed', 'Invalid']);
+  private readonly telephonyInvalidReuseWindowHours = 72;
+  private readonly customerNoAnswerLimit = 3;
+  private readonly customerNoAnswerDelayHours = 24;
 
   constructor(
     @InjectKnex() private readonly knex: Knex,
@@ -1804,6 +1810,208 @@ export class RepairOrdersService {
     }
   }
 
+  async recordCustomerNoAnswer(orderId: string, occurredAt: Date = new Date()): Promise<void> {
+    const trx = await this.knex.transaction();
+    try {
+      const order = await trx<RepairOrder>(this.table).where({ id: orderId, status: 'Open' }).first();
+      if (!order) {
+        await trx.rollback();
+        return;
+      }
+
+      const currentStatus = await this.getStatusDetails(trx, order.status_id);
+      if (!this.isNoAnswerTrackableStatus(currentStatus)) {
+        await trx.rollback();
+        return;
+      }
+
+      const nextCount = Number(order.customer_no_answer_count ?? 0) + 1;
+
+      if (nextCount > this.customerNoAnswerLimit) {
+        const invalidStatus = await this.getRequiredStatusByType(trx, order.branch_id, 'Invalid');
+        const rejectCauseId = await this.getNoAnswerRejectCauseId(trx);
+        const previousDueAt = order.customer_no_answer_due_at ?? null;
+
+        await this.moveOrderToStatusAtTop(trx, order, invalidStatus.id);
+        await trx(this.table)
+          .where({ id: order.id })
+          .update({
+            status_id: invalidStatus.id,
+            sort: 1,
+            reject_cause_id: rejectCauseId,
+            customer_no_answer_count: nextCount,
+            last_customer_no_answer_at: occurredAt,
+            customer_no_answer_due_at: null,
+            updated_at: new Date().toISOString(),
+          });
+
+        await this.logSystemChanges(trx, order.id, [
+          { key: 'status_id', oldVal: order.status_id, newVal: invalidStatus.id },
+          { key: 'sort', oldVal: order.sort, newVal: 1 },
+          { key: 'reject_cause_id', oldVal: order.reject_cause_id, newVal: rejectCauseId },
+          {
+            key: 'customer_no_answer_count',
+            oldVal: order.customer_no_answer_count ?? 0,
+            newVal: nextCount,
+          },
+          {
+            key: 'customer_no_answer_due_at',
+            oldVal: previousDueAt,
+            newVal: null,
+          },
+        ]);
+
+        await trx.commit();
+
+        void this.notifyRepairOrderUpdate(order, {
+          title: 'Buyurtma sifatsizga o‘tkazildi',
+          message: `Buyurtma #${order.number_id} mijoz javob bermagani uchun Sifatsiz statusiga o'tkazildi`,
+          action: 'customer_no_answer_invalidated',
+          fromStatusId: order.status_id,
+          toStatusId: invalidStatus.id,
+        });
+
+        await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
+        return;
+      }
+
+      const dueAt = new Date(
+        occurredAt.getTime() + this.customerNoAnswerDelayHours * 60 * 60 * 1000,
+      );
+
+      await trx(this.table)
+        .where({ id: order.id })
+        .update({
+          customer_no_answer_count: nextCount,
+          last_customer_no_answer_at: occurredAt,
+          customer_no_answer_due_at: dueAt,
+          updated_at: new Date().toISOString(),
+        });
+
+      await trx.commit();
+
+      void this.notifyRepairOrderUpdate(order, {
+        title: "Mijoz qo'ng'iroqqa javob bermadi",
+        message: `Buyurtma #${order.number_id} bo'yicha javobsiz qo'ng'iroq qayd etildi (${nextCount})`,
+        action: 'customer_no_answer_recorded',
+      });
+
+      await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
+    } catch (error) {
+      await trx.rollback();
+      throw error;
+    }
+  }
+
+  async processDueCustomerNoAnswer(orderId: string): Promise<void> {
+    const trx = await this.knex.transaction();
+    try {
+      const order = await trx<RepairOrder>(this.table).where({ id: orderId, status: 'Open' }).first();
+      if (
+        !order ||
+        !order.customer_no_answer_due_at ||
+        Number(order.customer_no_answer_count ?? 0) <= 0
+      ) {
+        await trx.rollback();
+        return;
+      }
+
+      const dueAt = new Date(order.customer_no_answer_due_at);
+      if (Number.isNaN(dueAt.getTime()) || dueAt > new Date()) {
+        await trx.rollback();
+        return;
+      }
+
+      const currentStatus = await this.getStatusDetails(trx, order.status_id);
+      if (!this.isNoAnswerTrackableStatus(currentStatus)) {
+        await trx(this.table)
+          .where({ id: order.id })
+          .update({ customer_no_answer_due_at: null, updated_at: new Date().toISOString() });
+        await trx.commit();
+        await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
+        return;
+      }
+
+      const currentCount = Number(order.customer_no_answer_count ?? 0);
+      if (currentCount > this.customerNoAnswerLimit) {
+        const invalidStatus = await this.getRequiredStatusByType(trx, order.branch_id, 'Invalid');
+        const rejectCauseId = await this.getNoAnswerRejectCauseId(trx);
+
+        await this.moveOrderToStatusAtTop(trx, order, invalidStatus.id);
+        await trx(this.table)
+          .where({ id: order.id })
+          .update({
+            status_id: invalidStatus.id,
+            sort: 1,
+            reject_cause_id: rejectCauseId,
+            customer_no_answer_due_at: null,
+            updated_at: new Date().toISOString(),
+          });
+
+        await this.logSystemChanges(trx, order.id, [
+          { key: 'status_id', oldVal: order.status_id, newVal: invalidStatus.id },
+          { key: 'sort', oldVal: order.sort, newVal: 1 },
+          { key: 'reject_cause_id', oldVal: order.reject_cause_id, newVal: rejectCauseId },
+          {
+            key: 'customer_no_answer_due_at',
+            oldVal: order.customer_no_answer_due_at,
+            newVal: null,
+          },
+        ]);
+
+        await trx.commit();
+
+        void this.notifyRepairOrderUpdate(order, {
+          title: 'Buyurtma sifatsizga o‘tkazildi',
+          message: `Buyurtma #${order.number_id} mijoz javob bermagani uchun Sifatsiz statusiga o'tkazildi`,
+          action: 'customer_no_answer_invalidated',
+          fromStatusId: order.status_id,
+          toStatusId: invalidStatus.id,
+        });
+
+        await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
+        return;
+      }
+
+      const missedStatus = await this.getRequiredStatusByType(trx, order.branch_id, 'Missed');
+
+      await this.moveOrderToStatusAtTop(trx, order, missedStatus.id);
+      await trx(this.table)
+        .where({ id: order.id })
+        .update({
+          status_id: missedStatus.id,
+          sort: 1,
+          customer_no_answer_due_at: null,
+          updated_at: new Date().toISOString(),
+        });
+
+      await this.logSystemChanges(trx, order.id, [
+        { key: 'status_id', oldVal: order.status_id, newVal: missedStatus.id },
+        { key: 'sort', oldVal: order.sort, newVal: 1 },
+        {
+          key: 'customer_no_answer_due_at',
+          oldVal: order.customer_no_answer_due_at,
+          newVal: null,
+        },
+      ]);
+
+      await trx.commit();
+
+      void this.notifyRepairOrderUpdate(order, {
+        title: "Buyurtma Ko'tarmadi statusiga o'tkazildi",
+        message: `Buyurtma #${order.number_id} 24 soat javobsiz qolgani uchun Ko'tarmadi statusiga o'tkazildi`,
+        action: 'customer_no_answer_missed',
+        fromStatusId: order.status_id,
+        toStatusId: missedStatus.id,
+      });
+
+      await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
+    } catch (error) {
+      await trx.rollback();
+      throw error;
+    }
+  }
+
   async createFromWebhook(data: {
     userId: string | null;
     branchId: string;
@@ -1816,10 +2024,42 @@ export class RepairOrdersService {
     const trx = await this.knex.transaction();
     try {
       const normalizedPhoneNumber = this.normalizePhoneNumber(data.phoneNumber);
+      const phoneCandidates = this.getPhoneLookupCandidates(normalizedPhoneNumber);
       let resolvedUserId = data.userId;
 
       if (!resolvedUserId) {
         resolvedUserId = await this.ensureWebhookUser(trx, normalizedPhoneNumber);
+      }
+
+      const existingOrder = (await this.buildTelephonyWorkflowOpenOrderQuery(trx)
+        .where({ 'ro.branch_id': data.branchId })
+        .whereIn('ro.phone_number', phoneCandidates)
+        .first()) as RepairOrder | undefined;
+
+      if (existingOrder) {
+        const existingOrderUpdates: Record<string, unknown> = {
+          updated_at: new Date().toISOString(),
+          call_count: this.knex.raw('call_count + 1'),
+        };
+        if (resolvedUserId && !existingOrder.user_id) {
+          existingOrderUpdates.user_id = resolvedUserId;
+        }
+
+        await trx(this.table)
+          .where({ id: existingOrder.id })
+          .update(existingOrderUpdates);
+
+        await this.moveToTop(trx, existingOrder);
+        await trx.commit();
+
+        void this.notifyRepairOrderUpdate(existingOrder, {
+          title: 'Buyurtma yangilandi',
+          message: `Mavjud buyurtma yangilandi (Telefoniya): #${existingOrder.number_id}`,
+          action: 'order_updated',
+        });
+
+        await this.redisService.flushByPrefix(`${this.table}:${data.branchId}`);
+        return existingOrder;
       }
 
       const [newOrder] = await trx<RepairOrder>(this.table)
@@ -2134,6 +2374,12 @@ export class RepairOrdersService {
       }
 
       await this.moveToTop(trx, order);
+      await trx(this.table).where({ id: order.id }).update({
+        customer_no_answer_count: 0,
+        last_customer_no_answer_at: null,
+        customer_no_answer_due_at: null,
+        updated_at: new Date().toISOString(),
+      });
       await trx.commit();
 
       void this.notifyRepairOrderUpdate(order, {
@@ -2276,6 +2522,9 @@ export class RepairOrdersService {
             description: null,
             source: data.source,
             call_count: 1,
+            customer_no_answer_count: 0,
+            last_customer_no_answer_at: null,
+            customer_no_answer_due_at: null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
@@ -2291,6 +2540,9 @@ export class RepairOrdersService {
           .update({
             updated_at: new Date().toISOString(),
             call_count: this.knex.raw('call_count + 1'),
+            customer_no_answer_count: 0,
+            last_customer_no_answer_at: null,
+            customer_no_answer_due_at: null,
           });
 
         if (targetAdminId) {
@@ -2391,6 +2643,105 @@ export class RepairOrdersService {
         }`,
       );
     }
+  }
+
+  private isNoAnswerTrackableStatus(status: RepairOrderStatus | null): boolean {
+    return status?.type === 'Open' || status?.type === 'Missed';
+  }
+
+  private async getRequiredStatusByType(
+    trx: Knex.Transaction,
+    branchId: string,
+    type: 'Open' | 'Missed' | 'Invalid',
+  ): Promise<RepairOrderStatus> {
+    const status = await trx<RepairOrderStatus>('repair_order_statuses')
+      .where({
+        branch_id: branchId,
+        type,
+        status: 'Open',
+        is_active: true,
+      })
+      .orderByRaw('CASE WHEN is_protected THEN 0 ELSE 1 END')
+      .orderBy('sort', 'asc')
+      .first();
+
+    if (!status) {
+      throw new BadRequestException({
+        message: `Required repair order status type ${type} is missing`,
+        location: 'status_id',
+      });
+    }
+
+    return status;
+  }
+
+  private async getNoAnswerRejectCauseId(trx: Knex.Transaction): Promise<string> {
+    const existing = await trx('repair_order_reject_causes')
+      .where({ status: 'Open', is_active: true })
+      .andWhereRaw('LOWER(name) = LOWER(?)', [NO_ANSWER_REJECT_CAUSE_NAME])
+      .first<{ id: string }>('id');
+
+    if (existing?.id) {
+      return existing.id;
+    }
+
+    const maxSortResult = await trx('repair_order_reject_causes')
+      .where({ status: 'Open' })
+      .max<{ maxSort: number | null }[]>('sort as maxSort');
+    const nextSort = Number(maxSortResult[0]?.maxSort ?? 0) + 1;
+
+    const [created] = await trx('repair_order_reject_causes')
+      .insert({
+        name: NO_ANSWER_REJECT_CAUSE_NAME,
+        description: NO_ANSWER_REJECT_CAUSE_NAME,
+        sort: nextSort,
+        is_active: true,
+        status: 'Open',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .returning<{ id: string }[]>('id');
+
+    return created.id;
+  }
+
+  private async moveOrderToStatusAtTop(
+    trx: Knex.Transaction,
+    order: RepairOrder,
+    targetStatusId: string,
+  ): Promise<void> {
+    if (order.status_id === targetStatusId) {
+      await this.moveToTop(trx, order);
+      return;
+    }
+
+    await this.handleStatusChangeReordering(trx, order, {
+      status_id: targetStatusId,
+      sort: 1,
+    });
+  }
+
+  private async logSystemChanges(
+    trx: Knex.Transaction,
+    orderId: string,
+    fields: { key: string; oldVal: unknown; newVal: unknown }[],
+  ): Promise<void> {
+    const systemAdminId = await this.resolveSystemAdminId(trx);
+    if (!systemAdminId) return;
+
+    await this.changeLogger.logMultipleFieldsIfChanged(trx, orderId, fields, systemAdminId);
+  }
+
+  private async resolveSystemAdminId(trx: Knex.Transaction): Promise<string | null> {
+    const systemAdmin = await trx('admins').where({ id: SYSTEM_ADMIN_ID }).first<{ id: string }>();
+    if (systemAdmin?.id) return systemAdmin.id;
+
+    const firstAdmin = await trx('admins')
+      .where({ status: 'Open' })
+      .orderBy('created_at', 'asc')
+      .first<{ id: string }>('id');
+
+    return firstAdmin?.id ?? null;
   }
 
   private async getOrderOrThrow(
@@ -2573,7 +2924,24 @@ export class RepairOrdersService {
       .andWhere((qb): void => {
         void qb
           .whereNull('ros.type')
-          .orWhereNotIn('ros.type', Array.from(this.terminalStatusTypes));
+          .orWhereNotIn('ros.type', Array.from(this.terminalStatusTypes))
+          .orWhereRaw(
+            `
+            ros.type = ?
+            AND COALESCE(
+              (
+                SELECT MAX(h.created_at)
+                FROM repair_order_change_histories h
+                WHERE h.repair_order_id = ro.id
+                  AND h.field = 'status_id'
+                  AND h.new_value #>> '{}' = ro.status_id
+              ),
+              ro.updated_at,
+              ro.created_at
+            ) >= NOW() - (? * INTERVAL '1 hour')
+          `,
+            ['Invalid', this.telephonyInvalidReuseWindowHours],
+          );
       });
   }
 

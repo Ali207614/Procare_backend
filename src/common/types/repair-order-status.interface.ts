@@ -10,7 +10,7 @@ export interface RepairOrderStatus {
   sort: number;
   can_user_view: boolean;
   is_active: boolean;
-  type: 'Completed' | 'Cancelled' | 'Open' | 'Invalid' | null;
+  type: 'Completed' | 'Cancelled' | 'Open' | 'Invalid' | 'Missed' | null;
   is_protected: boolean;
   can_add_payment: boolean;
   status: 'Open' | 'Deleted';

@@ -6,6 +6,7 @@ import Redis from 'ioredis';
 import { LoggerService } from '../logger/logger.service';
 import { HttpStatus } from '@nestjs/common';
 import type { RedisReply } from 'rate-limit-redis';
+import { getClientIp } from '../utils/request-ip.util';
 
 @Injectable()
 export class RateLimiterByIpMiddleware implements NestMiddleware {
@@ -20,12 +21,12 @@ export class RateLimiterByIpMiddleware implements NestMiddleware {
     this.limiter = rateLimit({
       windowMs: 60 * 1000,
       max: 20,
-      keyGenerator: (req: Request) => req.ip ?? 'unknown-ip',
+      keyGenerator: (req: Request) => getClientIp(req),
       handler: (req: Request, res: Response) => {
         const statusCode = 429;
         const statusMessage = HttpStatus[statusCode] || 'Too Many Requests';
 
-        const logMessage = `[${req.method}] ${req.originalUrl} - ${statusCode} ${statusMessage}`;
+        const logMessage = `[${req.method}] ${req.originalUrl} - ${statusCode} ${statusMessage} - ip=${getClientIp(req)}`;
         this.logger.warn(logMessage);
 
         res.status(statusCode).json({

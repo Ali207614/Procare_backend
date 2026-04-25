@@ -60,6 +60,16 @@ exports.seed = async function (knex) {
       created_at: knex.fn.now(),
       updated_at: knex.fn.now(),
     },
+    {
+      id: "00000000-0000-4000-8000-000000000007",
+      name: "Qo'ng'iroqqa javob bermadi",
+      description: "Qo'ng'iroqqa javob bermadi",
+      sort: 7,
+      is_active: true,
+      status: 'Open',
+      created_at: knex.fn.now(),
+      updated_at: knex.fn.now(),
+    },
   ];
 
   const existingRejectCauses = await knex('repair_order_reject_causes')

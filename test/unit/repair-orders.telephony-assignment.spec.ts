@@ -3,12 +3,15 @@ import { RepairOrdersService } from '../../src/repair-orders/repair-orders.servi
 type Builder = {
   where: jest.Mock;
   andWhere: jest.Mock;
+  whereNull: jest.Mock;
   whereNotIn: jest.Mock;
   whereNot: jest.Mock;
   whereNotNull: jest.Mock;
   whereIn: jest.Mock;
   whereRaw: jest.Mock;
   andWhereRaw: jest.Mock;
+  orWhereRaw: jest.Mock;
+  orWhereNotIn: jest.Mock;
   first: jest.Mock;
   pluck: jest.Mock;
   insert: jest.Mock;
@@ -27,12 +30,15 @@ const createBuilder = (): Builder => {
   const builder: Partial<Builder> = {};
   builder.where = jest.fn().mockReturnValue(builder);
   builder.andWhere = jest.fn().mockReturnValue(builder);
+  builder.whereNull = jest.fn().mockReturnValue(builder);
   builder.whereNotIn = jest.fn().mockReturnValue(builder);
   builder.whereNot = jest.fn().mockReturnValue(builder);
   builder.whereNotNull = jest.fn().mockReturnValue(builder);
   builder.whereIn = jest.fn().mockReturnValue(builder);
   builder.whereRaw = jest.fn().mockReturnValue(builder);
   builder.andWhereRaw = jest.fn().mockReturnValue(builder);
+  builder.orWhereRaw = jest.fn().mockReturnValue(builder);
+  builder.orWhereNotIn = jest.fn().mockReturnValue(builder);
   builder.first = jest.fn();
   builder.pluck = jest.fn();
   builder.insert = jest.fn().mockReturnValue(builder);
@@ -95,6 +101,9 @@ describe('RepairOrdersService telephony assignment', () => {
   });
 
   it('scopes PBX-code assignment to the webhook branch when creating an order', async () => {
+    const existingOrderBuilder = createBuilder();
+    existingOrderBuilder.first.mockResolvedValue(undefined);
+
     const repairOrdersBuilder = createBuilder();
     repairOrdersBuilder.returning.mockResolvedValue([
       {
@@ -118,6 +127,7 @@ describe('RepairOrdersService telephony assignment', () => {
     const assignBuilder = createBuilder();
 
     const trx = jest.fn((table: string) => {
+      if (table === 'repair_orders as ro') return existingOrderBuilder;
       if (table === 'repair_orders') return repairOrdersBuilder;
       if (table === 'admins as a') return adminsBuilder;
       if (table === 'admin_roles as ar') return targetRolesBuilder;
@@ -204,10 +214,15 @@ describe('RepairOrdersService telephony assignment', () => {
       source: 'Kiruvchi qongiroq',
     });
 
-    expect(orderBuilder.update).toHaveBeenCalledWith({
-      updated_at: expect.any(String),
-      call_count: 'call_count + 1',
-    });
+    expect(orderBuilder.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        updated_at: expect.any(String),
+        call_count: 'call_count + 1',
+        customer_no_answer_count: 0,
+        last_customer_no_answer_at: null,
+        customer_no_answer_due_at: null,
+      }),
+    );
     expect(assignBuilder.insert).toHaveBeenCalledWith(
       expect.objectContaining({
         repair_order_id: 'order-1',
@@ -444,7 +459,53 @@ describe('RepairOrdersService telephony assignment', () => {
     expect(orderBuilder.andWhere).toHaveBeenCalledWith(expect.any(Function));
   });
 
+  it('treats Invalid/Sifatsiz statuses as reusable during the 72 hour PBX grace window', async () => {
+    const orderBuilder = createBuilder();
+    const statusTypeConditionBuilder = createBuilder();
+
+    orderBuilder.andWhere.mockImplementation((arg: unknown) => {
+      if (typeof arg === 'function') {
+        arg(statusTypeConditionBuilder);
+      }
+      return orderBuilder;
+    });
+
+    orderBuilder.first.mockResolvedValue({
+      id: 'order-invalid-recent',
+      number_id: 3,
+      branch_id: 'branch-1',
+      status_id: 'status-invalid',
+      sort: 1,
+      status: 'Open',
+      phone_number: '+998901234567',
+    });
+
+    knex.mockImplementation((table: string) => {
+      if (table === 'repair_orders as ro') return orderBuilder;
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    const result = await service.findOpenOrderByPhoneNumber('branch-1', '+998901234567');
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: 'order-invalid-recent',
+      }),
+    );
+    expect(statusTypeConditionBuilder.orWhereRaw).toHaveBeenCalledWith(
+      expect.stringContaining('ros.type = ?'),
+      ['Invalid', 72],
+    );
+    expect(statusTypeConditionBuilder.orWhereRaw).toHaveBeenCalledWith(
+      expect.stringContaining("NOW() - (? * INTERVAL '1 hour')"),
+      ['Invalid', 72],
+    );
+  });
+
   it('counts null-typed workflow statuses as active when selecting the fallback telephony admin', async () => {
+    const existingOrderBuilder = createBuilder();
+    existingOrderBuilder.first.mockResolvedValue(undefined);
+
     const repairOrdersBuilder = createBuilder();
     repairOrdersBuilder.returning.mockResolvedValue([
       {
@@ -468,6 +529,7 @@ describe('RepairOrdersService telephony assignment', () => {
     const assignBuilder = createBuilder();
 
     const trx = jest.fn((table: string) => {
+      if (table === 'repair_orders as ro') return existingOrderBuilder;
       if (table === 'repair_orders') return repairOrdersBuilder;
       if (table === 'admins') return adminsBuilder;
       if (table === 'admin_roles as ar') return targetRolesBuilder;

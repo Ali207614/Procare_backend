@@ -43,6 +43,9 @@ async function bootstrap(): Promise<void> {
   app.enableCors({ origin: '*', credentials: true });
 
   // Security & perf
+  const expressApp = app.getHttpAdapter().getInstance() as ExpressApp;
+  expressApp.set('trust proxy', 1);
+
   app.use(helmet());
   app.use(compression({ threshold: 1024 }));
 
@@ -318,8 +321,6 @@ async function bootstrap(): Promise<void> {
 
   // Start HTTP
   await app.listen(PORT, HOST);
-  const expressApp = app.getHttpAdapter().getInstance() as ExpressApp;
-  expressApp.set('trust proxy', 1);
 
   const displayHost = HOST === '0.0.0.0' ? 'localhost' : HOST;
   logger.log(`http://${displayHost}:${PORT}/${GLOBAL_PREFIX}`);

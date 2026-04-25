@@ -70,6 +70,9 @@ SELECT
     ro.description,
     ro.phone_number,
     ro.source,
+    ro.customer_no_answer_count,
+    ro.last_customer_no_answer_at,
+    ro.customer_no_answer_due_at,
     CASE
         WHEN ro.agreed_date IS NULL OR BTRIM(ro.agreed_date::text) = '' THEN NULL
         ELSE TO_CHAR(NULLIF(BTRIM(ro.agreed_date::text), '')::timestamp, 'YYYY-MM-DD HH24:MI')

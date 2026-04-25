@@ -41,6 +41,9 @@ export interface RepairOrder {
   source: RepairOrderSource | null;
   call_count: number;
   missed_calls: number;
+  customer_no_answer_count?: number;
+  last_customer_no_answer_at?: string | null;
+  customer_no_answer_due_at?: string | null;
 
   created_at: string; // timestamp
   updated_at: string; // timestamp
@@ -69,6 +72,9 @@ export interface FreshRepairOrder {
     description: string | null;
   };
   source: RepairOrderSource | null;
+  customer_no_answer_count: number;
+  last_customer_no_answer_at: string | null;
+  customer_no_answer_due_at: string | null;
   phone_number: string | null;
   deadline_at: string | null;
   user: {
@@ -282,6 +288,9 @@ export interface RepairOrderDetails {
     description: string | null;
   };
   source: RepairOrderSource | null;
+  customer_no_answer_count: number;
+  last_customer_no_answer_at: string | null;
+  customer_no_answer_due_at: string | null;
   user: {
     id: string | null;
     first_name: string | null;
