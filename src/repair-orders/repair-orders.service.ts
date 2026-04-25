@@ -1813,7 +1813,9 @@ export class RepairOrdersService {
   async recordCustomerNoAnswer(orderId: string, occurredAt: Date = new Date()): Promise<void> {
     const trx = await this.knex.transaction();
     try {
-      const order = await trx<RepairOrder>(this.table).where({ id: orderId, status: 'Open' }).first();
+      const order = await trx<RepairOrder>(this.table)
+        .where({ id: orderId, status: 'Open' })
+        .first();
       if (!order) {
         await trx.rollback();
         return;
@@ -1833,17 +1835,15 @@ export class RepairOrdersService {
         const previousDueAt = order.customer_no_answer_due_at ?? null;
 
         await this.moveOrderToStatusAtTop(trx, order, invalidStatus.id);
-        await trx(this.table)
-          .where({ id: order.id })
-          .update({
-            status_id: invalidStatus.id,
-            sort: 1,
-            reject_cause_id: rejectCauseId,
-            customer_no_answer_count: nextCount,
-            last_customer_no_answer_at: occurredAt,
-            customer_no_answer_due_at: null,
-            updated_at: new Date().toISOString(),
-          });
+        await trx(this.table).where({ id: order.id }).update({
+          status_id: invalidStatus.id,
+          sort: 1,
+          reject_cause_id: rejectCauseId,
+          customer_no_answer_count: nextCount,
+          last_customer_no_answer_at: occurredAt,
+          customer_no_answer_due_at: null,
+          updated_at: new Date().toISOString(),
+        });
 
         await this.logSystemChanges(trx, order.id, [
           { key: 'status_id', oldVal: order.status_id, newVal: invalidStatus.id },
@@ -1879,14 +1879,12 @@ export class RepairOrdersService {
         occurredAt.getTime() + this.customerNoAnswerDelayHours * 60 * 60 * 1000,
       );
 
-      await trx(this.table)
-        .where({ id: order.id })
-        .update({
-          customer_no_answer_count: nextCount,
-          last_customer_no_answer_at: occurredAt,
-          customer_no_answer_due_at: dueAt,
-          updated_at: new Date().toISOString(),
-        });
+      await trx(this.table).where({ id: order.id }).update({
+        customer_no_answer_count: nextCount,
+        last_customer_no_answer_at: occurredAt,
+        customer_no_answer_due_at: dueAt,
+        updated_at: new Date().toISOString(),
+      });
 
       await trx.commit();
 
@@ -1906,7 +1904,9 @@ export class RepairOrdersService {
   async processDueCustomerNoAnswer(orderId: string): Promise<void> {
     const trx = await this.knex.transaction();
     try {
-      const order = await trx<RepairOrder>(this.table).where({ id: orderId, status: 'Open' }).first();
+      const order = await trx<RepairOrder>(this.table)
+        .where({ id: orderId, status: 'Open' })
+        .first();
       if (
         !order ||
         !order.customer_no_answer_due_at ||
@@ -1938,15 +1938,13 @@ export class RepairOrdersService {
         const rejectCauseId = await this.getNoAnswerRejectCauseId(trx);
 
         await this.moveOrderToStatusAtTop(trx, order, invalidStatus.id);
-        await trx(this.table)
-          .where({ id: order.id })
-          .update({
-            status_id: invalidStatus.id,
-            sort: 1,
-            reject_cause_id: rejectCauseId,
-            customer_no_answer_due_at: null,
-            updated_at: new Date().toISOString(),
-          });
+        await trx(this.table).where({ id: order.id }).update({
+          status_id: invalidStatus.id,
+          sort: 1,
+          reject_cause_id: rejectCauseId,
+          customer_no_answer_due_at: null,
+          updated_at: new Date().toISOString(),
+        });
 
         await this.logSystemChanges(trx, order.id, [
           { key: 'status_id', oldVal: order.status_id, newVal: invalidStatus.id },
@@ -1976,14 +1974,12 @@ export class RepairOrdersService {
       const missedStatus = await this.getRequiredStatusByType(trx, order.branch_id, 'Missed');
 
       await this.moveOrderToStatusAtTop(trx, order, missedStatus.id);
-      await trx(this.table)
-        .where({ id: order.id })
-        .update({
-          status_id: missedStatus.id,
-          sort: 1,
-          customer_no_answer_due_at: null,
-          updated_at: new Date().toISOString(),
-        });
+      await trx(this.table).where({ id: order.id }).update({
+        status_id: missedStatus.id,
+        sort: 1,
+        customer_no_answer_due_at: null,
+        updated_at: new Date().toISOString(),
+      });
 
       await this.logSystemChanges(trx, order.id, [
         { key: 'status_id', oldVal: order.status_id, newVal: missedStatus.id },
@@ -2045,9 +2041,7 @@ export class RepairOrdersService {
           existingOrderUpdates.user_id = resolvedUserId;
         }
 
-        await trx(this.table)
-          .where({ id: existingOrder.id })
-          .update(existingOrderUpdates);
+        await trx(this.table).where({ id: existingOrder.id }).update(existingOrderUpdates);
 
         await this.moveToTop(trx, existingOrder);
         await trx.commit();
