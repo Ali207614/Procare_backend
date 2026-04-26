@@ -6,6 +6,7 @@ import { RepairOrderStatusPermissionsModule } from 'src/repair-order-status-perm
 import { RepairOrderStatusesModule } from 'src/repair-order-statuses/repair-order-statuses.module';
 import { OffersModule } from 'src/offers/offers.module';
 import { PdfModule } from 'src/pdf/pdf.module';
+import { HistoryModule } from 'src/history/history.module';
 import { AssignAdminController } from './controllers/assign-admin.controller';
 import { CommentController } from './controllers/comment.controller';
 import { DeliveryController } from './controllers/delivery.controller';
@@ -39,6 +40,7 @@ import { CustomerNoAnswerCronService } from './services/customer-no-answer-cron.
     LoggerModule,
     OffersModule,
     PdfModule,
+    HistoryModule,
   ],
   controllers: [
     RepairOrdersController,

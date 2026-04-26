@@ -75,10 +75,11 @@ export class PhoneCategoriesController {
   @ApiResponse({ status: 200, description: 'Sort updated' })
   @ApiResponse({ status: 404, description: 'phone-category not found' })
   async updateSort(
+    @CurrentAdmin() admin: AdminPayload,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdatePhoneCategorySortDto,
   ): Promise<{ message: string }> {
-    return this.service.updateSort(id, dto.sort);
+    return this.service.updateSort(id, dto.sort, admin.id);
   }
 
   @Patch(':id')
@@ -89,10 +90,11 @@ export class PhoneCategoriesController {
   @ApiResponse({ status: 200, description: 'phone-category updated successfully' })
   @ApiResponse({ status: 404, description: 'phone-category not found' })
   async update(
+    @CurrentAdmin() admin: AdminPayload,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdatePhoneCategoryDto,
   ): Promise<{ message: string }> {
-    return this.service.update(id, dto);
+    return this.service.update(id, dto, admin.id);
   }
 
   @Delete(':id')
@@ -100,7 +102,10 @@ export class PhoneCategoriesController {
   @SetPermissions('phone.category.delete')
   @ApiOperation({ summary: 'Delete phone-category by ID (soft delete)' })
   @ApiParam({ name: 'id', description: 'phone-category ID (UUID)' })
-  async delete(@Param('id', ParseUUIDPipe) id: string): Promise<{ message: string }> {
-    return this.service.delete(id);
+  async delete(
+    @CurrentAdmin() admin: AdminPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ message: string }> {
+    return this.service.delete(id, admin.id);
   }
 }

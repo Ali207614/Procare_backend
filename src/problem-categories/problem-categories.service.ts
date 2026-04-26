@@ -13,6 +13,7 @@ import {
 } from 'src/common/types/problem-category.interface';
 import { PhoneCategory } from 'src/common/types/phone-category.interface';
 import { PaginationResult } from 'src/common/utils/pagination.util';
+import { HistoryService } from 'src/history/history.service';
 
 @Injectable()
 export class ProblemCategoriesService {
@@ -24,6 +25,7 @@ export class ProblemCategoriesService {
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,
     private readonly logger: LoggerService,
+    private readonly historyService: HistoryService,
   ) {}
 
   async create(dto: CreateProblemCategoryDto, adminId: string): Promise<ProblemCategory> {
@@ -132,7 +134,23 @@ export class ProblemCategoriesService {
           phone_category_id,
           problem_category_id: problem.id,
         });
+        await this.historyService.recordRelationChanged({
+          db: trx,
+          actionKind: 'link',
+          actor: { actorPk: adminId },
+          from: { entityTable: 'problem_categories', entityPk: problem.id },
+          to: { entityTable: 'phone_categories', entityPk: phone_category_id },
+          fieldPath: 'phone_category_id',
+        });
       }
+      await this.historyService.recordEntityCreated({
+        db: trx,
+        entityTable: 'problem_categories',
+        entityPk: problem.id,
+        entityLabel: problem.name_uz ?? null,
+        actor: { actorPk: adminId },
+        values: problem as unknown as Record<string, unknown>,
+      });
 
       await trx.commit();
 
@@ -363,7 +381,11 @@ export class ProblemCategoriesService {
     }
   }
 
-  async update(id: string, dto: UpdateProblemCategoryDto): Promise<{ message: string }> {
+  async update(
+    id: string,
+    dto: UpdateProblemCategoryDto,
+    adminId?: string,
+  ): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
       const category = await trx('problem_categories').where({ id, status: 'Open' }).first();
@@ -442,6 +464,16 @@ export class ProblemCategoriesService {
       };
 
       await trx('problem_categories').where({ id }).update(updateData);
+      await this.historyService.recordEntityUpdated({
+        db: trx,
+        entityTable: 'problem_categories',
+        entityPk: id,
+        entityLabel: category.name_uz ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: category as unknown as Record<string, unknown>,
+        after: { ...category, ...updateData } as Record<string, unknown>,
+        fields: Object.keys(dto),
+      });
 
       await trx.commit();
 
@@ -459,7 +491,7 @@ export class ProblemCategoriesService {
     }
   }
 
-  async updateSort(id: string, newSort: number): Promise<{ message: string }> {
+  async updateSort(id: string, newSort: number, adminId?: string): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
       const category: ProblemCategory | undefined = await trx('problem_categories')
@@ -494,6 +526,16 @@ export class ProblemCategoriesService {
       await trx('problem_categories')
         .where({ id })
         .update({ sort: newSort, updated_at: new Date().toISOString() });
+      await this.historyService.recordEntityUpdated({
+        db: trx,
+        entityTable: 'problem_categories',
+        entityPk: id,
+        entityLabel: category.name_uz ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: category as unknown as Record<string, unknown>,
+        after: { ...category, sort: newSort } as Record<string, unknown>,
+        fields: ['sort'],
+      });
       await trx.commit();
       await this.redisService.flushByPrefix(this.redisKeyAll);
 
@@ -511,7 +553,7 @@ export class ProblemCategoriesService {
     }
   }
 
-  async delete(id: string): Promise<{ message: string }> {
+  async delete(id: string, adminId?: string): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
       const category: ProblemCategory | undefined = await trx('problem_categories')
@@ -537,12 +579,34 @@ export class ProblemCategoriesService {
       }
 
       if (category.parent_id === null) {
+        const mapping = await trx('phone_problem_mappings')
+          .where({ problem_category_id: id })
+          .first();
         await trx('phone_problem_mappings').where({ problem_category_id: id }).del();
+        if (mapping?.phone_category_id) {
+          await this.historyService.recordRelationChanged({
+            db: trx,
+            actionKind: 'unlink',
+            actor: adminId ? { actorPk: adminId } : null,
+            from: { entityTable: 'problem_categories', entityPk: id },
+            to: { entityTable: 'phone_categories', entityPk: mapping.phone_category_id },
+            fieldPath: 'phone_category_id',
+          });
+        }
       }
 
       await trx('problem_categories')
         .where({ id })
         .update({ status: 'Deleted', updated_at: new Date().toISOString() });
+      await this.historyService.recordEntityDeleted({
+        db: trx,
+        entityTable: 'problem_categories',
+        entityPk: id,
+        entityLabel: category.name_uz ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: category as unknown as Record<string, unknown>,
+        fields: ['status'],
+      });
 
       await trx.commit();
 

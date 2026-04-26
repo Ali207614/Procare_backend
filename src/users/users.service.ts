@@ -9,12 +9,14 @@ import { User, UserListItem } from 'src/common/types/user.interface';
 import { RedisService } from 'src/common/redis/redis.service';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { PaginationResult } from 'src/common/utils/pagination.util';
+import { HistoryService } from 'src/history/history.service';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,
+    private readonly historyService: HistoryService,
   ) {}
   private readonly userFields = [
     'id',
@@ -131,42 +133,51 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto, admin: AdminPayload): Promise<UserListItem> {
-    const exists: UserListItem | undefined = await this.knex<UserListItem>('users')
-      .whereRaw('LOWER(phone_number1) = ?', dto.phone_number1.toLowerCase())
-      .andWhereNot({ status: 'Deleted' })
-      .first();
+    return this.knex.transaction(async (trx) => {
+      const exists: UserListItem | undefined = await trx<UserListItem>('users')
+        .whereRaw('LOWER(phone_number1) = ?', dto.phone_number1.toLowerCase())
+        .andWhereNot({ status: 'Deleted' })
+        .first();
 
-    if (exists) {
-      throw new BadRequestException({
-        message: 'Phone number already exists',
-        location: 'phone_number',
+      if (exists) {
+        throw new BadRequestException({
+          message: 'Phone number already exists',
+          location: 'phone_number',
+        });
+      }
+
+      const [user]: UserListItem[] = await trx<UserListItem>('users')
+        .insert({
+          first_name: dto.first_name,
+          last_name: dto.last_name,
+          phone_number1: dto.phone_number1 ?? null,
+          phone_number2: dto.phone_number2 ?? null,
+          passport_series: dto.passport_series ?? null,
+          birth_date: dto.birth_date ?? null,
+          id_card_number: dto.id_card_number ?? null,
+          telegram_chat_id: dto.telegram_chat_id ?? null,
+          telegram_username: dto.telegram_username ?? null,
+          language: dto.language ?? 'uz',
+          status: dto?.status ?? 'Open',
+          source: (dto.source as User['source']) ?? 'web',
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          created_by: admin.id,
+        })
+        .returning(this.userFields);
+
+      await this.historyService.recordEntityCreated({
+        db: trx,
+        entityTable: 'users',
+        entityPk: user.id,
+        entityLabel: [user.first_name, user.last_name].filter(Boolean).join(' ') || null,
+        actor: { actorPk: admin.id },
+        values: user as unknown as Record<string, unknown>,
       });
-    }
 
-    const [user]: UserListItem[] = await this.knex<UserListItem>('users')
-      .insert({
-        first_name: dto.first_name,
-        last_name: dto.last_name,
-        phone_number1: dto.phone_number1 ?? null,
-        phone_number2: dto.phone_number2 ?? null,
-        passport_series: dto.passport_series ?? null,
-        birth_date: dto.birth_date ?? null,
-        id_card_number: dto.id_card_number ?? null,
-        telegram_chat_id: dto.telegram_chat_id ?? null,
-        telegram_username: dto.telegram_username ?? null,
-        language: dto.language ?? 'uz',
-        status: dto?.status ?? 'Open',
-        source: (dto.source as User['source']) ?? 'web',
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        created_by: admin.id,
-      })
-      .returning(this.userFields);
-
-    // External system integration removed
-
-    return user;
+      return user;
+    });
   }
 
   async findAll(filters: FindAllUsersDto): Promise<PaginationResult<UserListItem>> {
@@ -200,46 +211,77 @@ export class UsersService {
     };
   }
 
-  async update(userId: string, dto: UpdateUserDto): Promise<{ message: string }> {
-    const user: User | undefined = await this.knex<User>('users')
-      .where({ id: userId, status: 'Open' })
-      .first();
+  async update(
+    userId: string,
+    dto: UpdateUserDto,
+    admin?: AdminPayload,
+  ): Promise<{ message: string }> {
+    await this.knex.transaction(async (trx) => {
+      const user: User | undefined = await trx<User>('users')
+        .where({ id: userId, status: 'Open' })
+        .first();
 
-    if (!user) {
-      throw new NotFoundException({
-        message: 'User not found',
-        location: 'user_not_found',
-      });
-    }
+      if (!user) {
+        throw new NotFoundException({
+          message: 'User not found',
+          location: 'user_not_found',
+        });
+      }
 
-    await this.knex('users')
-      .where({ id: userId })
-      .update({
+      const updateData = {
         ...dto,
         updated_at: new Date(),
+      };
+
+      await trx('users').where({ id: userId }).update(updateData);
+
+      await this.historyService.recordEntityUpdated({
+        db: trx,
+        entityTable: 'users',
+        entityPk: userId,
+        entityLabel: [user.first_name, user.last_name].filter(Boolean).join(' ') || null,
+        actor: admin ? { actorPk: admin.id } : null,
+        before: user as unknown as Record<string, unknown>,
+        after: { ...user, ...updateData } as Record<string, unknown>,
+        fields: Object.keys(dto),
       });
+    });
 
     await this.redisService.del(`user:${userId}`);
 
     return { message: 'User updated successfully' };
   }
 
-  async delete(userId: string): Promise<{ message: string }> {
-    const user: User | undefined = await this.knex('users')
-      .where({ id: userId, status: 'Open' })
-      .first();
+  async delete(userId: string, admin?: AdminPayload): Promise<{ message: string }> {
+    await this.knex.transaction(async (trx) => {
+      const user: User | undefined = await trx<User>('users')
+        .where({ id: userId, status: 'Open' })
+        .first();
 
-    if (!user) {
-      throw new NotFoundException({
-        message: 'User not found or already deleted',
-        location: 'user_not_found',
+      if (!user) {
+        throw new NotFoundException({
+          message: 'User not found or already deleted',
+          location: 'user_not_found',
+        });
+      }
+
+      const updateData = {
+        status: 'Deleted',
+        is_active: false,
+        updated_at: new Date(),
+      };
+
+      await trx('users').where({ id: userId }).update(updateData);
+
+      await this.historyService.recordEntityDeleted({
+        db: trx,
+        entityTable: 'users',
+        entityPk: userId,
+        entityLabel: [user.first_name, user.last_name].filter(Boolean).join(' ') || null,
+        actor: admin ? { actorPk: admin.id } : null,
+        before: user as unknown as Record<string, unknown>,
+        fields: ['status', 'is_active'],
       });
-    }
-
-    await this.knex('users').where({ id: userId }).update({
-      status: 'Deleted',
-      is_active: false,
-      updated_at: new Date(),
     });
 
     await this.redisService.del(`user:${userId}`);

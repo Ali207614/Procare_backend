@@ -25,11 +25,13 @@ import {
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { PermissionsGuard } from 'src/common/guards/permission.guard';
 import { SetPermissions } from 'src/common/decorators/permission-decorator';
+import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { FindRentalPhoneDevicesDto } from './dto/find-rental-phone-devices.dto';
 import { CreateRentalPhoneDeviceDto } from './dto/create-rental-phone-device.dto';
 import { UpdateRentalPhoneDeviceDto } from './dto/update-rental-phone-device.dto';
 import { RentalPhoneDevicesService } from './rental-phone-devices.service';
 import { RentalPhoneDevice } from 'src/common/types/rental-phone-device.interface';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
 
@@ -247,8 +249,11 @@ export class RentalPhoneDevicesController {
   @ApiForbiddenResponse({
     description: 'The authenticated admin does not have rental phone create permission.',
   })
-  async create(@Body() dto: CreateRentalPhoneDeviceDto): Promise<RentalPhoneDevice> {
-    return this.rentalPhoneDevicesService.create(dto);
+  async create(
+    @CurrentAdmin() admin: AdminPayload,
+    @Body() dto: CreateRentalPhoneDeviceDto,
+  ): Promise<RentalPhoneDevice> {
+    return this.rentalPhoneDevicesService.create(dto, admin.id);
   }
 
   @Patch(':id')
@@ -277,10 +282,11 @@ export class RentalPhoneDevicesController {
     description: 'The authenticated admin does not have rental phone update permission.',
   })
   async update(
+    @CurrentAdmin() admin: AdminPayload,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateRentalPhoneDeviceDto,
   ): Promise<RentalPhoneDevice> {
-    return this.rentalPhoneDevicesService.update(id, dto);
+    return this.rentalPhoneDevicesService.update(id, dto, admin.id);
   }
 
   @Delete(':id')
@@ -301,8 +307,11 @@ export class RentalPhoneDevicesController {
   @ApiForbiddenResponse({
     description: 'The authenticated admin does not have rental phone delete permission.',
   })
-  async delete(@Param('id', ParseUUIDPipe) id: string): Promise<{ message: string }> {
-    await this.rentalPhoneDevicesService.delete(id);
+  async delete(
+    @CurrentAdmin() admin: AdminPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ message: string }> {
+    await this.rentalPhoneDevicesService.delete(id, admin.id);
     return { message: 'Device deleted successfully' };
   }
 }

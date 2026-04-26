@@ -14,6 +14,7 @@ import { PaginationResult } from 'src/common/utils/pagination.util';
 import { CreateRepairOrderRegionDto } from './dto/create-repair-order-region.dto';
 import { FindAllRepairOrderRegionsDto } from './dto/find-all-repair-order-regions.dto';
 import { UpdateRepairOrderRegionDto } from './dto/update-repair-order-region.dto';
+import { HistoryService } from 'src/history/history.service';
 
 @Injectable()
 export class RepairOrderRegionsService {
@@ -25,9 +26,10 @@ export class RepairOrderRegionsService {
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,
     private readonly logger: LoggerService,
+    private readonly historyService: HistoryService,
   ) {}
 
-  async create(dto: CreateRepairOrderRegionDto): Promise<RepairOrderRegion> {
+  async create(dto: CreateRepairOrderRegionDto, adminId?: string): Promise<RepairOrderRegion> {
     const trx = await this.knex.transaction();
 
     try {
@@ -42,6 +44,14 @@ export class RepairOrderRegionsService {
           updated_at: new Date().toISOString(),
         })
         .returning('*');
+      await this.historyService.recordEntityCreated({
+        db: trx,
+        entityTable: this.tableName,
+        entityPk: created.id,
+        entityLabel: created.title ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        values: created as unknown as Record<string, unknown>,
+      });
 
       await trx.commit();
       await this.invalidateListCache();
@@ -115,7 +125,11 @@ export class RepairOrderRegionsService {
     return region;
   }
 
-  async update(id: string, dto: UpdateRepairOrderRegionDto): Promise<{ message: string }> {
+  async update(
+    id: string,
+    dto: UpdateRepairOrderRegionDto,
+    adminId?: string,
+  ): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
 
     try {
@@ -135,6 +149,16 @@ export class RepairOrderRegionsService {
       }
 
       await trx<RepairOrderRegion>(this.tableName).where({ id: existing.id }).update(updateData);
+      await this.historyService.recordEntityUpdated({
+        db: trx,
+        entityTable: this.tableName,
+        entityPk: id,
+        entityLabel: existing.title ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: existing as unknown as Record<string, unknown>,
+        after: { ...existing, ...updateData } as Record<string, unknown>,
+        fields: Object.keys(dto),
+      });
       await trx.commit();
 
       await this.invalidateCache(id);
@@ -157,11 +181,11 @@ export class RepairOrderRegionsService {
     }
   }
 
-  async delete(id: string): Promise<{ message: string }> {
+  async delete(id: string, adminId?: string): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
 
     try {
-      await this.getRegionOrThrow(trx, id);
+      const existing = await this.getRegionOrThrow(trx, id);
 
       const linkedOrder = await trx('repair_orders').where({ region_id: id }).first();
       if (linkedOrder) {
@@ -172,6 +196,14 @@ export class RepairOrderRegionsService {
       }
 
       await trx<RepairOrderRegion>(this.tableName).where({ id }).del();
+      await this.historyService.recordEntityDeleted({
+        db: trx,
+        entityTable: this.tableName,
+        entityPk: id,
+        entityLabel: existing.title ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: existing as unknown as Record<string, unknown>,
+      });
       await trx.commit();
 
       await this.invalidateCache(id);

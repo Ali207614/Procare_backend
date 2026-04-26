@@ -74,15 +74,19 @@ export class RolesController {
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateRoleDto,
+    @CurrentAdmin() admin: AdminPayload,
   ): Promise<{ message: string }> {
-    return this.service.update(id, dto);
+    return this.service.update(id, dto, admin.id);
   }
 
   @Delete(':id')
   @UseGuards(PermissionsGuard)
   @SetPermissions('role.delete')
   @ApiOperation({ summary: 'Delete role by ID (soft delete)' })
-  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<{ message: string }> {
-    return this.service.delete(id);
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentAdmin() admin: AdminPayload,
+  ): Promise<{ message: string }> {
+    return this.service.delete(id, admin.id);
   }
 }

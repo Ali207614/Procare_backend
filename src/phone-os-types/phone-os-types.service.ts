@@ -8,6 +8,7 @@ import { PhoneOsType } from 'src/common/types/phone-os-type.interface';
 import { LoggerService } from 'src/common/logger/logger.service';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { FindAllPhoneOsTypeDto } from 'src/phone-os-types/dto/find-all-phone-os-type.dto';
+import { HistoryService } from 'src/history/history.service';
 
 @Injectable()
 export class PhoneOsTypesService {
@@ -35,6 +36,7 @@ export class PhoneOsTypesService {
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,
     private readonly logger: LoggerService,
+    private readonly historyService: HistoryService,
   ) {}
 
   async create(dto: CreatePhoneOsTypeDto, adminId: string): Promise<PhoneOsType> {
@@ -77,6 +79,14 @@ export class PhoneOsTypesService {
       };
 
       const inserted: PhoneOsType[] = await trx('phone_os_types').insert(insertData).returning('*');
+      await this.historyService.recordEntityCreated({
+        db: trx,
+        entityTable: 'phone_os_types',
+        entityPk: inserted[0].id,
+        entityLabel: inserted[0].name_uz ?? null,
+        actor: { actorPk: adminId },
+        values: inserted[0] as unknown as Record<string, unknown>,
+      });
 
       await this.redisService.del(this.redisKey), await trx.commit();
 
@@ -138,7 +148,11 @@ export class PhoneOsTypesService {
     }
   }
 
-  async update(id: string, dto: UpdatePhoneOsTypeDto): Promise<{ message: string }> {
+  async update(
+    id: string,
+    dto: UpdatePhoneOsTypeDto,
+    adminId?: string,
+  ): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
       const exists: PhoneOsType | undefined = await trx<PhoneOsType>('phone_os_types')
@@ -181,6 +195,16 @@ export class PhoneOsTypesService {
       };
 
       await trx('phone_os_types').where({ id }).update(updateData);
+      await this.historyService.recordEntityUpdated({
+        db: trx,
+        entityTable: 'phone_os_types',
+        entityPk: id,
+        entityLabel: exists.name_uz ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: exists as unknown as Record<string, unknown>,
+        after: { ...exists, ...updateData } as Record<string, unknown>,
+        fields: Object.keys(dto),
+      });
 
       await this.redisService.del(this.redisKey), await trx.commit();
 
@@ -198,7 +222,7 @@ export class PhoneOsTypesService {
     }
   }
 
-  async delete(id: string): Promise<{ message: string }> {
+  async delete(id: string, adminId?: string): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
       const exists: PhoneOsType | undefined = await trx<PhoneOsType>('phone_os_types')
@@ -226,6 +250,15 @@ export class PhoneOsTypesService {
       await trx('phone_os_types')
         .where({ id })
         .update({ status: 'Deleted', updated_at: trx.fn.now() });
+      await this.historyService.recordEntityDeleted({
+        db: trx,
+        entityTable: 'phone_os_types',
+        entityPk: id,
+        entityLabel: exists.name_uz ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: exists as unknown as Record<string, unknown>,
+        fields: ['status'],
+      });
 
       await trx.commit();
 

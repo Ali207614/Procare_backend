@@ -9,6 +9,7 @@ import { CreateRepairOrderRejectCauseDto } from './dto/create-repair-order-rejec
 import { UpdateRepairOrderRejectCauseDto } from './dto/update-repair-order-reject-cause.dto';
 import { FindAllRepairOrderRejectCausesDto } from './dto/find-all-repair-order-reject-causes.dto';
 import { getNextSortValue } from 'src/common/utils/sort.util';
+import { HistoryService } from 'src/history/history.service';
 
 @Injectable()
 export class RepairOrderRejectCausesService {
@@ -20,9 +21,13 @@ export class RepairOrderRejectCausesService {
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,
     private readonly logger: LoggerService,
+    private readonly historyService: HistoryService,
   ) {}
 
-  async create(dto: CreateRepairOrderRejectCauseDto): Promise<RepairOrderRejectCause> {
+  async create(
+    dto: CreateRepairOrderRejectCauseDto,
+    adminId?: string,
+  ): Promise<RepairOrderRejectCause> {
     const trx = await this.knex.transaction();
     try {
       const name = this.normalizeName(dto.name);
@@ -43,6 +48,14 @@ export class RepairOrderRejectCausesService {
           updated_at: new Date().toISOString(),
         })
         .returning('*');
+      await this.historyService.recordEntityCreated({
+        db: trx,
+        entityTable: this.tableName,
+        entityPk: created.id,
+        entityLabel: created.name ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        values: created as unknown as Record<string, unknown>,
+      });
 
       await trx.commit();
       await this.invalidateListCache();
@@ -127,7 +140,11 @@ export class RepairOrderRejectCausesService {
     return cause;
   }
 
-  async update(id: string, dto: UpdateRepairOrderRejectCauseDto): Promise<{ message: string }> {
+  async update(
+    id: string,
+    dto: UpdateRepairOrderRejectCauseDto,
+    adminId?: string,
+  ): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
       const existing = await this.getOpenCauseOrThrow(trx, id);
@@ -152,6 +169,16 @@ export class RepairOrderRejectCausesService {
       await trx<RepairOrderRejectCause>(this.tableName)
         .where({ id: existing.id })
         .update(updateData);
+      await this.historyService.recordEntityUpdated({
+        db: trx,
+        entityTable: this.tableName,
+        entityPk: id,
+        entityLabel: existing.name ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: existing as unknown as Record<string, unknown>,
+        after: { ...existing, ...updateData } as Record<string, unknown>,
+        fields: Object.keys(dto),
+      });
       await trx.commit();
 
       await this.invalidateCache(id);
@@ -174,7 +201,7 @@ export class RepairOrderRejectCausesService {
     }
   }
 
-  async updateSort(id: string, newSort: number): Promise<{ message: string }> {
+  async updateSort(id: string, newSort: number, adminId?: string): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
       const existing = await this.getOpenCauseOrThrow(trx, id);
@@ -208,6 +235,16 @@ export class RepairOrderRejectCausesService {
         sort: targetSort,
         updated_at: new Date().toISOString(),
       });
+      await this.historyService.recordEntityUpdated({
+        db: trx,
+        entityTable: this.tableName,
+        entityPk: id,
+        entityLabel: existing.name ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: existing as unknown as Record<string, unknown>,
+        after: { ...existing, sort: targetSort } as Record<string, unknown>,
+        fields: ['sort'],
+      });
       await trx.commit();
 
       await this.invalidateCache(id);
@@ -230,14 +267,23 @@ export class RepairOrderRejectCausesService {
     }
   }
 
-  async delete(id: string): Promise<{ message: string }> {
+  async delete(id: string, adminId?: string): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
-      await this.getOpenCauseOrThrow(trx, id);
+      const existing = await this.getOpenCauseOrThrow(trx, id);
 
       await trx<RepairOrderRejectCause>(this.tableName).where({ id }).update({
         status: 'Deleted',
         updated_at: new Date().toISOString(),
+      });
+      await this.historyService.recordEntityDeleted({
+        db: trx,
+        entityTable: this.tableName,
+        entityPk: id,
+        entityLabel: existing.name ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: existing as unknown as Record<string, unknown>,
+        fields: ['status'],
       });
       await trx.commit();
 

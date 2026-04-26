@@ -19,6 +19,7 @@ import { ParseUUIDPipe } from '../common/pipe/parse-uuid.pipe';
 import { Admin, AdminListItem } from 'src/common/types/admin.interface';
 import { Branch } from 'src/common/types/branch.interface';
 import { PaginationResult } from 'src/common/utils/pagination.util';
+import { HistoryService } from 'src/history/history.service';
 
 type AdminListItemWithTotal = AdminListItem & { total: number };
 
@@ -28,6 +29,7 @@ export class AdminsService {
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,
     private readonly permissionsService: PermissionsService,
+    private readonly historyService: HistoryService,
   ) {}
 
   private readonly table = 'admins';
@@ -218,12 +220,31 @@ export class AdminsService {
 
       const admin: Admin = inserted[0];
 
+      await this.historyService.recordEntityCreated({
+        db: trx,
+        entityTable: 'admins',
+        entityPk: admin.id,
+        entityLabel: [admin.first_name, admin.last_name].filter(Boolean).join(' ') || null,
+        actor: { actorPk: adminId },
+        values: admin as unknown as Record<string, unknown>,
+      });
+
       if (role_ids?.length) {
         const rolesData = role_ids.map((role_id) => ({
           admin_id: admin.id,
           role_id,
         }));
         await trx('admin_roles').insert(rolesData);
+        for (const role_id of role_ids) {
+          await this.historyService.recordRelationChanged({
+            db: trx,
+            actionKind: 'link',
+            actor: { actorPk: adminId },
+            from: { entityTable: 'admins', entityPk: admin.id },
+            to: { entityTable: 'roles', entityPk: role_id },
+            fieldPath: 'role_id',
+          });
+        }
       }
 
       if (branch_ids?.length) {
@@ -232,6 +253,16 @@ export class AdminsService {
           branch_id,
         }));
         await trx('admin_branches').insert(branchData);
+        for (const branch_id of branch_ids) {
+          await this.historyService.recordRelationChanged({
+            db: trx,
+            actionKind: 'link',
+            actor: { actorPk: adminId },
+            from: { entityTable: 'admins', entityPk: admin.id },
+            to: { entityTable: 'branches', entityPk: branch_id },
+            fieldPath: 'branch_id',
+          });
+        }
       }
 
       await this.permissionsService.getPermissions(admin.id);
@@ -340,6 +371,16 @@ export class AdminsService {
       }
 
       const { role_ids, branch_ids, ...adminFields } = dto;
+      const previousRoleIds =
+        role_ids !== undefined
+          ? await trx('admin_roles').where({ admin_id: targetAdminId }).pluck<string>('role_id')
+          : [];
+      const previousBranchIds =
+        branch_ids !== undefined
+          ? await trx('admin_branches')
+              .where({ admin_id: targetAdminId })
+              .pluck<string>('branch_id')
+          : [];
 
       const updateData: Partial<Admin> = {
         ...extractDefinedFields(adminFields, [
@@ -366,6 +407,16 @@ export class AdminsService {
 
       if (Object.keys(updateData).length > 0) {
         await trx<Admin>('admins').where({ id: targetAdminId }).update(updateData);
+        await this.historyService.recordEntityUpdated({
+          db: trx,
+          entityTable: 'admins',
+          entityPk: targetAdminId,
+          entityLabel: [target.first_name, target.last_name].filter(Boolean).join(' ') || null,
+          actor: { actorPk: currentAdmin.id },
+          before: target as unknown as Record<string, unknown>,
+          after: { ...target, ...updateData } as Record<string, unknown>,
+          fields: Object.keys(updateData).filter((field) => field !== 'updated_at'),
+        });
       }
 
       if (role_ids !== undefined) {
@@ -389,6 +440,16 @@ export class AdminsService {
           }));
           await trx('admin_roles').insert(roleData);
         }
+
+        await this.recordRelationDiff(trx, {
+          actorAdminId: currentAdmin.id,
+          fromTable: 'admins',
+          fromPk: targetAdminId,
+          toTable: 'roles',
+          fieldPath: 'role_id',
+          beforeIds: previousRoleIds,
+          afterIds: role_ids,
+        });
       }
 
       if (branch_ids !== undefined) {
@@ -427,6 +488,16 @@ export class AdminsService {
           }));
           await trx('admin_branches').insert(branchData);
         }
+
+        await this.recordRelationDiff(trx, {
+          actorAdminId: currentAdmin.id,
+          fromTable: 'admins',
+          fromPk: targetAdminId,
+          toTable: 'branches',
+          fieldPath: 'branch_id',
+          beforeIds: previousBranchIds,
+          afterIds: branch_ids,
+        });
       }
 
       return { message: 'Admin updated successfully' };
@@ -477,10 +548,22 @@ export class AdminsService {
       });
     }
 
-    await this.knex('admins').where({ id: targetAdminId }).update({
-      is_active: false,
-      status: 'Deleted',
-      updated_at: new Date(),
+    await this.knex.transaction(async (trx) => {
+      await trx('admins').where({ id: targetAdminId }).update({
+        is_active: false,
+        status: 'Deleted',
+        updated_at: new Date(),
+      });
+
+      await this.historyService.recordEntityDeleted({
+        db: trx,
+        entityTable: 'admins',
+        entityPk: targetAdminId,
+        entityLabel: [target.first_name, target.last_name].filter(Boolean).join(' ') || null,
+        actor: { actorPk: requestingAdmin.id },
+        before: target as unknown as Record<string, unknown>,
+        fields: ['status', 'is_active'],
+      });
     });
 
     await this.redisService.flushByPrefix(`${this.redisKeyByAdminId}:${targetAdminId}`);
@@ -532,5 +615,43 @@ export class AdminsService {
     await this.redisService.set(key, branches, 3600);
 
     return branches;
+  }
+
+  private async recordRelationDiff(
+    trx: Knex.Transaction,
+    params: {
+      actorAdminId: string;
+      fromTable: string;
+      fromPk: string;
+      toTable: string;
+      fieldPath: string;
+      beforeIds: string[];
+      afterIds: string[];
+    },
+  ): Promise<void> {
+    const before = new Set(params.beforeIds);
+    const after = new Set(params.afterIds);
+
+    for (const id of params.afterIds.filter((item) => !before.has(item))) {
+      await this.historyService.recordRelationChanged({
+        db: trx,
+        actionKind: 'link',
+        actor: { actorPk: params.actorAdminId },
+        from: { entityTable: params.fromTable, entityPk: params.fromPk },
+        to: { entityTable: params.toTable, entityPk: id },
+        fieldPath: params.fieldPath,
+      });
+    }
+
+    for (const id of params.beforeIds.filter((item) => !after.has(item))) {
+      await this.historyService.recordRelationChanged({
+        db: trx,
+        actionKind: 'unlink',
+        actor: { actorPk: params.actorAdminId },
+        from: { entityTable: params.fromTable, entityPk: params.fromPk },
+        to: { entityTable: params.toTable, entityPk: id },
+        fieldPath: params.fieldPath,
+      });
+    }
   }
 }

@@ -16,6 +16,7 @@ import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 import { RepairOrderStatusTransition } from 'src/common/types/repair-order-status-transition.interface';
 import { PaginationResult } from 'src/common/utils/pagination.util';
+import { HistoryService } from 'src/history/history.service';
 
 @Injectable()
 export class RepairOrderStatusesService {
@@ -28,6 +29,7 @@ export class RepairOrderStatusesService {
     private readonly redisService: RedisService,
     private readonly repairOrderStatusPermissions: RepairOrderStatusPermissionsService,
     private readonly logger: LoggerService,
+    private readonly historyService: HistoryService,
   ) {}
 
   async create(dto: CreateRepairOrderStatusDto, adminId: string): Promise<RepairOrderStatus> {
@@ -105,6 +107,17 @@ export class RepairOrderStatusesService {
       const [created]: RepairOrderStatus[] = await trx('repair_order_statuses')
         .insert(insertData)
         .returning('*');
+      await this.historyService.recordEntityCreated({
+        db: trx,
+        entityTable: 'repair_order_statuses',
+        entityPk: created.id,
+        entityLabel: created.name_uz ?? null,
+        rootEntityTable: 'branches',
+        rootEntityPk: branchId,
+        branchId,
+        actor: { actorPk: adminId },
+        values: created as unknown as Record<string, unknown>,
+      });
       await trx.commit();
 
       await Promise.all([
@@ -267,7 +280,11 @@ export class RepairOrderStatusesService {
     }
   }
 
-  async updateSort(status: RepairOrderStatus, newSort: number): Promise<{ message: string }> {
+  async updateSort(
+    status: RepairOrderStatus,
+    newSort: number,
+    adminId?: string,
+  ): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
       if (newSort === status.sort) return { message: 'No change needed' };
@@ -289,6 +306,19 @@ export class RepairOrderStatusesService {
       await trx('repair_order_statuses')
         .where({ id: status.id })
         .update({ sort: newSort, updated_at: new Date() });
+      await this.historyService.recordEntityUpdated({
+        db: trx,
+        entityTable: 'repair_order_statuses',
+        entityPk: status.id,
+        entityLabel: status.name_uz ?? null,
+        rootEntityTable: 'branches',
+        rootEntityPk: status.branch_id,
+        branchId: status.branch_id,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: status as unknown as Record<string, unknown>,
+        after: { ...status, sort: newSort } as Record<string, unknown>,
+        fields: ['sort'],
+      });
       await trx.commit();
 
       await Promise.all([
@@ -310,6 +340,7 @@ export class RepairOrderStatusesService {
   async update(
     status: RepairOrderStatus,
     dto: UpdateRepairOrderStatusDto,
+    adminId?: string,
   ): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
@@ -366,6 +397,19 @@ export class RepairOrderStatusesService {
 
       await trx('repair_order_statuses').where({ id: status.id }).update(updateData);
       const updated = await trx('repair_order_statuses').where({ id: status.id }).first();
+      await this.historyService.recordEntityUpdated({
+        db: trx,
+        entityTable: 'repair_order_statuses',
+        entityPk: status.id,
+        entityLabel: status.name_uz ?? null,
+        rootEntityTable: 'branches',
+        rootEntityPk: status.branch_id,
+        branchId: status.branch_id,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: status as unknown as Record<string, unknown>,
+        after: updated as Record<string, unknown>,
+        fields: Object.keys(dto),
+      });
 
       await trx.commit();
       await Promise.all([
@@ -387,7 +431,7 @@ export class RepairOrderStatusesService {
     }
   }
 
-  async delete(status: RepairOrderStatus): Promise<{ message: string }> {
+  async delete(status: RepairOrderStatus, adminId?: string): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
       if (status.is_protected) {
@@ -400,6 +444,18 @@ export class RepairOrderStatusesService {
       await trx('repair_order_statuses')
         .where({ id: status.id })
         .update({ status: 'Deleted', updated_at: new Date() });
+      await this.historyService.recordEntityDeleted({
+        db: trx,
+        entityTable: 'repair_order_statuses',
+        entityPk: status.id,
+        entityLabel: status.name_uz ?? null,
+        rootEntityTable: 'branches',
+        rootEntityPk: status.branch_id,
+        branchId: status.branch_id,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: status as unknown as Record<string, unknown>,
+        fields: ['status'],
+      });
       await this.repairOrderStatusPermissions.deletePermissionsByStatus(status.id);
 
       await trx.commit();

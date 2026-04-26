@@ -1,6 +1,7 @@
 export { CreateRepairOrderDto } from './create-repair-order.dto';
 export { UpdateRepairOrderDto } from './update-repair-order.dto';
 export { FindAllRepairOrdersQueryDto } from './find-all-repair-orders.dto';
+export { FindAllUnfilteredRepairOrdersDto } from './find-all-unfiltered-repair-orders.dto';
 export { MoveRepairOrderDto } from './move-repair-order.dto';
 export { UpdateRepairOrderSortDto } from './update-repair-order-sort.dto';
 export { AssignAdminsDto } from './assign-admin.dto';

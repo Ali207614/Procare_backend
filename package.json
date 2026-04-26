@@ -27,6 +27,7 @@
     "start:prod": "node dist/main",
     "db:migrate": "node scripts/fix-corrupt-migration.js && knex migrate:latest && node scripts/reconcile-repair-order-statuses.js",
     "db:backfill:history-comments": "node scripts/backfill-history-comments.js",
+    "db:backfill:history-current-values": "node scripts/backfill-history-current-values.js",
     "db:seed": "knex seed:run",
     "db:seed:permissions": "knex seed:run --specific=01_permissions.js",
     "db:seed:reject-causes": "knex seed:run --specific=28_reject_causes.js",

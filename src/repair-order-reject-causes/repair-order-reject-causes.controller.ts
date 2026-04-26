@@ -18,8 +18,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { RepairOrderRejectCausesService } from './repair-order-reject-causes.service';
 import { RepairOrderRejectCause } from 'src/common/types/repair-order-reject-cause.interface';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { PermissionsGuard } from 'src/common/guards/permission.guard';
 import { SetPermissions } from 'src/common/decorators/permission-decorator';
@@ -67,8 +69,11 @@ export class RepairOrderRejectCausesController {
   @SetPermissions('repair.order.reject.cause.create')
   @ApiOperation({ summary: 'Create a new reject cause' })
   @ApiResponse({ status: 201, description: 'Reject cause created successfully' })
-  async create(@Body() dto: CreateRepairOrderRejectCauseDto): Promise<RepairOrderRejectCause> {
-    return this.service.create(dto);
+  async create(
+    @CurrentAdmin() admin: AdminPayload,
+    @Body() dto: CreateRepairOrderRejectCauseDto,
+  ): Promise<RepairOrderRejectCause> {
+    return this.service.create(dto, admin.id);
   }
 
   @Patch(':id')
@@ -77,10 +82,11 @@ export class RepairOrderRejectCausesController {
   @ApiOperation({ summary: 'Update reject cause details' })
   @ApiParam({ name: 'id', description: 'Reject cause ID (UUID)' })
   async update(
+    @CurrentAdmin() admin: AdminPayload,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateRepairOrderRejectCauseDto,
   ): Promise<{ message: string }> {
-    return this.service.update(id, dto);
+    return this.service.update(id, dto, admin.id);
   }
 
   @Patch(':id/sort')
@@ -89,10 +95,11 @@ export class RepairOrderRejectCausesController {
   @ApiOperation({ summary: 'Update reject cause sort order' })
   @ApiParam({ name: 'id', description: 'Reject cause ID (UUID)' })
   async updateSort(
+    @CurrentAdmin() admin: AdminPayload,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateRepairOrderRejectCauseSortDto,
   ): Promise<{ message: string }> {
-    return this.service.updateSort(id, dto.sort);
+    return this.service.updateSort(id, dto.sort, admin.id);
   }
 
   @Delete(':id')
@@ -100,7 +107,10 @@ export class RepairOrderRejectCausesController {
   @SetPermissions('repair.order.reject.cause.delete')
   @ApiOperation({ summary: 'Soft delete a reject cause' })
   @ApiParam({ name: 'id', description: 'Reject cause ID (UUID)' })
-  async delete(@Param('id', ParseUUIDPipe) id: string): Promise<{ message: string }> {
-    return this.service.delete(id);
+  async delete(
+    @CurrentAdmin() admin: AdminPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ message: string }> {
+    return this.service.delete(id, admin.id);
   }
 }

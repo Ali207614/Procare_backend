@@ -8,6 +8,7 @@ import { FeatureModule } from 'src/feature/feature.module';
 import { AdminsModule } from 'src/admins/admins.module';
 import { JwtAdminStrategy } from 'src/common/strategies/jwt-admin.strategy';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
+import { HistoryModule } from 'src/history/history.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
     ConfigModule,
     RedisModule,
     FeatureModule,
+    HistoryModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({

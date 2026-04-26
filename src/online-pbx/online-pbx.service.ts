@@ -6,6 +6,12 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import * as https from 'https';
 import { User } from 'src/common/types/user.interface';
+import { HistoryService } from 'src/history/history.service';
+import {
+  HistoryFieldChange,
+  HistoryScalarValue,
+  HistoryValueType,
+} from 'src/history/types/history.types';
 
 interface OnlinePbxWebhookPayload {
   uuid: string;
@@ -54,6 +60,7 @@ export class OnlinePbxService {
     private readonly config: ConfigService,
     @InjectKnex() private readonly knex: Knex,
     private readonly repairOrderService: RepairOrdersService,
+    private readonly historyService: HistoryService,
   ) {
     // We use https as a default to ensure secure communication.
     // In Node.js, the implementation for http and https is handled by axios automatically
@@ -184,7 +191,20 @@ export class OnlinePbxService {
 
     const existingCall = await this.knex<PhoneCall>('phone_calls')
       .where({ uuid })
-      .first('uuid', 'event', 'dialog_duration', 'repair_order_id');
+      .first(
+        'id',
+        'uuid',
+        'caller',
+        'callee',
+        'direction',
+        'event',
+        'call_duration',
+        'dialog_duration',
+        'hangup_cause',
+        'download_url',
+        'user_id',
+        'repair_order_id',
+      );
 
     const parsedDialogDuration = this.parsePositiveDuration(dialog_duration);
     const gateway = this.config.get<string>('GATEWAY');
@@ -450,6 +470,27 @@ export class OnlinePbxService {
           updated_at: new Date().toISOString(),
         });
 
+      const savedCall = await trx<PhoneCall>('phone_calls').where({ uuid }).first('id');
+
+      await this.recordWebhookHistory(trx, {
+        existingCall,
+        phoneCallId: savedCall?.id ?? existingCall?.id ?? uuid,
+        uuid,
+        caller: formattedCaller,
+        callee: formattedCallee,
+        direction,
+        event,
+        gateway: normalizedPayloadGateway,
+        callDuration: call_duration ? Number(call_duration) : null,
+        dialogDuration: parsedDialogDuration || null,
+        hangupCause: hangup_cause || null,
+        downloadUrl: download_url || null,
+        userId,
+        repairOrderId,
+        customerPhone: formattedCustomerPhone,
+        onlinepbxCode: conversationAdminCode,
+      });
+
       if (shouldCreateTalkComment && repairOrderId) {
         await this.insertRepairOrderComment(trx, {
           repairOrderId,
@@ -460,6 +501,231 @@ export class OnlinePbxService {
         });
       }
     });
+  }
+
+  private async recordWebhookHistory(
+    trx: Knex.Transaction,
+    data: {
+      existingCall: Partial<PhoneCall> | undefined;
+      phoneCallId: string;
+      uuid: string;
+      caller: string | null;
+      callee: string | null;
+      direction?: string;
+      event?: string;
+      gateway: string | null;
+      callDuration: number | null;
+      dialogDuration: number | null;
+      hangupCause: string | null;
+      downloadUrl: string | null;
+      userId: string | null;
+      repairOrderId: string | null;
+      customerPhone: string | null;
+      onlinepbxCode: string | null;
+    },
+  ): Promise<void> {
+    const rootEntityTable = data.repairOrderId ? 'repair_orders' : 'phone_calls';
+    const rootEntityPk = data.repairOrderId ?? data.phoneCallId;
+
+    await this.historyService.createEvent(
+      {
+        actionKey: `online_pbx.webhook.${data.event || 'unknown'}`,
+        actionKind: 'webhook',
+        sourceType: 'webhook',
+        sourceName: 'online-pbx',
+        correlationId: data.uuid,
+        idempotencyKey: `${data.uuid}:${data.event || 'unknown'}`,
+        httpMethod: 'POST',
+        httpPath: '/api/webhooks/online-pbx/webhook',
+        rootEntityTable,
+        rootEntityPk,
+        branchId: DEFAULT_BRANCH_ID,
+        actors: [
+          {
+            actorRole: 'external_source',
+            actorType: 'webhook',
+            actorLabel: 'OnlinePBX',
+          },
+        ],
+        entities: [
+          {
+            key: 'phone_call',
+            entityTable: 'phone_calls',
+            entityPk: data.phoneCallId,
+            entityLabel: data.uuid,
+            entityRole: 'primary_target',
+            rootEntityTable,
+            rootEntityPk,
+            branchId: DEFAULT_BRANCH_ID,
+            beforeExists: Boolean(data.existingCall),
+            afterExists: true,
+          },
+          ...(data.repairOrderId
+            ? [
+                {
+                  key: 'repair_order',
+                  entityTable: 'repair_orders',
+                  entityPk: data.repairOrderId,
+                  entityRole: 'affected' as const,
+                  rootEntityTable,
+                  rootEntityPk,
+                  branchId: DEFAULT_BRANCH_ID,
+                  beforeExists: true,
+                  afterExists: true,
+                },
+              ]
+            : []),
+          ...(data.userId
+            ? [
+                {
+                  key: 'user',
+                  entityTable: 'users',
+                  entityPk: data.userId,
+                  entityRole: 'affected' as const,
+                  rootEntityTable,
+                  rootEntityPk,
+                  branchId: DEFAULT_BRANCH_ID,
+                  beforeExists: true,
+                  afterExists: true,
+                },
+              ]
+            : []),
+        ],
+        inputs: [
+          this.historyInput('onlinepbx.uuid', data.uuid, 'string'),
+          this.historyInput('onlinepbx.gateway', data.gateway, 'phone', true),
+          this.historyInput('onlinepbx.direction', data.direction ?? null, 'enum'),
+          this.historyInput('onlinepbx.event', data.event ?? null, 'enum'),
+          this.historyInput('onlinepbx.caller', data.caller, 'phone', true),
+          this.historyInput('onlinepbx.callee', data.callee, 'phone', true),
+          this.historyInput('onlinepbx.customer_phone', data.customerPhone, 'phone', true),
+          this.historyInput('onlinepbx.admin_code', data.onlinepbxCode, 'string', true),
+          this.historyInput('onlinepbx.call_duration', data.callDuration, 'integer'),
+          this.historyInput('onlinepbx.dialog_duration', data.dialogDuration, 'integer'),
+          this.historyInput('onlinepbx.hangup_cause', data.hangupCause, 'string'),
+          this.historyInput('onlinepbx.download_url_present', Boolean(data.downloadUrl), 'boolean'),
+        ],
+        changes: this.buildPhoneCallHistoryChanges(data),
+      },
+      trx,
+    );
+  }
+
+  private buildPhoneCallHistoryChanges(data: {
+    existingCall: Partial<PhoneCall> | undefined;
+    phoneCallId: string;
+    uuid: string;
+    caller: string | null;
+    callee: string | null;
+    direction?: string;
+    event?: string;
+    callDuration: number | null;
+    dialogDuration: number | null;
+    hangupCause: string | null;
+    downloadUrl: string | null;
+    userId: string | null;
+    repairOrderId: string | null;
+  }): HistoryFieldChange[] {
+    const operation = data.existingCall ? 'update' : 'insert';
+    const fields: {
+      fieldPath: keyof PhoneCall;
+      valueType: HistoryValueType;
+      refTable?: string;
+      newValue: string | number | null;
+    }[] = [
+      { fieldPath: 'uuid', valueType: 'string', newValue: data.uuid },
+      { fieldPath: 'caller', valueType: 'phone', newValue: data.caller },
+      { fieldPath: 'callee', valueType: 'phone', newValue: data.callee },
+      { fieldPath: 'direction', valueType: 'enum', newValue: data.direction ?? null },
+      { fieldPath: 'event', valueType: 'enum', newValue: data.event ?? null },
+      { fieldPath: 'call_duration', valueType: 'integer', newValue: data.callDuration },
+      { fieldPath: 'dialog_duration', valueType: 'integer', newValue: data.dialogDuration },
+      { fieldPath: 'hangup_cause', valueType: 'string', newValue: data.hangupCause },
+      { fieldPath: 'download_url', valueType: 'url', newValue: data.downloadUrl },
+      { fieldPath: 'user_id', valueType: 'reference', refTable: 'users', newValue: data.userId },
+      {
+        fieldPath: 'repair_order_id',
+        valueType: 'reference',
+        refTable: 'repair_orders',
+        newValue: data.repairOrderId,
+      },
+    ];
+
+    return fields.flatMap((field) => {
+      const oldValue = data.existingCall?.[field.fieldPath] ?? null;
+
+      if (operation === 'insert' && field.newValue == null) {
+        return [];
+      }
+
+      if (
+        operation === 'update' &&
+        this.historyComparable(oldValue) === this.historyComparable(field.newValue)
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          eventEntityKey: 'phone_call',
+          entityTable: 'phone_calls',
+          entityPk: data.phoneCallId,
+          fieldPath: field.fieldPath,
+          operation,
+          valueType: field.valueType,
+          oldValue: this.historyScalar(field.valueType, oldValue, field.refTable),
+          newValue: this.historyScalar(field.valueType, field.newValue, field.refTable),
+        },
+      ];
+    });
+  }
+
+  private historyInput(
+    inputKey: string,
+    value: string | number | boolean | null,
+    valueType: HistoryValueType,
+    isSensitive = false,
+  ): HistoryScalarValue & { inputKey: string } {
+    return {
+      inputKey,
+      valueType,
+      valueText: isSensitive && typeof value === 'string' ? this.maskHistoryInput(value) : value,
+      isSensitive,
+    };
+  }
+
+  private historyScalar(
+    valueType: HistoryValueType,
+    value: unknown,
+    refTable?: string,
+  ): HistoryScalarValue {
+    const text = this.toHistoryText(value);
+
+    return {
+      valueType: text == null ? 'null' : valueType,
+      valueText: text,
+      refTable: refTable ?? null,
+      refPk: valueType === 'reference' && typeof text === 'string' ? text : null,
+    };
+  }
+
+  private toHistoryText(value: unknown): string | number | boolean | Date | null {
+    if (value == null) return null;
+    if (value instanceof Date) return value;
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return value;
+    }
+
+    return String(value);
+  }
+
+  private historyComparable(value: unknown): string {
+    return JSON.stringify(value ?? null);
+  }
+
+  private maskHistoryInput(value: string): string {
+    if (value.length <= 4) return '*'.repeat(value.length);
+    return `${value.slice(0, 2)}${'*'.repeat(Math.max(value.length - 4, 1))}${value.slice(-2)}`;
   }
 
   private parsePositiveDuration(value: string | number | undefined): number {

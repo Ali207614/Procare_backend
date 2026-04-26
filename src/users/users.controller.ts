@@ -58,16 +58,20 @@ export class UsersController {
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateUserDto,
+    @CurrentAdmin() admin: AdminPayload,
   ): Promise<{ message: string }> {
-    return this.usersService.update(id, dto);
+    return this.usersService.update(id, dto, admin);
   }
 
   @Delete(':id')
   @UseGuards(PermissionsGuard)
   @SetPermissions('user.delete')
   @ApiOperation({ summary: 'Soft delete user' })
-  async delete(@Param('id', ParseUUIDPipe) id: string): Promise<{ message: string }> {
-    return this.usersService.delete(id);
+  async delete(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentAdmin() admin: AdminPayload,
+  ): Promise<{ message: string }> {
+    return this.usersService.delete(id, admin);
   }
 
   @Get(':id')

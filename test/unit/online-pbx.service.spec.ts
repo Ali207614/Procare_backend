@@ -22,6 +22,9 @@ describe('OnlinePbxService gateway filtering', () => {
     moveToTopById: jest.Mock;
     notifyAvailableAssignedAdminsForIncomingCall: jest.Mock;
   };
+  let historyService: {
+    createEvent: jest.Mock;
+  };
   let insertChain: {
     onConflict: jest.Mock;
   };
@@ -139,12 +142,16 @@ describe('OnlinePbxService gateway filtering', () => {
       moveToTopById: jest.fn(),
       notifyAvailableAssignedAdminsForIncomingCall: jest.fn(),
     };
+    historyService = {
+      createEvent: jest.fn().mockResolvedValue({ id: 'history-event-1' }),
+    };
 
     service = new OnlinePbxService(
       logger as any,
       config as any,
       knex as any,
       repairOrderService as any,
+      historyService as any,
     );
   });
 
@@ -159,6 +166,7 @@ describe('OnlinePbxService gateway filtering', () => {
     );
     expect(knex).not.toHaveBeenCalled();
     expect(repairOrderService.findOpenOrderByPhoneNumber).not.toHaveBeenCalled();
+    expect(historyService.createEvent).not.toHaveBeenCalled();
   });
 
   it.each(['781133774', '998781133774', '+998781133774'])(
@@ -175,6 +183,16 @@ describe('OnlinePbxService gateway filtering', () => {
       expect(knex).toHaveBeenCalledWith('phone_calls');
       expect(insertChain.onConflict).toHaveBeenCalledWith('uuid');
       expect(mergeSpy).toHaveBeenCalled();
+      expect(historyService.createEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actionKey: 'online_pbx.webhook.unknown',
+          actionKind: 'webhook',
+          sourceType: 'webhook',
+          sourceName: 'online-pbx',
+          correlationId: `call-${gateway}`,
+        }),
+        knex,
+      );
     },
   );
 

@@ -37,11 +37,13 @@ import {
   RepairOrderDetails,
 } from 'src/common/types/repair-order.interface';
 import { FindAllRepairOrdersQueryDto } from 'src/repair-orders/dto/find-all-repair-orders.dto';
+import { FindAllUnfilteredRepairOrdersDto } from 'src/repair-orders/dto/find-all-unfiltered-repair-orders.dto';
 import { UpdateClientInfoDto, UpdateProductDto, UpdateProblemDto, TransferBranchDto } from './dto';
 import {
   RepairOrderDetailsSwaggerDto,
   RepairOrderListItemSwaggerDto,
 } from './dto/repair-order-swagger.dto';
+import { PaginationResult } from 'src/common/utils/pagination.util';
 
 @ApiTags('Repair Orders')
 @ApiBearerAuth()
@@ -104,6 +106,17 @@ export class RepairOrdersController {
     Record<string, { metrics: { total_repair_orders: number }; repair_orders: FreshRepairOrder[] }>
   > {
     return this.service.findAllByAdminBranch(req.admin, req.branch.id, query);
+  }
+
+  @Get('all')
+  @ApiOperation({
+    summary: 'Get all repair orders without status or branch filters (Super Admin only)',
+  })
+  findAllUnfiltered(
+    @Req() req: AuthenticatedRequest,
+    @Query() query: FindAllUnfilteredRepairOrdersDto,
+  ): Promise<PaginationResult<RepairOrder>> {
+    return this.service.findAllUnfiltered(req.admin, query);
   }
 
   @Get(':repair_order_id')

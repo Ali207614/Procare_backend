@@ -4,7 +4,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectKnex, Knex } from 'nestjs-knex';
+import { Knex } from 'knex';
+import { InjectKnex } from 'nestjs-knex';
 import { RedisService } from 'src/common/redis/redis.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
@@ -13,6 +14,7 @@ import { Role } from 'src/common/types/role.interface';
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { EnumBooleanString, FindAllRolesDto } from 'src/roles/dto/find-all-roles.dto';
+import { HistoryService } from 'src/history/history.service';
 
 export interface RoleWithPermissions extends Role {
   permissions: Permission[];
@@ -24,6 +26,7 @@ export class RolesService {
     @InjectKnex() private readonly knex: Knex,
     private readonly redisService: RedisService,
     private readonly repairOrderStatusPermissionsService: RepairOrderStatusPermissionsService,
+    private readonly historyService: HistoryService,
   ) {}
 
   async create(dto: CreateRoleDto, adminId: string): Promise<Role> {
@@ -61,6 +64,15 @@ export class RolesService {
         })
         .returning('*');
 
+      await this.historyService.recordEntityCreated({
+        db: trx,
+        entityTable: 'roles',
+        entityPk: role.id,
+        entityLabel: role.name,
+        actor: { actorPk: adminId },
+        values: role as unknown as Record<string, unknown>,
+      });
+
       if (dto.permission_ids?.length) {
         const mappings = dto.permission_ids.map((permission_id) => ({
           role_id: role.id,
@@ -68,6 +80,20 @@ export class RolesService {
         }));
 
         await trx('role_permissions').insert(mappings);
+        for (const permission_id of dto.permission_ids) {
+          await this.historyService.recordRelationChanged({
+            db: trx,
+            actionKind: 'link',
+            actor: { actorPk: adminId },
+            from: { entityTable: 'roles', entityPk: role.id, entityLabel: role.name },
+            to: {
+              entityTable: 'permissions',
+              entityPk: permission_id,
+              entityRole: 'permission_dependency',
+            },
+            fieldPath: 'permission_id',
+          });
+        }
       }
 
       return role;
@@ -186,9 +212,13 @@ export class RolesService {
     };
   }
 
-  async update(id: string, dto: UpdateRoleDto): Promise<{ message: string }> {
+  async update(id: string, dto: UpdateRoleDto, adminId?: string): Promise<{ message: string }> {
     const result = await this.knex.transaction(async (trx) => {
       const role = await this.findOne(id);
+      const previousPermissionIds =
+        dto.permission_ids !== undefined
+          ? await trx('role_permissions').where({ role_id: id }).pluck<string>('permission_id')
+          : [];
 
       if (
         role.is_protected &&
@@ -238,6 +268,14 @@ export class RolesService {
         if (mappings.length > 0) {
           await trx('role_permissions').insert(mappings);
         }
+
+        await this.recordRelationDiff(trx, {
+          actorAdminId: adminId,
+          roleId: id,
+          roleName: role.name,
+          beforeIds: previousPermissionIds,
+          afterIds: dto.permission_ids,
+        });
       }
 
       const updatePayload = {
@@ -248,6 +286,17 @@ export class RolesService {
       };
 
       await trx('roles').where({ id }).update(updatePayload);
+
+      await this.historyService.recordEntityUpdated({
+        db: trx,
+        entityTable: 'roles',
+        entityPk: id,
+        entityLabel: role.name,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: role as unknown as Record<string, unknown>,
+        after: { ...role, ...updatePayload } as Record<string, unknown>,
+        fields: Object.keys(updatePayload).filter((field) => field !== 'updated_at'),
+      });
 
       const adminIds = await trx('admin_roles').where({ role_id: id }).pluck('admin_id');
 
@@ -261,7 +310,7 @@ export class RolesService {
     return { message: result.message };
   }
 
-  async delete(id: string): Promise<{ message: string }> {
+  async delete(id: string, adminId?: string): Promise<{ message: string }> {
     const role: RoleWithPermissions = await this.findOne(id);
 
     if (role?.is_protected) {
@@ -270,13 +319,69 @@ export class RolesService {
         location: 'role_protected',
       });
     }
-    await this.knex('roles').where({ id }).update({
-      is_active: false,
-      status: 'Deleted',
-      updated_at: new Date(),
+    await this.knex.transaction(async (trx) => {
+      await trx('roles').where({ id }).update({
+        is_active: false,
+        status: 'Deleted',
+        updated_at: new Date(),
+      });
+
+      await this.historyService.recordEntityDeleted({
+        db: trx,
+        entityTable: 'roles',
+        entityPk: id,
+        entityLabel: role.name,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: role as unknown as Record<string, unknown>,
+        fields: ['status', 'is_active'],
+      });
     });
 
     await this.repairOrderStatusPermissionsService.deletePermissionsByRole(id);
     return { message: 'Role deleted (soft) successfully' };
+  }
+
+  private async recordRelationDiff(
+    trx: Knex.Transaction,
+    params: {
+      actorAdminId?: string;
+      roleId: string;
+      roleName: string;
+      beforeIds: string[];
+      afterIds: string[];
+    },
+  ): Promise<void> {
+    const before = new Set(params.beforeIds);
+    const after = new Set(params.afterIds);
+
+    for (const permissionId of params.afterIds.filter((item) => !before.has(item))) {
+      await this.historyService.recordRelationChanged({
+        db: trx,
+        actionKind: 'link',
+        actor: params.actorAdminId ? { actorPk: params.actorAdminId } : null,
+        from: { entityTable: 'roles', entityPk: params.roleId, entityLabel: params.roleName },
+        to: {
+          entityTable: 'permissions',
+          entityPk: permissionId,
+          entityRole: 'permission_dependency',
+        },
+        fieldPath: 'permission_id',
+      });
+    }
+
+    for (const permissionId of params.beforeIds.filter((item) => !after.has(item))) {
+      await this.historyService.recordRelationChanged({
+        db: trx,
+        actionKind: 'unlink',
+        actor: params.actorAdminId ? { actorPk: params.actorAdminId } : null,
+        from: { entityTable: 'roles', entityPk: params.roleId, entityLabel: params.roleName },
+        to: {
+          entityTable: 'permissions',
+          entityPk: permissionId,
+          entityRole: 'permission_dependency',
+        },
+        fieldPath: 'permission_id',
+      });
+    }
   }
 }

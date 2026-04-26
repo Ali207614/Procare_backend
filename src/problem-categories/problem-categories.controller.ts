@@ -76,26 +76,31 @@ export class ProblemCategoriesController {
   @UseGuards(PermissionsGuard)
   @SetPermissions('problem.category.update')
   async update(
+    @CurrentAdmin() admin: AdminPayload,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProblemCategoryDto,
   ): Promise<{ message: string }> {
-    return this.service.update(id, dto);
+    return this.service.update(id, dto, admin.id);
   }
 
   @Patch(':id/sort')
   @UseGuards(PermissionsGuard)
   @SetPermissions('problem.category.update')
   async updateSort(
+    @CurrentAdmin() admin: AdminPayload,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProblemCategorySortDto,
   ): Promise<{ message: string }> {
-    return this.service.updateSort(id, dto.sort);
+    return this.service.updateSort(id, dto.sort, admin.id);
   }
 
   @Delete(':id')
   @UseGuards(PermissionsGuard)
   @SetPermissions('problem.category.delete')
-  async delete(@Param('id', ParseUUIDPipe) id: string): Promise<{ message: string }> {
-    return this.service.delete(id);
+  async delete(
+    @CurrentAdmin() admin: AdminPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ message: string }> {
+    return this.service.delete(id, admin.id);
   }
 }

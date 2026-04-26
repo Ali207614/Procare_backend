@@ -28,6 +28,8 @@ import { VerifyForgotPasswordOtpDto } from './dto/verify-forgot-password-otp.dto
 import { AdminsService } from 'src/admins/admins.service';
 import { Admin } from 'src/common/types/admin.interface';
 import { SendCodeResponseDto } from './dto/send-code-response.dto';
+import { HistoryService } from 'src/history/history.service';
+import { HistoryEventWrite } from 'src/history/types/history.types';
 
 @Injectable()
 export class AuthService {
@@ -37,6 +39,7 @@ export class AuthService {
     private readonly adminsService: AdminsService,
     private readonly jwtService: JwtService,
     private readonly redisService: RedisService,
+    private readonly historyService: HistoryService,
   ) {}
 
   private readonly RESET_PREFIX = 'reset-code:';
@@ -136,6 +139,14 @@ export class AuthService {
     );
 
     if (!existingAdmin) {
+      await this.recordAuthEvent({
+        actionKey: 'auth.admin.send_verification_code',
+        actionKind: 'other',
+        phoneNumber: dto.phone_number,
+        isSuccess: false,
+        failureCode: 'admin_not_found',
+        failureMessage: 'Admin not found',
+      });
       throw new NotFoundException({
         message: 'Admin not found. Please contact super admin.',
         location: 'admin_not_found',
@@ -143,21 +154,49 @@ export class AuthService {
     }
 
     if (existingAdmin.status !== 'Pending') {
+      await this.recordAuthEvent({
+        actionKey: 'auth.admin.send_verification_code',
+        actionKind: 'other',
+        phoneNumber: dto.phone_number,
+        admin: existingAdmin,
+        isSuccess: false,
+        failureCode: 'already_registered',
+        failureMessage: 'Admin already registered or not allowed to verify',
+      });
       throw new ConflictException({
         message: 'Admin already registered or not allowed to verify.',
         location: 'already_registered',
       });
     }
 
-    return await this.sendCode(dto.phone_number, 'verify');
+    const result = await this.sendCode(dto.phone_number, 'verify');
+    await this.recordAuthEvent({
+      actionKey: 'auth.admin.send_verification_code',
+      actionKind: 'other',
+      phoneNumber: dto.phone_number,
+      admin: existingAdmin,
+      isSuccess: true,
+    });
+
+    return result;
   }
 
   async verifyCode(dto: VerifyDto): Promise<{ message: string }> {
+    const admin = await this.adminsService.findByPhoneNumber(dto.phone_number);
     const storedCode: string | null = await this.redisService.get(
       `${this.REDIS_PREFIX.verify}:${dto.phone_number}`,
     );
 
     if (!storedCode || storedCode !== dto.code) {
+      await this.recordAuthEvent({
+        actionKey: 'auth.admin.verify_code',
+        actionKind: 'other',
+        phoneNumber: dto.phone_number,
+        admin,
+        isSuccess: false,
+        failureCode: 'invalid_code',
+        failureMessage: 'Invalid verification code',
+      });
       throw new BadRequestException({
         message: 'Invalid verification code',
         location: 'invalid_code',
@@ -166,6 +205,18 @@ export class AuthService {
 
     await this.adminsService.markPhoneVerified(dto.phone_number);
     await this.redisService.del(`${this.REDIS_PREFIX.verify}:${dto.phone_number}`);
+    if (admin) {
+      await this.historyService.recordEntityUpdated({
+        entityTable: 'admins',
+        entityPk: admin.id,
+        entityLabel: [admin.first_name, admin.last_name].filter(Boolean).join(' ') || null,
+        actor: { actorType: 'system', actorTable: null, actorPk: null },
+        before: admin as unknown as Record<string, unknown>,
+        after: { ...admin, phone_verified: true, status: 'Pending', updated_at: new Date() },
+        fields: ['phone_verified', 'status'],
+        actionKey: 'auth.admin.verify_code',
+      });
+    }
 
     return { message: 'Phone number verified successfully' };
   }
@@ -174,6 +225,15 @@ export class AuthService {
     const admin: Admin | undefined = await this.adminsService.findByPhoneNumber(dto.phone_number);
 
     if (dto.password !== dto.confirm_password) {
+      await this.recordAuthEvent({
+        actionKey: 'auth.admin.register',
+        actionKind: 'other',
+        phoneNumber: dto.phone_number,
+        admin,
+        isSuccess: false,
+        failureCode: 'password_mismatch',
+        failureMessage: 'Passwords do not match',
+      });
       throw new BadRequestException({
         message: 'Passwords do not match',
         location: 'confirm_password',
@@ -181,6 +241,14 @@ export class AuthService {
     }
 
     if (!admin) {
+      await this.recordAuthEvent({
+        actionKey: 'auth.admin.register',
+        actionKind: 'other',
+        phoneNumber: dto.phone_number,
+        isSuccess: false,
+        failureCode: 'admin_not_found',
+        failureMessage: 'Admin not found',
+      });
       throw new NotFoundException({
         message: 'Admin not found. Please contact super admin.',
         location: 'admin_not_found',
@@ -188,6 +256,15 @@ export class AuthService {
     }
 
     if (admin.status !== 'Pending') {
+      await this.recordAuthEvent({
+        actionKey: 'auth.admin.register',
+        actionKind: 'other',
+        phoneNumber: dto.phone_number,
+        admin,
+        isSuccess: false,
+        failureCode: 'already_registered',
+        failureMessage: 'Admin already completed registration',
+      });
       throw new ConflictException({
         message: 'Admin already completed registration',
         location: 'already_registered',
@@ -195,6 +272,15 @@ export class AuthService {
     }
 
     if (!admin.phone_verified) {
+      await this.recordAuthEvent({
+        actionKey: 'auth.admin.register',
+        actionKind: 'other',
+        phoneNumber: dto.phone_number,
+        admin,
+        isSuccess: false,
+        failureCode: 'phone_not_verified',
+        failureMessage: 'Phone number not verified',
+      });
       throw new BadRequestException({
         message: 'Phone number not verified',
         location: 'phone_not_verified',
@@ -207,11 +293,28 @@ export class AuthService {
       password: hashedPassword,
       status: 'Open',
     });
+    await this.historyService.recordEntityUpdated({
+      entityTable: 'admins',
+      entityPk: admin.id,
+      entityLabel: [admin.first_name, admin.last_name].filter(Boolean).join(' ') || null,
+      actor: { actorPk: admin.id },
+      before: admin as unknown as Record<string, unknown>,
+      after: { ...admin, password: hashedPassword, status: 'Open', updated_at: new Date() },
+      fields: ['password', 'status'],
+      actionKey: 'auth.admin.register',
+    });
 
     const payload = { id: admin.id, phone_number: admin.phone_number, roles: [] };
     const token = this.jwtService.sign(payload);
 
     await this.setAdminSession(admin.id, token);
+    await this.recordAuthEvent({
+      actionKey: 'auth.admin.register',
+      actionKind: 'login',
+      phoneNumber: dto.phone_number,
+      admin,
+      isSuccess: true,
+    });
 
     return {
       access_token: token,
@@ -224,17 +327,48 @@ export class AuthService {
     );
 
     if (admin && admin?.status === 'Pending') {
+      await this.recordAuthEvent({
+        actionKey: 'auth.admin.login',
+        actionKind: 'login',
+        phoneNumber: loginDto.phone_number,
+        admin,
+        isSuccess: false,
+        failureCode: 'incomplete_registration',
+        failureMessage: 'Registration incomplete',
+      });
       throw new ForbiddenException({
         message: 'Registration incomplete. Please finish registration.',
         location: 'incomplete_registration',
       });
     }
 
-    this.adminsService.checkAdminAccessControl(admin, { requireVerified: true });
+    try {
+      this.adminsService.checkAdminAccessControl(admin, { requireVerified: true });
+    } catch (error) {
+      await this.recordAuthEvent({
+        actionKey: 'auth.admin.login',
+        actionKind: 'login',
+        phoneNumber: loginDto.phone_number,
+        admin,
+        isSuccess: false,
+        failureCode: this.authFailureCode(error),
+        failureMessage: error instanceof Error ? error.message : 'Admin access check failed',
+      });
+      throw error;
+    }
 
     const isPasswordValid =
       admin && (await bcrypt.compare(loginDto.password, admin?.password || ''));
     if (!admin || !isPasswordValid) {
+      await this.recordAuthEvent({
+        actionKey: 'auth.admin.login',
+        actionKind: 'login',
+        phoneNumber: loginDto.phone_number,
+        admin,
+        isSuccess: false,
+        failureCode: 'invalid_login',
+        failureMessage: 'Invalid credentials',
+      });
       throw new UnauthorizedException({
         message: 'Invalid credentials',
         location: 'invalid_login',
@@ -245,6 +379,13 @@ export class AuthService {
     const token = this.jwtService.sign(payload);
 
     await this.setAdminSession(admin.id, token);
+    await this.recordAuthEvent({
+      actionKey: 'auth.admin.login',
+      actionKind: 'login',
+      phoneNumber: loginDto.phone_number,
+      admin,
+      isSuccess: true,
+    });
 
     return {
       access_token: token,
@@ -267,6 +408,12 @@ export class AuthService {
 
     const blacklistKey = `blacklist:token:${token}`;
     await this.redisService.set(blacklistKey, 'blacklisted', 60 * 60 * 24 * 7);
+    await this.recordAuthEvent({
+      actionKey: 'auth.admin.logout',
+      actionKind: 'logout',
+      admin: { id: adminId } as Admin,
+      isSuccess: true,
+    });
 
     return { message: 'Logged out successfully' };
   }
@@ -327,9 +474,22 @@ export class AuthService {
     }
 
     const hashed = await bcrypt.hash(dto.new_password, 10);
+    const admin = await this.adminsService.findByPhoneNumber(dto.phone_number);
     await this.knex('admins')
       .where({ phone_number: dto.phone_number })
       .update({ password: hashed, updated_at: new Date() });
+    if (admin) {
+      await this.historyService.recordEntityUpdated({
+        entityTable: 'admins',
+        entityPk: admin.id,
+        entityLabel: [admin.first_name, admin.last_name].filter(Boolean).join(' ') || null,
+        actor: { actorPk: admin.id },
+        before: admin as unknown as Record<string, unknown>,
+        after: { ...admin, password: hashed, updated_at: new Date() },
+        fields: ['password'],
+        actionKey: 'auth.admin.reset_password',
+      });
+    }
 
     // Delete the token after successful password reset
     await this.redisService.del(tokenKey);
@@ -339,5 +499,74 @@ export class AuthService {
 
   private async setAdminSession(adminId: string, token: string): Promise<void> {
     await this.redisService.set(`session:admin:${adminId}`, token, 60 * 60 * 24 * 7);
+  }
+
+  private async recordAuthEvent(params: {
+    actionKey: string;
+    actionKind: HistoryEventWrite['actionKind'];
+    phoneNumber?: string;
+    admin?: Admin;
+    isSuccess: boolean;
+    failureCode?: string;
+    failureMessage?: string;
+  }): Promise<void> {
+    await this.historyService.createEvent({
+      actionKey: params.actionKey,
+      actionKind: params.actionKind,
+      sourceType: 'admin_api',
+      sourceName: 'auth_service',
+      rootEntityTable: params.admin?.id ? 'admins' : null,
+      rootEntityPk: params.admin?.id ?? null,
+      isSuccess: params.isSuccess,
+      failureCode: params.failureCode ?? null,
+      failureMessage: params.failureMessage ?? null,
+      actors: params.admin?.id
+        ? [
+            {
+              actorRole: 'initiator',
+              actorType: 'admin',
+              actorTable: 'admins',
+              actorPk: params.admin.id,
+              actorLabel:
+                [params.admin.first_name, params.admin.last_name].filter(Boolean).join(' ') || null,
+            },
+          ]
+        : [],
+      entities: params.admin?.id
+        ? [
+            {
+              key: 'admin',
+              entityTable: 'admins',
+              entityPk: params.admin.id,
+              entityLabel:
+                [params.admin.first_name, params.admin.last_name].filter(Boolean).join(' ') || null,
+              entityRole: 'primary_target',
+              beforeExists: true,
+              afterExists: true,
+            },
+          ]
+        : [],
+      inputs: params.phoneNumber
+        ? [
+            {
+              inputKey: 'phone_number',
+              valueType: 'phone',
+              valueText: params.phoneNumber,
+              isSensitive: true,
+            },
+          ]
+        : [],
+    });
+  }
+
+  private authFailureCode(error: unknown): string {
+    if (error instanceof HttpException) {
+      const response = error.getResponse();
+      if (typeof response === 'object' && response && 'location' in response) {
+        return String((response as { location: string }).location);
+      }
+    }
+
+    return 'auth_failed';
   }
 }

@@ -6,10 +6,14 @@ import { UpdateRentalPhoneDeviceDto } from './dto/update-rental-phone-device.dto
 import { RentalPhoneDevice } from 'src/common/types/rental-phone-device.interface';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { EnumBooleanString } from 'src/roles/dto/find-all-roles.dto';
+import { HistoryService } from 'src/history/history.service';
 
 @Injectable()
 export class RentalPhoneDevicesService {
-  constructor(@InjectKnex() private readonly knex: Knex) {}
+  constructor(
+    @InjectKnex() private readonly knex: Knex,
+    private readonly historyService: HistoryService,
+  ) {}
 
   private readonly table = 'rental_phone_devices';
 
@@ -175,7 +179,7 @@ export class RentalPhoneDevicesService {
     return device as RentalPhoneDevice;
   }
 
-  async create(dto: CreateRentalPhoneDeviceDto): Promise<RentalPhoneDevice> {
+  async create(dto: CreateRentalPhoneDeviceDto, adminId?: string): Promise<RentalPhoneDevice> {
     // Check if IMEI already exists (if provided)
     if (dto.imei) {
       const existingImei = await this.knex(this.table).where('imei', dto.imei).first();
@@ -202,37 +206,54 @@ export class RentalPhoneDevicesService {
     // Use status from dto or default to 'Available'
     const status = dto.status || 'Available';
 
-    const [newDevice] = await this.knex(this.table)
-      .insert({
-        name: dto.name,
-        brand: dto.brand || null,
-        model: dto.model || null,
-        imei: dto.imei || null,
-        color: dto.color || null,
-        storage_capacity: dto.storage_capacity || null,
-        battery_capacity: dto.battery_capacity || null,
-        is_free: dto.is_free ?? false,
-        daily_rent_price: dto.daily_rent_price,
-        deposit_amount: dto.deposit_amount ?? 0,
-        currency: dto.currency ?? 'UZS',
-        status: status,
-        condition: dto.condition ?? 'Good',
-        notes: dto.notes || null,
-        specifications: dto.specifications || null,
-        quantity: quantity,
-        quantity_available: quantityAvailable,
-        // Enforce logical consistency for initial state
-        is_available: dto.is_available ?? (status === 'Available' && quantityAvailable > 0),
-        sort: dto.sort ?? 1,
-        created_at: this.knex.fn.now(),
-        updated_at: this.knex.fn.now(),
-      })
-      .returning('*');
+    const newDevice = await this.knex.transaction(async (trx) => {
+      const [created] = await trx<RentalPhoneDevice>(this.table)
+        .insert({
+          name: dto.name,
+          brand: dto.brand || null,
+          model: dto.model || null,
+          imei: dto.imei || null,
+          color: dto.color || null,
+          storage_capacity: dto.storage_capacity || null,
+          battery_capacity: dto.battery_capacity || null,
+          is_free: dto.is_free ?? false,
+          daily_rent_price: dto.daily_rent_price,
+          deposit_amount: dto.deposit_amount ?? 0,
+          currency: dto.currency ?? 'UZS',
+          status: status,
+          condition: dto.condition ?? 'Good',
+          notes: dto.notes || null,
+          specifications: dto.specifications || null,
+          quantity: quantity,
+          quantity_available: quantityAvailable,
+          // Enforce logical consistency for initial state
+          is_available: dto.is_available ?? (status === 'Available' && quantityAvailable > 0),
+          sort: dto.sort ?? 1,
+          created_at: trx.fn.now(),
+          updated_at: trx.fn.now(),
+        })
+        .returning('*');
 
-    return newDevice as RentalPhoneDevice;
+      await this.historyService.recordEntityCreated({
+        db: trx,
+        entityTable: this.table,
+        entityPk: created.id,
+        entityLabel: created.name ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        values: created as unknown as Record<string, unknown>,
+      });
+
+      return created;
+    });
+
+    return newDevice;
   }
 
-  async update(id: string, dto: UpdateRentalPhoneDeviceDto): Promise<RentalPhoneDevice> {
+  async update(
+    id: string,
+    dto: UpdateRentalPhoneDeviceDto,
+    adminId?: string,
+  ): Promise<RentalPhoneDevice> {
     const existingDevice = await this.findById(id);
 
     // Check if IMEI already exists (if being updated)
@@ -269,9 +290,8 @@ export class RentalPhoneDevicesService {
         location: 'empty_update_data',
       });
     }
-    const [updatedDevice] = await this.knex(this.table)
-      .where('id', id)
-      .update({
+    const updatedDevice = await this.knex.transaction(async (trx) => {
+      const updateData = {
         ...dto,
         // Automatically update is_available if status is changed to something else
         ...(dto.status && dto.status !== 'Available'
@@ -283,21 +303,49 @@ export class RentalPhoneDevicesService {
               is_available: (dto.quantity_available ?? existingDevice.quantity_available) > 0,
             }
           : {}),
-        updated_at: this.knex.fn.now(),
-      })
-      .returning('*');
+        updated_at: trx.fn.now(),
+      };
+      const [updated] = await trx<RentalPhoneDevice>(this.table)
+        .where('id', id)
+        .update(updateData)
+        .returning('*');
 
-    return updatedDevice as RentalPhoneDevice;
+      await this.historyService.recordEntityUpdated({
+        db: trx,
+        entityTable: this.table,
+        entityPk: id,
+        entityLabel: existingDevice.name ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: existingDevice as unknown as Record<string, unknown>,
+        after: updated as unknown as Record<string, unknown>,
+        fields: Object.keys(dto),
+      });
+
+      return updated;
+    });
+
+    return updatedDevice;
   }
 
-  async delete(id: string): Promise<void> {
-    await this.findById(id);
+  async delete(id: string, adminId?: string): Promise<void> {
+    const existingDevice = await this.findById(id);
 
     // Soft delete - mark as unavailable and retired
-    await this.knex(this.table).where('id', id).update({
-      is_available: false,
-      status: 'Retired', // 'Retired' is still a valid status for deletion/soft-delete
-      updated_at: this.knex.fn.now(),
+    await this.knex.transaction(async (trx) => {
+      await trx(this.table).where('id', id).update({
+        is_available: false,
+        status: 'Retired', // 'Retired' is still a valid status for deletion/soft-delete
+        updated_at: trx.fn.now(),
+      });
+      await this.historyService.recordEntityDeleted({
+        db: trx,
+        entityTable: this.table,
+        entityPk: id,
+        entityLabel: existingDevice.name ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: existingDevice as unknown as Record<string, unknown>,
+        fields: ['status', 'is_available'],
+      });
     });
   }
 

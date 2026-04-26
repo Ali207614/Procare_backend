@@ -4,9 +4,10 @@ import { ProblemCategoriesController } from './problem-categories.controller';
 import { PermissionsModule } from 'src/permissions/permissions.module';
 import { RedisModule } from 'src/common/redis/redis.module';
 import { LoggerModule } from 'src/common/logger/logger.module';
+import { HistoryModule } from 'src/history/history.module';
 
 @Module({
-  imports: [PermissionsModule, RedisModule, LoggerModule],
+  imports: [PermissionsModule, RedisModule, LoggerModule, HistoryModule],
   controllers: [ProblemCategoriesController],
   providers: [ProblemCategoriesService],
 })

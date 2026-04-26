@@ -88,7 +88,7 @@ export class RepairOrderStatusesController {
     @Req() req: AuthenticatedRequest,
     @Body() dto: UpdateRepairOrderStatusSortDto,
   ): Promise<{ message: string }> {
-    return this.service.updateSort(req.status, dto.sort);
+    return this.service.updateSort(req.status, dto.sort, req.admin.id);
   }
 
   @Patch(':status_id')
@@ -100,7 +100,7 @@ export class RepairOrderStatusesController {
     @Req() req: AuthenticatedRequest,
     @Body() dto: UpdateRepairOrderStatusDto,
   ): Promise<{ message: string }> {
-    return this.service.update(req.status, dto);
+    return this.service.update(req.status, dto, req.admin.id);
   }
 
   @Delete(':status_id')
@@ -109,6 +109,6 @@ export class RepairOrderStatusesController {
   @ApiOperation({ summary: 'Soft delete repair order status by ID' })
   @ApiParam({ name: 'status_id', description: 'Status ID (UUID)' })
   async delete(@Req() req: AuthenticatedRequest): Promise<{ message: string }> {
-    return this.service.delete(req.status);
+    return this.service.delete(req.status, req.admin.id);
   }
 }

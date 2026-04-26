@@ -15,6 +15,7 @@ import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-per
 import { Branch, BranchWithAdmins } from 'src/common/types/branch.interface';
 import { LoggerService } from 'src/common/logger/logger.service';
 import { PaginationResult } from 'src/common/utils/pagination.util';
+import { HistoryService } from 'src/history/history.service';
 
 @Injectable()
 export class BranchesService {
@@ -27,6 +28,7 @@ export class BranchesService {
     private readonly redisService: RedisService,
     private readonly repairOrderStatusPermissionsService: RepairOrderStatusPermissionsService,
     private readonly logger: LoggerService,
+    private readonly historyService: HistoryService,
   ) {}
 
   private getAdminBranchesKey(adminId: string): string {
@@ -78,98 +80,124 @@ export class BranchesService {
       const [branch]: Branch[] = await trx('branches').insert(insertData).returning('*');
 
       const now = new Date();
-      await trx('repair_order_statuses').insert([
-        {
-          name_uz: 'Yangi buyurtma (lead)',
-          name_ru: 'Новый заказ (лид)',
-          name_en: 'New Order (lead)',
-          bg_color: '#E3F2FD',
-          color: '#1976D2',
-          sort: 1,
-          can_user_view: true,
-          can_add_payment: false,
-          is_active: true,
-          is_protected: true,
-          type: 'Open',
-          status: 'Open',
-          branch_id: branch.id,
-          created_by: adminId,
-          created_at: now,
-          updated_at: now,
-        },
-        {
-          name_uz: 'Topshirildi',
-          name_ru: 'Выдан',
-          name_en: 'Completed',
-          bg_color: '#E8F5E8',
-          color: '#2E7D32',
-          sort: 1000,
-          can_user_view: true,
-          can_add_payment: false,
-          is_active: true,
-          is_protected: true,
-          type: 'Completed',
-          status: 'Open',
-          branch_id: branch.id,
-          created_by: adminId,
-          created_at: now,
-          updated_at: now,
-        },
-        {
-          name_uz: "Ko'tarmadi",
-          name_ru: 'Не поднял трубку',
-          name_en: 'Missed',
-          bg_color: '#FFF8E1',
-          color: '#F9A825',
-          sort: 999,
-          can_user_view: true,
-          can_add_payment: false,
-          is_active: true,
-          is_protected: true,
-          type: 'Missed',
-          status: 'Open',
-          branch_id: branch.id,
-          created_by: adminId,
-          created_at: now,
-          updated_at: now,
-        },
-        {
-          name_uz: 'Bekor qilingan',
-          name_ru: 'Отменен',
-          name_en: 'Cancelled',
-          bg_color: '#FFEBEE',
-          color: '#D32F2F',
-          sort: 1001,
-          can_user_view: true,
-          can_add_payment: false,
-          is_active: true,
-          is_protected: true,
-          type: 'Cancelled',
-          status: 'Open',
-          branch_id: branch.id,
-          created_by: adminId,
-          created_at: now,
-          updated_at: now,
-        },
-        {
-          name_uz: 'Sifatsiz',
-          name_ru: 'Некачественный',
-          name_en: 'Invalid',
-          bg_color: '#F5F5F5',
-          color: '#9E9E9E',
-          sort: 2000,
-          can_user_view: true,
-          can_add_payment: false,
-          is_active: true,
-          is_protected: true,
-          type: 'Invalid',
-          status: 'Open',
-          branch_id: branch.id,
-          created_by: adminId,
-          created_at: now,
-          updated_at: now,
-        },
-      ]);
+      const createdStatuses = await trx('repair_order_statuses')
+        .insert([
+          {
+            name_uz: 'Yangi buyurtma (lead)',
+            name_ru: 'Новый заказ (лид)',
+            name_en: 'New Order (lead)',
+            bg_color: '#E3F2FD',
+            color: '#1976D2',
+            sort: 1,
+            can_user_view: true,
+            can_add_payment: false,
+            is_active: true,
+            is_protected: true,
+            type: 'Open',
+            status: 'Open',
+            branch_id: branch.id,
+            created_by: adminId,
+            created_at: now,
+            updated_at: now,
+          },
+          {
+            name_uz: 'Topshirildi',
+            name_ru: 'Выдан',
+            name_en: 'Completed',
+            bg_color: '#E8F5E8',
+            color: '#2E7D32',
+            sort: 1000,
+            can_user_view: true,
+            can_add_payment: false,
+            is_active: true,
+            is_protected: true,
+            type: 'Completed',
+            status: 'Open',
+            branch_id: branch.id,
+            created_by: adminId,
+            created_at: now,
+            updated_at: now,
+          },
+          {
+            name_uz: "Ko'tarmadi",
+            name_ru: 'Не поднял трубку',
+            name_en: 'Missed',
+            bg_color: '#FFF8E1',
+            color: '#F9A825',
+            sort: 999,
+            can_user_view: true,
+            can_add_payment: false,
+            is_active: true,
+            is_protected: true,
+            type: 'Missed',
+            status: 'Open',
+            branch_id: branch.id,
+            created_by: adminId,
+            created_at: now,
+            updated_at: now,
+          },
+          {
+            name_uz: 'Bekor qilingan',
+            name_ru: 'Отменен',
+            name_en: 'Cancelled',
+            bg_color: '#FFEBEE',
+            color: '#D32F2F',
+            sort: 1001,
+            can_user_view: true,
+            can_add_payment: false,
+            is_active: true,
+            is_protected: true,
+            type: 'Cancelled',
+            status: 'Open',
+            branch_id: branch.id,
+            created_by: adminId,
+            created_at: now,
+            updated_at: now,
+          },
+          {
+            name_uz: 'Sifatsiz',
+            name_ru: 'Некачественный',
+            name_en: 'Invalid',
+            bg_color: '#F5F5F5',
+            color: '#9E9E9E',
+            sort: 2000,
+            can_user_view: true,
+            can_add_payment: false,
+            is_active: true,
+            is_protected: true,
+            type: 'Invalid',
+            status: 'Open',
+            branch_id: branch.id,
+            created_by: adminId,
+            created_at: now,
+            updated_at: now,
+          },
+        ])
+        .returning('*');
+
+      await this.historyService.recordEntityCreated({
+        db: trx,
+        entityTable: 'branches',
+        entityPk: branch.id,
+        entityLabel: branch.name_uz ?? null,
+        actor: { actorPk: adminId },
+        values: branch as unknown as Record<string, unknown>,
+      });
+
+      for (const status of createdStatuses) {
+        await this.historyService.recordEntityCreated({
+          db: trx,
+          entityTable: 'repair_order_statuses',
+          entityPk: status.id,
+          entityLabel: status.name_uz ?? null,
+          rootEntityTable: 'branches',
+          rootEntityPk: branch.id,
+          branchId: branch.id,
+          actor: { actorPk: adminId },
+          values: status as Record<string, unknown>,
+          actionKey: 'repair_order_statuses.create.default_for_branch',
+        });
+      }
 
       await this.flushCacheByPrefix(this.redisKey);
       await this.flushCacheByPrefix(this.redisKeyByAdminId);
@@ -309,7 +337,11 @@ export class BranchesService {
     return branch;
   }
 
-  async updateSort(branch: Branch, newSort: number): Promise<{ message: string }> {
+  async updateSort(
+    branch: Branch,
+    newSort: number,
+    adminId?: string,
+  ): Promise<{ message: string }> {
     if (branch.sort === newSort) {
       return { message: 'No change needed' };
     }
@@ -329,6 +361,16 @@ export class BranchesService {
       await trx('branches')
         .where({ id: branch.id })
         .update({ sort: newSort, updated_at: new Date() });
+      await this.historyService.recordEntityUpdated({
+        db: trx,
+        entityTable: 'branches',
+        entityPk: branch.id,
+        entityLabel: branch.name_uz ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: branch as unknown as Record<string, unknown>,
+        after: { ...branch, sort: newSort } as Record<string, unknown>,
+        fields: ['sort'],
+      });
       await trx.commit();
 
       await this.flushCacheByPrefix(this.redisKey);
@@ -349,7 +391,11 @@ export class BranchesService {
     }
   }
 
-  async update(branch: Branch, dto: UpdateBranchDto): Promise<{ message: string }> {
+  async update(
+    branch: Branch,
+    dto: UpdateBranchDto,
+    adminId?: string,
+  ): Promise<{ message: string }> {
     if (dto.is_active === false && branch.is_protected) {
       throw new ForbiddenException({
         message: 'Cannot deactivate protected branch',
@@ -395,8 +441,28 @@ export class BranchesService {
       updated_at: new Date(),
     };
 
-    await this.knex('branches').where({ id: branch.id }).update(updateData);
-    const updated = await this.knex('branches').where({ id: branch.id }).first();
+    const updated = await this.knex.transaction(async (trx) => {
+      await trx('branches').where({ id: branch.id }).update(updateData);
+      const updatedBranch = await trx<Branch>('branches').where({ id: branch.id }).first();
+      if (!updatedBranch) {
+        throw new NotFoundException({
+          message: 'Branch not found',
+          location: 'branches',
+        });
+      }
+      await this.historyService.recordEntityUpdated({
+        db: trx,
+        entityTable: 'branches',
+        entityPk: branch.id,
+        entityLabel: branch.name_uz ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: branch as unknown as Record<string, unknown>,
+        after: updatedBranch as unknown as Record<string, unknown>,
+        fields: Object.keys(dto),
+      });
+
+      return updatedBranch;
+    });
 
     await this.redisService.set(`${this.redisKeyById}:${branch.id}`, updated, 3600);
     await this.flushCacheByPrefix(this.redisKey);
@@ -405,7 +471,7 @@ export class BranchesService {
     return { message: 'Branch updated successfully' };
   }
 
-  async delete(branch: Branch): Promise<{ message: string }> {
+  async delete(branch: Branch, adminId?: string): Promise<{ message: string }> {
     if (branch.is_protected) {
       throw new ForbiddenException({
         message: 'Cannot delete protected branch',
@@ -413,10 +479,21 @@ export class BranchesService {
       });
     }
 
-    await this.knex('branches').where({ id: branch.id }).update({
-      is_active: false,
-      status: 'Deleted',
-      updated_at: new Date(),
+    await this.knex.transaction(async (trx) => {
+      await trx('branches').where({ id: branch.id }).update({
+        is_active: false,
+        status: 'Deleted',
+        updated_at: new Date(),
+      });
+      await this.historyService.recordEntityDeleted({
+        db: trx,
+        entityTable: 'branches',
+        entityPk: branch.id,
+        entityLabel: branch.name_uz ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: branch as unknown as Record<string, unknown>,
+        fields: ['status', 'is_active'],
+      });
     });
 
     await this.repairOrderStatusPermissionsService.deletePermissionsByBranch(branch.id);
@@ -429,7 +506,11 @@ export class BranchesService {
     return { message: 'Branch deleted successfully' };
   }
 
-  async assignAdmins(branchId: string, adminIds: string[]): Promise<{ message: string }> {
+  async assignAdmins(
+    branchId: string,
+    adminIds: string[],
+    actorAdminId?: string,
+  ): Promise<{ message: string }> {
     const result = await this.knex.transaction(async (trx) => {
       const validAdmins = await trx('admins')
         .whereIn('id', adminIds)
@@ -468,6 +549,16 @@ export class BranchesService {
       }));
 
       await trx('admin_branches').insert(insertRows);
+      for (const adminId of uniqueAdminIds) {
+        await this.historyService.recordRelationChanged({
+          db: trx,
+          actionKind: 'link',
+          actor: actorAdminId ? { actorPk: actorAdminId } : null,
+          from: { entityTable: 'branches', entityPk: branchId },
+          to: { entityTable: 'admins', entityPk: adminId },
+          fieldPath: 'admin_id',
+        });
+      }
       return { message: 'Admins assigned to branch successfully' };
     });
 
@@ -477,9 +568,13 @@ export class BranchesService {
     return result;
   }
 
-  async removeAdmins(branchId: string, adminIds: string[]): Promise<{ message: string }> {
+  async removeAdmins(
+    branchId: string,
+    adminIds: string[],
+    actorAdminId?: string,
+  ): Promise<{ message: string }> {
     const result = await this.knex.transaction(async (trx) => {
-      const existing = await trx('admin_branches')
+      const existing: { admin_id: string; branch_id: string }[] = await trx('admin_branches')
         .whereIn('admin_id', adminIds)
         .andWhere('branch_id', branchId);
 
@@ -494,6 +589,17 @@ export class BranchesService {
         .whereIn('admin_id', adminIds)
         .andWhere('branch_id', branchId)
         .del();
+
+      for (const adminId of existing.map((row) => row.admin_id)) {
+        await this.historyService.recordRelationChanged({
+          db: trx,
+          actionKind: 'unlink',
+          actor: actorAdminId ? { actorPk: actorAdminId } : null,
+          from: { entityTable: 'branches', entityPk: branchId },
+          to: { entityTable: 'admins', entityPk: adminId },
+          fieldPath: 'admin_id',
+        });
+      }
 
       return { message: 'Admins removed from branch successfully' };
     });

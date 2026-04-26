@@ -58,17 +58,21 @@ export class PhoneOsTypesController {
   @SetPermissions('phone.os.update')
   @ApiOperation({ summary: 'Update phone OS type' })
   async update(
+    @CurrentAdmin() admin: AdminPayload,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdatePhoneOsTypeDto,
   ): Promise<{ message: string }> {
-    return this.service.update(id, dto);
+    return this.service.update(id, dto, admin.id);
   }
 
   @Delete(':id')
   @UseGuards(PermissionsGuard)
   @SetPermissions('phone.os.delete')
   @ApiOperation({ summary: 'Soft delete phone OS type' })
-  async delete(@Param('id', ParseUUIDPipe) id: string): Promise<{ message: string }> {
-    return this.service.delete(id);
+  async delete(
+    @CurrentAdmin() admin: AdminPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ message: string }> {
+    return this.service.delete(id, admin.id);
   }
 }

@@ -7,12 +7,19 @@ import { RepairPart } from 'src/common/types/repair-part.interface';
 import { AssignRepairPartsToCategoryDto } from 'src/repair-parts/dto/assign-repair-parts.dto';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { FindAllPartsDto } from 'src/repair-parts/dto/find-all.dto';
+import { HistoryService } from 'src/history/history.service';
 
 @Injectable()
 export class RepairPartsService {
-  constructor(@InjectKnex() private readonly knex: Knex) {}
+  constructor(
+    @InjectKnex() private readonly knex: Knex,
+    private readonly historyService: HistoryService,
+  ) {}
 
-  async assignRepairPartsToProblemCategory(dto: AssignRepairPartsToCategoryDto): Promise<void> {
+  async assignRepairPartsToProblemCategory(
+    dto: AssignRepairPartsToCategoryDto,
+    adminId?: string,
+  ): Promise<void> {
     const { problem_category_id, repair_parts } = dto;
 
     const repair_part_ids = repair_parts.map((part) => part.id);
@@ -33,22 +40,39 @@ export class RepairPartsService {
       });
     }
 
-    await this.knex('repair_part_assignments').where({ problem_category_id }).delete();
+    await this.knex.transaction(async (trx) => {
+      const previousAssignments: { repair_part_id: string }[] = await trx('repair_part_assignments')
+        .where({ problem_category_id })
+        .select('repair_part_id');
+      const previousIds = previousAssignments.map((assignment) => assignment.repair_part_id);
+      const nextIds = [...new Set(repair_part_ids)];
 
-    if (repair_parts.length === 0) {
-      return;
-    }
-    const now = this.knex.fn.now();
-    const rowsToInsert = repair_parts.map(({ id, is_required }) => ({
-      id: this.knex.raw('gen_random_uuid()'),
-      problem_category_id,
-      repair_part_id: id,
-      is_required,
-      created_at: now,
-      updated_at: now,
-    }));
+      await trx('repair_part_assignments').where({ problem_category_id }).delete();
 
-    await this.knex('repair_part_assignments').insert(rowsToInsert);
+      if (repair_parts.length > 0) {
+        const now = trx.fn.now();
+        const rowsToInsert = repair_parts.map(({ id, is_required }) => ({
+          id: trx.raw('gen_random_uuid()'),
+          problem_category_id,
+          repair_part_id: id,
+          is_required,
+          created_at: now,
+          updated_at: now,
+        }));
+
+        await trx('repair_part_assignments').insert(rowsToInsert);
+      }
+
+      await this.recordRelationDiff(trx, {
+        actorAdminId: adminId,
+        fromTable: 'problem_categories',
+        fromPk: problem_category_id,
+        toTable: 'repair_parts',
+        fieldPath: 'repair_part_id',
+        beforeIds: previousIds,
+        afterIds: nextIds,
+      });
+    });
   }
 
   async create(createRepairPartDto: CreateRepairPartDto, createdBy: string): Promise<RepairPart> {
@@ -71,15 +95,28 @@ export class RepairPartsService {
       });
     }
 
-    const [newPart]: RepairPart[] = await this.knex('repair_parts')
-      .insert({
-        ...createRepairPartDto,
-        created_by: createdBy,
-        status: 'Open',
-        created_at: this.knex.fn.now(),
-        updated_at: this.knex.fn.now(),
-      })
-      .returning('*');
+    const newPart = await this.knex.transaction(async (trx) => {
+      const [created]: RepairPart[] = await trx('repair_parts')
+        .insert({
+          ...createRepairPartDto,
+          created_by: createdBy,
+          status: 'Open',
+          created_at: trx.fn.now(),
+          updated_at: trx.fn.now(),
+        })
+        .returning('*');
+
+      await this.historyService.recordEntityCreated({
+        db: trx,
+        entityTable: 'repair_parts',
+        entityPk: created.id,
+        entityLabel: created.part_name_uz ?? null,
+        actor: { actorPk: createdBy },
+        values: created as unknown as Record<string, unknown>,
+      });
+
+      return created;
+    });
 
     return newPart;
   }
@@ -163,7 +200,11 @@ export class RepairPartsService {
     return part;
   }
 
-  async update(id: string, updateRepairPartDto: UpdateRepairPartDto): Promise<{ message: string }> {
+  async update(
+    id: string,
+    updateRepairPartDto: UpdateRepairPartDto,
+    adminId?: string,
+  ): Promise<{ message: string }> {
     const { part_name_uz, part_name_ru, part_name_en } = updateRepairPartDto;
 
     const part: RepairPart | undefined = await this.knex('repair_parts')
@@ -202,17 +243,27 @@ export class RepairPartsService {
       }
     }
 
-    await this.knex('repair_parts')
-      .where({ id })
-      .update({
+    await this.knex.transaction(async (trx) => {
+      const updateData = {
         ...updateRepairPartDto,
-        updated_at: this.knex.fn.now(),
-      })
-      .returning('*');
+        updated_at: trx.fn.now(),
+      };
+      await trx('repair_parts').where({ id }).update(updateData);
+      await this.historyService.recordEntityUpdated({
+        db: trx,
+        entityTable: 'repair_parts',
+        entityPk: id,
+        entityLabel: part.part_name_uz ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: part as unknown as Record<string, unknown>,
+        after: { ...part, ...updateData } as Record<string, unknown>,
+        fields: Object.keys(updateRepairPartDto),
+      });
+    });
     return { message: 'Repair part updated successfully' };
   }
 
-  async delete(id: string): Promise<{ message: string }> {
+  async delete(id: string, adminId?: string): Promise<{ message: string }> {
     const part: RepairPart | undefined = await this.knex('repair_parts')
       .where({ id })
       .whereNot('status', 'Deleted')
@@ -224,9 +275,58 @@ export class RepairPartsService {
       });
     }
 
-    await this.knex('repair_parts')
-      .where({ id })
-      .update({ status: 'Deleted', updated_at: this.knex.fn.now() });
+    await this.knex.transaction(async (trx) => {
+      await trx('repair_parts')
+        .where({ id })
+        .update({ status: 'Deleted', updated_at: trx.fn.now() });
+      await this.historyService.recordEntityDeleted({
+        db: trx,
+        entityTable: 'repair_parts',
+        entityPk: id,
+        entityLabel: part.part_name_uz ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: part as unknown as Record<string, unknown>,
+        fields: ['status'],
+      });
+    });
     return { message: 'Repair part deleted successfully' };
+  }
+
+  private async recordRelationDiff(
+    trx: Knex.Transaction,
+    params: {
+      actorAdminId?: string;
+      fromTable: string;
+      fromPk: string;
+      toTable: string;
+      fieldPath: string;
+      beforeIds: string[];
+      afterIds: string[];
+    },
+  ): Promise<void> {
+    const before = new Set(params.beforeIds);
+    const after = new Set(params.afterIds);
+
+    for (const id of params.afterIds.filter((item) => !before.has(item))) {
+      await this.historyService.recordRelationChanged({
+        db: trx,
+        actionKind: 'link',
+        actor: params.actorAdminId ? { actorPk: params.actorAdminId } : null,
+        from: { entityTable: params.fromTable, entityPk: params.fromPk },
+        to: { entityTable: params.toTable, entityPk: id },
+        fieldPath: params.fieldPath,
+      });
+    }
+
+    for (const id of params.beforeIds.filter((item) => !after.has(item))) {
+      await this.historyService.recordRelationChanged({
+        db: trx,
+        actionKind: 'unlink',
+        actor: params.actorAdminId ? { actorPk: params.actorAdminId } : null,
+        from: { entityTable: params.fromTable, entityPk: params.fromPk },
+        to: { entityTable: params.toTable, entityPk: id },
+        fieldPath: params.fieldPath,
+      });
+    }
   }
 }

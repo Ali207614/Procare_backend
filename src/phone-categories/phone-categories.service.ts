@@ -10,6 +10,7 @@ import { PhoneOsTypesService } from 'src/phone-os-types/phone-os-types.service';
 import { LoggerService } from 'src/common/logger/logger.service';
 import { PhoneCategory, PhoneCategoryWithMeta } from 'src/common/types/phone-category.interface';
 import { PaginationResult } from 'src/common/utils/pagination.util';
+import { HistoryService } from 'src/history/history.service';
 
 @Injectable()
 export class PhoneCategoriesService {
@@ -20,6 +21,7 @@ export class PhoneCategoriesService {
     private readonly phoneOsTypesService: PhoneOsTypesService,
     private readonly redisService: RedisService,
     private readonly logger: LoggerService,
+    private readonly historyService: HistoryService,
   ) {}
 
   async getDescendantIds(id: string): Promise<string[]> {
@@ -122,6 +124,14 @@ export class PhoneCategoriesService {
       const [inserted]: PhoneCategory[] = await trx('phone_categories')
         .insert(insertData)
         .returning('*');
+      await this.historyService.recordEntityCreated({
+        db: trx,
+        entityTable: 'phone_categories',
+        entityPk: inserted.id,
+        entityLabel: inserted.name_uz ?? null,
+        actor: { actorPk: adminId },
+        values: inserted as unknown as Record<string, unknown>,
+      });
       await trx.commit();
 
       await this.redisService.flushByPrefix(`${this.redisKeyCategories}`);
@@ -262,7 +272,11 @@ export class PhoneCategoriesService {
     }
   }
 
-  async update(id: string, dto: UpdatePhoneCategoryDto): Promise<{ message: string }> {
+  async update(
+    id: string,
+    dto: UpdatePhoneCategoryDto,
+    adminId?: string,
+  ): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
       const category: PhoneCategory | undefined = await trx('phone_categories')
@@ -329,6 +343,16 @@ export class PhoneCategoriesService {
       const nameChanged = dto.name_uz || dto.name_ru || dto.name_en;
 
       await trx('phone_categories').where({ id }).update(updateData);
+      await this.historyService.recordEntityUpdated({
+        db: trx,
+        entityTable: 'phone_categories',
+        entityPk: id,
+        entityLabel: category.name_uz ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: category as unknown as Record<string, unknown>,
+        after: { ...category, ...updateData } as Record<string, unknown>,
+        fields: Object.keys(dto),
+      });
       await trx.commit();
 
       const parentCacheKey = `${this.redisKeyCategories}`;
@@ -357,7 +381,7 @@ export class PhoneCategoriesService {
     }
   }
 
-  async updateSort(id: string, newSort: number): Promise<{ message: string }> {
+  async updateSort(id: string, newSort: number, adminId?: string): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
       this.logger.log(`Updating sort for phone category ${id} to ${newSort}`);
@@ -393,6 +417,16 @@ export class PhoneCategoriesService {
       await trx('phone_categories')
         .where({ id })
         .update({ sort: newSort, updated_at: new Date().toISOString() });
+      await this.historyService.recordEntityUpdated({
+        db: trx,
+        entityTable: 'phone_categories',
+        entityPk: id,
+        entityLabel: category.name_uz ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: category as unknown as Record<string, unknown>,
+        after: { ...category, sort: newSort } as Record<string, unknown>,
+        fields: ['sort'],
+      });
       await trx.commit();
 
       await this.redisService.flushByPrefix(`${this.redisKeyCategories}`);
@@ -410,7 +444,7 @@ export class PhoneCategoriesService {
     }
   }
 
-  async delete(id: string): Promise<{ message: string }> {
+  async delete(id: string, adminId?: string): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
     try {
       const category = await trx('phone_categories').where({ id, status: 'Open' }).first();
@@ -444,6 +478,15 @@ export class PhoneCategoriesService {
       await trx('phone_categories')
         .where({ id })
         .update({ status: 'Deleted', updated_at: new Date().toISOString() });
+      await this.historyService.recordEntityDeleted({
+        db: trx,
+        entityTable: 'phone_categories',
+        entityPk: id,
+        entityLabel: category.name_uz ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: category as unknown as Record<string, unknown>,
+        fields: ['status'],
+      });
       await trx.commit();
 
       const descendants = await this.getDescendantIds(id);

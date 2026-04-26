@@ -19,6 +19,7 @@ import { LoggingMiddleware } from './common/middleware/logging.middleware';
 import { MaintenanceMiddleware } from './common/middleware/maintenance.middleware';
 import { RateLimiterByIpMiddleware } from './common/middleware/rate-limiter-by-ip.middleware';
 import { RateLimiterMiddleware } from './common/middleware/rate-limiter.middleware';
+import { RequestAuditContextMiddleware } from './common/middleware/request-audit-context.middleware';
 import { RedisModule } from './common/redis/redis.module';
 import { RateLimitedAdminRoutes } from './config/admin-rate-limited.routes';
 import knexConfig from './config/knex.config';
@@ -75,6 +76,7 @@ import { RepairOrderRejectCausesService } from './repair-order-reject-causes/rep
 import { RepairOrderRegionsModule } from './repair-order-regions/repair-order-regions.module';
 import { RepairOrderRegionsController } from './repair-order-regions/repair-order-regions.controller';
 import { RepairOrderRegionsService } from './repair-order-regions/repair-order-regions.service';
+import { HistoryModule } from './history/history.module';
 @Module({
   imports: [
     BullModule.forRoot({
@@ -115,6 +117,7 @@ import { RepairOrderRegionsService } from './repair-order-regions/repair-order-r
     OnlinePbxModule,
     RepairOrderRejectCausesModule,
     RepairOrderRegionsModule,
+    HistoryModule,
   ],
   controllers: [
     AuthController,
@@ -157,6 +160,8 @@ import { RepairOrderRegionsService } from './repair-order-regions/repair-order-r
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestAuditContextMiddleware).forRoutes('*');
+
     consumer.apply(MaintenanceMiddleware).forRoutes('*');
 
     consumer.apply(RateLimiterByIpMiddleware).forRoutes(...PublicRoutes);

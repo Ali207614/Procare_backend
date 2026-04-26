@@ -52,9 +52,10 @@ export class RepairPartsController {
   @ApiResponse({ status: 200, description: 'Repair part assignments successfully updated' })
   @ApiResponse({ status: 400, description: 'Validation failed or part IDs are invalid' })
   async updateAssignments(
+    @Req() req: AuthenticatedRequest,
     @Body() dto: AssignRepairPartsToCategoryDto,
   ): Promise<{ message: string }> {
-    await this.repairPartsService.assignRepairPartsToProblemCategory(dto);
+    await this.repairPartsService.assignRepairPartsToProblemCategory(dto, req.admin.id);
     return { message: 'Repair part assignments updated successfully' };
   }
 
@@ -84,8 +85,9 @@ export class RepairPartsController {
   async update(
     @Param('id') id: string,
     @Body() updateRepairPartDto: UpdateRepairPartDto,
+    @Req() req: AuthenticatedRequest,
   ): Promise<{ message: string }> {
-    return this.repairPartsService.update(id, updateRepairPartDto);
+    return this.repairPartsService.update(id, updateRepairPartDto, req.admin.id);
   }
 
   @Delete(':id')
@@ -94,7 +96,10 @@ export class RepairPartsController {
   @ApiOperation({ summary: 'Delete a repair part by ID' })
   @ApiResponse({ status: 200, description: 'Repair part successfully deleted (soft delete)' })
   @ApiResponse({ status: 404, description: 'Repair part not found' })
-  async delete(@Param('id') id: string): Promise<{ message: string }> {
-    return this.repairPartsService.delete(id);
+  async delete(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ message: string }> {
+    return this.repairPartsService.delete(id, req.admin.id);
   }
 }

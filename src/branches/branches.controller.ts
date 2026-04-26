@@ -104,7 +104,7 @@ export class BranchesController {
     @Req() req: AuthenticatedRequest,
     @Body() dto: UpdateBranchSortDto,
   ): Promise<{ message: string }> {
-    return this.service.updateSort(req.branch, dto.sort);
+    return this.service.updateSort(req.branch, dto.sort, req.admin.id);
   }
 
   @Patch(':branch_id')
@@ -118,7 +118,7 @@ export class BranchesController {
     @Req() req: AuthenticatedRequest,
     @Body() dto: UpdateBranchDto,
   ): Promise<{ message: string }> {
-    return this.service.update(req.branch, dto);
+    return this.service.update(req.branch, dto, req.admin.id);
   }
 
   @Delete(':branch_id')
@@ -127,7 +127,7 @@ export class BranchesController {
   @ApiOperation({ summary: 'Delete branch by ID (soft delete)' })
   @ApiParam({ name: 'id', description: 'Branch ID (UUID)' })
   async delete(@Req() req: AuthenticatedRequest): Promise<{ message: string }> {
-    return this.service.delete(req.branch);
+    return this.service.delete(req.branch, req.admin.id);
   }
 
   @Post(':branch_id/admins')
@@ -139,10 +139,11 @@ export class BranchesController {
   @ApiResponse({ status: 400, description: 'Validation failed' })
   @ApiResponse({ status: 404, description: 'Branch or admins not found' })
   async assignAdmins(
+    @Req() req: AuthenticatedRequest,
     @Param('branch_id', ParseUUIDPipe) branchId: string,
     @Body() dto: AssignAdminsDto,
   ): Promise<{ message: string }> {
-    return this.service.assignAdmins(branchId, dto.admin_ids);
+    return this.service.assignAdmins(branchId, dto.admin_ids, req.admin.id);
   }
 
   @Delete(':branch_id/admins')
@@ -153,9 +154,10 @@ export class BranchesController {
   @ApiResponse({ status: 200, description: 'Admins removed successfully' })
   @ApiResponse({ status: 404, description: 'Assignment not found' })
   async removeAdmins(
+    @Req() req: AuthenticatedRequest,
     @Param('branch_id', ParseUUIDPipe) branchId: string,
     @Body() dto: RemoveAdminsDto,
   ): Promise<{ message: string }> {
-    return this.service.removeAdmins(branchId, dto.admin_ids);
+    return this.service.removeAdmins(branchId, dto.admin_ids, req.admin.id);
   }
 }

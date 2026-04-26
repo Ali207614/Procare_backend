@@ -27,6 +27,7 @@ import { CreateRepairOrderDto } from 'src/repair-orders/dto/create-repair-order.
 import { UpdateRepairOrderDto } from 'src/repair-orders/dto/update-repair-order.dto';
 import { MoveRepairOrderDto } from 'src/repair-orders/dto/move-repair-order.dto';
 import { FindAllRepairOrdersQueryDto } from 'src/repair-orders/dto/find-all-repair-orders.dto';
+import { FindAllUnfilteredRepairOrdersDto } from 'src/repair-orders/dto/find-all-unfiltered-repair-orders.dto';
 import { UpdateClientInfoDto, UpdateProductDto, UpdateProblemDto, TransferBranchDto } from './dto';
 import { PdfService } from 'src/pdf/pdf.service';
 import { RepairOrderWebhookService } from 'src/repair-orders/services/repair-order-webhook.service';
@@ -36,6 +37,7 @@ import { RepairOrderStatus } from 'src/common/types/repair-order-status.interfac
 import { RepairOrderRegion } from 'src/common/types/repair-order-region.interface';
 import { User } from 'src/common/types/user.interface';
 import { formatUzPhoneToE164, getUzPhoneLookupCandidates } from 'src/common/utils/phone.util';
+import { PaginationResult } from 'src/common/utils/pagination.util';
 
 const SYSTEM_ADMIN_ID = '00000000-0000-4000-8000-000000000000';
 const NO_ANSWER_REJECT_CAUSE_NAME = "Qo'ng'iroqqa javob bermadi";
@@ -877,6 +879,55 @@ export class RepairOrdersService {
       if (error instanceof HttpException) throw error;
       throw error;
     }
+  }
+
+  async findAllUnfiltered(
+    admin: AdminPayload,
+    query: FindAllUnfilteredRepairOrdersDto,
+  ): Promise<PaginationResult<RepairOrder>> {
+    if (!this.isSuperAdmin(admin)) {
+      throw new ForbiddenException({
+        message: 'Only Super Admin can access all repair orders',
+        location: 'role',
+      });
+    }
+
+    const offset = query.offset ?? 0;
+    const limit = query.limit ?? 20;
+    const search = query.search?.trim();
+    const baseQuery = this.knex<RepairOrder>(`${this.table} as ro`).leftJoin(
+      'users as u',
+      'ro.user_id',
+      'u.id',
+    );
+
+    if (search) {
+      const term = `%${search}%`;
+      const normalizedPhoneTerm = `%${this.normalizePhoneNumber(search)}%`;
+      void baseQuery.andWhere((builder) => {
+        void builder
+          .whereILike('ro.phone_number', term)
+          .orWhereILike('ro.phone_number', normalizedPhoneTerm)
+          .orWhereILike('ro.name', term)
+          .orWhereILike('u.phone_number1', term)
+          .orWhereILike('u.phone_number1', normalizedPhoneTerm)
+          .orWhereILike('u.phone_number2', term)
+          .orWhereILike('u.phone_number2', normalizedPhoneTerm)
+          .orWhereRaw("CONCAT_WS(' ', u.first_name, u.last_name) ILIKE ?", [term]);
+      });
+    }
+
+    const [rows, countRows] = await Promise.all([
+      baseQuery.clone().select('ro.*').orderBy('ro.created_at', 'desc').offset(offset).limit(limit),
+      baseQuery.clone().clearSelect().clearOrder().count<{ count: string }[]>('* as count'),
+    ]);
+
+    return {
+      rows,
+      total: Number(countRows[0]?.count ?? 0),
+      limit,
+      offset,
+    };
   }
 
   async softDelete(admin: AdminPayload, orderId: string): Promise<{ message: string }> {
@@ -2944,7 +2995,7 @@ export class RepairOrdersService {
                 FROM repair_order_change_histories h
                 WHERE h.repair_order_id = ro.id
                   AND h.field = 'status_id'
-                  AND h.new_value #>> '{}' = ro.status_id
+                  AND h.new_value #>> '{}' = ro.status_id::text
               ),
               ro.updated_at,
               ro.created_at
@@ -3007,6 +3058,10 @@ export class RepairOrdersService {
     }
 
     return primaryRole;
+  }
+
+  private isSuperAdmin(admin: AdminPayload): boolean {
+    return admin.roles.some((role) => role.name.trim().toLowerCase() === 'super admin');
   }
 
   private getTargetStatusPermissionOrThrow(
