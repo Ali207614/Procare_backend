@@ -37,6 +37,7 @@ Recommended Postman environment variables:
   "phone_category_id": "{{phone_category_id}}",
   "status_id": "{{status_id}}",
   "priority": "Medium",
+  "source": "Sug'urta",
   "admin_ids": ["00000000-0000-0000-0000-000000000000"],
   "initial_problems": [
     {
@@ -77,6 +78,7 @@ Recommended Postman environment variables:
   - `branch_id`: (Required) UUID
   - `sort_by`: `sort`, `priority`, `created_at`, `updated_at`
   - `sort_order`: `asc`, `desc`
+  - `source_types`: `Telegram`, `Meta`, `Qolda`, `Boshqa`, `Kiruvchi qongiroq`, `Chiquvchi qongiroq`, `Organic`, `Sug'urta`
   - `customer_name`: Search string
   - `phone_number`: Search string
   - order_number: Search string
@@ -93,7 +95,8 @@ Recommended Postman environment variables:
 ```json
 {
   "priority": "High",
-  "status_id": "{{new_status_id}}"
+  "status_id": "{{new_status_id}}",
+  "source": "Sug'urta"
 }
 ```
 
@@ -210,5 +213,4 @@ if (response.id) {
 1. **Creation Flow**: Create User -> Create Phone Category -> Create Repair Order.
 2. **Workflow Flow**: Move status from `New` -> `Diagnosis` -> `Ready`.
 3. **Completion Flow**: Add Final Problems -> Move to `Completed`.
-
 

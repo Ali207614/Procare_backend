@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { REPAIR_ORDER_SOURCES } from 'src/common/types/repair-order.interface';
 
 export class RepairOrderRejectCauseSwaggerDto {
   @ApiProperty({ nullable: true, example: 'c7a77f42-2f13-4b8e-b8cb-7d5f2c82fbbb' })
@@ -72,7 +73,7 @@ export class RepairOrderListItemSwaggerDto {
   @ApiProperty({ nullable: true, example: '+998901234567' })
   phone_number!: string | null;
 
-  @ApiProperty({ nullable: true, example: 'Qolda' })
+  @ApiProperty({ nullable: true, enum: REPAIR_ORDER_SOURCES, example: "Sug'urta" })
   source!: string | null;
 
   @ApiProperty({ nullable: true, example: '2026-03-27T07:15:00.000Z' })

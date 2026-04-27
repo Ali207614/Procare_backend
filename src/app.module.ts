@@ -77,6 +77,9 @@ import { RepairOrderRegionsModule } from './repair-order-regions/repair-order-re
 import { RepairOrderRegionsController } from './repair-order-regions/repair-order-regions.controller';
 import { RepairOrderRegionsService } from './repair-order-regions/repair-order-regions.service';
 import { HistoryModule } from './history/history.module';
+import { CalculatorModule } from './calculator/calculator.module';
+import { CalculatorController } from './calculator/calculator.controller';
+import { CalculatorService } from './calculator/calculator.service';
 @Module({
   imports: [
     BullModule.forRoot({
@@ -118,6 +121,7 @@ import { HistoryModule } from './history/history.module';
     RepairOrderRejectCausesModule,
     RepairOrderRegionsModule,
     HistoryModule,
+    CalculatorModule,
   ],
   controllers: [
     AuthController,
@@ -137,6 +141,7 @@ import { HistoryModule } from './history/history.module';
     OffersController,
     RepairOrderRejectCausesController,
     RepairOrderRegionsController,
+    CalculatorController,
   ],
   providers: [
     RepairPartsService,
@@ -156,6 +161,7 @@ import { HistoryModule } from './history/history.module';
     OffersService,
     RepairOrderRejectCausesService,
     RepairOrderRegionsService,
+    CalculatorService,
   ],
 })
 export class AppModule implements NestModule {

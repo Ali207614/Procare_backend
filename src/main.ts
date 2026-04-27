@@ -46,7 +46,15 @@ async function bootstrap(): Promise<void> {
   const expressApp = app.getHttpAdapter().getInstance() as ExpressApp;
   expressApp.set('trust proxy', 1);
 
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          upgradeInsecureRequests: null,
+        },
+      },
+    }),
+  );
   app.use(compression({ threshold: 1024 }));
 
   // Filters & interceptors

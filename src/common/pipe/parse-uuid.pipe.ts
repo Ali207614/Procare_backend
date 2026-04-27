@@ -1,10 +1,14 @@
-import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
+import { PipeTransform, BadRequestException } from '@nestjs/common';
 import { validate as isUUID } from 'uuid';
 
-@Injectable()
-export class ParseUUIDPipe implements PipeTransform<string, string> {
-  transform(value: string): string {
+export class ParseUUIDPipe implements PipeTransform<string | undefined, string | undefined> {
+  constructor(private readonly options: { isOptional?: boolean } = {}) {}
+
+  transform(value: string | undefined): string | undefined {
     if (!value) {
+      if (this.options.isOptional) {
+        return undefined;
+      }
       throw new BadRequestException({
         message: 'UUID is required',
         location: 'params_id',

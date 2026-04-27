@@ -26,7 +26,7 @@ export class BranchExistGuard implements CanActivate {
 
     try {
       const parser = new ParseUUIDPipe();
-      branchId = parser.transform(branchId);
+      branchId = parser.transform(branchId) as string;
     } catch (err) {
       throw new BadRequestException({
         message: 'Invalid branch ID format. Must be a valid UUID.',

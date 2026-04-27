@@ -18,7 +18,7 @@ import {
   IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { RepairOrderSource } from 'src/common/types/repair-order.interface';
+import { REPAIR_ORDER_SOURCES, RepairOrderSource } from 'src/common/types/repair-order.interface';
 
 export class ProblemPartInputDto {
   @ApiProperty({
@@ -313,22 +313,11 @@ export class CreateRepairOrderDto {
 
   @ApiPropertyOptional({
     description: 'Source of the repair order',
-    enum: [
-      'Telegram',
-      'Meta',
-      'Qolda',
-      'Boshqa',
-      'Kiruvchi qongiroq',
-      'Chiquvchi qongiroq',
-      'Organic',
-    ],
+    enum: REPAIR_ORDER_SOURCES,
     example: 'Qolda',
   })
   @IsOptional()
-  @IsEnum(
-    ['Telegram', 'Meta', 'Qolda', 'Boshqa', 'Kiruvchi qongiroq', 'Chiquvchi qongiroq', 'Organic'],
-    { message: 'Invalid source type' },
-  )
+  @IsEnum(REPAIR_ORDER_SOURCES, { message: 'Invalid source type' })
   source?: RepairOrderSource;
 
   @ApiPropertyOptional({

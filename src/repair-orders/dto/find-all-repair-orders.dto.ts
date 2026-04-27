@@ -11,6 +11,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ToArray } from 'src/common/decorators/to-array.decorator';
+import { REPAIR_ORDER_SOURCES } from 'src/common/types/repair-order.interface';
 
 export class FindAllRepairOrdersQueryDto {
   @ApiPropertyOptional({
@@ -62,25 +63,14 @@ export class FindAllRepairOrdersQueryDto {
   // Filters
   @ApiPropertyOptional({
     description: 'Qabul qilingan manba boyicha filter',
-    enum: [
-      'Telegram',
-      'Meta',
-      'Qolda',
-      'Boshqa',
-      'Kiruvchi qongiroq',
-      'Chiquvchi qongiroq',
-      'Organic',
-    ],
+    enum: REPAIR_ORDER_SOURCES,
     isArray: true,
-    example: ['Organic', 'Telegram'],
+    example: ["Sug'urta", 'Telegram'],
   })
   @IsOptional()
   @ToArray()
   @IsArray()
-  @IsIn(
-    ['Telegram', 'Meta', 'Qolda', 'Boshqa', 'Kiruvchi qongiroq', 'Chiquvchi qongiroq', 'Organic'],
-    { each: true },
-  )
+  @IsIn(REPAIR_ORDER_SOURCES, { each: true })
   source_types?: string[];
 
   @ApiPropertyOptional({

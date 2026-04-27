@@ -1,14 +1,18 @@
 import { UserListItem } from 'src/common/types/user.interface';
 import { RepairOrderCommentResponse } from 'src/common/types/repair-order-comment.interface';
 
-export type RepairOrderSource =
-  | 'Telegram'
-  | 'Meta'
-  | 'Qolda'
-  | 'Boshqa'
-  | 'Kiruvchi qongiroq'
-  | 'Chiquvchi qongiroq'
-  | 'Organic';
+export const REPAIR_ORDER_SOURCES = [
+  'Telegram',
+  'Meta',
+  'Qolda',
+  'Boshqa',
+  'Kiruvchi qongiroq',
+  'Chiquvchi qongiroq',
+  'Organic',
+  "Sug'urta",
+] as const;
+
+export type RepairOrderSource = (typeof REPAIR_ORDER_SOURCES)[number];
 
 export interface RepairOrder {
   id: string;

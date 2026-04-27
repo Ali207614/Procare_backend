@@ -40,6 +40,7 @@
   "phone_category_id": "uuid (required)",
   "branch_id": "uuid (required)",
   "priority": "Low | Medium | High | Highest (optional)",
+  "source": "Telegram | Meta | Qolda | Boshqa | Kiruvchi qongiroq | Chiquvchi qongiroq | Organic | Sug'urta (optional)",
   "admin_ids": ["uuid", "uuid"] ,
   "initial_problems": [
     {
@@ -103,6 +104,7 @@
   "status_id": "uuid (optional)",
   "phone_category_id": "uuid (optional)",
   "priority": "Low | Medium | High | Highest (optional)",
+  "source": "Telegram | Meta | Qolda | Boshqa | Kiruvchi qongiroq | Chiquvchi qongiroq | Organic | Sug'urta (optional)",
   "initial_problems": [
     {
       "problem_category_id": "uuid",
@@ -138,7 +140,7 @@
 | `limit` | int | ❌ | 20 | Pagination limit |
 | `sort_by` | string | ❌ | `sort` | `sort`, `priority`, `created_at`, `updated_at` |
 | `sort_order` | string | ❌ | `asc` | `asc`, `desc` |
-| `source_types` | string[] | ❌ | — | `Organic`, `App`, `Meta`, `Web`, `Bot`, `Other` |
+| `source_types` | string[] | ❌ | — | `Telegram`, `Meta`, `Qolda`, `Boshqa`, `Kiruvchi qongiroq`, `Chiquvchi qongiroq`, `Organic`, `Sug'urta` |
 | `priorities` | string[] | ❌ | — | `Low`, `Medium`, `High`, `Highest` |
 | `customer_name` | string | ❌ | — | Search by customer name |
 | `phone_number` | string | ❌ | — | Search by phone number |
@@ -846,4 +848,3 @@ Below is a filtered list of **only the endpoints that update/modify** repair ord
 - **Status transition endpoints:** 2
 - **Status permission endpoints:** 4
 - **Repair parts endpoints:** 6
-

@@ -71,6 +71,7 @@ const SOURCE_LABELS: Record<string, string> = {
   'Kiruvchi qongiroq': "Kiruvchi qo'ng'iroq",
   'Chiquvchi qongiroq': "Chiquvchi qo'ng'iroq",
   Organic: 'Organik',
+  "Sug'urta": "Sug'urta",
 };
 
 const PICKUP_METHOD_LABELS: Record<string, string> = {

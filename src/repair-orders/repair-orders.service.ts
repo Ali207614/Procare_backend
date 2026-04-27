@@ -2671,7 +2671,9 @@ export class RepairOrdersService {
         order = newOrder;
 
         if (targetAdminId) {
-          await this.assignTelephonyAdminToOrderIfEligible(trx, order.id, targetAdminId);
+          await this.assignTelephonyAdminToOrderIfEligible(trx, order.id, targetAdminId, {
+            replaceSameRole: true,
+          });
         }
       } else {
         await trx(this.table)
@@ -2685,7 +2687,9 @@ export class RepairOrdersService {
           });
 
         if (targetAdminId) {
-          await this.assignTelephonyAdminToOrderIfEligible(trx, order.id, targetAdminId);
+          await this.assignTelephonyAdminToOrderIfEligible(trx, order.id, targetAdminId, {
+            replaceSameRole: true,
+          });
         }
       }
 
@@ -2934,7 +2938,14 @@ export class RepairOrdersService {
     trx: Knex.Transaction,
     orderId: string,
     adminId: string,
+    options: { replaceSameRole?: boolean } = {},
   ): Promise<void> {
+    if (options.replaceSameRole) {
+      await this.removeAssignedAdminsWithSameRole(trx, orderId, adminId);
+      await this.assignAdminToOrderIfNeeded(trx, orderId, adminId);
+      return;
+    }
+
     const hasSameRoleAssigned = await this.hasAssignedAdminWithSameRole(trx, orderId, adminId);
     if (hasSameRoleAssigned) {
       this.logger.log(
@@ -2944,6 +2955,37 @@ export class RepairOrdersService {
     }
 
     await this.assignAdminToOrderIfNeeded(trx, orderId, adminId);
+  }
+
+  private async removeAssignedAdminsWithSameRole(
+    trx: Knex.Transaction,
+    orderId: string,
+    adminId: string,
+  ): Promise<void> {
+    const roles = await this.getActiveRolesByAdminId(trx, adminId);
+    if (!roles.length) return;
+
+    const roleIds = roles.map((role) => role.role_id);
+    const roleNames = [
+      ...new Set(
+        roles.map((role) => this.normalizeRoleName(role.role_name)).filter((name) => name),
+      ),
+    ];
+
+    await trx('repair_order_assign_admins as raa')
+      .join('admin_roles as ar', 'raa.admin_id', 'ar.admin_id')
+      .join('roles as r', 'ar.role_id', 'r.id')
+      .where('raa.repair_order_id', orderId)
+      .whereNot('raa.admin_id', adminId)
+      .andWhere((qb) => {
+        void qb.whereIn('ar.role_id', roleIds);
+        if (roleNames.length) {
+          void qb.orWhereRaw('LOWER(BTRIM(r.name)) = ANY(?::text[])', [roleNames]);
+        }
+      })
+      .andWhere('r.status', 'Open')
+      .andWhere('r.is_active', true)
+      .delete();
   }
 
   private async hasAssignedAdminWithSameRole(

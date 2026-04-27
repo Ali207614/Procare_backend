@@ -24,6 +24,7 @@ type Builder = {
   orderByRaw: jest.Mock;
   onConflict: jest.Mock;
   ignore: jest.Mock;
+  delete: jest.Mock;
 };
 
 const createBuilder = (): Builder => {
@@ -51,6 +52,7 @@ const createBuilder = (): Builder => {
   builder.orderByRaw = jest.fn().mockReturnValue(builder);
   builder.onConflict = jest.fn().mockReturnValue(builder);
   builder.ignore = jest.fn().mockResolvedValue(undefined);
+  builder.delete = jest.fn().mockResolvedValue(undefined);
   return builder as Builder;
 };
 
@@ -291,7 +293,7 @@ describe('RepairOrdersService telephony assignment', () => {
     expect(redisService.flushByPrefix).toHaveBeenCalledWith('repair_orders:branch-1');
   });
 
-  it('skips assigning the answering admin when an assigned admin already has the same role', async () => {
+  it('replaces the fallback same-role admin with the answering admin', async () => {
     const orderBuilder = createBuilder();
     orderBuilder.first.mockResolvedValue({
       id: 'order-1',
@@ -338,7 +340,15 @@ describe('RepairOrdersService telephony assignment', () => {
       source: 'Kiruvchi qongiroq',
     });
 
-    expect(assignBuilder.insert).not.toHaveBeenCalled();
+    expect(sharedRoleBuilder.delete).toHaveBeenCalled();
+    expect(assignBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repair_order_id: 'order-1',
+        admin_id: 'admin-120',
+      }),
+    );
+    expect(assignBuilder.onConflict).toHaveBeenCalledWith(['repair_order_id', 'admin_id']);
+    expect(assignBuilder.ignore).toHaveBeenCalled();
   });
 
   it('treats active roles with the same name as the same role during telephony assignment', async () => {

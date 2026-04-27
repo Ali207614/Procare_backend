@@ -13,7 +13,7 @@ import {
 } from 'class-validator';
 import { Transform, TransformFnParams, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { RepairOrderSource } from 'src/common/types/repair-order.interface';
+import { REPAIR_ORDER_SOURCES, RepairOrderSource } from 'src/common/types/repair-order.interface';
 import { formatUzPhoneToE164 } from 'src/common/utils/phone.util';
 
 const normalizeUzbekPhone = ({ value }: TransformFnParams): unknown => {
@@ -190,21 +190,10 @@ export class UpdateRepairOrderDto {
 
   @ApiPropertyOptional({
     description: 'Source of the repair order',
-    enum: [
-      'Telegram',
-      'Meta',
-      'Qolda',
-      'Boshqa',
-      'Kiruvchi qongiroq',
-      'Chiquvchi qongiroq',
-      'Organic',
-    ],
-    example: 'Organic',
+    enum: REPAIR_ORDER_SOURCES,
+    example: "Sug'urta",
   })
   @IsOptional()
-  @IsEnum(
-    ['Telegram', 'Meta', 'Qolda', 'Boshqa', 'Kiruvchi qongiroq', 'Chiquvchi qongiroq', 'Organic'],
-    { message: 'Invalid source type' },
-  )
+  @IsEnum(REPAIR_ORDER_SOURCES, { message: 'Invalid source type' })
   source?: RepairOrderSource;
 }

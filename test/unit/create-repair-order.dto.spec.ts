@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { validate } from 'class-validator';
 import { CreateRepairOrderDto } from '../../src/repair-orders/dto/create-repair-order.dto';
+import { FindAllRepairOrdersQueryDto } from '../../src/repair-orders/dto/find-all-repair-orders.dto';
+import { UpdateRepairOrderDto } from '../../src/repair-orders/dto/update-repair-order.dto';
 
 describe('CreateRepairOrderDto', () => {
   it('accepts UUID-like custom status ids used by seeded repair statuses', async () => {
@@ -35,5 +37,37 @@ describe('CreateRepairOrderDto', () => {
     const agreedDateError = errors.find((error) => error.property === 'agreed_date');
 
     expect(agreedDateError).toBeUndefined();
+  });
+
+  it("accepts Sug'urta as a repair order source when creating", async () => {
+    const dto = new CreateRepairOrderDto();
+    dto.branch_id = '00000000-0000-4000-8000-000000000000';
+    dto.source = "Sug'urta";
+
+    const errors = await validate(dto);
+    const sourceError = errors.find((error) => error.property === 'source');
+
+    expect(sourceError).toBeUndefined();
+  });
+
+  it("accepts Sug'urta as a repair order source when updating", async () => {
+    const dto = new UpdateRepairOrderDto();
+    dto.source = "Sug'urta";
+
+    const errors = await validate(dto);
+    const sourceError = errors.find((error) => error.property === 'source');
+
+    expect(sourceError).toBeUndefined();
+  });
+
+  it("accepts Sug'urta in repair order source filters", async () => {
+    const dto = new FindAllRepairOrdersQueryDto();
+    dto.branch_id = '00000000-0000-4000-8000-000000000000';
+    dto.source_types = ["Sug'urta"];
+
+    const errors = await validate(dto);
+    const sourceTypesError = errors.find((error) => error.property === 'source_types');
+
+    expect(sourceTypesError).toBeUndefined();
   });
 });

@@ -459,7 +459,7 @@ export class AdminsService {
           const parser = new ParseUUIDPipe();
           let branchIds: string[];
           try {
-            branchIds = branch_ids.map((id) => parser.transform(id));
+            branchIds = branch_ids.map((id) => parser.transform(id) as string);
           } catch {
             throw new BadRequestException({
               message: 'One or more branch IDs are not valid UUIDs',

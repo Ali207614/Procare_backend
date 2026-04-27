@@ -12,6 +12,7 @@ import {
   HistoryScalarValue,
   HistoryValueType,
 } from 'src/history/types/history.types';
+import { RepairOrder } from 'src/common/types/repair-order.interface';
 
 interface OnlinePbxWebhookPayload {
   uuid: string;
@@ -43,6 +44,24 @@ interface PhoneCall {
   created_at: string;
   updated_at: string;
 }
+
+type RepairOrderHistorySnapshot = Pick<
+  RepairOrder,
+  | 'id'
+  | 'user_id'
+  | 'branch_id'
+  | 'phone_number'
+  | 'status_id'
+  | 'sort'
+  | 'priority'
+  | 'source'
+  | 'call_count'
+  | 'missed_calls'
+  | 'customer_no_answer_count'
+  | 'last_customer_no_answer_at'
+  | 'customer_no_answer_due_at'
+  | 'reject_cause_id'
+>;
 
 import { RepairOrdersService } from 'src/repair-orders/repair-orders.service';
 
@@ -210,6 +229,9 @@ export class OnlinePbxService {
     const gateway = this.config.get<string>('GATEWAY');
     let userId: string | null = null;
     let repairOrderId: string | null = null;
+    let repairOrderBefore: RepairOrderHistorySnapshot | null = null;
+    let repairOrderAfter: RepairOrderHistorySnapshot | null = null;
+    let shouldResolveRepairOrderAfterWebhook = false;
 
     // Distinguish between customer and staff (admin)
     let customerPhoneRaw: string | undefined;
@@ -259,6 +281,7 @@ export class OnlinePbxService {
           `[OnlinePBX Webhook] Skipping repair order logic for ${isAdmin ? 'admin' : 'gateway'} number ${formattedCustomerPhone}`,
         );
       } else {
+        shouldResolveRepairOrderAfterWebhook = true;
         // Inbound & Outbound call handling logic (tracking customer's repair orders)
         // Look for an existing open repair order for this customer
         const openOrder = await this.repairOrderService.findOpenOrderByPhoneNumber(
@@ -269,6 +292,7 @@ export class OnlinePbxService {
 
         if (openOrder) {
           repairOrderId = openOrder.id;
+          repairOrderBefore = this.pickRepairOrderHistorySnapshot(openOrder);
         }
 
         const createOrderHelper = async (
@@ -335,6 +359,16 @@ export class OnlinePbxService {
             this.logger.log(
               `Handled outbound call_answered for ${formattedCustomerPhone} via handleCallAnswered.`,
             );
+            if (!repairOrderId) {
+              const resolvedOrder = await this.repairOrderService.findOpenOrderByPhoneNumber(
+                DEFAULT_BRANCH_ID,
+                formattedCustomerPhone,
+                userId,
+              );
+              if (resolvedOrder) {
+                repairOrderId = resolvedOrder.id;
+              }
+            }
           } else if (event === 'call_end' && parsedDialogDuration > 0) {
             if (!openOrder) {
               const callerDigits = caller?.replace(/\D/g, '');
@@ -393,6 +427,16 @@ export class OnlinePbxService {
             this.logger.log(
               `Handled call_answered for ${formattedCustomerPhone} via handleCallAnswered.`,
             );
+            if (!repairOrderId) {
+              const resolvedOrder = await this.repairOrderService.findOpenOrderByPhoneNumber(
+                DEFAULT_BRANCH_ID,
+                formattedCustomerPhone,
+                userId,
+              );
+              if (resolvedOrder) {
+                repairOrderId = resolvedOrder.id;
+              }
+            }
           } else if (event === 'call_missed') {
             if (!openOrder) {
               // Missed call: create and use fallback logic
@@ -424,6 +468,21 @@ export class OnlinePbxService {
           }
         }
       }
+    }
+
+    if (!repairOrderId && shouldResolveRepairOrderAfterWebhook && formattedCustomerPhone) {
+      const resolvedOrder = await this.repairOrderService.findOpenOrderByPhoneNumber(
+        DEFAULT_BRANCH_ID,
+        formattedCustomerPhone,
+        userId,
+      );
+      if (resolvedOrder) {
+        repairOrderId = resolvedOrder.id;
+      }
+    }
+
+    if (repairOrderId) {
+      repairOrderAfter = await this.loadRepairOrderHistorySnapshot(repairOrderId);
     }
 
     const shouldCreateTalkComment =
@@ -487,6 +546,8 @@ export class OnlinePbxService {
         downloadUrl: download_url || null,
         userId,
         repairOrderId,
+        repairOrderBefore,
+        repairOrderAfter,
         customerPhone: formattedCustomerPhone,
         onlinepbxCode: conversationAdminCode,
       });
@@ -520,6 +581,8 @@ export class OnlinePbxService {
       downloadUrl: string | null;
       userId: string | null;
       repairOrderId: string | null;
+      repairOrderBefore: RepairOrderHistorySnapshot | null;
+      repairOrderAfter: RepairOrderHistorySnapshot | null;
       customerPhone: string | null;
       onlinepbxCode: string | null;
     },
@@ -566,12 +629,12 @@ export class OnlinePbxService {
                   key: 'repair_order',
                   entityTable: 'repair_orders',
                   entityPk: data.repairOrderId,
-                  entityRole: 'affected' as const,
+                  entityRole: data.repairOrderBefore ? ('updated' as const) : ('created' as const),
                   rootEntityTable,
                   rootEntityPk,
                   branchId: DEFAULT_BRANCH_ID,
-                  beforeExists: true,
-                  afterExists: true,
+                  beforeExists: Boolean(data.repairOrderBefore),
+                  afterExists: Boolean(data.repairOrderAfter ?? data.repairOrderId),
                 },
               ]
             : []),
@@ -605,7 +668,10 @@ export class OnlinePbxService {
           this.historyInput('onlinepbx.hangup_cause', data.hangupCause, 'string'),
           this.historyInput('onlinepbx.download_url_present', Boolean(data.downloadUrl), 'boolean'),
         ],
-        changes: this.buildPhoneCallHistoryChanges(data),
+        changes: [
+          ...this.buildPhoneCallHistoryChanges(data),
+          ...this.buildRepairOrderHistoryChanges(data),
+        ],
       },
       trx,
     );
@@ -678,6 +744,115 @@ export class OnlinePbxService {
         },
       ];
     });
+  }
+
+  private buildRepairOrderHistoryChanges(data: {
+    repairOrderId: string | null;
+    repairOrderBefore: RepairOrderHistorySnapshot | null;
+    repairOrderAfter: RepairOrderHistorySnapshot | null;
+  }): HistoryFieldChange[] {
+    if (!data.repairOrderId || !data.repairOrderAfter) {
+      return [];
+    }
+
+    const repairOrderId = data.repairOrderId;
+    const operation = data.repairOrderBefore ? 'update' : 'insert';
+    const fields: {
+      fieldPath: keyof RepairOrderHistorySnapshot;
+      valueType: HistoryValueType;
+      refTable?: string;
+    }[] = [
+      { fieldPath: 'user_id', valueType: 'reference', refTable: 'users' },
+      { fieldPath: 'branch_id', valueType: 'reference', refTable: 'branches' },
+      { fieldPath: 'phone_number', valueType: 'phone' },
+      { fieldPath: 'status_id', valueType: 'reference', refTable: 'repair_order_statuses' },
+      { fieldPath: 'sort', valueType: 'integer' },
+      { fieldPath: 'priority', valueType: 'enum' },
+      { fieldPath: 'source', valueType: 'enum' },
+      { fieldPath: 'call_count', valueType: 'integer' },
+      { fieldPath: 'missed_calls', valueType: 'integer' },
+      { fieldPath: 'customer_no_answer_count', valueType: 'integer' },
+      { fieldPath: 'last_customer_no_answer_at', valueType: 'timestamp' },
+      { fieldPath: 'customer_no_answer_due_at', valueType: 'timestamp' },
+      {
+        fieldPath: 'reject_cause_id',
+        valueType: 'reference',
+        refTable: 'repair_order_reject_causes',
+      },
+    ];
+
+    return fields.flatMap((field) => {
+      const oldValue = data.repairOrderBefore?.[field.fieldPath] ?? null;
+      const newValue = data.repairOrderAfter?.[field.fieldPath] ?? null;
+
+      if (operation === 'insert' && newValue == null) {
+        return [];
+      }
+
+      if (
+        operation === 'update' &&
+        this.historyComparable(oldValue) === this.historyComparable(newValue)
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          eventEntityKey: 'repair_order',
+          entityTable: 'repair_orders',
+          entityPk: repairOrderId,
+          fieldPath: field.fieldPath,
+          operation,
+          valueType: field.valueType,
+          oldValue: this.historyScalar(field.valueType, oldValue, field.refTable),
+          newValue: this.historyScalar(field.valueType, newValue, field.refTable),
+        },
+      ];
+    });
+  }
+
+  private async loadRepairOrderHistorySnapshot(
+    repairOrderId: string,
+  ): Promise<RepairOrderHistorySnapshot | null> {
+    const order = await this.knex<RepairOrder>('repair_orders')
+      .where({ id: repairOrderId })
+      .first(
+        'id',
+        'user_id',
+        'branch_id',
+        'phone_number',
+        'status_id',
+        'sort',
+        'priority',
+        'source',
+        'call_count',
+        'missed_calls',
+        'customer_no_answer_count',
+        'last_customer_no_answer_at',
+        'customer_no_answer_due_at',
+        'reject_cause_id',
+      );
+
+    return order ? this.pickRepairOrderHistorySnapshot(order) : null;
+  }
+
+  private pickRepairOrderHistorySnapshot(order: Partial<RepairOrder>): RepairOrderHistorySnapshot {
+    return {
+      id: order.id as string,
+      user_id: order.user_id ?? null,
+      branch_id: order.branch_id as string,
+      phone_number: order.phone_number ?? null,
+      status_id: order.status_id as string,
+      sort: order.sort ?? null,
+      priority: order.priority ?? null,
+      source: order.source ?? null,
+      call_count: order.call_count ?? 0,
+      missed_calls: order.missed_calls ?? 0,
+      customer_no_answer_count: order.customer_no_answer_count ?? 0,
+      last_customer_no_answer_at: order.last_customer_no_answer_at ?? null,
+      customer_no_answer_due_at: order.customer_no_answer_due_at ?? null,
+      reject_cause_id: order.reject_cause_id ?? null,
+    } as RepairOrderHistorySnapshot;
   }
 
   private historyInput(

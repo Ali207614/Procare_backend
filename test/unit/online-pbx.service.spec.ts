@@ -249,6 +249,35 @@ describe('OnlinePbxService gateway filtering', () => {
   it('assigns the calling admin on outbound call_start for an existing open order', async () => {
     repairOrderService.findOpenOrderByPhoneNumber.mockResolvedValue({
       id: 'order-1',
+      user_id: 'user-1',
+      branch_id: '00000000-0000-4000-8000-000000000000',
+      phone_number: '+998901234567',
+      status_id: 'status-1',
+      sort: 2,
+      priority: 'Medium',
+      source: 'Kiruvchi qongiroq',
+      call_count: 3,
+      missed_calls: 0,
+      customer_no_answer_count: 0,
+      last_customer_no_answer_at: null,
+      customer_no_answer_due_at: null,
+      reject_cause_id: null,
+    });
+    repairOrderFirstSpy.mockResolvedValue({
+      id: 'order-1',
+      user_id: 'user-1',
+      branch_id: '00000000-0000-4000-8000-000000000000',
+      phone_number: '+998901234567',
+      status_id: 'status-1',
+      sort: 1,
+      priority: 'Medium',
+      source: 'Kiruvchi qongiroq',
+      call_count: 4,
+      missed_calls: 0,
+      customer_no_answer_count: 0,
+      last_customer_no_answer_at: null,
+      customer_no_answer_due_at: null,
+      reject_cause_id: null,
     });
 
     await service.handleWebhook({
@@ -260,12 +289,95 @@ describe('OnlinePbxService gateway filtering', () => {
       callee: '+998901234567',
     });
 
+    const historyPayload = historyService.createEvent.mock.calls.at(-1)?.[0];
     expect(repairOrderService.assignTelephonyAdminToExistingOrder).toHaveBeenCalledWith({
       branchId: '00000000-0000-4000-8000-000000000000',
       orderId: 'order-1',
       onlinepbxCode: '120',
     });
     expect(repairOrderService.incrementCallCount).toHaveBeenCalledWith('order-1');
+    expect(historyPayload.changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          entityTable: 'repair_orders',
+          entityPk: 'order-1',
+          fieldPath: 'call_count',
+          oldValue: expect.objectContaining({ valueText: 3 }),
+          newValue: expect.objectContaining({ valueText: 4 }),
+        }),
+        expect.objectContaining({
+          entityTable: 'repair_orders',
+          entityPk: 'order-1',
+          fieldPath: 'sort',
+          oldValue: expect.objectContaining({ valueText: 2 }),
+          newValue: expect.objectContaining({ valueText: 1 }),
+        }),
+      ]),
+    );
+  });
+
+  it('records created repair order fields in webhook history when a webhook creates an order', async () => {
+    repairOrderService.findOpenOrderByPhoneNumber.mockResolvedValueOnce(undefined);
+    repairOrderService.createFromWebhook.mockResolvedValue({
+      id: 'order-2',
+      user_id: 'user-2',
+    });
+    repairOrderFirstSpy.mockResolvedValue({
+      id: 'order-2',
+      user_id: 'user-2',
+      branch_id: '00000000-0000-4000-8000-000000000000',
+      phone_number: '+998901234567',
+      status_id: 'status-new',
+      sort: 1,
+      priority: 'Medium',
+      source: 'Kiruvchi qongiroq',
+      call_count: 1,
+      missed_calls: 0,
+      customer_no_answer_count: 0,
+      last_customer_no_answer_at: null,
+      customer_no_answer_due_at: null,
+      reject_cause_id: null,
+    });
+
+    await service.handleWebhook({
+      uuid: 'call-start-created-history',
+      gateway: '+998781133774',
+      direction: 'inbound',
+      event: 'call_start',
+      caller: '+998901234567',
+      callee: '120',
+    });
+
+    const historyPayload = historyService.createEvent.mock.calls.at(-1)?.[0];
+    expect(historyPayload.entities).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          entityTable: 'repair_orders',
+          entityPk: 'order-2',
+          entityRole: 'created',
+          beforeExists: false,
+          afterExists: true,
+        }),
+      ]),
+    );
+    expect(historyPayload.changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          entityTable: 'repair_orders',
+          entityPk: 'order-2',
+          fieldPath: 'phone_number',
+          operation: 'insert',
+          newValue: expect.objectContaining({ valueText: '+998901234567' }),
+        }),
+        expect.objectContaining({
+          entityTable: 'repair_orders',
+          entityPk: 'order-2',
+          fieldPath: 'call_count',
+          operation: 'insert',
+          newValue: expect.objectContaining({ valueText: 1 }),
+        }),
+      ]),
+    );
   });
 
   it('creates a repair order comment on inbound call_end when dialog_duration is greater than zero', async () => {
