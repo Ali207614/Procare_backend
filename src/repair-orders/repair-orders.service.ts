@@ -1876,6 +1876,7 @@ export class RepairOrdersService {
         });
 
       await this.moveToTop(trx, order);
+      await this.assignFallbackAdminIfOrderHasNone(trx, order.id, order.branch_id);
       await trx.commit();
 
       void this.notifyRepairOrderUpdate(order, {
@@ -2125,6 +2126,9 @@ export class RepairOrdersService {
         await trx(this.table).where({ id: existingOrder.id }).update(existingOrderUpdates);
 
         await this.moveToTop(trx, existingOrder);
+        if (data.fallbackToFewestOpen === true) {
+          await this.assignFallbackAdminIfOrderHasNone(trx, existingOrder.id, data.branchId);
+        }
         await trx.commit();
 
         void this.notifyRepairOrderUpdate(existingOrder, {
@@ -2173,43 +2177,7 @@ export class RepairOrdersService {
 
       // 2. If no admin found or no code provided, find the least busy active admin (only if allowed)
       if (!assignedAdminId && data.fallbackToFewestOpen === true) {
-        // Get the current day of week in lowercase (e.g., 'monday', 'tuesday')
-        const now = new Date();
-        const currentDayIndex = now.getDay();
-        const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-        const currentDayStr = days[currentDayIndex];
-        const currentHHmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-        const leastBusyAdmin = await trx('admins')
-          .select('admins.id')
-          .join('admin_branches as ab', 'admins.id', 'ab.admin_id')
-          .leftJoin('repair_order_assign_admins as roaa', 'admins.id', 'roaa.admin_id')
-          .leftJoin('repair_orders as ro', (builder) => {
-            builder
-              .on('roaa.repair_order_id', '=', 'ro.id')
-              .andOn('ro.status', '=', trx.raw('?', ['Open']));
-          })
-          .leftJoin('repair_order_statuses as ros', 'ro.status_id', 'ros.id')
-          .where({ 'admins.is_active': true, 'admins.status': 'Open' })
-          .andWhere('ab.branch_id', data.branchId)
-          .whereNotNull('admins.onlinepbx_code')
-          .andWhereRaw(`NULLIF(BTRIM(admins.onlinepbx_code), '') IS NOT NULL`)
-          // Check that the admin works today using JSONB extraction
-          .andWhereRaw(`(admins.work_days->>?)::boolean = true`, [currentDayStr])
-          // Check that the admin is currently in their working hours
-          .andWhere('admins.work_start_time', '<=', currentHHmm)
-          .andWhere('admins.work_end_time', '>=', currentHHmm)
-          .groupBy('admins.id')
-          // Count only repair orders whose workflow status is still non-terminal.
-          .orderByRaw(
-            `COUNT(CASE WHEN ros.status = ? AND ros.is_active = true AND (ros.type IS NULL OR ros.type NOT IN (?, ?, ?, ?)) THEN 1 END) ASC`,
-            ['Open', ...Array.from(this.terminalStatusTypes)],
-          )
-          .first();
-
-        if (leastBusyAdmin) {
-          assignedAdminId = leastBusyAdmin.id;
-        }
+        assignedAdminId = await this.resolveLeastBusyWebhookAdminId(trx, data.branchId);
       }
 
       // 3. Assign the admin to the repair order if an admin was found
@@ -2917,6 +2885,61 @@ export class RepairOrdersService {
       .first<{ id: string }>();
 
     return admin?.id ?? null;
+  }
+
+  private async resolveLeastBusyWebhookAdminId(
+    trx: Knex.Transaction,
+    branchId: string,
+  ): Promise<string | null> {
+    const { currentDayStr } = this.getCurrentWorkContext();
+
+    const leastBusyAdmin = await trx('admins')
+      .select('admins.id')
+      .join('admin_branches as ab', 'admins.id', 'ab.admin_id')
+      .leftJoin('repair_order_assign_admins as roaa', 'admins.id', 'roaa.admin_id')
+      .leftJoin('repair_orders as ro', (builder) => {
+        builder
+          .on('roaa.repair_order_id', '=', 'ro.id')
+          .andOn('ro.status', '=', trx.raw('?', ['Open']));
+      })
+      .leftJoin('repair_order_statuses as ros', 'ro.status_id', 'ros.id')
+      .where({ 'admins.is_active': true, 'admins.status': 'Open' })
+      .andWhere('ab.branch_id', branchId)
+      .whereNotNull('admins.onlinepbx_code')
+      .andWhereRaw(`NULLIF(BTRIM(admins.onlinepbx_code), '') IS NOT NULL`)
+      .andWhereRaw(`(admins.work_days->>?)::boolean = true`, [currentDayStr])
+      .groupBy('admins.id')
+      // Count only repair orders whose workflow status is still non-terminal.
+      .orderByRaw(
+        `COUNT(CASE WHEN ros.status = ? AND ros.is_active = true AND (ros.type IS NULL OR ros.type NOT IN (?, ?, ?, ?)) THEN 1 END) ASC`,
+        ['Open', ...Array.from(this.terminalStatusTypes)],
+      )
+      .first<{ id: string }>();
+
+    return leastBusyAdmin?.id ?? null;
+  }
+
+  private async assignFallbackAdminIfOrderHasNone(
+    trx: Knex.Transaction,
+    orderId: string,
+    branchId: string,
+  ): Promise<void> {
+    const existingAssignment = await trx('repair_order_assign_admins')
+      .where({ repair_order_id: orderId })
+      .first<{ admin_id: string }>('admin_id');
+
+    if (existingAssignment) return;
+
+    const assignedAdminId = await this.resolveLeastBusyWebhookAdminId(trx, branchId);
+    if (!assignedAdminId) {
+      this.logger.log(`[Webhook Order] No fallback admin available for repair order ${orderId}`);
+      return;
+    }
+
+    this.logger.log(
+      `[Webhook Order] Assigning missed-call repair order ${orderId} to fallback admin ${assignedAdminId}`,
+    );
+    await this.assignTelephonyAdminToOrderIfEligible(trx, orderId, assignedAdminId);
   }
 
   private async assignAdminToOrderIfNeeded(

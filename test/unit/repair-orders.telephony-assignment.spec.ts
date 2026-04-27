@@ -612,6 +612,85 @@ describe('RepairOrdersService telephony assignment', () => {
       `COUNT(CASE WHEN ros.status = ? AND ros.is_active = true AND (ros.type IS NULL OR ros.type NOT IN (?, ?, ?, ?)) THEN 1 END) ASC`,
       ['Open', 'Cancelled', 'Canceled', 'Completed', 'Invalid'],
     );
+    expect(adminsBuilder.andWhere).not.toHaveBeenCalledWith(
+      'admins.work_start_time',
+      '<=',
+      expect.any(String),
+    );
+    expect(adminsBuilder.andWhere).not.toHaveBeenCalledWith(
+      'admins.work_end_time',
+      '>=',
+      expect.any(String),
+    );
+
+    workContextSpy.mockRestore();
+  });
+
+  it('assigns a fallback admin to an existing missed-call order with no assignees', async () => {
+    const orderBuilder = createBuilder();
+    orderBuilder.first.mockResolvedValue({
+      id: 'order-1',
+      number_id: 1,
+      branch_id: 'branch-1',
+      status: 'Open',
+    });
+
+    const assignBuilder = createBuilder();
+    assignBuilder.first.mockResolvedValue(undefined);
+
+    const adminsBuilder = createBuilder();
+    adminsBuilder.first.mockResolvedValue({ id: 'admin-least-busy' });
+
+    const targetRolesBuilder = createBuilder();
+    targetRolesBuilder.select.mockResolvedValue([{ role_id: 'role-1', role_name: 'Master' }]);
+
+    const sharedRoleBuilder = createBuilder();
+    sharedRoleBuilder.first.mockResolvedValue(undefined);
+
+    const trx = jest.fn((table: string) => {
+      if (table === 'repair_orders') return orderBuilder;
+      if (table === 'repair_order_assign_admins') return assignBuilder;
+      if (table === 'admins') return adminsBuilder;
+      if (table === 'admin_roles as ar') return targetRolesBuilder;
+      if (table === 'repair_order_assign_admins as raa') return sharedRoleBuilder;
+      throw new Error(`Unexpected table ${table}`);
+    }) as TransactionMock;
+
+    trx.commit = jest.fn().mockResolvedValue(undefined);
+    trx.rollback = jest.fn().mockResolvedValue(undefined);
+    (trx as unknown as { raw: jest.Mock }).raw = jest.fn((sql: string, bindings?: unknown[]) => ({
+      sql,
+      bindings,
+    }));
+
+    knex.transaction.mockResolvedValue(trx);
+
+    const workContextSpy = jest
+      .spyOn(service as any, 'getCurrentWorkContext')
+      .mockReturnValue({ currentDayStr: 'monday', currentHHmm: '21:00' });
+
+    await service.incrementMissedCallCount('order-1');
+
+    expect(assignBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repair_order_id: 'order-1',
+        admin_id: 'admin-least-busy',
+      }),
+    );
+    expect(adminsBuilder.andWhereRaw).toHaveBeenCalledWith(
+      `(admins.work_days->>?)::boolean = true`,
+      ['monday'],
+    );
+    expect(adminsBuilder.andWhere).not.toHaveBeenCalledWith(
+      'admins.work_start_time',
+      '<=',
+      expect.any(String),
+    );
+    expect(adminsBuilder.andWhere).not.toHaveBeenCalledWith(
+      'admins.work_end_time',
+      '>=',
+      expect.any(String),
+    );
 
     workContextSpy.mockRestore();
   });
