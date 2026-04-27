@@ -13,8 +13,6 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import axios from 'axios';
-import { normalizeUzPhone } from 'src/common/utils/phone.util';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { VerifyDto } from './dto/verify.dto';
@@ -30,6 +28,7 @@ import { Admin } from 'src/common/types/admin.interface';
 import { SendCodeResponseDto } from './dto/send-code-response.dto';
 import { HistoryService } from 'src/history/history.service';
 import { HistoryEventWrite } from 'src/history/types/history.types';
+import { SmsService } from 'src/common/services/sms.service';
 
 @Injectable()
 export class AuthService {
@@ -40,6 +39,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly redisService: RedisService,
     private readonly historyService: HistoryService,
+    private readonly smsService: SmsService,
   ) {}
 
   private readonly RESET_PREFIX = 'reset-code:';
@@ -55,6 +55,7 @@ export class AuthService {
   async sendCode(
     phone: string,
     type: 'verify' | 'reset' | 'pin_reset',
+    language = 'uz',
   ): Promise<SendCodeResponseDto> {
     const rateLimitKey = `rl:send_code:phone:${phone}`;
     const ttl = await this.redisService.ttl(rateLimitKey);
@@ -70,47 +71,23 @@ export class AuthService {
       );
     }
 
-    const code: string = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = crypto.randomInt(100000, 1000000).toString();
 
     const EXPIRES_IN = 300;
     const RETRY_AFTER = 60;
 
-    const { last9: fixed_phone } = normalizeUzPhone(phone);
+    const redisKey = `${this.REDIS_PREFIX[type]}:${phone}`;
+    await this.redisService.set(redisKey, code, EXPIRES_IN);
 
-    const message_id =
-      Array.from({ length: 3 }, () =>
-        String.fromCharCode(97 + Math.floor(Math.random() * 26)),
-      ).join('') +
-      Math.floor(Math.random() * 1000000000)
-        .toString()
-        .padStart(9, '0');
-
-    await this.redisService.set(`${this.REDIS_PREFIX[type]}:${phone}`, code, EXPIRES_IN);
-
-    const data_to_send = {
-      recipient: Number(fixed_phone),
-      'message-id': message_id,
-      sms: {
-        originator: process.env.SMS_ORIGINATOR,
-        content: {
-          text: `Tasdiqlash kodi: ${code}\nKod faqat siz uchun. Uni boshqalarga bermang.`,
-        },
-      },
-    };
-    const sms_creadentials = {
-      username: process.env.SMS_USERNAME || '',
-      password: process.env.SMS_PASSWORD || '',
-    };
-
-    if (process.env.NODE_ENV !== 'development' && process.env.SMS_API_URL) {
-      await axios.post(
-        process.env.SMS_API_URL,
+    const smsResult = await this.smsService.sendOtpSms(phone, code, language);
+    if (!smsResult.success) {
+      await this.redisService.del(redisKey);
+      throw new HttpException(
         {
-          messages: data_to_send,
+          message: 'Failed to send verification code. Please try again later.',
+          location: 'sms_send_failed',
         },
-        {
-          auth: sms_creadentials,
-        },
+        HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
 
@@ -169,7 +146,7 @@ export class AuthService {
       });
     }
 
-    const result = await this.sendCode(dto.phone_number, 'verify');
+    const result = await this.sendCode(dto.phone_number, 'verify', dto.language);
     await this.recordAuthEvent({
       actionKey: 'auth.admin.send_verification_code',
       actionKind: 'other',

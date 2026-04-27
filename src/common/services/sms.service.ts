@@ -17,16 +17,23 @@ export interface SmsResponse {
 @Injectable()
 export class SmsService {
   private readonly logger = new Logger(SmsService.name);
-  private readonly baseUrl: string;
+  private readonly apiUrl: string;
   private readonly username: string;
   private readonly password: string;
   private readonly originator: string;
+  private readonly nodeEnv: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.baseUrl = this.configService.get<string>('SMS_BASE_URL') || 'https://send.smsxabar.uz';
+    const configuredApiUrl = this.configService.get<string>('SMS_API_URL');
+    const configuredBaseUrl =
+      this.configService.get<string>('SMS_BASE_URL') || 'https://send.smsxabar.uz';
+
+    this.apiUrl = configuredApiUrl || `${configuredBaseUrl.replace(/\/+$/, '')}/broker-api/send`;
     this.username = this.configService.get<string>('SMS_USERNAME') || '';
     this.password = this.configService.get<string>('SMS_PASSWORD') || '';
     this.originator = this.configService.get<string>('SMS_ORIGINATOR') || 'PROBOX';
+    this.nodeEnv =
+      this.configService.get<string>('NODE_ENV') || process.env.NODE_ENV || 'development';
   }
 
   /**
@@ -34,8 +41,6 @@ export class SmsService {
    */
   async sendSms(message: SmsMessage): Promise<SmsResponse> {
     try {
-      const credentials = Buffer.from(`${this.username}:${this.password}`).toString('base64');
-
       const payload = {
         messages: {
           recipient: this.formatPhoneNumber(message.recipient),
@@ -49,10 +54,22 @@ export class SmsService {
         },
       };
 
-      const response = await axios.post(`${this.baseUrl}/broker-api/send`, payload, {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Basic ${credentials}`,
+      if (this.nodeEnv === 'development' || this.nodeEnv === 'test') {
+        this.logger.log(`SMS skipped in ${this.nodeEnv} mode`, {
+          recipient: payload.messages.recipient,
+          messageId: payload.messages['message-id'],
+        });
+
+        return {
+          success: true,
+          messageId: payload.messages['message-id'],
+        };
+      }
+
+      const response = await axios.post(this.apiUrl, payload, {
+        auth: {
+          username: this.username,
+          password: this.password,
         },
         timeout: 10000, // 10 seconds timeout
       });
@@ -102,7 +119,6 @@ export class SmsService {
     return this.sendSms({
       recipient: phoneNumber,
       text: text,
-      messageId: `otp_${Date.now()}_${this.formatPhoneNumber(phoneNumber)}`,
     });
   }
 
@@ -168,19 +184,24 @@ export class SmsService {
   /**
    * Telefon raqamini formatlash
    */
-  private formatPhoneNumber(phoneNumber: string): number {
+  private formatPhoneNumber(phoneNumber: string): string {
     // +998901234567 -> 998901234567
     const cleaned = phoneNumber.replace(/[^\d]/g, '');
-    return parseInt(cleaned.startsWith('998') ? cleaned : `998${cleaned.slice(-9)}`);
+    return cleaned.startsWith('998') ? cleaned : `998${cleaned.slice(-9)}`;
   }
 
   /**
    * Unique message ID generatsiya qilish
    */
   private generateMessageId(): string {
-    const timestamp = Date.now();
-    const random = Math.floor(Math.random() * 1000000);
-    return `msg_${timestamp}_${random}`;
+    const prefix = Array.from({ length: 3 }, () =>
+      String.fromCharCode(97 + Math.floor(Math.random() * 26)),
+    ).join('');
+    const suffix = Math.floor(Math.random() * 1000000000)
+      .toString()
+      .padStart(9, '0');
+
+    return `${prefix}${suffix}`;
   }
 
   /**

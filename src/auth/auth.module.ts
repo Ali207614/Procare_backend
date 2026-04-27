@@ -9,6 +9,7 @@ import { AdminsModule } from 'src/admins/admins.module';
 import { JwtAdminStrategy } from 'src/common/strategies/jwt-admin.strategy';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { HistoryModule } from 'src/history/history.module';
+import { SmsService } from 'src/common/services/sms.service';
 
 @Module({
   imports: [
@@ -26,7 +27,7 @@ import { HistoryModule } from 'src/history/history.module';
       inject: [ConfigService],
     }),
   ],
-  providers: [AuthService, JwtAdminStrategy, JwtAdminAuthGuard],
+  providers: [AuthService, JwtAdminStrategy, JwtAdminAuthGuard, SmsService],
   exports: [AuthService],
   controllers: [AuthController],
 })
