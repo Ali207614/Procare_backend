@@ -83,12 +83,13 @@ export class RepairOrdersService {
         permissions,
       );
       const createStatusPermission = permissions.find(
-        (permission) => permission.branch_id === branchId && permission.status_id === createStatus.id,
+        (permission) =>
+          permission.branch_id === branchId && permission.status_id === createStatus.id,
       );
 
       if (createStatusPermission?.cannot_continue_without_agreed_date && !dto.agreed_date) {
         throw new BadRequestException({
-          message: "Ushbu status uchun kelishilgan sana kiritilishi shart.",
+          message: 'Ushbu status uchun kelishilgan sana kiritilishi shart.',
           location: 'agreed_date',
         });
       }
@@ -495,16 +496,12 @@ export class RepairOrdersService {
               (dtoFieldValue === null || dtoFieldValue === undefined || dtoFieldValue === '')
             ) {
               throw new BadRequestException({
-                message: "Ushbu status uchun kelishilgan sana kiritilishi shart.",
+                message: 'Ushbu status uchun kelishilgan sana kiritilishi shart.',
                 location: 'agreed_date',
               });
             }
 
-            if (
-              shouldValidateAgreedDate &&
-              dtoFieldValue !== null &&
-              dtoFieldValue !== undefined
-            ) {
+            if (shouldValidateAgreedDate && dtoFieldValue !== null && dtoFieldValue !== undefined) {
               this.validateAgreedDateOrThrow(dtoFieldValue as string);
             }
           }
