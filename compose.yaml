@@ -34,7 +34,7 @@ services:
     container_name: procare_db_migrate
     env_file: .env
     environment:
-      - NODE_ENV=${NODE_ENV:-development}
+      - NODE_ENV=production
       - DB_HOST=postgres
     depends_on:
       postgres:
