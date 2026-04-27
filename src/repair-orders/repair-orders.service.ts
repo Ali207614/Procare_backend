@@ -716,6 +716,14 @@ export class RepairOrdersService {
       }
     }
 
+    const agreedDateStatusIds = [
+      ...new Set(
+        permissions
+          .filter((p) => p.cannot_continue_without_agreed_date && statusIds.includes(p.status_id))
+          .map((p) => p.status_id),
+      ),
+    ];
+
     // Build filter hash for cache key
     const filterHash = JSON.stringify({
       source_types,
@@ -731,6 +739,7 @@ export class RepairOrdersService {
       date_from,
       date_to,
       status_ids,
+      agreedDateStatusIds,
     });
 
     const cacheKey = `${this.table}:${branchId}:${admin.id}:${sort_by}:${sort_order}:${offset}:${limit}:${Buffer.from(filterHash).toString('base64')}`;
@@ -834,9 +843,15 @@ export class RepairOrdersService {
       queryParams.dateTo = date_to;
     }
 
-    const orderClause = `ORDER BY ro.status_id, ro.${sort_by} ${sort_order.toUpperCase()}`;
-    // The same column/direction used to rank rows inside each status column for per-status pagination.
-    const rowNumberOrder = `ORDER BY ro.${sort_by} ${sort_order.toUpperCase()}`;
+    if (agreedDateStatusIds.length) {
+      queryParams.agreedDateStatusIds = agreedDateStatusIds;
+    }
+
+    const { orderClause, rowNumberOrder } = this.buildFindAllOrderClauses(
+      sort_by,
+      sort_order,
+      agreedDateStatusIds,
+    );
 
     let querySql = loadSQL('repair-orders/queries/find-all-by-admin-branch.sql')
       .replace('/*ORDER_CLAUSE*/', orderClause)
@@ -949,6 +964,45 @@ export class RepairOrdersService {
       total: Number(countRows[0]?.count ?? 0),
       limit,
       offset,
+    };
+  }
+
+  private buildFindAllOrderClauses(
+    sortBy: FindAllRepairOrdersQueryDto['sort_by'],
+    sortOrder: FindAllRepairOrdersQueryDto['sort_order'],
+    agreedDateStatusIds: string[],
+  ): { orderClause: string; rowNumberOrder: string } {
+    const direction = sortOrder.toUpperCase();
+    const defaultOrder = `ro.${sortBy} ${direction}, ro.id ASC`;
+
+    if (!agreedDateStatusIds.length) {
+      return {
+        orderClause: `ORDER BY ro.status_id, ${defaultOrder}`,
+        rowNumberOrder: `ORDER BY ${defaultOrder}`,
+      };
+    }
+
+    const hasAgreedDate = `ro.agreed_date IS NOT NULL AND BTRIM(ro.agreed_date::text) <> ''`;
+    const isAgreedDateStatus = `ro.status_id = ANY(:agreedDateStatusIds)`;
+    const agreedDateOrder = `
+      CASE
+        WHEN ${isAgreedDateStatus} AND ${hasAgreedDate} THEN 0
+        WHEN ${isAgreedDateStatus} THEN 1
+        ELSE 2
+      END ASC,
+      CASE
+        WHEN ${isAgreedDateStatus} AND ${hasAgreedDate}
+          THEN NULLIF(BTRIM(ro.agreed_date::text), '')::timestamp
+      END ASC,
+      CASE
+        WHEN ${isAgreedDateStatus} AND NOT (${hasAgreedDate})
+          THEN ro.created_at
+      END ASC,
+      ${defaultOrder}`;
+
+    return {
+      orderClause: `ORDER BY ro.status_id, ${agreedDateOrder}`,
+      rowNumberOrder: `ORDER BY ${agreedDateOrder}`,
     };
   }
 
