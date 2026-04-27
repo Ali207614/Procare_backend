@@ -178,9 +178,6 @@ export class UpdateRepairOrderDto {
   })
   @IsOptional()
   @IsString()
-  @Matches(/^\d{4}-\d{2}-\d{2} \d{2}(:\d{2})?$/, {
-    message: 'Agreed date must be in YYYY-MM-DD HH:mm format',
-  })
   agreed_date?: string;
 
   @IsString()

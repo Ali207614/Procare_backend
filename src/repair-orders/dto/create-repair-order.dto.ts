@@ -185,6 +185,15 @@ export class CreateRepairOrderDto {
   @MaxLength(10000, { message: 'Description must not exceed 10000 characters' })
   description?: string | null;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    example: '2026-04-01 09:30',
+    description: 'Agreed date (YYYY-MM-DD HH:mm)',
+  })
+  @IsOptional()
+  @IsString({ message: 'Agreed date must be a string' })
+  agreed_date?: string | null;
+
   @ApiPropertyOptional({ description: 'Client first name', example: 'Asilbek', maxLength: 100 })
   @IsOptional()
   @IsString({ message: 'First name must be a string' })

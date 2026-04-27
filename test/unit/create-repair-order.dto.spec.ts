@@ -25,4 +25,15 @@ describe('CreateRepairOrderDto', () => {
     expect(statusError).toBeDefined();
     expect(statusError?.constraints).toHaveProperty('matches', 'Invalid status ID');
   });
+
+  it('allows agreed_date to be provided as a string field', async () => {
+    const dto = new CreateRepairOrderDto();
+    dto.branch_id = '00000000-0000-4000-8000-000000000000';
+    dto.agreed_date = '2026-04-01 09:30';
+
+    const errors = await validate(dto);
+    const agreedDateError = errors.find((error) => error.property === 'agreed_date');
+
+    expect(agreedDateError).toBeUndefined();
+  });
 });

@@ -137,6 +137,16 @@ function createTransactionMock(resolvers: Record<string, unknown>): TransactionM
   return trx;
 }
 
+function formatAgreedDateLocal(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+
+  return `${year}-${month}-${day} ${hour}:${minute}`;
+}
+
 describe('RepairOrdersService region validation', () => {
   let service: RepairOrdersService;
   let knex: { transaction: jest.Mock; raw: jest.Mock };
@@ -483,6 +493,61 @@ describe('RepairOrdersService region validation', () => {
     ).toBe(true);
   });
 
+  it('rejects create when the active status requires an agreed_date', async () => {
+    permissionService.findByRolesAndBranch.mockResolvedValue([
+      {
+        ...permission,
+        status_id: 'status-id',
+        cannot_continue_without_agreed_date: true,
+      },
+    ]);
+
+    const trx = createTransactionMock({
+      repair_orders: [[]],
+    });
+    knex.transaction.mockResolvedValue(trx);
+
+    await expect(
+      service.create(admin, 'branch-id', {
+        branch_id: 'branch-id',
+        phone_number: '+998901234567',
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        location: 'agreed_date',
+      }),
+    });
+
+    const repairOrderRecorders = trx.recorders['repair_orders'] ?? [];
+    expect(repairOrderRecorders.some((recorder) => recorder.inserts.length > 0)).toBe(false);
+  });
+
+  it('persists agreed_date during create when the value is valid', async () => {
+    const agreedDate = formatAgreedDateLocal(new Date(Date.now() + 60 * 60 * 1000));
+    const trx = createTransactionMock({
+      repair_orders: [[]],
+    });
+    knex.transaction.mockResolvedValue(trx);
+
+    await expect(
+      service.create(admin, 'branch-id', {
+        branch_id: 'branch-id',
+        phone_number: '+998901234567',
+        agreed_date: agreedDate,
+      }),
+    ).resolves.toMatchObject({
+      agreed_date: agreedDate,
+    });
+
+    const insertRecorder = (trx.recorders['repair_orders'] ?? []).find(
+      (recorder) => recorder.inserts.length > 0,
+    );
+
+    expect(insertRecorder?.inserts[0]).toMatchObject({
+      agreed_date: agreedDate,
+    });
+  });
+
   it('rejects update when region_id does not exist', async () => {
     const trx = createTransactionMock({
       repair_orders: [baseOrder],
@@ -512,6 +577,74 @@ describe('RepairOrdersService region validation', () => {
 
     expect(trx.recorders['repair_orders'][1].updates[0]).toMatchObject({
       region_id: 'region-id',
+    });
+  });
+
+  it('rejects update when agreed_date is missing and the current order has none', async () => {
+    const trx = createTransactionMock({
+      repair_orders: [baseOrder],
+    });
+    knex.transaction.mockResolvedValue(trx);
+
+    await expect(
+      service.update(admin, baseOrder.id, {
+        agreed_date: 'not-a-date',
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        location: 'agreed_date',
+      }),
+    });
+  });
+
+  it('rejects update when the current status requires an agreed_date', async () => {
+    permissionService.findByRolesAndBranch.mockResolvedValue([
+      {
+        ...permission,
+        cannot_continue_without_agreed_date: true,
+      },
+    ]);
+
+    const trx = createTransactionMock({
+      repair_orders: [
+        {
+          ...baseOrder,
+          agreed_date: '2026-04-01 10:00',
+        },
+      ],
+    });
+    knex.transaction.mockResolvedValue(trx);
+
+    await expect(
+      service.update(admin, baseOrder.id, {
+        agreed_date: 'not-a-date',
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        location: 'agreed_date',
+      }),
+    });
+  });
+
+  it('skips agreed_date validation when the current order already has a value and the status does not require it', async () => {
+    const trx = createTransactionMock({
+      repair_orders: [
+        {
+          ...baseOrder,
+          agreed_date: '2026-04-01 10:00',
+        },
+      ],
+    });
+    knex.transaction.mockResolvedValue(trx);
+
+    await expect(
+      service.update(admin, baseOrder.id, {
+        agreed_date: 'not-a-date',
+      }),
+    ).resolves.toEqual({ message: 'Repair order updated successfully' });
+
+    expect(trx.recorders['repair_orders'][1].updates[0]).toMatchObject({
+      agreed_date: 'not-a-date',
     });
   });
 });

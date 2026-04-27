@@ -82,6 +82,20 @@ export class RepairOrdersService {
         'repair_order_permission',
         permissions,
       );
+      const createStatusPermission = permissions.find(
+        (permission) => permission.branch_id === branchId && permission.status_id === createStatus.id,
+      );
+
+      if (createStatusPermission?.cannot_continue_without_agreed_date && !dto.agreed_date) {
+        throw new BadRequestException({
+          message: "Ushbu status uchun kelishilgan sana kiritilishi shart.",
+          location: 'agreed_date',
+        });
+      }
+
+      if (dto.agreed_date !== undefined && dto.agreed_date !== null) {
+        this.validateAgreedDateOrThrow(dto.agreed_date);
+      }
 
       // ── Resolve user: either by user_id or by inline client info ──
       let resolvedUserId: string | undefined = dto.user_id;
@@ -184,6 +198,7 @@ export class RepairOrdersService {
         phone_number: resolvedPhoneNumber,
         name: resolvedName,
         description: resolvedDescription ?? null,
+        agreed_date: dto.agreed_date ?? null,
         source: dto.source || 'Qolda',
         created_at: createdAt,
         updated_at: createdAt,
@@ -366,6 +381,10 @@ export class RepairOrdersService {
         'repair_order_update',
         permissions,
       );
+      const currentStatusPermission = permissions.find(
+        (permission) =>
+          permission.branch_id === order.branch_id && permission.status_id === order.status_id,
+      );
 
       const logFields: { key: string; oldVal: unknown; newVal: unknown }[] = [];
       const updatedFields: Partial<RepairOrder> = {};
@@ -466,21 +485,27 @@ export class RepairOrdersService {
           dtoFieldValue = this.normalizeDescription(dtoFieldValue as string | null | undefined);
         }
         if (dtoFieldValue !== undefined && dtoFieldValue !== order[field]) {
-          if (field === 'agreed_date' && dtoFieldValue) {
-            const inputDate = parseAgreedDateInput(dtoFieldValue as string);
+          if (field === 'agreed_date') {
+            const shouldValidateAgreedDate =
+              order.agreed_date === null ||
+              currentStatusPermission?.cannot_continue_without_agreed_date === true;
 
-            if (!inputDate) {
+            if (
+              currentStatusPermission?.cannot_continue_without_agreed_date === true &&
+              (dtoFieldValue === null || dtoFieldValue === undefined || dtoFieldValue === '')
+            ) {
               throw new BadRequestException({
-                message: 'Agreed date must be in YYYY-MM-DD HH:mm format',
+                message: "Ushbu status uchun kelishilgan sana kiritilishi shart.",
                 location: 'agreed_date',
               });
             }
 
-            if (inputDate <= new Date()) {
-              throw new BadRequestException({
-                message: 'Agreed date must be in the future',
-                location: 'agreed_date',
-              });
+            if (
+              shouldValidateAgreedDate &&
+              dtoFieldValue !== null &&
+              dtoFieldValue !== undefined
+            ) {
+              this.validateAgreedDateOrThrow(dtoFieldValue as string);
             }
           }
 
@@ -2357,6 +2382,24 @@ export class RepairOrdersService {
       message: 'Mijozda ayni telefon turi bo‘yicha vazifa mavjud bo‘lsa, IMEI kiritilishi shart',
       location: 'imei',
     });
+  }
+
+  private validateAgreedDateOrThrow(value: string): void {
+    const inputDate = parseAgreedDateInput(value);
+
+    if (!inputDate) {
+      throw new BadRequestException({
+        message: 'Agreed date must be in YYYY-MM-DD HH:mm format',
+        location: 'agreed_date',
+      });
+    }
+
+    if (inputDate <= new Date()) {
+      throw new BadRequestException({
+        message: 'Agreed date must be in the future',
+        location: 'agreed_date',
+      });
+    }
   }
 
   /**
