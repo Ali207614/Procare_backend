@@ -298,6 +298,7 @@ export class OnlinePbxService {
         const createOrderHelper = async (
           pbxCode: string | null,
           fallback: boolean,
+          assignmentSource?: 'telephony_auto' | 'telephony_answered',
         ): Promise<void> => {
           const defaultStatus = '50000000-0000-0000-0001-001000000000';
           if (DEFAULT_BRANCH_ID && defaultStatus) {
@@ -309,6 +310,7 @@ export class OnlinePbxService {
               source: direction === 'inbound' ? 'Kiruvchi qongiroq' : 'Chiquvchi qongiroq',
               onlinepbxCode: pbxCode,
               fallbackToFewestOpen: fallback,
+              assignmentSource,
             });
             if (newOrder) {
               userId = newOrder.user_id || userId;
@@ -329,7 +331,7 @@ export class OnlinePbxService {
           if (event === 'call_start') {
             if (!openOrder) {
               // Create if doesn't exist, assigning to caller without fallback
-              await createOrderHelper(onlinepbxCode, false);
+              await createOrderHelper(onlinepbxCode, false, 'telephony_answered');
             } else {
               const callerDigits = caller?.replace(/\D/g, '');
               const specificAdminCode = callerDigits?.length === 3 ? callerDigits : onlinepbxCode;
@@ -373,7 +375,7 @@ export class OnlinePbxService {
             if (!openOrder) {
               const callerDigits = caller?.replace(/\D/g, '');
               const specificAdminCode = callerDigits?.length === 3 ? callerDigits : onlinepbxCode;
-              await createOrderHelper(specificAdminCode, false);
+              await createOrderHelper(specificAdminCode, false, 'telephony_answered');
             } else {
               await this.repairOrderService.moveToTopById(openOrder.id);
               this.logger.log(
@@ -410,7 +412,7 @@ export class OnlinePbxService {
               const calleeDigits = callee?.replace(/\D/g, '');
               const specificAdminCode = calleeDigits?.length === 3 ? calleeDigits : onlinepbxCode;
 
-              await createOrderHelper(specificAdminCode, !specificAdminCode);
+              await createOrderHelper(specificAdminCode, !specificAdminCode, 'telephony_auto');
             }
           } else if (event === 'call_answered') {
             const calleeDigits = callee?.replace(/\D/g, '');
@@ -440,7 +442,7 @@ export class OnlinePbxService {
           } else if (event === 'call_missed') {
             if (!openOrder) {
               // Missed call: create and use fallback logic
-              await createOrderHelper(null, true);
+              await createOrderHelper(null, true, 'telephony_auto');
             } else {
               // Increment missed calls count on existing order
               await this.repairOrderService.incrementMissedCallCount(openOrder.id);
@@ -456,7 +458,7 @@ export class OnlinePbxService {
                 const calleeDigits = callee?.replace(/\D/g, '');
                 const specificAdminCode = calleeDigits?.length === 3 ? calleeDigits : onlinepbxCode;
                 // Create and strictly assign to whoever answered
-                await createOrderHelper(specificAdminCode, false);
+                await createOrderHelper(specificAdminCode, false, 'telephony_answered');
               } else {
                 // If it exists, move to top again as the interaction just completed
                 await this.repairOrderService.moveToTopById(openOrder.id);

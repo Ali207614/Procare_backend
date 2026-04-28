@@ -46,6 +46,13 @@ const NO_ANSWER_REJECT_CAUSE_NAME = "Qo'ng'iroqqa javob bermadi";
 const DEFAULT_OPEN_APPLICATION_BRANCH_ID = '00000000-0000-4000-8000-000000000000';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+type RepairOrderAssignmentSource = 'manual' | 'telephony_auto' | 'telephony_answered';
+const ASSIGNMENT_SOURCE_TELEPHONY_AUTO: RepairOrderAssignmentSource = 'telephony_auto';
+const ASSIGNMENT_SOURCE_TELEPHONY_ANSWERED: RepairOrderAssignmentSource = 'telephony_answered';
+const AUTO_REPLACEABLE_ASSIGNMENT_SOURCES: RepairOrderAssignmentSource[] = [
+  ASSIGNMENT_SOURCE_TELEPHONY_AUTO,
+];
+
 @Injectable()
 export class RepairOrdersService {
   private readonly table = 'repair_orders';
@@ -2369,6 +2376,7 @@ export class RepairOrdersService {
     source: 'Kiruvchi qongiroq' | 'Chiquvchi qongiroq';
     onlinepbxCode?: string | null;
     fallbackToFewestOpen?: boolean;
+    assignmentSource?: RepairOrderAssignmentSource;
   }): Promise<RepairOrder> {
     const trx = await this.knex.transaction();
     try {
@@ -2453,10 +2461,17 @@ export class RepairOrdersService {
 
       // 3. Assign the admin to the repair order if an admin was found
       if (assignedAdminId) {
+        const assignmentSource =
+          data.assignmentSource ??
+          (data.fallbackToFewestOpen === true
+            ? ASSIGNMENT_SOURCE_TELEPHONY_AUTO
+            : ASSIGNMENT_SOURCE_TELEPHONY_ANSWERED);
         this.logger.log(
           `[Webhook Order] Assigning repair order ${newOrder.id} to admin ${assignedAdminId}`,
         );
-        await this.assignTelephonyAdminToOrderIfEligible(trx, newOrder.id, assignedAdminId);
+        await this.assignTelephonyAdminToOrderIfEligible(trx, newOrder.id, assignedAdminId, {
+          assignmentSource,
+        });
       } else {
         this.logger.log(`[Webhook Order] No admin assigned to repair order ${newOrder.id}`);
       }
@@ -2911,7 +2926,8 @@ export class RepairOrdersService {
 
         if (targetAdminId) {
           await this.assignTelephonyAdminToOrderIfEligible(trx, order.id, targetAdminId, {
-            replaceSameRole: true,
+            replaceAutoAssignedSameRole: true,
+            assignmentSource: ASSIGNMENT_SOURCE_TELEPHONY_ANSWERED,
           });
         }
       } else {
@@ -2927,7 +2943,8 @@ export class RepairOrdersService {
 
         if (targetAdminId) {
           await this.assignTelephonyAdminToOrderIfEligible(trx, order.id, targetAdminId, {
-            replaceSameRole: true,
+            replaceAutoAssignedSameRole: true,
+            assignmentSource: ASSIGNMENT_SOURCE_TELEPHONY_ANSWERED,
           });
         }
       }
@@ -2977,7 +2994,9 @@ export class RepairOrdersService {
         return;
       }
 
-      await this.assignTelephonyAdminToOrderIfEligible(trx, data.orderId, targetAdminId);
+      await this.assignTelephonyAdminToOrderIfEligible(trx, data.orderId, targetAdminId, {
+        assignmentSource: ASSIGNMENT_SOURCE_TELEPHONY_ANSWERED,
+      });
       await trx.commit();
       await this.redisService.flushByPrefix(`${this.table}:${data.branchId}`);
     } catch (err) {
@@ -3210,34 +3229,48 @@ export class RepairOrdersService {
     this.logger.log(
       `[Webhook Order] Assigning missed-call repair order ${orderId} to fallback admin ${assignedAdminId}`,
     );
-    await this.assignTelephonyAdminToOrderIfEligible(trx, orderId, assignedAdminId);
+    await this.assignTelephonyAdminToOrderIfEligible(trx, orderId, assignedAdminId, {
+      assignmentSource: ASSIGNMENT_SOURCE_TELEPHONY_AUTO,
+    });
   }
 
   private async assignAdminToOrderIfNeeded(
     trx: Knex.Transaction,
     orderId: string,
     adminId: string,
+    assignmentSource: RepairOrderAssignmentSource,
   ): Promise<void> {
     await trx('repair_order_assign_admins')
       .insert({
         repair_order_id: orderId,
         admin_id: adminId,
+        assignment_source: assignmentSource,
         created_at: new Date(),
       })
       .onConflict(['repair_order_id', 'admin_id'])
       .ignore();
+
+    if (assignmentSource === ASSIGNMENT_SOURCE_TELEPHONY_AUTO) return;
+
+    await trx('repair_order_assign_admins')
+      .where({ repair_order_id: orderId, admin_id: adminId })
+      .whereIn('assignment_source', AUTO_REPLACEABLE_ASSIGNMENT_SOURCES)
+      .update({ assignment_source: assignmentSource });
   }
 
   private async assignTelephonyAdminToOrderIfEligible(
     trx: Knex.Transaction,
     orderId: string,
     adminId: string,
-    options: { replaceSameRole?: boolean } = {},
+    options: {
+      replaceAutoAssignedSameRole?: boolean;
+      assignmentSource?: RepairOrderAssignmentSource;
+    } = {},
   ): Promise<void> {
-    if (options.replaceSameRole) {
-      await this.removeAssignedAdminsWithSameRole(trx, orderId, adminId);
-      await this.assignAdminToOrderIfNeeded(trx, orderId, adminId);
-      return;
+    const assignmentSource = options.assignmentSource ?? ASSIGNMENT_SOURCE_TELEPHONY_ANSWERED;
+
+    if (options.replaceAutoAssignedSameRole) {
+      await this.removeAutoAssignedAdminsWithSameRole(trx, orderId, adminId);
     }
 
     const hasSameRoleAssigned = await this.hasAssignedAdminWithSameRole(trx, orderId, adminId);
@@ -3248,16 +3281,16 @@ export class RepairOrdersService {
       return;
     }
 
-    await this.assignAdminToOrderIfNeeded(trx, orderId, adminId);
+    await this.assignAdminToOrderIfNeeded(trx, orderId, adminId, assignmentSource);
   }
 
-  private async removeAssignedAdminsWithSameRole(
+  private async removeAutoAssignedAdminsWithSameRole(
     trx: Knex.Transaction,
     orderId: string,
     adminId: string,
-  ): Promise<void> {
+  ): Promise<number> {
     const roles = await this.getActiveRolesByAdminId(trx, adminId);
-    if (!roles.length) return;
+    if (!roles.length) return 0;
 
     const roleIds = roles.map((role) => role.role_id);
     const roleNames = [
@@ -3266,11 +3299,12 @@ export class RepairOrdersService {
       ),
     ];
 
-    await trx('repair_order_assign_admins as raa')
+    const deletedCount = await trx('repair_order_assign_admins as raa')
       .join('admin_roles as ar', 'raa.admin_id', 'ar.admin_id')
       .join('roles as r', 'ar.role_id', 'r.id')
       .where('raa.repair_order_id', orderId)
       .whereNot('raa.admin_id', adminId)
+      .whereIn('raa.assignment_source', AUTO_REPLACEABLE_ASSIGNMENT_SOURCES)
       .andWhere((qb) => {
         void qb.whereIn('ar.role_id', roleIds);
         if (roleNames.length) {
@@ -3280,6 +3314,8 @@ export class RepairOrdersService {
       .andWhere('r.status', 'Open')
       .andWhere('r.is_active', true)
       .delete();
+
+    return Number(deletedCount ?? 0);
   }
 
   private async hasAssignedAdminWithSameRole(

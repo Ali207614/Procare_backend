@@ -77,6 +77,7 @@ export class AssignAdminUpdaterService {
       const rows = idsToAssign.map((id) => ({
         repair_order_id: orderId,
         admin_id: id,
+        assignment_source: 'manual',
         created_at: now,
       }));
 

@@ -294,7 +294,7 @@ describe('RepairOrdersService telephony assignment', () => {
     expect(redisService.flushByPrefix).toHaveBeenCalledWith('repair_orders:branch-1');
   });
 
-  it('replaces the fallback same-role admin with the answering admin', async () => {
+  it('replaces the automatic same-role admin with the answering admin', async () => {
     const orderBuilder = createBuilder();
     orderBuilder.first.mockResolvedValue({
       id: 'order-1',
@@ -313,7 +313,8 @@ describe('RepairOrdersService telephony assignment', () => {
     targetRolesBuilder.select.mockResolvedValue([{ role_id: 'role-1', role_name: 'Master' }]);
 
     const sharedRoleBuilder = createBuilder();
-    sharedRoleBuilder.first.mockResolvedValue({ admin_id: 'existing-admin' });
+    sharedRoleBuilder.first.mockResolvedValue(undefined);
+    sharedRoleBuilder.delete.mockResolvedValue(1);
 
     const assignBuilder = createBuilder();
 
@@ -342,14 +343,76 @@ describe('RepairOrdersService telephony assignment', () => {
     });
 
     expect(sharedRoleBuilder.delete).toHaveBeenCalled();
+    expect(sharedRoleBuilder.whereIn).toHaveBeenCalledWith('raa.assignment_source', [
+      'telephony_auto',
+    ]);
     expect(assignBuilder.insert).toHaveBeenCalledWith(
       expect.objectContaining({
         repair_order_id: 'order-1',
         admin_id: 'admin-120',
+        assignment_source: 'telephony_answered',
       }),
     );
     expect(assignBuilder.onConflict).toHaveBeenCalledWith(['repair_order_id', 'admin_id']);
     expect(assignBuilder.ignore).toHaveBeenCalled();
+  });
+
+  it('keeps a previous answered same-role admin when another admin answers later', async () => {
+    const orderBuilder = createBuilder();
+    orderBuilder.first.mockResolvedValue({
+      id: 'order-1',
+      number_id: 1,
+      branch_id: 'branch-1',
+      status_id: 'status-1',
+      sort: 2,
+      status: 'Open',
+      phone_number: '+998901234567',
+    });
+
+    const adminsBuilder = createBuilder();
+    adminsBuilder.first.mockResolvedValue({ id: 'admin-habib' });
+
+    const targetRolesBuilder = createBuilder();
+    targetRolesBuilder.select.mockResolvedValue([{ role_id: 'role-1', role_name: 'Operator' }]);
+
+    const sharedRoleBuilder = createBuilder();
+    sharedRoleBuilder.delete.mockResolvedValue(0);
+    sharedRoleBuilder.first.mockResolvedValue({
+      admin_id: 'admin-mohir',
+      assignment_source: 'telephony_answered',
+    });
+
+    const assignBuilder = createBuilder();
+
+    const trx = jest.fn((table: string) => {
+      if (table === 'repair_orders as ro') return orderBuilder;
+      if (table === 'repair_orders') return orderBuilder;
+      if (table === 'admins as a') return adminsBuilder;
+      if (table === 'admin_roles as ar') return targetRolesBuilder;
+      if (table === 'repair_order_assign_admins as raa') return sharedRoleBuilder;
+      if (table === 'repair_order_assign_admins') return assignBuilder;
+      throw new Error(`Unexpected table ${table}`);
+    }) as TransactionMock;
+
+    trx.commit = jest.fn().mockResolvedValue(undefined);
+    trx.rollback = jest.fn().mockResolvedValue(undefined);
+
+    knex.transaction.mockResolvedValue(trx);
+
+    await service.handleCallAnswered({
+      branchId: 'branch-1',
+      phoneNumber: '+998901234567',
+      onlinepbxCode: '121',
+      userId: 'user-1',
+      openMenu: true,
+      source: 'Kiruvchi qongiroq',
+    });
+
+    expect(sharedRoleBuilder.delete).toHaveBeenCalled();
+    expect(sharedRoleBuilder.whereIn).toHaveBeenCalledWith('raa.assignment_source', [
+      'telephony_auto',
+    ]);
+    expect(assignBuilder.insert).not.toHaveBeenCalled();
   });
 
   it('treats active roles with the same name as the same role during telephony assignment', async () => {

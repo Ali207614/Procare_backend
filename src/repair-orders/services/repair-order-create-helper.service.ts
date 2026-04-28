@@ -196,6 +196,7 @@ export class RepairOrderCreateHelperService {
       const rows = finalIdsToAssign.map((id) => ({
         repair_order_id: orderId,
         admin_id: id,
+        assignment_source: 'manual',
         created_at: now,
       }));
 

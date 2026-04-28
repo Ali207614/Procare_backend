@@ -240,6 +240,7 @@ describe('OnlinePbxService gateway filtering', () => {
       source: 'Kiruvchi qongiroq',
       onlinepbxCode: '120',
       fallbackToFewestOpen: false,
+      assignmentSource: 'telephony_auto',
     });
     expect(logger.log).toHaveBeenCalledWith(
       '[OnlinePBX Webhook] Saving phone call call-start-new-1 with user_id: null and repair_order_id: order-2',

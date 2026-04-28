@@ -19,6 +19,7 @@ exports.seed = async function (knex) {
       id: uuidv4(),
       admin_id: admins[i % admins.length].id,
       repair_order_id: repairOrders[i].id,
+      assignment_source: 'manual',
       created_at: knex.fn.now(),
     });
   }
