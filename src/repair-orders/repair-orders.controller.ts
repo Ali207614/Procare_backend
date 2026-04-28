@@ -18,10 +18,16 @@ import { BranchExistGuard } from 'src/common/guards/branch-exist.guard';
 import { RepairOrderStatusExistGuard } from 'src/common/guards/repair-order-status-exist.guard';
 import {
   ApiBearerAuth,
+  ApiBadRequestResponse,
+  ApiBody,
+  ApiConsumes,
+  ApiCreatedResponse,
   ApiExtraModels,
+  ApiInternalServerErrorResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiProduces,
   ApiTags,
   getSchemaPath,
 } from '@nestjs/swagger';
@@ -38,12 +44,214 @@ import {
 } from 'src/common/types/repair-order.interface';
 import { FindAllRepairOrdersQueryDto } from 'src/repair-orders/dto/find-all-repair-orders.dto';
 import { FindAllUnfilteredRepairOrdersDto } from 'src/repair-orders/dto/find-all-unfiltered-repair-orders.dto';
+import { OpenRepairOrderApplicationDto } from 'src/repair-orders/dto/open-repair-order-application.dto';
 import { UpdateClientInfoDto, UpdateProductDto, UpdateProblemDto, TransferBranchDto } from './dto';
 import {
   RepairOrderDetailsSwaggerDto,
   RepairOrderListItemSwaggerDto,
 } from './dto/repair-order-swagger.dto';
 import { PaginationResult } from 'src/common/utils/pagination.util';
+
+@ApiTags('Repair Orders')
+@Controller('repair-orders/open')
+export class OpenRepairOrdersController {
+  constructor(private readonly service: RepairOrdersService) {}
+
+  @Post()
+  @ApiOperation({
+    summary: 'Create public repair order application',
+    operationId: 'createOpenRepairOrderApplication',
+    description: [
+      'Public endpoint used by the website/app lead form.',
+      '',
+      'Auth: no admin bearer token is required.',
+      '',
+      'Backend behavior:',
+      '- creates or reuses a customer by phone number;',
+      '- normalizes Uzbekistan phone numbers to +998XXXXXXXXX;',
+      '- creates the repair order in the configured public branch;',
+      '- assigns the default active Open repair-order status;',
+      '- sets priority to Medium, pickup_method to Self, delivery_method to Self, and source to Web;',
+      '- returns the created repair_orders row, not the detailed admin view.',
+    ].join('\n'),
+  })
+  @ApiConsumes('application/json')
+  @ApiProduces('application/json')
+  @ApiBody({
+    type: OpenRepairOrderApplicationDto,
+    description:
+      'Send only name, phone_number, phone_category, and description. All four fields are required. Extra fields are rejected by the global validation pipe.',
+    examples: {
+      existingPhoneCategory: {
+        summary: 'Known phone category UUID',
+        description:
+          'Use this when the frontend has a selectable active leaf phone category from the catalog.',
+        value: {
+          name: 'Asilbek Azimov',
+          phone_number: '+998901234567',
+          phone_category: '550e8400-e29b-41d4-a716-446655440000',
+          description: 'Screen is broken and the battery drains quickly.',
+        },
+      },
+      customPhoneCategory: {
+        summary: 'Free text phone model',
+        description:
+          'Use this when the frontend lets the customer type a device/model. The backend appends this text to description and leaves phone_category_id empty.',
+        value: {
+          name: 'Asilbek Azimov',
+          phone_number: '901234567',
+          phone_category: 'iPhone 13 Pro',
+          description: 'Display cracked after a drop.',
+        },
+      },
+    },
+  })
+  @ApiCreatedResponse({
+    description:
+      'Repair order created successfully. The response is the raw repair_orders record, not the detailed admin view.',
+    schema: {
+      type: 'object',
+      required: [
+        'id',
+        'number_id',
+        'branch_id',
+        'status_id',
+        'delivery_method',
+        'pickup_method',
+        'sort',
+        'priority',
+        'status',
+        'phone_number',
+        'source',
+        'created_at',
+        'updated_at',
+      ],
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+        number_id: { type: 'number', example: 1024 },
+        user_id: { type: 'string', format: 'uuid', nullable: true },
+        branch_id: { type: 'string', format: 'uuid' },
+        total: { type: 'string', example: '0.00' },
+        imei: { type: 'string', nullable: true },
+        phone_category_id: { type: 'string', format: 'uuid', nullable: true },
+        status_id: { type: 'string', format: 'uuid' },
+        delivery_method: { type: 'string', enum: ['Self', 'Delivery'], example: 'Self' },
+        pickup_method: { type: 'string', enum: ['Self', 'Pickup'], example: 'Self' },
+        sort: { type: 'number', example: 1 },
+        priority: {
+          type: 'string',
+          enum: ['Low', 'Medium', 'High', 'Highest'],
+          example: 'Medium',
+        },
+        priority_level: { type: 'number', example: 2 },
+        agreed_date: { type: 'string', format: 'date-time', nullable: true },
+        reject_cause_id: { type: 'string', format: 'uuid', nullable: true },
+        region_id: { type: 'string', format: 'uuid', nullable: true },
+        created_by: { type: 'string', format: 'uuid', nullable: true },
+        status: {
+          type: 'string',
+          enum: ['Open', 'Deleted', 'Closed', 'Cancelled'],
+          example: 'Open',
+        },
+        phone_number: { type: 'string', example: '+998901234567' },
+        name: { type: 'string', nullable: true, example: 'Asilbek Azimov' },
+        description: {
+          type: 'string',
+          nullable: true,
+          example: 'Screen is broken and the battery drains quickly.',
+        },
+        source: { type: 'string', example: 'Web' },
+        call_count: { type: 'number', example: 0 },
+        missed_calls: { type: 'number', example: 0 },
+        customer_no_answer_count: { type: 'number', example: 0 },
+        last_customer_no_answer_at: { type: 'string', format: 'date-time', nullable: true },
+        customer_no_answer_due_at: { type: 'string', format: 'date-time', nullable: true },
+        created_at: { type: 'string', format: 'date-time' },
+        updated_at: { type: 'string', format: 'date-time' },
+      },
+      example: {
+        id: '7c54c7bd-c01e-4e95-ae70-c88283f61f2b',
+        number_id: 1024,
+        user_id: '9583be3b-9e19-4b3d-a110-7ec44ce734f7',
+        branch_id: '00000000-0000-4000-8000-000000000000',
+        total: '0.00',
+        imei: null,
+        phone_category_id: null,
+        status_id: '2a56dc59-7966-47a5-960a-9b7d3c8f9d99',
+        delivery_method: 'Self',
+        pickup_method: 'Self',
+        sort: 1,
+        priority: 'Medium',
+        priority_level: 2,
+        agreed_date: null,
+        reject_cause_id: null,
+        region_id: null,
+        created_by: null,
+        status: 'Open',
+        phone_number: '+998901234567',
+        name: 'Asilbek Azimov',
+        description: 'Display cracked after a drop.\nPhone category: iPhone 13 Pro',
+        source: 'Web',
+        call_count: 0,
+        missed_calls: 0,
+        customer_no_answer_count: 0,
+        last_customer_no_answer_at: null,
+        customer_no_answer_due_at: null,
+        created_at: '2026-04-28T10:30:00.000Z',
+        updated_at: '2026-04-28T10:30:00.000Z',
+      },
+    },
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Validation or master-data error. Frontend can use location to highlight the field.',
+    schema: {
+      oneOf: [
+        {
+          type: 'object',
+          description: 'Business validation error from the repair order service.',
+          properties: {
+            statusCode: { type: 'number', example: 400 },
+            message: { type: 'string', example: 'Phone number must be an Uzbekistan phone number' },
+            error: { type: 'string', example: 'BadRequestException' },
+            location: { type: 'string', example: 'phone_number' },
+            timestamp: { type: 'string', format: 'date-time' },
+            path: { type: 'string', example: '/api/v1/repair-orders/open' },
+          },
+        },
+        {
+          type: 'object',
+          description: 'DTO validation error from the global validation pipe.',
+          properties: {
+            statusCode: { type: 'number', example: 400 },
+            message: { type: 'string', example: 'property email should not exist' },
+            error: { type: 'string', example: 'ValidationError' },
+            location: { type: 'string', example: 'email' },
+            timestamp: { type: 'string', format: 'date-time' },
+            path: { type: 'string', example: '/api/v1/repair-orders/open' },
+          },
+        },
+      ],
+    },
+  })
+  @ApiInternalServerErrorResponse({
+    description: 'Unexpected server error. Frontend should show a generic retry/support message.',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 500 },
+        message: { type: 'string', example: 'Unexpected error' },
+        error: { type: 'string', example: 'InternalServerError' },
+        location: { type: 'string', nullable: true, example: null },
+        timestamp: { type: 'string', format: 'date-time' },
+        path: { type: 'string', example: '/api/v1/repair-orders/open' },
+      },
+    },
+  })
+  createOpenApplication(@Body() dto: OpenRepairOrderApplicationDto): Promise<RepairOrder> {
+    return this.service.createOpenApplication(dto);
+  }
+}
 
 @ApiTags('Repair Orders')
 @ApiBearerAuth()

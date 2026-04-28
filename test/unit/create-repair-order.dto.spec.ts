@@ -70,4 +70,27 @@ describe('CreateRepairOrderDto', () => {
 
     expect(sourceTypesError).toBeUndefined();
   });
+
+  it('accepts Web as a repair order source', async () => {
+    const createDto = new CreateRepairOrderDto();
+    createDto.branch_id = '00000000-0000-4000-8000-000000000000';
+    createDto.source = 'Web';
+
+    const updateDto = new UpdateRepairOrderDto();
+    updateDto.source = 'Web';
+
+    const filterDto = new FindAllRepairOrdersQueryDto();
+    filterDto.branch_id = '00000000-0000-4000-8000-000000000000';
+    filterDto.source_types = ['Web'];
+
+    const [createErrors, updateErrors, filterErrors] = await Promise.all([
+      validate(createDto),
+      validate(updateDto),
+      validate(filterDto),
+    ]);
+
+    expect(createErrors.find((error) => error.property === 'source')).toBeUndefined();
+    expect(updateErrors.find((error) => error.property === 'source')).toBeUndefined();
+    expect(filterErrors.find((error) => error.property === 'source_types')).toBeUndefined();
+  });
 });

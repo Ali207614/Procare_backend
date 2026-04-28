@@ -14,7 +14,7 @@ import { PickupController } from './controllers/pickup.controller';
 import { RentalPhoneController } from './controllers/rental-phone.controller';
 import { AttachmentsController } from './controllers/attachments.controller';
 import { ServiceFormsController } from './controllers/service-forms.controller';
-import { RepairOrdersController } from './repair-orders.controller';
+import { OpenRepairOrdersController, RepairOrdersController } from './repair-orders.controller';
 import { RepairOrdersService } from './repair-orders.service';
 import { ServiceFormsService } from './services/service-forms.service';
 import { AssignAdminUpdaterService } from './services/assign-admin-updater.service';
@@ -43,6 +43,7 @@ import { CustomerNoAnswerCronService } from './services/customer-no-answer-cron.
     HistoryModule,
   ],
   controllers: [
+    OpenRepairOrdersController,
     RepairOrdersController,
     AssignAdminController,
     CommentController,

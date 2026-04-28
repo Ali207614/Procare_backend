@@ -295,6 +295,7 @@ describe('RepairOrdersService region validation', () => {
       pdfService as never,
       webhookService as never,
       notificationService as never,
+      { recordEntityCreated: jest.fn().mockResolvedValue(null) } as never,
     );
 
     const serviceWithPrivateMethods = service as unknown as {

@@ -24,6 +24,7 @@ import { FinalProblemUpdaterService } from 'src/repair-orders/services/final-pro
 import { RepairOrderCreateHelperService } from 'src/repair-orders/services/repair-order-create-helper.service';
 import { LoggerService } from 'src/common/logger/logger.service';
 import { CreateRepairOrderDto } from 'src/repair-orders/dto/create-repair-order.dto';
+import { OpenRepairOrderApplicationDto } from 'src/repair-orders/dto/open-repair-order-application.dto';
 import { UpdateRepairOrderDto } from 'src/repair-orders/dto/update-repair-order.dto';
 import { MoveRepairOrderDto } from 'src/repair-orders/dto/move-repair-order.dto';
 import { FindAllRepairOrdersQueryDto } from 'src/repair-orders/dto/find-all-repair-orders.dto';
@@ -32,6 +33,7 @@ import { UpdateClientInfoDto, UpdateProductDto, UpdateProblemDto, TransferBranch
 import { PdfService } from 'src/pdf/pdf.service';
 import { RepairOrderWebhookService } from 'src/repair-orders/services/repair-order-webhook.service';
 import { NotificationService } from 'src/notification/notification.service';
+import { HistoryService } from 'src/history/history.service';
 import { RepairNotificationMeta } from 'src/common/types/notification.interface';
 import { RepairOrderStatus } from 'src/common/types/repair-order-status.interface';
 import { RepairOrderRegion } from 'src/common/types/repair-order-region.interface';
@@ -41,6 +43,8 @@ import { PaginationResult } from 'src/common/utils/pagination.util';
 
 const SYSTEM_ADMIN_ID = '00000000-0000-4000-8000-000000000000';
 const NO_ANSWER_REJECT_CAUSE_NAME = "Qo'ng'iroqqa javob bermadi";
+const DEFAULT_OPEN_APPLICATION_BRANCH_ID = '00000000-0000-4000-8000-000000000000';
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 @Injectable()
 export class RepairOrdersService {
@@ -62,6 +66,7 @@ export class RepairOrdersService {
     private readonly pdfService: PdfService,
     private readonly webhookService: RepairOrderWebhookService,
     private readonly notificationService: NotificationService,
+    private readonly historyService: HistoryService,
   ) {}
 
   async create(
@@ -306,6 +311,83 @@ export class RepairOrdersService {
     }
   }
 
+  async createOpenApplication(dto: OpenRepairOrderApplicationDto): Promise<RepairOrder> {
+    const trx = await this.knex.transaction();
+    try {
+      const branchId = await this.resolveOpenApplicationBranchId(trx);
+      const createStatus = await this.resolveCreateStatus(trx, branchId);
+      const normalizedPhoneNumber = this.normalizeOpenApplicationPhoneNumber(dto.phone_number);
+      const resolvedName = this.parseCustomerNameOrThrow(dto.name).fullName;
+      const phoneCategory = await this.resolveOpenApplicationPhoneCategory(trx, dto.phone_category);
+      const description = this.buildOpenApplicationDescription(
+        dto.description,
+        phoneCategory.customText,
+      );
+
+      const resolvedUserId = await this.ensureUserByPhone(trx, normalizedPhoneNumber, {
+        allowCreate: true,
+        source: 'web',
+        createdBy: null,
+        phoneVerified: false,
+        logContext: 'Open Application User',
+        name: resolvedName,
+      });
+
+      const createdAt = new Date().toISOString();
+      const [inserted]: RepairOrder[] = await trx<RepairOrder>(this.table)
+        .insert({
+          user_id: resolvedUserId,
+          branch_id: branchId,
+          phone_category_id: phoneCategory.id,
+          priority: 'Medium',
+          status_id: createStatus.id,
+          sort: 999999,
+          delivery_method: 'Self',
+          pickup_method: 'Self',
+          created_by: null,
+          phone_number: normalizedPhoneNumber,
+          name: resolvedName,
+          description,
+          source: 'Web',
+          created_at: createdAt,
+          updated_at: createdAt,
+        })
+        .returning('*');
+
+      await this.moveToTop(trx, inserted);
+      await this.recordOpenApplicationHistory(trx, inserted, resolvedUserId, resolvedName);
+      await trx.commit();
+
+      void this.notifyRepairOrderUpdate(inserted, {
+        title: 'Yangi buyurtma',
+        message: `Saytdan yangi buyurtma yaratildi: #${inserted.number_id}`,
+        action: 'order_created',
+      });
+
+      this.webhookService.sendWebhook(inserted.id).catch((err: unknown) => {
+        this.logger.error(
+          `[RepairOrdersService] Webhook error: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+
+      await this.redisService.flushByPrefix(`${this.table}:${inserted.branch_id}`);
+      return inserted;
+    } catch (err) {
+      await trx.rollback();
+
+      if (err instanceof HttpException) {
+        throw err;
+      }
+
+      this.logger.error(
+        `Failed to create open repair order application: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      throw err;
+    }
+  }
+
   private async resolveCreateStatus(
     trx: Knex.Transaction,
     branchId: string,
@@ -357,6 +439,195 @@ export class RepairOrdersService {
     }
 
     return fallbackStatus;
+  }
+
+  private async recordOpenApplicationHistory(
+    trx: Knex.Transaction,
+    order: RepairOrder,
+    userId: string | null,
+    userLabel: string,
+  ): Promise<void> {
+    await this.historyService.recordEntityCreated({
+      db: trx,
+      entityTable: this.table,
+      entityPk: order.id,
+      entityLabel: `#${order.number_id}`,
+      rootEntityTable: this.table,
+      rootEntityPk: order.id,
+      branchId: order.branch_id,
+      sourceType: 'user_api',
+      sourceName: 'repair_orders.open_application',
+      actionKey: 'repair_orders.create.open_application',
+      actor: {
+        actorRole: 'initiator',
+        actorType: 'user',
+        actorTable: 'users',
+        actorPk: userId,
+        actorLabel: userLabel,
+      },
+      values: {
+        user_id: order.user_id,
+        branch_id: order.branch_id,
+        phone_category_id: order.phone_category_id,
+        priority: order.priority,
+        status_id: order.status_id,
+        sort: order.sort,
+        delivery_method: order.delivery_method,
+        pickup_method: order.pickup_method,
+        created_by: order.created_by,
+        phone_number: order.phone_number,
+        name: order.name,
+        description: order.description,
+        source: order.source,
+        created_at: order.created_at,
+        updated_at: order.updated_at,
+      },
+    });
+  }
+
+  private async resolveOpenApplicationBranchId(trx: Knex.Transaction): Promise<string> {
+    const configuredBranchId =
+      process.env.OPEN_REPAIR_ORDER_BRANCH_ID || DEFAULT_OPEN_APPLICATION_BRANCH_ID;
+
+    if (configuredBranchId) {
+      const configuredBranch = await trx('branches')
+        .where({ id: configuredBranchId, status: 'Open', is_active: true })
+        .first<{ id: string }>('id');
+
+      if (configuredBranch) {
+        return configuredBranch.id;
+      }
+    }
+
+    const protectedBranch = await trx('branches')
+      .where({ status: 'Open', is_active: true, is_protected: true })
+      .orderBy('sort', 'asc')
+      .first<{ id: string }>('id');
+
+    if (protectedBranch) {
+      return protectedBranch.id;
+    }
+
+    const fallbackBranch = await trx('branches')
+      .where({ status: 'Open', is_active: true })
+      .orderBy('sort', 'asc')
+      .first<{ id: string }>('id');
+
+    if (!fallbackBranch) {
+      throw new BadRequestException({
+        message: 'No active branch found for public applications',
+        location: 'branch_id',
+      });
+    }
+
+    return fallbackBranch.id;
+  }
+
+  private async resolveOpenApplicationPhoneCategory(
+    trx: Knex.Transaction,
+    phoneCategory: string,
+  ): Promise<{ id?: string; customText?: string }> {
+    const normalizedPhoneCategory = phoneCategory.trim();
+
+    if (!normalizedPhoneCategory) {
+      throw new BadRequestException({
+        message: 'Phone category must not be empty',
+        location: 'phone_category',
+      });
+    }
+
+    if (!UUID_PATTERN.test(normalizedPhoneCategory)) {
+      return { customText: normalizedPhoneCategory };
+    }
+
+    const hasChildrenQuery = this.knex.raw(
+      `EXISTS (SELECT 1 FROM phone_categories c WHERE c.parent_id = pc.id AND c.status = 'Open') as has_children`,
+    );
+    const existingCategory = await trx('phone_categories as pc')
+      .select('pc.id', hasChildrenQuery)
+      .where({ 'pc.id': normalizedPhoneCategory, 'pc.is_active': true, 'pc.status': 'Open' })
+      .first<{ id: string; has_children: boolean }>();
+
+    if (!existingCategory) {
+      throw new BadRequestException({
+        message: 'Phone category not found or inactive',
+        location: 'phone_category',
+      });
+    }
+
+    if (existingCategory.has_children) {
+      throw new BadRequestException({
+        message: 'Phone category must not have children',
+        location: 'phone_category',
+      });
+    }
+
+    return { id: existingCategory.id };
+  }
+
+  private buildOpenApplicationDescription(
+    description: string,
+    customPhoneCategory?: string,
+  ): string | null {
+    const parts = [
+      this.normalizeDescription(description),
+      customPhoneCategory ? `Phone category: ${customPhoneCategory}` : null,
+    ].filter((part): part is string => Boolean(part));
+
+    if (!parts.length) {
+      return null;
+    }
+
+    const normalizedDescription = parts.join('\n');
+
+    if (normalizedDescription.length > 10000) {
+      throw new BadRequestException({
+        message: 'Description must not exceed 10000 characters',
+        location: 'description',
+      });
+    }
+
+    return normalizedDescription;
+  }
+
+  private normalizeOpenApplicationPhoneNumber(phoneNumber: string): string {
+    const trimmed = phoneNumber.trim();
+    const digits = trimmed.replace(/\D/g, '');
+
+    if (!digits) {
+      throw new BadRequestException({
+        message: 'Phone number must not be empty',
+        location: 'phone_number',
+      });
+    }
+
+    if (trimmed.startsWith('+') && !digits.startsWith('998')) {
+      throw new BadRequestException({
+        message: 'Phone number must be an Uzbekistan phone number',
+        location: 'phone_number',
+      });
+    }
+
+    let lastNineDigits: string | null = null;
+
+    if (digits.length === 12 && digits.startsWith('998')) {
+      lastNineDigits = digits.slice(3);
+    } else if (digits.length === 9) {
+      lastNineDigits = digits;
+    } else if (digits.length === 10 && (digits.startsWith('0') || digits.startsWith('8'))) {
+      lastNineDigits = digits.slice(1);
+    } else if (digits.length > 9) {
+      lastNineDigits = digits.slice(-9);
+    }
+
+    if (!lastNineDigits || lastNineDigits.length !== 9) {
+      throw new BadRequestException({
+        message: 'Phone number must match Uzbekistan phone number structure',
+        location: 'phone_number',
+      });
+    }
+
+    return `+998${lastNineDigits}`;
   }
 
   async update(
@@ -2230,7 +2501,7 @@ export class RepairOrdersService {
     trx: Knex.Transaction,
     user: Pick<User, 'id' | 'first_name' | 'last_name'>,
     name: string,
-    logContext: 'Webhook User' | 'Manual User',
+    logContext: 'Webhook User' | 'Manual User' | 'Open Application User',
   ): Promise<void> {
     const parsedName = this.parseCustomerNameOrThrow(name);
     const nextUserFields: Partial<User> = {};
@@ -2262,10 +2533,10 @@ export class RepairOrdersService {
     phoneNumber: string,
     options: {
       allowCreate: boolean;
-      source: 'employee' | 'Telefoniya';
+      source: 'employee' | 'Telefoniya' | 'web';
       createdBy: string | null;
       phoneVerified?: boolean;
-      logContext: 'Webhook User' | 'Manual User';
+      logContext: 'Webhook User' | 'Manual User' | 'Open Application User';
       name?: string | null;
     },
   ): Promise<string | null> {

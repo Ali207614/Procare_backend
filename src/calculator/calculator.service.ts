@@ -29,7 +29,9 @@ export class CalculatorService {
   async getPhoneCategories(
     osTypeId: string,
     parentId?: string,
+    search?: string,
   ): Promise<Omit<PhoneCategoryWithMeta, 'breadcrumb'>[]> {
+    const normalizedSearch = search?.trim().toLowerCase();
     const query = this.knex('phone_categories as pc')
       .where({
         'pc.is_active': true,
@@ -55,6 +57,16 @@ export class CalculatorService {
       void query.where({
         'pc.phone_os_type_id': osTypeId,
         'pc.parent_id': null,
+      });
+    }
+
+    if (normalizedSearch) {
+      const searchTerm = `%${normalizedSearch}%`;
+      void query.andWhere((builder) => {
+        void builder
+          .whereRaw('LOWER(pc.name_uz) ILIKE ?', [searchTerm])
+          .orWhereRaw('LOWER(pc.name_ru) ILIKE ?', [searchTerm])
+          .orWhereRaw('LOWER(pc.name_en) ILIKE ?', [searchTerm]);
       });
     }
 

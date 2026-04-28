@@ -24,11 +24,13 @@ type Builder = {
   leftJoin: jest.Mock;
 };
 
-const createBuilder = (options: {
-  first?: unknown;
-  max?: unknown;
-  limit?: unknown;
-} = {}): Builder => {
+const createBuilder = (
+  options: {
+    first?: unknown;
+    max?: unknown;
+    limit?: unknown;
+  } = {},
+): Builder => {
   const builder: Partial<Builder> = {};
   builder.where = jest.fn().mockReturnValue(builder);
   builder.andWhere = jest.fn().mockReturnValue(builder);
@@ -73,6 +75,7 @@ const createService = (
     {} as any,
     { sendWebhook: jest.fn().mockResolvedValue(undefined) } as any,
     { notifyBranch: jest.fn().mockResolvedValue(undefined) } as any,
+    { recordEntityCreated: jest.fn().mockResolvedValue(null) } as any,
   );
 
   jest.spyOn(service as any, 'notifyRepairOrderUpdate').mockResolvedValue(undefined);
@@ -143,7 +146,9 @@ describe('RepairOrdersService customer no-answer workflow', () => {
     const newSortBuilder = createBuilder();
     const updateBuilder = createBuilder();
     const currentStatusBuilder = createBuilder({ first: { id: 'status-open', type: 'Open' } });
-    const invalidStatusBuilder = createBuilder({ first: { id: 'status-invalid', type: 'Invalid' } });
+    const invalidStatusBuilder = createBuilder({
+      first: { id: 'status-invalid', type: 'Invalid' },
+    });
     const rejectCauseBuilder = createBuilder({ first: { id: 'reject-no-answer' } });
     const adminBuilder = createBuilder({ first: { id: 'system-admin' } });
 
@@ -192,7 +197,9 @@ describe('RepairOrdersService customer no-answer workflow', () => {
     });
 
     const service = createService(knex);
-    jest.spyOn(service as any, 'buildTelephonyWorkflowOpenOrderQuery').mockReturnValue(workflowQuery);
+    jest
+      .spyOn(service as any, 'buildTelephonyWorkflowOpenOrderQuery')
+      .mockReturnValue(workflowQuery);
     jest.spyOn(service as any, 'resolveWebhookAdminId').mockResolvedValue(null);
     jest.spyOn(service as any, 'moveToTop').mockResolvedValue(undefined);
 

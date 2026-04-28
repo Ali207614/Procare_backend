@@ -7,6 +7,7 @@ import {
   PhoneCategoryResponseDto,
   ProblemCategoryResponseDto,
 } from './dto/calculator-response.dto';
+import { PhoneCategoriesQueryDto } from './dto/phone-categories-query.dto';
 
 @ApiTags('Calculator')
 @Controller('calculator')
@@ -32,7 +33,7 @@ export class CalculatorController {
   @ApiOperation({
     summary: 'Get phone categories by OS type',
     description:
-      'Retrieves a list of phone categories (models/series) associated with a specific OS type. Supports tree flow navigation via parent_id.',
+      'Retrieves a list of phone categories (models/series) associated with a specific OS type. Supports tree flow navigation via parent_id and case-insensitive name search.',
   })
   @ApiParam({
     name: 'os_type_id',
@@ -45,6 +46,12 @@ export class CalculatorController {
     required: false,
     example: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
   })
+  @ApiQuery({
+    name: 'search',
+    description: 'Case-insensitive search by category name in Uzbek, Russian, or English',
+    required: false,
+    example: 'iPhone 15',
+  })
   @ApiResponse({
     status: 200,
     description: 'Successfully retrieved phone categories.',
@@ -53,9 +60,9 @@ export class CalculatorController {
   @ApiResponse({ status: 400, description: 'Invalid UUID format.' })
   async getPhoneCategories(
     @Param('os_type_id', ParseUUIDPipe) osTypeId: string,
-    @Query('parent_id', new ParseUUIDPipe({ isOptional: true })) parentId?: string,
+    @Query() query: PhoneCategoriesQueryDto,
   ): Promise<PhoneCategoryResponseDto[]> {
-    return this.service.getPhoneCategories(osTypeId, parentId);
+    return this.service.getPhoneCategories(osTypeId, query.parent_id, query.search);
   }
 
   @Get('problem-categories/:phone_category_id')

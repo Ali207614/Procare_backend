@@ -10,6 +10,7 @@ export const REPAIR_ORDER_SOURCES = [
   'Chiquvchi qongiroq',
   'Organic',
   "Sug'urta",
+  'Web',
 ] as const;
 
 export type RepairOrderSource = (typeof REPAIR_ORDER_SOURCES)[number];

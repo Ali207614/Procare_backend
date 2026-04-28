@@ -94,6 +94,7 @@ describe('RepairOrdersService telephony assignment', () => {
       {} as any,
       { sendWebhook: jest.fn().mockResolvedValue(undefined) } as any,
       { notifyBranch: jest.fn(), notifyAdmins: jest.fn(), broadcastToAdmins: jest.fn() } as any,
+      { recordEntityCreated: jest.fn().mockResolvedValue(null) } as any,
     );
 
     jest.spyOn(service as any, 'moveToTop').mockResolvedValue(undefined);
@@ -353,7 +354,9 @@ describe('RepairOrdersService telephony assignment', () => {
 
   it('treats active roles with the same name as the same role during telephony assignment', async () => {
     const targetRolesBuilder = createBuilder();
-    targetRolesBuilder.select.mockResolvedValue([{ role_id: 'role-answered', role_name: 'Master' }]);
+    targetRolesBuilder.select.mockResolvedValue([
+      { role_id: 'role-answered', role_name: 'Master' },
+    ]);
 
     const sharedRoleBuilder = createBuilder();
     sharedRoleBuilder.andWhere.mockImplementation((arg: unknown) => {
@@ -430,6 +433,7 @@ describe('RepairOrdersService telephony assignment', () => {
       {} as any,
       { sendWebhook: jest.fn().mockResolvedValue(undefined) } as any,
       notificationService as any,
+      { recordEntityCreated: jest.fn().mockResolvedValue(null) } as any,
     );
 
     const workContextSpy = jest

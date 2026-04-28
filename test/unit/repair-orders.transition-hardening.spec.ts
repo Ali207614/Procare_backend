@@ -212,6 +212,7 @@ describe('RepairOrdersService transition hardening', () => {
       pdfService as any,
       webhookService as any,
       notificationService as any,
+      { recordEntityCreated: jest.fn().mockResolvedValue(null) } as any,
     );
 
     jest.spyOn(service as any, 'moveToTop').mockResolvedValue(undefined);
