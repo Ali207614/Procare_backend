@@ -18,12 +18,12 @@ export interface RepairOrderStatus {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  metrics?: {
+    total_repair_orders: number;
+  };
 }
 
 export interface RepairOrderStatusWithPermissions extends RepairOrderStatus {
   permissions: RepairOrderStatusPermission;
   transitions: string[];
-  metrics: {
-    total_repair_orders: number;
-  };
 }

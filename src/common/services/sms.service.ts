@@ -109,9 +109,9 @@ export class SmsService {
    */
   async sendOtpSms(phoneNumber: string, code: string, language = 'uz'): Promise<SmsResponse> {
     const templates = {
-      uz: `ProBox tasdiqlash kodi: ${code}\n\nBu kodni hech kimga bermang!\nMuddati: 5 daqiqa`,
-      ru: `Код подтверждения ProBox: ${code}\n\nНе сообщайте этот код никому!\nСрок действия: 5 минут`,
-      en: `ProBox verification code: ${code}\n\nDon't share this code with anyone!\nExpires in: 5 minutes`,
+      uz: `ProBox tasdiqlash kodi: ${code}\n\nBu kodni hech kimga bermang!`,
+      ru: `Код подтверждения ProBox: ${code}\n\nНе сообщайте этот код никому!`,
+      en: `ProBox verification code: ${code}\n\nDon't share this code with anyone!`,
     };
 
     const text = templates[language as keyof typeof templates] || templates.uz;

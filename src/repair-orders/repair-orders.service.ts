@@ -362,6 +362,11 @@ export class RepairOrdersService {
         .returning('*');
 
       await this.moveToTop(trx, inserted);
+      const assignedAdminId = await this.assignFallbackAdminIfOrderHasNone(
+        trx,
+        inserted.id,
+        branchId,
+      );
       await this.recordOpenApplicationHistory(trx, inserted, resolvedUserId, resolvedName);
       await trx.commit();
 
@@ -369,6 +374,7 @@ export class RepairOrdersService {
         title: 'Yangi buyurtma',
         message: `Saytdan yangi buyurtma yaratildi: #${inserted.number_id}`,
         action: 'order_created',
+        targetAdminId: assignedAdminId,
       });
 
       this.webhookService.sendWebhook(inserted.id).catch((err: unknown) => {
@@ -3213,25 +3219,26 @@ export class RepairOrdersService {
     trx: Knex.Transaction,
     orderId: string,
     branchId: string,
-  ): Promise<void> {
+  ): Promise<string | null> {
     const existingAssignment = await trx('repair_order_assign_admins')
       .where({ repair_order_id: orderId })
       .first<{ admin_id: string }>('admin_id');
 
-    if (existingAssignment) return;
+    if (existingAssignment) return existingAssignment.admin_id;
 
     const assignedAdminId = await this.resolveLeastBusyWebhookAdminId(trx, branchId);
     if (!assignedAdminId) {
       this.logger.log(`[Webhook Order] No fallback admin available for repair order ${orderId}`);
-      return;
+      return null;
     }
 
     this.logger.log(
-      `[Webhook Order] Assigning missed-call repair order ${orderId} to fallback admin ${assignedAdminId}`,
+      `[Webhook Order] Assigning repair order ${orderId} to fallback admin ${assignedAdminId}`,
     );
     await this.assignTelephonyAdminToOrderIfEligible(trx, orderId, assignedAdminId, {
       assignmentSource: ASSIGNMENT_SOURCE_TELEPHONY_AUTO,
     });
+    return assignedAdminId;
   }
 
   private async assignAdminToOrderIfNeeded(

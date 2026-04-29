@@ -693,6 +693,59 @@ describe('RepairOrdersService telephony assignment', () => {
     workContextSpy.mockRestore();
   });
 
+  it('uses the telephony fallback assignment path for public open applications', async () => {
+    const repairOrdersBuilder = createBuilder();
+    repairOrdersBuilder.returning.mockResolvedValue([
+      {
+        id: 'order-open',
+        number_id: 1001,
+        user_id: 'user-1',
+        branch_id: 'branch-1',
+        status_id: 'status-open',
+        sort: 999999,
+      },
+    ]);
+
+    const trx = jest.fn((table: string) => {
+      if (table === 'repair_orders') return repairOrdersBuilder;
+      throw new Error(`Unexpected table ${table}`);
+    }) as TransactionMock;
+
+    trx.commit = jest.fn().mockResolvedValue(undefined);
+    trx.rollback = jest.fn().mockResolvedValue(undefined);
+
+    knex.transaction.mockResolvedValue(trx);
+
+    jest
+      .spyOn(service as any, 'resolveOpenApplicationBranchId')
+      .mockResolvedValue('branch-1');
+    jest.spyOn(service as any, 'resolveCreateStatus').mockResolvedValue({ id: 'status-open' });
+    jest
+      .spyOn(service as any, 'resolveOpenApplicationPhoneCategory')
+      .mockResolvedValue({ customText: 'iPhone 13' });
+    jest.spyOn(service as any, 'ensureUserByPhone').mockResolvedValue('user-1');
+    jest.spyOn(service as any, 'recordOpenApplicationHistory').mockResolvedValue(undefined);
+    const assignFallbackSpy = jest
+      .spyOn(service as any, 'assignFallbackAdminIfOrderHasNone')
+      .mockResolvedValue('admin-least-busy');
+
+    await service.createOpenApplication({
+      name: 'Test User',
+      phone_number: '+998901234567',
+      phone_category: 'iPhone 13',
+      description: 'Screen broken',
+    });
+
+    expect(assignFallbackSpy).toHaveBeenCalledWith(trx, 'order-open', 'branch-1');
+    expect((service as any).notifyRepairOrderUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'order-open' }),
+      expect.objectContaining({
+        action: 'order_created',
+        targetAdminId: 'admin-least-busy',
+      }),
+    );
+  });
+
   it('assigns a fallback admin to an existing missed-call order with no assignees', async () => {
     const orderBuilder = createBuilder();
     orderBuilder.first.mockResolvedValue({

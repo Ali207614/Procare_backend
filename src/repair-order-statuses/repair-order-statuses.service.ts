@@ -157,27 +157,59 @@ export class RepairOrderStatusesService {
       return cached;
     }
 
-    const baseQuery = this.knex<RepairOrderStatus>('repair_order_statuses').where({
-      branch_id: branchId,
-      status: 'Open',
-    });
+    const trx = await this.knex.transaction();
+    try {
+      const baseQuery = trx<RepairOrderStatus>('repair_order_statuses').where({
+        branch_id: branchId,
+        status: 'Open',
+      });
 
-    const [rows, countResult] = await Promise.all([
-      baseQuery.clone().orderBy('sort', 'asc').offset(offset).limit(limit),
-      baseQuery.clone().count<{ count: string }[]>('* as count'),
-    ]);
+      const [rows, countResult, countsRaw] = await Promise.all([
+        baseQuery.clone().orderBy('sort', 'asc').offset(offset).limit(limit),
+        baseQuery.clone().count<{ count: string }[]>('* as count'),
+        trx('repair_orders')
+          .where('branch_id', branchId)
+          .andWhereNot('status', 'Deleted')
+          .groupBy('status_id')
+          .select('status_id')
+          .count<{ status_id: string; count: string }[]>('* as count'),
+      ]);
 
-    const total: number = Number(countResult[0].count);
+      const total: number = Number(countResult[0].count);
 
-    const result: PaginationResult<RepairOrderStatus> = {
-      rows,
-      total: Number(total),
-      limit,
-      offset,
-    };
+      const countsMap = countsRaw.reduce<Record<string, number>>((acc, c) => {
+        acc[c.status_id] = Number(c.count);
+        return acc;
+      }, {});
 
-    await this.redisService.set(cacheKey, result, 3600);
-    return result;
+      const mergedRows: RepairOrderStatus[] = rows.map((status) => ({
+        ...status,
+        metrics: {
+          total_repair_orders: countsMap[status.id] || 0,
+        },
+      }));
+
+      const result: PaginationResult<RepairOrderStatus> = {
+        rows: mergedRows,
+        total: Number(total),
+        limit,
+        offset,
+      };
+
+      await trx.commit();
+      await this.redisService.set(cacheKey, result, 3600);
+      return result;
+    } catch (err) {
+      await trx.rollback();
+      this.logger.error(
+        `Failed to fetch all statuses: ${err instanceof Error ? err.message : String(err)}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+      throw new BadRequestException({
+        message: 'Failed to fetch statuses',
+        location: 'findAllStatuses',
+      });
+    }
   }
 
   async findViewable(
