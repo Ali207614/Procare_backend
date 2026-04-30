@@ -106,7 +106,13 @@ export class RepairOrderListItemSwaggerDto {
   @ApiProperty({ type: 'array', items: { type: 'object', additionalProperties: true } })
   final_problems!: Record<string, unknown>[];
 
-  @ApiProperty({ type: 'array', items: { type: 'object', additionalProperties: true } })
+  @ApiProperty({
+    type: 'array',
+    items: { type: 'object', additionalProperties: true },
+    deprecated: true,
+    description:
+      'Deprecated for GET /api/v1/repair-orders/:repair_order_id. Use GET /api/v1/repair-orders/:repair_order_id/comments for paginated comments and audio files.',
+  })
   comments!: Record<string, unknown>[];
 
   @ApiProperty({ type: 'object', additionalProperties: true })

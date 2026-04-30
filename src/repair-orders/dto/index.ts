@@ -7,6 +7,10 @@ export { UpdateRepairOrderSortDto } from './update-repair-order-sort.dto';
 export { AssignAdminsDto } from './assign-admin.dto';
 export { RemoveAdminsDto } from './remove-admins.dto';
 export { CreateCommentDto } from './create-comment.dto';
+export {
+  FindRepairOrderCommentsDto,
+  RepairOrderCommentsResponseDto,
+} from './repair-order-comments.dto';
 export { CreateOrUpdateDeliveryDto } from './create-or-update-delivery.dto';
 export { CreateOrUpdatePickupDto } from './create-or-update-pickup.dto';
 export { CreateOrUpdateRentalPhoneDto } from './create-or-update-rental-phone.dto';

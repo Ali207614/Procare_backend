@@ -39,6 +39,7 @@ interface PhoneCall {
   dialog_duration: number | null;
   hangup_cause: string | null;
   download_url: string | null;
+  download_url_expires_at: string | null;
   user_id: string | null;
   repair_order_id: string | null;
   created_at: string;
@@ -205,6 +206,10 @@ export class OnlinePbxService {
     if (download_url && typeof download_url === 'string' && download_url.startsWith('http://')) {
       download_url = download_url.replace('http://', 'https://');
     }
+    const now = new Date();
+    const downloadUrlExpiresAt = download_url
+      ? this.buildOnlinePbxDownloadUrlExpiresAt(now).toISOString()
+      : null;
 
     if (!uuid) return;
 
@@ -221,6 +226,7 @@ export class OnlinePbxService {
         'dialog_duration',
         'hangup_cause',
         'download_url',
+        'download_url_expires_at',
         'user_id',
         'repair_order_id',
       );
@@ -514,10 +520,11 @@ export class OnlinePbxService {
           dialog_duration: parsedDialogDuration || null,
           hangup_cause: hangup_cause || null,
           download_url: download_url || null,
+          download_url_expires_at: downloadUrlExpiresAt,
           user_id: userId,
           repair_order_id: repairOrderId,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          created_at: now.toISOString(),
+          updated_at: now.toISOString(),
         })
         .onConflict('uuid')
         .merge({
@@ -526,9 +533,10 @@ export class OnlinePbxService {
           dialog_duration: parsedDialogDuration || undefined,
           hangup_cause: hangup_cause || undefined,
           download_url: download_url || undefined,
+          download_url_expires_at: downloadUrlExpiresAt || undefined,
           user_id: userId || undefined,
           repair_order_id: repairOrderId || undefined,
-          updated_at: new Date().toISOString(),
+          updated_at: now.toISOString(),
         });
 
       const savedCall = await trx<PhoneCall>('phone_calls').where({ uuid }).first('id');
@@ -1088,5 +1096,9 @@ export class OnlinePbxService {
     }
 
     return `${seconds} soniya`;
+  }
+
+  private buildOnlinePbxDownloadUrlExpiresAt(createdAt: Date): Date {
+    return new Date(createdAt.getTime() + 29 * 60 * 1000);
   }
 }

@@ -80,6 +80,7 @@ import { HistoryModule } from './history/history.module';
 import { CalculatorModule } from './calculator/calculator.module';
 import { CalculatorController } from './calculator/calculator.controller';
 import { CalculatorService } from './calculator/calculator.service';
+import { SupportAgentModule } from './support-agent/support-agent.module';
 @Module({
   imports: [
     BullModule.forRoot({
@@ -122,6 +123,7 @@ import { CalculatorService } from './calculator/calculator.service';
     RepairOrderRegionsModule,
     HistoryModule,
     CalculatorModule,
+    SupportAgentModule,
   ],
   controllers: [
     AuthController,

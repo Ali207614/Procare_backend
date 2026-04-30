@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'src/common/logger/logger.module';
 import { RedisModule } from 'src/common/redis/redis.module';
 import { NotificationModule } from 'src/notification/notification.module';
@@ -26,14 +27,17 @@ import { PickupUpdaterService } from './services/pickup-updater.service';
 import { RentalPhoneUpdaterService } from './services/rental-phone-updater.service';
 import { RepairOrderChangeLoggerService } from './services/repair-order-change-logger.service';
 import { RepairOrderCreateHelperService } from './services/repair-order-create-helper.service';
+import { CommentReaderService } from './services/comment-reader.service';
 import { AttachmentsService } from './services/attachments.service';
 import { RepairOrderWebhookService } from './services/repair-order-webhook.service';
 import { AgreedDateCronService } from './services/agreed-date-cron.service';
 import { CustomerNoAnswerCronService } from './services/customer-no-answer-cron.service';
+import { OnlinePbxRecordingService } from 'src/online-pbx/online-pbx-recording.service';
 
 @Module({
   imports: [
     RepairOrderStatusPermissionsModule,
+    ConfigModule,
     RedisModule,
     NotificationModule,
     RepairOrderStatusesModule,
@@ -58,6 +62,7 @@ import { CustomerNoAnswerCronService } from './services/customer-no-answer-cron.
     InitialProblemUpdaterService,
     FinalProblemUpdaterService,
     CommentUpdaterService,
+    CommentReaderService,
     PickupUpdaterService,
     DeliveryUpdaterService,
     RepairOrderChangeLoggerService,
@@ -69,12 +74,14 @@ import { CustomerNoAnswerCronService } from './services/customer-no-answer-cron.
     RepairOrderWebhookService,
     AgreedDateCronService,
     CustomerNoAnswerCronService,
+    OnlinePbxRecordingService,
   ],
   exports: [
     AssignAdminUpdaterService,
     InitialProblemUpdaterService,
     FinalProblemUpdaterService,
     CommentUpdaterService,
+    CommentReaderService,
     PickupUpdaterService,
     DeliveryUpdaterService,
     RepairOrderChangeLoggerService,
