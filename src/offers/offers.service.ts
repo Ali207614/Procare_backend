@@ -5,10 +5,20 @@ import { Offer } from '../common/types/offer.interface';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { FindAllOffersDto } from './dto/find-all-offers.dto';
 import { PaginationResult } from '../common/utils/pagination.util';
+import { PdfService } from 'src/pdf/pdf.service';
+import { StorageService } from 'src/common/storage/storage.service';
+import sanitizeHtml from 'sanitize-html';
+
+const OFFER_PDF_PATH = 'offers/current.pdf';
+const OFFER_PDF_URL_EXPIRY_SECONDS = 3600;
 
 @Injectable()
 export class OffersService {
-  constructor(@InjectConnection() private readonly knex: Knex) {}
+  constructor(
+    @InjectConnection() private readonly knex: Knex,
+    private readonly pdfService: PdfService,
+    private readonly storageService: StorageService,
+  ) {}
 
   async findAll(dto: FindAllOffersDto): Promise<PaginationResult<Offer>> {
     const { limit = 10, offset = 0, status } = dto;
@@ -58,22 +68,48 @@ export class OffersService {
     return offer;
   }
 
+  async getPdfUrl(): Promise<{ url: string; expires_in: number }> {
+    const activeOffer = await this.findActive();
+    const files = await this.storageService.listFiles(OFFER_PDF_PATH);
+
+    if (!files.includes(OFFER_PDF_PATH)) {
+      await this.generateAndUploadOfferPdf(activeOffer.content_uz);
+    }
+
+    return {
+      url: await this.storageService.generateUrl(OFFER_PDF_PATH, OFFER_PDF_URL_EXPIRY_SECONDS),
+      expires_in: OFFER_PDF_URL_EXPIRY_SECONDS,
+    };
+  }
+
   async create(createOfferDto: CreateOfferDto): Promise<Offer> {
     const latestOffer = await this.knex<Offer>('offers').orderBy('created_at', 'desc').first();
 
     const nextVersion = latestOffer ? this.smartIncrement(latestOffer, createOfferDto) : 'v1.0.0';
+    const pdfBuffer = await this.pdfService.generateOfferPdf(
+      this.toOfferPdfHtml(createOfferDto.content_uz),
+    );
 
-    // Mark all previous offers as inactive
-    await this.knex('offers').update({ is_active: false });
+    const newOffer = await this.knex.transaction(async (trx) => {
+      // Mark all previous offers as inactive
+      await trx('offers').update({ is_active: false });
 
-    const [newOffer]: Offer[] = await this.knex<Offer>('offers')
-      .insert({
-        ...createOfferDto,
-        version: nextVersion,
-        status: 'Open',
-        is_active: true,
-      })
-      .returning('*');
+      const [createdOffer]: Offer[] = await trx<Offer>('offers')
+        .insert({
+          ...createOfferDto,
+          version: nextVersion,
+          status: 'Open',
+          is_active: true,
+        })
+        .returning('*');
+
+      await this.storageService.upload(OFFER_PDF_PATH, pdfBuffer, {
+        'Content-Type': 'application/pdf',
+        'Cache-Control': 'no-cache',
+      });
+
+      return createdOffer;
+    });
 
     return newOffer;
   }
@@ -145,5 +181,87 @@ export class OffersService {
     }
 
     return prevRow[n];
+  }
+
+  private async generateAndUploadOfferPdf(content: string): Promise<void> {
+    const pdfBuffer = await this.pdfService.generateOfferPdf(this.toOfferPdfHtml(content));
+    await this.storageService.upload(OFFER_PDF_PATH, pdfBuffer, {
+      'Content-Type': 'application/pdf',
+      'Cache-Control': 'no-cache',
+    });
+  }
+
+  private toOfferPdfHtml(content: string): string {
+    const trimmed = content.trim();
+
+    if (this.containsHtml(trimmed)) {
+      return sanitizeHtml(trimmed, {
+        allowedTags: [
+          'p',
+          'br',
+          'strong',
+          'b',
+          'em',
+          'i',
+          'u',
+          'ol',
+          'ul',
+          'li',
+          'h1',
+          'h2',
+          'h3',
+          'span',
+        ],
+        allowedAttributes: {},
+      });
+    }
+
+    return this.plainTextToHtml(trimmed);
+  }
+
+  private containsHtml(value: string): boolean {
+    return /<\/?[a-z][\s\S]*>/i.test(value);
+  }
+
+  private plainTextToHtml(value: string): string {
+    const blocks = value
+      .split(/\n{2,}/)
+      .map((block) => block.trim())
+      .filter(Boolean);
+
+    return blocks
+      .map((block) => {
+        const lines = block
+          .split(/\n/)
+          .map((line) => line.trim())
+          .filter(Boolean);
+
+        if (lines.length > 0 && lines.every((line) => /^[-*]\s+/.test(line))) {
+          return `<ul>${lines.map((line) => `<li>${this.escapeHtml(line.replace(/^[-*]\s+/, ''))}</li>`).join('')}</ul>`;
+        }
+
+        const escaped = this.escapeHtml(lines.join(' '));
+        const numberedSection = escaped.match(/^(\d+\.\s*[^:]+:)(\s*.*)$/);
+
+        if (numberedSection) {
+          return `<p><strong>${numberedSection[1]}</strong>${numberedSection[2]}</p>`;
+        }
+
+        if (/^[^.!?]+:$/.test(escaped)) {
+          return `<p><strong>${escaped}</strong></p>`;
+        }
+
+        return `<p>${escaped}</p>`;
+      })
+      .join('');
+  }
+
+  private escapeHtml(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 }

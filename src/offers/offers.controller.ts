@@ -23,6 +23,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserPayload } from '../common/types/user-payload.interface';
 import { PermissionsService } from '../permissions/permissions.service';
 import { OfferDto, PaginatedOffersDto } from './dto/offer.dto';
+import { OfferPdfUrlDto } from './dto/offer-pdf-url.dto';
 
 @ApiTags('Offers')
 @ApiExtraModels(OfferDto, PaginatedOffersDto)
@@ -55,6 +56,21 @@ export class OffersController {
     }
     const offer = await this.offersService.findActive();
     return { rows: [offer], total: 1, limit: 1, offset: 0 };
+  }
+
+  @ApiOperation({ summary: 'Get current offer PDF URL' })
+  @ApiBearerAuth()
+  @ApiOkResponse({
+    description: 'Returns a temporary URL for the current active offer PDF.',
+    type: OfferPdfUrlDto,
+  })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+  @ApiForbiddenResponse({ description: 'Forbidden - missing permissions' })
+  @UseGuards(JwtAdminAuthGuard, PermissionsGuard)
+  @SetPermissions('offers.view')
+  @Get('pdf-url')
+  async getPdfUrl(): Promise<OfferPdfUrlDto> {
+    return this.offersService.getPdfUrl();
   }
 
   @ApiOperation({ summary: 'Get a single offer by ID (history)' })
