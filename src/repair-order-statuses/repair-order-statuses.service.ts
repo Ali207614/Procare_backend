@@ -366,17 +366,17 @@ export class RepairOrderStatusesService {
 
     const useRoleScope = roleId ? await this.hasRoleScopedTransitions(db, branchId, roleId) : false;
 
-    const query = db<RepairOrderStatusTransition>('repair-order-status-transitions').whereIn(
+    let query = db<RepairOrderStatusTransition>('repair-order-status-transitions').whereIn(
       'from_status_id',
       statusIds,
     );
 
     if (useRoleScope && roleId) {
-      query.andWhere({ role_id: roleId });
+      query = query.andWhere({ role_id: roleId });
       return { source: 'role', rows: await query };
     }
 
-    query.whereNull('role_id');
+    query = query.whereNull('role_id');
     return { source: 'fallback', rows: await query };
   }
 

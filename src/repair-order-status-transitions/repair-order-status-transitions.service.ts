@@ -64,11 +64,11 @@ export class RepairOrderStatusTransitionsService {
     const trx = await this.knex.transaction();
 
     try {
-      const deleteQuery = trx(this.table).where({ from_status_id });
+      let deleteQuery = trx(this.table).where({ from_status_id });
       if (roleId) {
-        deleteQuery.andWhere({ role_id: roleId });
+        deleteQuery = deleteQuery.andWhere({ role_id: roleId });
       } else {
-        deleteQuery.whereNull('role_id');
+        deleteQuery = deleteQuery.whereNull('role_id');
       }
       await deleteQuery.del();
 
@@ -117,12 +117,12 @@ export class RepairOrderStatusTransitionsService {
       roleId?: string | null;
     } = {},
   ): Promise<RepairOrderStatusTransition[]> {
-    const query = this.knex<RepairOrderStatusTransition>(`${this.table} as transitions`)
+    let query = this.knex<RepairOrderStatusTransition>(`${this.table} as transitions`)
       .select('transitions.*')
       .orderBy('transitions.created_at', 'desc');
 
     if (params.branchId) {
-      query
+      query = query
         .join(
           'repair_order_statuses as from_status',
           'transitions.from_status_id',
@@ -133,9 +133,9 @@ export class RepairOrderStatusTransitionsService {
     }
 
     if (params.roleId === null) {
-      query.whereNull('transitions.role_id');
+      query = query.whereNull('transitions.role_id');
     } else if (params.roleId) {
-      query.where('transitions.role_id', params.roleId);
+      query = query.where('transitions.role_id', params.roleId);
     }
 
     return query;

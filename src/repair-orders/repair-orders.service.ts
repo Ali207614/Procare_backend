@@ -3497,14 +3497,14 @@ export class RepairOrdersService {
       ? await this.hasRoleScopedTransitions(trx, branchId, roleId)
       : false;
 
-    const query = trx<{ from_status_id: string; to_status_id: string }>(
+    let query = trx<{ from_status_id: string; to_status_id: string }>(
       'repair-order-status-transitions',
     ).where({ from_status_id: fromStatusId, to_status_id: toStatusId });
 
     if (useRoleScope && roleId) {
-      query.andWhere('role_id', roleId);
+      query = query.andWhere('role_id', roleId);
     } else {
-      query.andWhere('role_id', null);
+      query = query.andWhere('role_id', null);
     }
 
     const rule = await query.first();
