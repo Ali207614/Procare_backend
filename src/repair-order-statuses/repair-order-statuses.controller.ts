@@ -26,6 +26,7 @@ import {
   RepairOrderStatus,
   RepairOrderStatusWithPermissions,
 } from 'src/common/types/repair-order-status.interface';
+import { RepairOrderStatusTransferPermissionsResult } from 'src/common/types/repair-order-status-transition.interface';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
 
@@ -77,6 +78,18 @@ export class RepairOrderStatusesController {
     @Query('offset') offset?: number,
   ): Promise<PaginationResult<RepairOrderStatusWithPermissions>> {
     return this.service.findViewable(req.admin, branchId, offset, limit);
+  }
+
+  @Get('transfer-permissions')
+  @UseGuards(BranchExistGuard)
+  @ApiOperation({ summary: 'Get repair order status transfer permissions by role' })
+  @ApiQuery({ name: 'branch_id', required: true })
+  @ApiQuery({ name: 'role_id', required: true })
+  async getTransferPermissions(
+    @Query('branch_id', ParseUUIDPipe) branchId: string,
+    @Query('role_id', ParseUUIDPipe) roleId: string,
+  ): Promise<RepairOrderStatusTransferPermissionsResult> {
+    return this.service.findTransferPermissions(branchId, roleId);
   }
 
   @Patch(':status_id/sort')

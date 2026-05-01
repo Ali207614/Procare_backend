@@ -1418,12 +1418,19 @@ export class RepairOrdersService {
       // 1. Fetch the order first as other validations depend on its data
       const order = await this.getOrderOrThrow(trx, orderId);
       const isStatusChanged = dto.status_id !== order.status_id;
+      const primaryRoleId = admin.roles[0]?.id;
 
       // 2. Run independent parallel validations/fetches
       const [permissions, transitionRule, targetStatus, activeRental] = await Promise.all([
         this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id),
         isStatusChanged
-          ? this.getTransitionRule(trx, order.status_id, dto.status_id)
+          ? this.getTransitionRule(
+              trx,
+              order.status_id,
+              dto.status_id,
+              order.branch_id,
+              primaryRoleId,
+            )
           : Promise.resolve<{ from_status_id: string; to_status_id: string } | null>(null),
         isStatusChanged
           ? this.getStatusDetails(trx, dto.status_id)
@@ -3483,13 +3490,40 @@ export class RepairOrdersService {
     trx: Knex.Transaction,
     fromStatusId: string,
     toStatusId: string,
+    branchId: string,
+    roleId?: string,
   ): Promise<{ from_status_id: string; to_status_id: string } | null> {
-    const rule = await trx<{ from_status_id: string; to_status_id: string }>(
+    const useRoleScope = roleId
+      ? await this.hasRoleScopedTransitions(trx, branchId, roleId)
+      : false;
+
+    const query = trx<{ from_status_id: string; to_status_id: string }>(
       'repair-order-status-transitions',
-    )
-      .where({ from_status_id: fromStatusId, to_status_id: toStatusId })
-      .first();
+    ).where({ from_status_id: fromStatusId, to_status_id: toStatusId });
+
+    if (useRoleScope && roleId) {
+      query.andWhere('role_id', roleId);
+    } else {
+      query.andWhere('role_id', null);
+    }
+
+    const rule = await query.first();
     return rule || null;
+  }
+
+  private async hasRoleScopedTransitions(
+    trx: Knex.Transaction,
+    branchId: string,
+    roleId: string,
+  ): Promise<boolean> {
+    const row = await trx('repair-order-status-transitions as transition')
+      .join('repair_order_statuses as from_status', 'transition.from_status_id', 'from_status.id')
+      .where('transition.role_id', roleId)
+      .andWhere('from_status.branch_id', branchId)
+      .andWhere('from_status.status', 'Open')
+      .first<{ id: string }>('transition.id');
+
+    return Boolean(row);
   }
 
   private async getStatusDetails(
@@ -3574,7 +3608,14 @@ export class RepairOrdersService {
     activeRental?: { id: string } | null,
   ): Promise<RepairOrderStatusPermission> {
     const resolvedTransitionRule =
-      transitionRule ?? (await this.getTransitionRule(trx, order.status_id, targetStatusId));
+      transitionRule ??
+      (await this.getTransitionRule(
+        trx,
+        order.status_id,
+        targetStatusId,
+        order.branch_id,
+        admin.roles[0]?.id,
+      ));
 
     if (!resolvedTransitionRule) {
       throw new BadRequestException({

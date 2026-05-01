@@ -14,7 +14,10 @@ import {
 import { Branch } from 'src/common/types/branch.interface';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
-import { RepairOrderStatusTransition } from 'src/common/types/repair-order-status-transition.interface';
+import {
+  RepairOrderStatusTransferPermissionsResult,
+  RepairOrderStatusTransition,
+} from 'src/common/types/repair-order-status-transition.interface';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { HistoryService } from 'src/history/history.service';
 
@@ -218,7 +221,8 @@ export class RepairOrderStatusesService {
     offset = 0,
     limit = 50,
   ): Promise<PaginationResult<RepairOrderStatusWithPermissions>> {
-    const cacheKey = `${this.redisKeyView}${branchId}:${admin.id}:${offset}:${limit}`;
+    const primaryRoleId = admin.roles[0]?.id;
+    const cacheKey = `${this.redisKeyView}${branchId}:${admin.id}:${primaryRoleId ?? 'no-role'}:${offset}:${limit}`;
     const cached: PaginationResult<RepairOrderStatusWithPermissions> | null =
       await this.redisService.get(cacheKey);
     if (cached) {
@@ -228,7 +232,9 @@ export class RepairOrderStatusesService {
     const permissions: RepairOrderStatusPermission[] =
       await this.repairOrderStatusPermissions.findByRolesAndBranch(admin.roles, branchId);
 
-    const viewableIds = permissions.filter((p) => p.can_view).map((p) => p.status_id);
+    const viewableIds = Array.from(
+      new Set(permissions.filter((p) => p.can_view).map((p) => p.status_id)),
+    );
     if (!viewableIds.length) {
       const empty: PaginationResult<RepairOrderStatusWithPermissions> = {
         rows: [],
@@ -246,13 +252,10 @@ export class RepairOrderStatusesService {
         .whereIn('id', viewableIds)
         .andWhere({ is_active: true, status: 'Open', branch_id: branchId });
 
-      const [statuses, countResult, transitionsRaw, countsRaw] = await Promise.all([
+      const [statuses, countResult, transitionScope, countsRaw] = await Promise.all([
         baseQuery.clone().orderBy('sort', 'asc').offset(offset).limit(limit),
         baseQuery.clone().count<{ count: string }[]>('* as count'),
-        trx<RepairOrderStatusTransition>('repair-order-status-transitions').whereIn(
-          'from_status_id',
-          viewableIds,
-        ),
+        this.findTransitionsForRoleScope(trx, viewableIds, branchId, primaryRoleId),
         trx('repair_orders')
           .whereIn('status_id', viewableIds)
           .andWhere('branch_id', branchId)
@@ -264,11 +267,7 @@ export class RepairOrderStatusesService {
 
       const total: number = Number(countResult[0].count);
 
-      const transitionsMap = transitionsRaw.reduce<Record<string, string[]>>((acc, t) => {
-        acc[t.from_status_id] = acc[t.from_status_id] || [];
-        acc[t.from_status_id].push(t.to_status_id);
-        return acc;
-      }, {});
+      const transitionsMap = this.buildTransitionsMap(transitionScope.rows);
 
       const countsMap = countsRaw.reduce<Record<string, number>>((acc, c) => {
         acc[c.status_id] = Number(c.count);
@@ -310,6 +309,100 @@ export class RepairOrderStatusesService {
         location: 'find_viewable',
       });
     }
+  }
+
+  async findTransferPermissions(
+    branchId: string,
+    roleId: string,
+  ): Promise<RepairOrderStatusTransferPermissionsResult> {
+    const role = await this.knex<{ id: string }>('roles')
+      .where('id', roleId)
+      .andWhere('status', 'Open')
+      .first();
+    if (!role) {
+      throw new BadRequestException({
+        message: 'Role not found or deleted',
+        location: 'role_id',
+      });
+    }
+
+    const statuses: RepairOrderStatus[] = await this.knex<RepairOrderStatus>(
+      'repair_order_statuses',
+    )
+      .where({ branch_id: branchId, status: 'Open' })
+      .orderBy('sort', 'asc');
+
+    const statusIds = statuses.map((status) => status.id);
+    const transitionScope = await this.findTransitionsForRoleScope(
+      this.knex,
+      statusIds,
+      branchId,
+      roleId,
+    );
+    const transitionsMap = this.buildTransitionsMap(transitionScope.rows);
+    const responseRoleId = transitionScope.source === 'role' ? roleId : null;
+
+    return {
+      branch_id: branchId,
+      role_id: roleId,
+      source: transitionScope.source,
+      rows: statuses.map((status) => ({
+        status_id: status.id,
+        role_id: responseRoleId,
+        transitions: transitionsMap[status.id] ?? [],
+      })),
+    };
+  }
+
+  private async findTransitionsForRoleScope(
+    db: Knex | Knex.Transaction,
+    statusIds: string[],
+    branchId: string,
+    roleId?: string,
+  ): Promise<{ source: 'role' | 'fallback'; rows: RepairOrderStatusTransition[] }> {
+    if (!statusIds.length) {
+      return { source: 'fallback', rows: [] };
+    }
+
+    const useRoleScope = roleId ? await this.hasRoleScopedTransitions(db, branchId, roleId) : false;
+
+    const query = db<RepairOrderStatusTransition>('repair-order-status-transitions').whereIn(
+      'from_status_id',
+      statusIds,
+    );
+
+    if (useRoleScope && roleId) {
+      query.andWhere({ role_id: roleId });
+      return { source: 'role', rows: await query };
+    }
+
+    query.whereNull('role_id');
+    return { source: 'fallback', rows: await query };
+  }
+
+  private async hasRoleScopedTransitions(
+    db: Knex | Knex.Transaction,
+    branchId: string,
+    roleId: string,
+  ): Promise<boolean> {
+    const row = await db('repair-order-status-transitions as transition')
+      .join('repair_order_statuses as from_status', 'transition.from_status_id', 'from_status.id')
+      .where('transition.role_id', roleId)
+      .andWhere('from_status.branch_id', branchId)
+      .andWhere('from_status.status', 'Open')
+      .first<{ id: string }>('transition.id');
+
+    return Boolean(row);
+  }
+
+  private buildTransitionsMap(
+    transitions: RepairOrderStatusTransition[],
+  ): Record<string, string[]> {
+    return transitions.reduce<Record<string, string[]>>((acc, transition) => {
+      acc[transition.from_status_id] = acc[transition.from_status_id] || [];
+      acc[transition.from_status_id].push(transition.to_status_id);
+      return acc;
+    }, {});
   }
 
   async updateSort(

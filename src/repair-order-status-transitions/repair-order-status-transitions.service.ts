@@ -20,21 +20,36 @@ export class RepairOrderStatusTransitionsService {
 
   private readonly redisKey = `repair-order-status-transitions:from:`;
   private readonly redisKeyView = 'status_viewable:';
+  private readonly table = 'repair-order-status-transitions';
 
   async create(
     from_status_id: string,
     dto: CreateRepairOrderStatusTransitionDto,
   ): Promise<RepairOrderStatusTransition[]> {
     const { to_status_ids } = dto;
+    const roleId = dto.role_id ?? null;
 
     const fromStatus = await this.statusService.getOrLoadStatusById(from_status_id);
     const branchId = fromStatus.branch_id;
 
-    const statuses: PaginationResult<RepairOrderStatus> = await this.statusService.findAllStatuses(
-      branchId,
-      0,
-      1000,
-    );
+    const [role, statuses]: [{ id: string } | undefined, PaginationResult<RepairOrderStatus>] =
+      await Promise.all([
+        roleId
+          ? this.knex<{ id: string }>('roles')
+              .where('id', roleId)
+              .andWhere('status', 'Open')
+              .first()
+          : undefined,
+        this.statusService.findAllStatuses(branchId, 0, 1000),
+      ]);
+
+    if (roleId && !role) {
+      throw new BadRequestException({
+        message: 'Role not found or deleted',
+        location: 'role_id',
+      });
+    }
+
     const validStatusIds = statuses.rows.map((s) => s.id);
 
     for (const id of to_status_ids) {
@@ -49,31 +64,38 @@ export class RepairOrderStatusTransitionsService {
     const trx = await this.knex.transaction();
 
     try {
-      await trx('repair-order-status-transitions').where({ from_status_id }).del();
+      const deleteQuery = trx(this.table).where({ from_status_id });
+      if (roleId) {
+        deleteQuery.andWhere({ role_id: roleId });
+      } else {
+        deleteQuery.whereNull('role_id');
+      }
+      await deleteQuery.del();
 
       if (to_status_ids.length === 0) {
         await trx.commit();
-        const redisKey = `${this.redisKey}${from_status_id}`;
+        const redisKey = `${this.redisKey}${from_status_id}:${roleId ?? 'default'}`;
         await this.redisService.set(redisKey, [], 3600);
+        await this.redisService.flushByPrefix(`${this.redisKeyView}${branchId}`);
         return [];
       }
 
       const inserts = to_status_ids.map((toId) => ({
         from_status_id,
         to_status_id: toId,
+        role_id: roleId,
       }));
 
-      const inserted: RepairOrderStatusTransition[] = await trx('repair-order-status-transitions')
+      const inserted: RepairOrderStatusTransition[] = await trx(this.table)
         .insert(inserts)
         .returning('*');
 
       await trx.commit();
 
-      const redisKey = `${this.redisKey}${from_status_id}`;
+      const redisKey = `${this.redisKey}${from_status_id}:${roleId ?? 'default'}`;
       await this.redisService.set(redisKey, inserted, 3600);
 
-      const cacheKey = `${this.redisKeyView}${branchId}`;
-      await this.redisService.flushByPrefix(cacheKey);
+      await this.redisService.flushByPrefix(`${this.redisKeyView}${branchId}`);
 
       return inserted;
     } catch (error) {
@@ -89,7 +111,33 @@ export class RepairOrderStatusTransitionsService {
     }
   }
 
-  async findAll(): Promise<RepairOrderStatusTransition[]> {
-    return this.knex('repair-order-status-transitions').select('*').orderBy('created_at', 'desc');
+  async findAll(
+    params: {
+      branchId?: string;
+      roleId?: string | null;
+    } = {},
+  ): Promise<RepairOrderStatusTransition[]> {
+    const query = this.knex<RepairOrderStatusTransition>(`${this.table} as transitions`)
+      .select('transitions.*')
+      .orderBy('transitions.created_at', 'desc');
+
+    if (params.branchId) {
+      query
+        .join(
+          'repair_order_statuses as from_status',
+          'transitions.from_status_id',
+          'from_status.id',
+        )
+        .where('from_status.branch_id', params.branchId)
+        .andWhere('from_status.status', 'Open');
+    }
+
+    if (params.roleId === null) {
+      query.whereNull('transitions.role_id');
+    } else if (params.roleId) {
+      query.where('transitions.role_id', params.roleId);
+    }
+
+    return query;
   }
 }

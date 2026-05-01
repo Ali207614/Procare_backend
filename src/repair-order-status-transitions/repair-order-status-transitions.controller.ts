@@ -1,5 +1,5 @@
-import { Controller, Post, Body, Param, Get, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Post, Body, Param, Get, UseGuards, Query } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiParam, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { RepairOrderStatusTransitionsService } from './repair-order-status-transitions.service';
 import { CreateRepairOrderStatusTransitionDto } from './dto/create-repair-order-status-transition.dto';
 import { RepairOrderStatusExistGuard } from 'src/common/guards/repair-order-status-exist.guard';
@@ -30,7 +30,12 @@ export class RepairOrderStatusTransitionsController {
 
   @Get()
   @ApiOperation({ summary: 'List all transitions' })
-  async findAll(): Promise<RepairOrderStatusTransition[]> {
-    return this.service.findAll();
+  @ApiQuery({ name: 'branch_id', required: false })
+  @ApiQuery({ name: 'role_id', required: false })
+  async findAll(
+    @Query('branch_id', new ParseUUIDPipe({ isOptional: true })) branchId?: string,
+    @Query('role_id', new ParseUUIDPipe({ isOptional: true })) roleId?: string,
+  ): Promise<RepairOrderStatusTransition[]> {
+    return this.service.findAll({ branchId, roleId });
   }
 }

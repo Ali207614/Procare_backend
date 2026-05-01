@@ -117,7 +117,7 @@ async function insertTransition(fromStatusId, toStatusId) {
       created_at: new Date(),
       updated_at: new Date(),
     })
-    .onConflict(['from_status_id', 'to_status_id'])
+    .onConflict(knex.raw('(from_status_id, to_status_id) where role_id is null'))
     .ignore();
 }
 
