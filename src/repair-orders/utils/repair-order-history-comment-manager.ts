@@ -253,13 +253,13 @@ export class RepairOrderHistoryCommentManager {
         return this.buildActorComment(
           actor,
           `fayl qo'shdi`,
-          await this.describeAttachmentChange(history.new_value),
+          this.describeAttachmentChange(history.new_value),
         );
       case 'attachment_deleted':
         return this.buildActorComment(
           actor,
           `faylni o'chirdi`,
-          await this.describeAttachmentChange(history.new_value),
+          this.describeAttachmentChange(history.new_value),
         );
       case 'service_form_created':
         return this.buildActorComment(
