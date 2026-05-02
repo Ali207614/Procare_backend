@@ -5,7 +5,6 @@ import { CreateRepairOrderStatusTransitionDto } from './dto/create-repair-order-
 import { RepairOrderStatusesService } from '../repair-order-statuses/repair-order-statuses.service';
 import { RedisService } from 'src/common/redis/redis.service';
 import { RepairOrderStatusTransition } from 'src/common/types/repair-order-status-transition.interface';
-import { PaginationResult } from 'src/common/utils/pagination.util';
 import { RepairOrderStatus } from 'src/common/types/repair-order-status.interface';
 import { LoggerService } from 'src/common/logger/logger.service';
 
@@ -32,7 +31,7 @@ export class RepairOrderStatusTransitionsService {
     const fromStatus = await this.statusService.getOrLoadStatusById(from_status_id);
     const branchId = fromStatus.branch_id;
 
-    const [role, statuses]: [{ id: string } | undefined, PaginationResult<RepairOrderStatus>] =
+    const [role, statuses]: [{ id: string } | undefined, Pick<RepairOrderStatus, 'id'>[]] =
       await Promise.all([
         roleId
           ? this.knex<{ id: string }>('roles')
@@ -40,7 +39,12 @@ export class RepairOrderStatusTransitionsService {
               .andWhere('status', 'Open')
               .first()
           : undefined,
-        this.statusService.findAllStatuses(branchId, 0, 1000),
+        to_status_ids.length
+          ? this.knex<RepairOrderStatus>('repair_order_statuses')
+              .select('id')
+              .where({ branch_id: branchId, status: 'Open' })
+              .whereIn('id', to_status_ids)
+          : [],
       ]);
 
     if (roleId && !role) {
@@ -50,10 +54,10 @@ export class RepairOrderStatusTransitionsService {
       });
     }
 
-    const validStatusIds = statuses.rows.map((s) => s.id);
+    const validStatusIds = new Set(statuses.map((s) => s.id));
 
     for (const id of to_status_ids) {
-      if (!validStatusIds.includes(id)) {
+      if (!validStatusIds.has(id)) {
         throw new BadRequestException({
           message: `Invalid to_status_id: ${id}`,
           location: 'to_status_ids',
@@ -103,7 +107,10 @@ export class RepairOrderStatusTransitionsService {
       if (error instanceof HttpException) {
         throw error;
       }
-      this.logger.error(`Failed to delete status `);
+      this.logger.error(
+        `Failed to upsert repair order status transitions: ${(error as Error)?.message}`,
+        (error as Error)?.stack,
+      );
       throw new BadRequestException({
         message: 'Failed to upsert transitions',
         location: 'upsert_transitions',
