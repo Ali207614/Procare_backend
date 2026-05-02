@@ -411,44 +411,76 @@ export class RepairOrderStatusesService {
     adminId?: string,
   ): Promise<{ message: string }> {
     const trx = await this.knex.transaction();
+    let cacheIdsToDelete: string[] = [];
     try {
-      if (newSort === status.sort) return { message: 'No change needed' };
+      const currentStatus: RepairOrderStatus | undefined = await trx<RepairOrderStatus>(
+        'repair_order_statuses',
+      )
+        .where({ id: status.id, status: 'Open' })
+        .first();
 
-      if (newSort < status.sort) {
+      if (!currentStatus) {
+        throw new BadRequestException({
+          message: 'Repair order status not found or inactive',
+          location: 'status_id',
+        });
+      }
+
+      if (newSort === currentStatus.sort) {
+        await trx.commit();
+        return { message: 'No change needed' };
+      }
+
+      const affectedIds: Pick<RepairOrderStatus, 'id'>[] = await trx<RepairOrderStatus>(
+        'repair_order_statuses',
+      )
+        .where({ branch_id: currentStatus.branch_id, status: 'Open' })
+        .andWhere((qb) => {
+          if (newSort < currentStatus.sort) {
+            void qb.where('sort', '>=', newSort).andWhere('sort', '<=', currentStatus.sort);
+          } else {
+            void qb.where('sort', '>=', currentStatus.sort).andWhere('sort', '<=', newSort);
+          }
+        })
+        .select('id');
+      cacheIdsToDelete = Array.from(new Set([...affectedIds.map((row) => row.id), status.id]));
+
+      if (newSort < currentStatus.sort) {
         await trx('repair_order_statuses')
-          .where({ branch_id: status.branch_id })
+          .where({ branch_id: currentStatus.branch_id, status: 'Open' })
           .andWhere('sort', '>=', newSort)
-          .andWhere('sort', '<', status.sort)
+          .andWhere('sort', '<', currentStatus.sort)
           .update({ sort: this.knex.raw('sort + 1') });
       } else {
         await trx('repair_order_statuses')
-          .where({ branch_id: status.branch_id })
+          .where({ branch_id: currentStatus.branch_id, status: 'Open' })
           .andWhere('sort', '<=', newSort)
-          .andWhere('sort', '>', status.sort)
+          .andWhere('sort', '>', currentStatus.sort)
           .update({ sort: this.knex.raw('sort - 1') });
       }
 
       await trx('repair_order_statuses')
-        .where({ id: status.id })
+        .where({ id: currentStatus.id })
         .update({ sort: newSort, updated_at: new Date() });
       await this.historyService.recordEntityUpdated({
         db: trx,
         entityTable: 'repair_order_statuses',
-        entityPk: status.id,
-        entityLabel: status.name_uz ?? null,
+        entityPk: currentStatus.id,
+        entityLabel: currentStatus.name_uz ?? null,
         rootEntityTable: 'branches',
-        rootEntityPk: status.branch_id,
-        branchId: status.branch_id,
+        rootEntityPk: currentStatus.branch_id,
+        branchId: currentStatus.branch_id,
         actor: adminId ? { actorPk: adminId } : null,
-        before: status as unknown as Record<string, unknown>,
-        after: { ...status, sort: newSort } as Record<string, unknown>,
+        before: currentStatus as unknown as Record<string, unknown>,
+        after: { ...currentStatus, sort: newSort } as Record<string, unknown>,
         fields: ['sort'],
       });
       await trx.commit();
 
       await Promise.all([
-        this.redisService.flushByPrefix(`${this.redisKeyView}${status.branch_id}:`),
-        this.redisService.flushByPrefix(`${this.redisKeyAll}${status.branch_id}`),
+        ...cacheIdsToDelete.map((id) => this.redisService.del(`${this.redisKeyById}:${id}`)),
+        this.redisService.flushByPrefix(`${this.redisKeyView}${currentStatus.branch_id}:`),
+        this.redisService.flushByPrefix(`${this.redisKeyAll}${currentStatus.branch_id}`),
       ]);
       return { message: 'Sort updated successfully' };
     } catch (err) {

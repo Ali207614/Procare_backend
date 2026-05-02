@@ -3,6 +3,7 @@ import { RepairOrderStatusesService } from '../../src/repair-order-statuses/repa
 import { RedisService } from '../../src/common/redis/redis.service';
 import { RepairOrderStatusPermissionsService } from '../../src/repair-order-status-permission/repair-order-status-permissions.service';
 import { LoggerService } from '../../src/common/logger/logger.service';
+import { HistoryService } from '../../src/history/history.service';
 
 describe('RepairOrderStatusesService', () => {
   let service: RepairOrderStatusesService;
@@ -10,6 +11,7 @@ describe('RepairOrderStatusesService', () => {
   let mockRedisService: any;
   let mockPermissionsService: any;
   let mockLogger: any;
+  let mockHistoryService: any;
 
   beforeEach(async () => {
     mockKnex = jest.fn(() => mockKnex);
@@ -28,6 +30,7 @@ describe('RepairOrderStatusesService', () => {
     mockKnex.transaction = jest.fn().mockImplementation(async () => mockKnex);
     mockKnex.commit = jest.fn();
     mockKnex.rollback = jest.fn();
+    mockKnex.raw = jest.fn((value) => value);
 
     mockRedisService = {
       get: jest.fn(),
@@ -46,8 +49,9 @@ describe('RepairOrderStatusesService', () => {
       debug: jest.fn(),
     };
 
-    // Helper for complex chains
-    mockKnex.then = (resolve: any) => resolve(mockKnex);
+    mockHistoryService = {
+      recordEntityUpdated: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -56,6 +60,7 @@ describe('RepairOrderStatusesService', () => {
         { provide: RedisService, useValue: mockRedisService },
         { provide: RepairOrderStatusPermissionsService, useValue: mockPermissionsService },
         { provide: LoggerService, useValue: mockLogger },
+        { provide: HistoryService, useValue: mockHistoryService },
       ],
     }).compile();
 
@@ -85,6 +90,9 @@ describe('RepairOrderStatusesService', () => {
 
       mockRedisService.get.mockResolvedValue(null);
       mockPermissionsService.findByRolesAndBranch.mockResolvedValue(mockPermissions);
+      jest
+        .spyOn(service as any, 'findTransitionsForRoleScope')
+        .mockResolvedValue({ source: 'fallback', rows: [] });
 
       // We need to carefully mock the 4 concurrent queries in Promise.all
       // 1. statuses list
@@ -96,6 +104,7 @@ describe('RepairOrderStatusesService', () => {
       // Since they all use the same mockKnex instance, we can use mockResolvedValueOnce for each top-level 'thenable'
       
       const mockChain = {
+        clone: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),
         offset: jest.fn().mockReturnThis(),
         limit: jest.fn().mockReturnThis(),
@@ -108,7 +117,6 @@ describe('RepairOrderStatusesService', () => {
         then: jest.fn()
           .mockImplementationOnce((resolve) => resolve(mockStatuses)) // statuses
           .mockImplementationOnce((resolve) => resolve([{ count: '2' }])) // total count
-          .mockImplementationOnce((resolve) => resolve([])) // transitions
           .mockImplementationOnce((resolve) => resolve(mockCounts)), // counts
       };
 
@@ -119,9 +127,68 @@ describe('RepairOrderStatusesService', () => {
       const result = await service.findViewable(admin as any, branchId);
 
       // Assert
-      expect(result.rows[0].metrics.total_repair_orders).toBe(10);
-      expect(result.rows[1].metrics.total_repair_orders).toBe(5);
+      expect(result.rows[0].metrics!.total_repair_orders).toBe(10);
+      expect(result.rows[1].metrics!.total_repair_orders).toBe(5);
       expect(result.total).toBe(2);
+    });
+  });
+
+  describe('updateSort', () => {
+    it('uses the current database sort instead of a stale guard status', async () => {
+      const branchId = 'branch-1';
+      const staleStatus = {
+        id: 'status-1',
+        name_uz: 'Status 1',
+        sort: 2,
+        branch_id: branchId,
+      };
+      const currentStatus = {
+        ...staleStatus,
+        sort: 1,
+        status: 'Open',
+      };
+
+      const makeQuery = (result: any) => {
+        const query: any = {
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn((arg?: any) => {
+            if (typeof arg === 'function') {
+              arg(query);
+            }
+            return query;
+          }),
+          first: jest.fn().mockReturnThis(),
+          select: jest.fn().mockReturnThis(),
+          update: jest.fn().mockResolvedValue(1),
+          then: jest.fn((resolve, reject) => Promise.resolve(result).then(resolve, reject)),
+        };
+        return query;
+      };
+
+      const queries = [
+        makeQuery(currentStatus),
+        makeQuery([{ id: 'status-1' }, { id: 'status-2' }]),
+        makeQuery(1),
+        makeQuery(1),
+      ];
+      const trx: any = jest.fn(() => queries.shift());
+      trx.commit = jest.fn().mockResolvedValue(undefined);
+      trx.rollback = jest.fn().mockResolvedValue(undefined);
+      mockKnex.transaction.mockResolvedValue(trx);
+
+      const result = await service.updateSort(staleStatus as any, 2, 'admin-1');
+
+      expect(result).toEqual({ message: 'Sort updated successfully' });
+      expect(mockHistoryService.recordEntityUpdated).toHaveBeenCalledWith(
+        expect.objectContaining({
+          before: expect.objectContaining({ sort: 1 }),
+          after: expect.objectContaining({ sort: 2 }),
+        }),
+      );
+      expect(mockRedisService.del).toHaveBeenCalledWith('repair_order_statuses:id:status-1');
+      expect(mockRedisService.del).toHaveBeenCalledWith('repair_order_statuses:id:status-2');
+      expect(trx.commit).toHaveBeenCalled();
+      expect(trx.rollback).not.toHaveBeenCalled();
     });
   });
 });
