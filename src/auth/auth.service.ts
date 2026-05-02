@@ -13,6 +13,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import sanitizeHtml from 'sanitize-html';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { VerifyDto } from './dto/verify.dto';
@@ -334,8 +335,15 @@ export class AuthService {
       throw error;
     }
 
-    const isPasswordValid =
-      admin && (await bcrypt.compare(loginDto.password, admin?.password || ''));
+    let isPasswordValid = false;
+    if (admin?.password) {
+      isPasswordValid = await bcrypt.compare(loginDto.password, admin.password);
+
+      if (!isPasswordValid) {
+        isPasswordValid = await this.tryLegacySanitizedPassword(loginDto, admin);
+      }
+    }
+
     if (!admin || !isPasswordValid) {
       await this.recordAuthEvent({
         actionKey: 'auth.admin.login',
@@ -476,6 +484,23 @@ export class AuthService {
 
   private async setAdminSession(adminId: string, token: string): Promise<void> {
     await this.redisService.set(`session:admin:${adminId}`, token, 60 * 60 * 24 * 7);
+  }
+
+  private async tryLegacySanitizedPassword(loginDto: LoginDto, admin: Admin): Promise<boolean> {
+    if (!admin.password) return false;
+
+    const legacySanitizedPassword = sanitizeHtml(loginDto.password);
+    if (legacySanitizedPassword === loginDto.password) return false;
+
+    const isLegacyPasswordValid = await bcrypt.compare(legacySanitizedPassword, admin.password);
+    if (!isLegacyPasswordValid) return false;
+
+    const rehashedPassword = await bcrypt.hash(loginDto.password, 10);
+    await this.adminsService.updateAdminByPhone(loginDto.phone_number, {
+      password: rehashedPassword,
+    });
+
+    return true;
   }
 
   private async recordAuthEvent(params: {
