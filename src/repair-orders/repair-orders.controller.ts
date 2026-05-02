@@ -41,6 +41,7 @@ import {
   FreshRepairOrder,
   RepairOrder,
   RepairOrderDetails,
+  ViewableRepairOrdersResponse,
 } from 'src/common/types/repair-order.interface';
 import { FindAllRepairOrdersQueryDto } from 'src/repair-orders/dto/find-all-repair-orders.dto';
 import { FindAllUnfilteredRepairOrdersDto } from 'src/repair-orders/dto/find-all-unfiltered-repair-orders.dto';
@@ -284,7 +285,12 @@ export class RepairOrdersController {
 
   @Get()
   @UseGuards(BranchExistGuard)
-  @ApiOperation({ summary: 'Get all repair orders by branchId (can_view only)' })
+  @ApiOperation({
+    summary: 'Get all repair orders by branchId (can_view only)',
+    deprecated: true,
+    description:
+      'Deprecated. Use GET /api/v1/repair-orders/viewable for the same grouped payload wrapped in the standard meta/data response structure.',
+  })
   @ApiOkResponse({
     description:
       'Repair orders grouped by status ID, including the total count of orders for each status',
@@ -314,6 +320,55 @@ export class RepairOrdersController {
     Record<string, { metrics: { total_repair_orders: number }; repair_orders: FreshRepairOrder[] }>
   > {
     return this.service.findAllByAdminBranch(req.admin, req.branch.id, query);
+  }
+
+  @Get('viewable')
+  @UseGuards(BranchExistGuard)
+  @ApiOperation({
+    summary: 'Get viewable repair orders in the standard meta/data response structure',
+    description:
+      'Returns the same status-grouped repair order payload as GET /api/v1/repair-orders, but wrapped in { meta, data }. limit and offset are applied independently inside each status group.',
+  })
+  @ApiOkResponse({
+    description:
+      'Viewable repair orders grouped by status ID and wrapped in the standard meta/data structure.',
+    schema: {
+      type: 'object',
+      properties: {
+        meta: {
+          type: 'object',
+          properties: {
+            total: { type: 'number', example: 357 },
+            limit: { type: 'number', example: 50 },
+            offset: { type: 'number', example: 0 },
+          },
+        },
+        data: {
+          type: 'object',
+          additionalProperties: {
+            type: 'object',
+            properties: {
+              metrics: {
+                type: 'object',
+                properties: {
+                  total_repair_orders: { type: 'number', example: 13 },
+                },
+              },
+              repair_orders: {
+                type: 'array',
+                items: { $ref: getSchemaPath(RepairOrderListItemSwaggerDto) },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+  findViewable(
+    @Req() req: AuthenticatedRequest,
+    @Query() query: FindAllRepairOrdersQueryDto,
+  ): Promise<ViewableRepairOrdersResponse> {
+    return this.service.findViewableByAdminBranch(req.admin, req.branch.id, query);
   }
 
   @Get('all')

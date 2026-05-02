@@ -7,6 +7,10 @@ import { HistoryService } from 'src/history/history.service';
 import { HistoryScalarValue, HistoryValueType } from 'src/history/types/history.types';
 import { RepairOrderHistoryCommentManager } from 'src/repair-orders/utils/repair-order-history-comment-manager';
 
+type RepairOrderHistoryLogOptions = {
+  isSystemActor?: boolean;
+};
+
 @Injectable()
 export class RepairOrderChangeLoggerService {
   private readonly historyCommentManager: RepairOrderHistoryCommentManager;
@@ -26,6 +30,7 @@ export class RepairOrderChangeLoggerService {
     oldValue: unknown,
     newValue: unknown,
     adminId: string,
+    options?: RepairOrderHistoryLogOptions,
   ): Promise<void> {
     const isChanged = JSON.stringify(oldValue ?? null) !== JSON.stringify(newValue ?? null);
 
@@ -38,6 +43,7 @@ export class RepairOrderChangeLoggerService {
         old_value: this.toJsonValue(oldValue),
         new_value: this.toJsonValue(newValue),
         created_by: adminId,
+        is_system: Boolean(options?.isSystemActor),
         created_at: new Date(),
       })
       .returning('*');
@@ -51,9 +57,10 @@ export class RepairOrderChangeLoggerService {
     orderId: string,
     fields: { key: string; oldVal: unknown; newVal: unknown }[],
     adminId: string,
+    options?: RepairOrderHistoryLogOptions,
   ): Promise<void> {
     for (const { key, oldVal, newVal } of fields) {
-      await this.logIfChanged(trx, orderId, key, oldVal, newVal, adminId);
+      await this.logIfChanged(trx, orderId, key, oldVal, newVal, adminId, options);
     }
   }
 
@@ -63,6 +70,7 @@ export class RepairOrderChangeLoggerService {
     action: string,
     data: unknown,
     adminId: string,
+    options?: RepairOrderHistoryLogOptions,
   ): Promise<void> {
     const [history] = await trx<RepairOrderChangeHistory>('repair_order_change_histories')
       .insert({
@@ -71,6 +79,7 @@ export class RepairOrderChangeLoggerService {
         old_value: null,
         new_value: this.toJsonValue(data),
         created_by: adminId,
+        is_system: Boolean(options?.isSystemActor),
         created_at: new Date(),
       })
       .returning('*');
@@ -79,8 +88,14 @@ export class RepairOrderChangeLoggerService {
     await this.logGlobalHistoryChange(trx, orderId, action, null, data, adminId);
   }
 
-  async logChange(orderId: string, action: string, data: unknown, adminId: string): Promise<void> {
-    await this.logAction(this.knex, orderId, action, data, adminId);
+  async logChange(
+    orderId: string,
+    action: string,
+    data: unknown,
+    adminId: string,
+    options?: RepairOrderHistoryLogOptions,
+  ): Promise<void> {
+    await this.logAction(this.knex, orderId, action, data, adminId, options);
   }
 
   async backfillMissingHistoryComments(batchSize = 200): Promise<{

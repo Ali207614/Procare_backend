@@ -1,4 +1,5 @@
 import { RepairOrdersService } from '../../src/repair-orders/repair-orders.service';
+import { RoleType } from '../../src/common/types/role-type.enum';
 
 type Builder = {
   where: jest.Mock;
@@ -447,6 +448,57 @@ describe('RepairOrdersService telephony assignment', () => {
     expect(sharedRoleBuilder.orWhereRaw).toHaveBeenCalledWith(
       'LOWER(BTRIM(r.name)) = ANY(?::text[])',
       [['master']],
+    );
+  });
+
+  it('auto-assigns the acting specialist after an accepted update', async () => {
+    const assignBuilder = createBuilder();
+
+    const trx = jest.fn((table: string) => {
+      if (table === 'repair_order_assign_admins') return assignBuilder;
+      throw new Error(`Unexpected table ${table}`);
+    }) as TransactionMock;
+
+    await (service as any).autoAssignRepairWorkerFromUpdateIfNeeded(trx, 'order-1', {
+      id: 'admin-specialist',
+      phone_number: '+998901234567',
+      roles: [{ id: 'role-specialist', name: 'Spetsialist', type: RoleType.SPECIALIST }],
+    });
+
+    expect(assignBuilder.insert).toHaveBeenCalledWith({
+      repair_order_id: 'order-1',
+      admin_id: 'admin-specialist',
+      assignment_source: 'role_update_auto',
+      created_at: expect.any(Date),
+    });
+    expect(assignBuilder.onConflict).toHaveBeenCalledWith(['repair_order_id', 'admin_id']);
+  });
+
+  it('looks up cached role IDs without types before update auto-assignment', async () => {
+    const rolesBuilder = createBuilder();
+    rolesBuilder.select.mockResolvedValue([{ type: RoleType.MASTER }]);
+
+    const assignBuilder = createBuilder();
+
+    const trx = jest.fn((table: string) => {
+      if (table === 'roles') return rolesBuilder;
+      if (table === 'repair_order_assign_admins') return assignBuilder;
+      throw new Error(`Unexpected table ${table}`);
+    }) as TransactionMock;
+
+    await (service as any).autoAssignRepairWorkerFromUpdateIfNeeded(trx, 'order-1', {
+      id: 'admin-master',
+      phone_number: '+998901234567',
+      roles: [{ id: 'role-master', name: 'Usta' }],
+    });
+
+    expect(rolesBuilder.whereIn).toHaveBeenCalledWith('id', ['role-master']);
+    expect(assignBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repair_order_id: 'order-1',
+        admin_id: 'admin-master',
+        assignment_source: 'role_update_auto',
+      }),
     );
   });
 

@@ -117,6 +117,13 @@ describe('CommentReaderService', () => {
     expect(result.audio_files[0].download_url).toBe(
       'https://api2.onlinepbx.ru/calls-records/download/old/rec.mp3',
     );
+    expect(result.timezone).toBe('Asia/Tashkent');
+    expect(result.comments[0]).toEqual(
+      expect.objectContaining({
+        created_at_local: '2026-04-30 13:00:00',
+        updated_at_local: '2026-04-30 13:00:00',
+      }),
+    );
   });
 
   it('refreshes and stores a new OnlinePBX recording URL after the cached URL expires', async () => {

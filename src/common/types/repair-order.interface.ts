@@ -270,6 +270,24 @@ export interface FreshRepairOrder {
   };
 }
 
+export interface ViewableRepairOrdersByStatus {
+  [statusId: string]: {
+    metrics: {
+      total_repair_orders: number;
+    };
+    repair_orders: FreshRepairOrder[];
+  };
+}
+
+export interface ViewableRepairOrdersResponse {
+  meta: {
+    total: number;
+    limit: number;
+    offset: number;
+  };
+  data: ViewableRepairOrdersByStatus;
+}
+
 export interface RepairOrderDetails {
   id: string;
   number_id: number;

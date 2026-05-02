@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { ServiceFormsService } from '../services/service-forms.service';
 import { CreateServiceFormDto } from '../dto/create-service-form.dto';
 import {
@@ -28,8 +30,9 @@ export class ServiceFormsController {
   createServiceForm(
     @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
     @Body() dto: CreateServiceFormDto,
+    @CurrentAdmin() admin: AdminPayload,
   ): Promise<CreateServiceFormResponseDto> {
-    return this.serviceFormsService.createServiceForm(repairOrderId, dto);
+    return this.serviceFormsService.createServiceForm(repairOrderId, dto, admin);
   }
 
   @Get('service-forms/:repair_order_id')

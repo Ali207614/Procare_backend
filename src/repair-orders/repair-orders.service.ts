@@ -15,6 +15,8 @@ import {
   RepairOrder,
   RepairOrderDetails,
   FreshRepairOrder,
+  ViewableRepairOrdersByStatus,
+  ViewableRepairOrdersResponse,
 } from 'src/common/types/repair-order.interface';
 import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
@@ -40,18 +42,25 @@ import { RepairOrderRegion } from 'src/common/types/repair-order-region.interfac
 import { User } from 'src/common/types/user.interface';
 import { formatUzPhoneToE164, getUzPhoneLookupCandidates } from 'src/common/utils/phone.util';
 import { PaginationResult } from 'src/common/utils/pagination.util';
+import { RoleType } from 'src/common/types/role-type.enum';
 
 const SYSTEM_ADMIN_ID = '00000000-0000-4000-8000-000000000000';
 const NO_ANSWER_REJECT_CAUSE_NAME = "Qo'ng'iroqqa javob bermadi";
 const DEFAULT_OPEN_APPLICATION_BRANCH_ID = '00000000-0000-4000-8000-000000000000';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-type RepairOrderAssignmentSource = 'manual' | 'telephony_auto' | 'telephony_answered';
+type RepairOrderAssignmentSource =
+  | 'manual'
+  | 'telephony_auto'
+  | 'telephony_answered'
+  | 'role_update_auto';
 const ASSIGNMENT_SOURCE_TELEPHONY_AUTO: RepairOrderAssignmentSource = 'telephony_auto';
 const ASSIGNMENT_SOURCE_TELEPHONY_ANSWERED: RepairOrderAssignmentSource = 'telephony_answered';
+const ASSIGNMENT_SOURCE_ROLE_UPDATE_AUTO: RepairOrderAssignmentSource = 'role_update_auto';
 const AUTO_REPLACEABLE_ASSIGNMENT_SOURCES: RepairOrderAssignmentSource[] = [
   ASSIGNMENT_SOURCE_TELEPHONY_AUTO,
 ];
+const REPAIR_WORKER_ROLE_TYPES = new Set<RoleType>([RoleType.SPECIALIST, RoleType.MASTER]);
 
 @Injectable()
 export class RepairOrdersService {
@@ -938,6 +947,14 @@ export class RepairOrdersService {
         this.finalProblemUpdater.update(trx, orderId, dto.final_problems, admin),
       ]);
 
+      if (
+        logFields.length > 0 ||
+        dto.initial_problems !== undefined ||
+        dto.final_problems !== undefined
+      ) {
+        await this.autoAssignRepairWorkerFromUpdateIfNeeded(trx, orderId, admin);
+      }
+
       await trx.commit();
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
 
@@ -959,9 +976,7 @@ export class RepairOrdersService {
     admin: AdminPayload,
     branchId: string,
     query: FindAllRepairOrdersQueryDto,
-  ): Promise<
-    Record<string, { metrics: { total_repair_orders: number }; repair_orders: FreshRepairOrder[] }>
-  > {
+  ): Promise<ViewableRepairOrdersByStatus> {
     const {
       offset,
       limit,
@@ -1027,10 +1042,7 @@ export class RepairOrdersService {
     });
 
     const cacheKey = `${this.table}:${branchId}:${admin.id}:${sort_by}:${sort_order}:${offset}:${limit}:${Buffer.from(filterHash).toString('base64')}`;
-    const cached: Record<
-      string,
-      { metrics: { total_repair_orders: number }; repair_orders: FreshRepairOrder[] }
-    > | null = await this.redisService.get(cacheKey);
+    const cached: ViewableRepairOrdersByStatus | null = await this.redisService.get(cacheKey);
     if (cached) {
       return cached;
     }
@@ -1175,10 +1187,7 @@ export class RepairOrdersService {
         {} as Record<string, number>,
       );
 
-      const result: Record<
-        string,
-        { metrics: { total_repair_orders: number }; repair_orders: FreshRepairOrder[] }
-      > = {};
+      const result: ViewableRepairOrdersByStatus = {};
       for (const statusId of statusIds) {
         const ordersForStatus = freshOrders.filter(
           (o: FreshRepairOrder) => o.repair_order_status.id === statusId,
@@ -1200,6 +1209,27 @@ export class RepairOrdersService {
       if (error instanceof HttpException) throw error;
       throw error;
     }
+  }
+
+  async findViewableByAdminBranch(
+    admin: AdminPayload,
+    branchId: string,
+    query: FindAllRepairOrdersQueryDto,
+  ): Promise<ViewableRepairOrdersResponse> {
+    const data = await this.findAllByAdminBranch(admin, branchId, query);
+    const total = Object.values(data).reduce(
+      (sum, statusGroup) => sum + statusGroup.metrics.total_repair_orders,
+      0,
+    );
+
+    return {
+      meta: {
+        total,
+        limit: query.limit ?? 20,
+        offset: query.offset ?? 0,
+      },
+      data,
+    };
   }
 
   async findAllUnfiltered(
@@ -1500,6 +1530,9 @@ export class RepairOrdersService {
       }
 
       await this.changeLogger.logMultipleFieldsIfChanged(trx, orderId, logs, admin.id);
+      if (logs.length > 0) {
+        await this.autoAssignRepairWorkerFromUpdateIfNeeded(trx, orderId, admin);
+      }
       await trx.commit();
 
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
@@ -1558,6 +1591,7 @@ export class RepairOrdersService {
         .where({ id: orderId })
         .update({ sort: newSort, updated_at: new Date() });
       await this.changeLogger.logIfChanged(trx, orderId, 'sort', order.sort, newSort, admin.id);
+      await this.autoAssignRepairWorkerFromUpdateIfNeeded(trx, orderId, admin);
 
       await trx.commit();
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
@@ -1661,6 +1695,7 @@ export class RepairOrdersService {
         updateDto,
         admin.id,
       );
+      await this.autoAssignRepairWorkerFromUpdateIfNeeded(trx, repairOrderId, admin);
       await trx.commit();
 
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
@@ -1788,6 +1823,7 @@ export class RepairOrdersService {
       historyFields,
       admin.id,
     );
+    await this.autoAssignRepairWorkerFromUpdateIfNeeded(this.knex, repairOrderId, admin);
     await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
 
     // Notify branch about the update
@@ -1929,6 +1965,10 @@ export class RepairOrdersService {
         );
       }
 
+      if (Object.keys(updateFields).length > 0 || updateDto.parts !== undefined) {
+        await this.autoAssignRepairWorkerFromUpdateIfNeeded(trx, repairOrderId, admin);
+      }
+
       await trx.commit();
       await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
 
@@ -2036,6 +2076,7 @@ export class RepairOrdersService {
         transferDto.new_branch_id,
         admin.id,
       );
+      await this.autoAssignRepairWorkerFromUpdateIfNeeded(trx, repairOrderId, admin);
 
       await trx.commit();
 
@@ -3143,7 +3184,9 @@ export class RepairOrdersService {
     const systemAdminId = await this.resolveSystemAdminId(trx);
     if (!systemAdminId) return;
 
-    await this.changeLogger.logMultipleFieldsIfChanged(trx, orderId, fields, systemAdminId);
+    await this.changeLogger.logMultipleFieldsIfChanged(trx, orderId, fields, systemAdminId, {
+      isSystemActor: true,
+    });
   }
 
   private async resolveSystemAdminId(trx: Knex.Transaction): Promise<string | null> {
@@ -3248,8 +3291,59 @@ export class RepairOrdersService {
     return assignedAdminId;
   }
 
+  private async autoAssignRepairWorkerFromUpdateIfNeeded(
+    db: Knex | Knex.Transaction,
+    orderId: string,
+    admin: AdminPayload,
+  ): Promise<void> {
+    const roleTypes = await this.getRepairWorkerRoleTypesForAdmin(db, admin);
+    if (!roleTypes.length) return;
+
+    await this.assignAdminToOrderIfNeeded(
+      db,
+      orderId,
+      admin.id,
+      ASSIGNMENT_SOURCE_ROLE_UPDATE_AUTO,
+    );
+  }
+
+  private async getRepairWorkerRoleTypesForAdmin(
+    db: Knex | Knex.Transaction,
+    admin: AdminPayload,
+  ): Promise<RoleType[]> {
+    const roleTypes = new Set<RoleType>();
+    const roleIdsMissingType: string[] = [];
+
+    for (const role of admin.roles) {
+      if (role.type && REPAIR_WORKER_ROLE_TYPES.has(role.type)) {
+        roleTypes.add(role.type);
+        continue;
+      }
+
+      if (!role.type) {
+        roleIdsMissingType.push(role.id);
+      }
+    }
+
+    if (roleIdsMissingType.length) {
+      const rows = await db<{ type: RoleType | null }>('roles')
+        .whereIn('id', [...new Set(roleIdsMissingType)])
+        .andWhere('status', 'Open')
+        .andWhere('is_active', true)
+        .select('type');
+
+      for (const row of rows) {
+        if (row.type && REPAIR_WORKER_ROLE_TYPES.has(row.type)) {
+          roleTypes.add(row.type);
+        }
+      }
+    }
+
+    return [...roleTypes];
+  }
+
   private async assignAdminToOrderIfNeeded(
-    trx: Knex.Transaction,
+    trx: Knex | Knex.Transaction,
     orderId: string,
     adminId: string,
     assignmentSource: RepairOrderAssignmentSource,
@@ -3307,6 +3401,9 @@ export class RepairOrdersService {
     if (!roles.length) return 0;
 
     const roleIds = roles.map((role) => role.role_id);
+    const roleTypes = [
+      ...new Set(roles.map((role) => role.role_type).filter((type): type is RoleType => !!type)),
+    ];
     const roleNames = [
       ...new Set(
         roles.map((role) => this.normalizeRoleName(role.role_name)).filter((name) => name),
@@ -3321,6 +3418,9 @@ export class RepairOrdersService {
       .whereIn('raa.assignment_source', AUTO_REPLACEABLE_ASSIGNMENT_SOURCES)
       .andWhere((qb) => {
         void qb.whereIn('ar.role_id', roleIds);
+        if (roleTypes.length) {
+          void qb.orWhereIn('r.type', roleTypes);
+        }
         if (roleNames.length) {
           void qb.orWhereRaw('LOWER(BTRIM(r.name)) = ANY(?::text[])', [roleNames]);
         }
@@ -3341,6 +3441,9 @@ export class RepairOrdersService {
     if (!roles.length) return false;
 
     const roleIds = roles.map((role) => role.role_id);
+    const roleTypes = [
+      ...new Set(roles.map((role) => role.role_type).filter((type): type is RoleType => !!type)),
+    ];
     const roleNames = [
       ...new Set(
         roles.map((role) => this.normalizeRoleName(role.role_name)).filter((name) => name),
@@ -3354,6 +3457,9 @@ export class RepairOrdersService {
       .whereNot('raa.admin_id', adminId)
       .andWhere((qb) => {
         void qb.whereIn('ar.role_id', roleIds);
+        if (roleTypes.length) {
+          void qb.orWhereIn('r.type', roleTypes);
+        }
         if (roleNames.length) {
           void qb.orWhereRaw('LOWER(BTRIM(r.name)) = ANY(?::text[])', [roleNames]);
         }
@@ -3368,13 +3474,13 @@ export class RepairOrdersService {
   private async getActiveRolesByAdminId(
     trx: Knex.Transaction,
     adminId: string,
-  ): Promise<{ role_id: string; role_name: string }[]> {
+  ): Promise<{ role_id: string; role_name: string; role_type: RoleType | null }[]> {
     return trx('admin_roles as ar')
       .join('roles as r', 'ar.role_id', 'r.id')
       .where('ar.admin_id', adminId)
       .andWhere('r.status', 'Open')
       .andWhere('r.is_active', true)
-      .select('ar.role_id', 'r.name as role_name');
+      .select('ar.role_id', 'r.name as role_name', 'r.type as role_type');
   }
 
   private normalizeRoleName(roleName: string | null | undefined): string {
@@ -3568,7 +3674,10 @@ export class RepairOrdersService {
   }
 
   private isSuperAdmin(admin: AdminPayload): boolean {
-    return admin.roles.some((role) => role.name.trim().toLowerCase() === 'super admin');
+    return admin.roles.some(
+      (role) =>
+        role.type === RoleType.SUPER_ADMIN || role.name.trim().toLowerCase() === 'super admin',
+    );
   }
 
   private getTargetStatusPermissionOrThrow(

@@ -1,3 +1,5 @@
+import { RoleType } from './role-type.enum';
+
 export interface WorkDays {
   monday: boolean;
   tuesday: boolean;
@@ -11,6 +13,7 @@ export interface WorkDays {
 export interface AdminRoleSummary {
   id: string;
   name: string;
+  type?: RoleType | null;
 }
 
 export interface AdminBranchSummary {

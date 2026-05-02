@@ -20,6 +20,7 @@ import { Admin, AdminListItem } from 'src/common/types/admin.interface';
 import { Branch } from 'src/common/types/branch.interface';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { HistoryService } from 'src/history/history.service';
+import { RoleType } from 'src/common/types/role-type.enum';
 
 type AdminListItemWithTotal = AdminListItem & { total: number };
 
@@ -578,21 +579,26 @@ export class AdminsService {
     };
   }
 
-  async findRolesByAdminId(adminId: string): Promise<{ name: string; id: string }[]> {
+  async findRolesByAdminId(
+    adminId: string,
+  ): Promise<{ name: string; id: string; type?: RoleType | null }[]> {
     const key = `${this.redisKeyByAdminRoles}:${adminId}`;
 
-    const cached: { name: string; id: string }[] | null = await this.redisService.get(key);
+    const cached: { name: string; id: string; type?: RoleType | null }[] | null =
+      await this.redisService.get(key);
     if (cached !== null) return cached;
 
-    const roles: { name: string; id: string }[] = await this.knex('admin_roles')
+    const roles: { name: string; id: string; type: RoleType | null }[] = await this.knex(
+      'admin_roles',
+    )
       .join('roles', 'admin_roles.role_id', 'roles.id')
       .where({ admin_id: adminId })
       .andWhere('roles.status', 'Open')
       .orderBy('admin_roles.role_id', 'asc')
-      .select('roles.name', 'roles.id');
+      .select('roles.name', 'roles.id', 'roles.type');
 
     const result = roles.map((r) => {
-      return { id: r.id, name: r.name };
+      return { id: r.id, name: r.name, type: r.type };
     });
 
     await this.redisService.set(key, result, 3600);

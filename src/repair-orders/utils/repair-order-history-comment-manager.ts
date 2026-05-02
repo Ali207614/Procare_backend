@@ -1,5 +1,6 @@
 import type { Knex } from 'knex';
 import type { RepairOrderChangeHistory } from 'src/common/types/repair-order-change-history.interface';
+import { RoleType } from 'src/common/types/role-type.enum';
 
 export interface HistoryCommentLogger {
   log?: (message: string) => void;
@@ -9,6 +10,13 @@ export interface HistoryCommentLogger {
 }
 
 type DbClient = Knex | Knex.Transaction;
+
+type HistoryActorContext = {
+  display_name: string;
+  full_name: string | null;
+  role_type: RoleType | 'System' | null;
+  is_system: boolean;
+};
 
 type NameLookupRow = {
   id: string;
@@ -29,7 +37,17 @@ type NameLookupRow = {
   imei?: string | null;
 };
 
-const DEFAULT_SYSTEM_ADMIN_ID = '00000000-0000-4000-8000-000000000000';
+const TASHKENT_TIME_ZONE = 'Asia/Tashkent';
+const SYSTEM_ROLE_TYPE = 'System';
+
+const ROLE_LABELS: Record<RoleType | typeof SYSTEM_ROLE_TYPE, string> = {
+  [RoleType.SUPER_ADMIN]: 'Super admin',
+  [RoleType.OPERATOR]: 'Operator',
+  [RoleType.SPECIALIST]: 'Specialist',
+  [RoleType.MASTER]: 'Usta',
+  [RoleType.COURIER]: 'Kuryer',
+  [SYSTEM_ROLE_TYPE]: 'Tizim',
+};
 
 const FIELD_LABELS: Record<string, string> = {
   status_id: 'Holat',
@@ -108,6 +126,7 @@ const CURRENCY_LABELS: Record<string, string> = {
 
 export class RepairOrderHistoryCommentManager {
   private readonly lookupCache = new Map<string, string | null>();
+  private readonly adminRoleTypesCache = new Map<string, RoleType[]>();
 
   constructor(
     private readonly knex: Knex,
@@ -115,10 +134,153 @@ export class RepairOrderHistoryCommentManager {
   ) {}
 
   async buildCommentText(trx: DbClient, history: RepairOrderChangeHistory): Promise<string | null> {
+    const actor = await this.resolveHistoryActorContext(trx, history);
+
     switch (history.field) {
       case 'status_id':
       case 'status':
-        return this.formatScalarDiff(trx, history.field, history.old_value, history.new_value);
+        return this.buildActorComment(
+          actor,
+          `buyurtma holatini o'zgartirdi`,
+          await this.describeScalarChange(trx, history.field, history.old_value, history.new_value),
+        );
+      case 'branch_id':
+        return this.buildActorComment(
+          actor,
+          `buyurtmani boshqa filialga o'tkazdi`,
+          await this.describeScalarChange(trx, history.field, history.old_value, history.new_value),
+        );
+      case 'sort':
+        return this.buildActorComment(
+          actor,
+          `buyurtma navbatini o'zgartirdi`,
+          await this.describeScalarChange(trx, history.field, history.old_value, history.new_value),
+        );
+      case 'name':
+      case 'phone_number':
+      case 'user_id':
+        return this.buildActorComment(
+          actor,
+          `mijoz ma'lumotlarini o'zgartirdi`,
+          await this.describeScalarChange(trx, history.field, history.old_value, history.new_value),
+        );
+      case 'priority':
+      case 'region_id':
+      case 'source':
+      case 'reject_cause_id':
+      case 'agreed_date':
+        return this.buildActorComment(
+          actor,
+          `${(FIELD_LABELS[history.field] ?? 'Maydon').toLowerCase()}ni o'zgartirdi`,
+          await this.describeScalarChange(trx, history.field, history.old_value, history.new_value),
+        );
+      case 'phone_category_id':
+      case 'imei':
+        return this.buildActorComment(
+          actor,
+          `qurilma ma'lumotlarini o'zgartirdi`,
+          await this.describeScalarChange(trx, history.field, history.old_value, history.new_value),
+        );
+      case 'initial_problems':
+        return this.buildActorComment(
+          actor,
+          this.getProblemAction(history.field, actor.role_type),
+          await this.describeProblemChange(
+            trx,
+            history.field,
+            history.old_value,
+            history.new_value,
+          ),
+        );
+      case 'final_problems':
+        return this.buildActorComment(
+          actor,
+          this.getProblemAction(history.field, actor.role_type),
+          await this.describeProblemChange(
+            trx,
+            history.field,
+            history.old_value,
+            history.new_value,
+          ),
+        );
+      case 'admin_ids':
+        return this.buildActorComment(
+          actor,
+          `mas'ul xodimlarni o'zgartirdi`,
+          await this.describeAdminChange(trx, history.old_value, history.new_value),
+        );
+      case 'pickup':
+        return this.buildActorComment(
+          actor,
+          `olib ketish ma'lumotini o'zgartirdi`,
+          await this.describeRouteChange(trx, history.field, history.old_value, history.new_value),
+        );
+      case 'delivery':
+        return this.buildActorComment(
+          actor,
+          `yetkazib berish ma'lumotini o'zgartirdi`,
+          await this.describeRouteChange(trx, history.field, history.old_value, history.new_value),
+        );
+      case 'rental_phone':
+        return this.buildActorComment(
+          actor,
+          `ijara telefoni ma'lumotini o'zgartirdi`,
+          await this.describeRentalChange(trx, history.old_value, history.new_value),
+        );
+      case 'comments':
+        return null;
+      case 'client_info_updated':
+        return this.buildActorComment(actor, `mijoz ma'lumotlarini o'zgartirdi`);
+      case 'product_updated':
+        return this.buildActorComment(
+          actor,
+          `qurilma ma'lumotlarini o'zgartirdi`,
+          await this.describeLegacyProductChange(trx, history.new_value),
+        );
+      case 'problem_updated':
+        return this.buildActorComment(
+          actor,
+          `muammo ma'lumotlarini o'zgartirdi`,
+          await this.describeLegacyProblemChange(trx, history.new_value),
+        );
+      case 'branch_transferred':
+        return this.buildActorComment(
+          actor,
+          `buyurtmani boshqa filialga o'tkazdi`,
+          await this.describeLegacyBranchTransfer(trx, history.new_value),
+        );
+      case 'attachment_uploaded':
+        return this.buildActorComment(
+          actor,
+          `fayl qo'shdi`,
+          await this.describeAttachmentChange(history.new_value),
+        );
+      case 'attachment_deleted':
+        return this.buildActorComment(
+          actor,
+          `faylni o'chirdi`,
+          await this.describeAttachmentChange(history.new_value),
+        );
+      case 'service_form_created':
+        return this.buildActorComment(
+          actor,
+          `servis formasini yaratdi`,
+          this.describeServiceFormChange(history.new_value),
+        );
+      case 'service_form_updated':
+        return this.buildActorComment(
+          actor,
+          `servis formasini yangiladi`,
+          this.describeServiceFormChange(history.new_value),
+        );
+      case 'rental_phone_updated':
+        return this.buildActorComment(
+          actor,
+          `ijara telefoni ma'lumotini o'zgartirdi`,
+          await this.describeRentalChange(trx, null, history.new_value),
+        );
+      case 'rental_phone_removed':
+        return this.buildActorComment(actor, `ijara telefonini olib tashladi`);
       default:
         return null;
     }
@@ -255,6 +417,30 @@ export class RepairOrderHistoryCommentManager {
     return null;
   }
 
+  private async describeScalarChange(
+    trx: DbClient,
+    field: string,
+    oldValue: unknown,
+    newValue: unknown,
+  ): Promise<string | null> {
+    const oldDisplay = await this.resolveFieldDisplayValue(trx, field, oldValue);
+    const newDisplay = await this.resolveFieldDisplayValue(trx, field, newValue);
+
+    if (oldDisplay && newDisplay) {
+      return `"${oldDisplay}" -> "${newDisplay}"`;
+    }
+
+    if (!oldDisplay && newDisplay) {
+      return `"${newDisplay}"`;
+    }
+
+    if (oldDisplay && !newDisplay) {
+      return `"${oldDisplay}"`;
+    }
+
+    return null;
+  }
+
   private async formatAdminDiff(
     trx: DbClient,
     oldValue: unknown,
@@ -277,6 +463,31 @@ export class RepairOrderHistoryCommentManager {
 
     if (oldNames.length || newNames.length) {
       return `Mas'ul xodimlar o'zgardi: "${this.joinLimited(oldNames)}" -> "${this.joinLimited(newNames)}"`;
+    }
+
+    return null;
+  }
+
+  private async describeAdminChange(
+    trx: DbClient,
+    oldValue: unknown,
+    newValue: unknown,
+  ): Promise<string | null> {
+    const oldIds = this.asStringArray(oldValue);
+    const newIds = this.asStringArray(newValue);
+    const oldNames = await this.resolveAdminNames(trx, oldIds);
+    const newNames = await this.resolveAdminNames(trx, newIds);
+
+    if (oldNames.length && newNames.length) {
+      return `"${this.joinLimited(oldNames)}" -> "${this.joinLimited(newNames)}"`;
+    }
+
+    if (!oldNames.length && newNames.length) {
+      return `"${this.joinLimited(newNames)}"`;
+    }
+
+    if (oldNames.length && !newNames.length) {
+      return `"${this.joinLimited(oldNames)}"`;
     }
 
     return null;
@@ -306,6 +517,30 @@ export class RepairOrderHistoryCommentManager {
 
     if (oldDisplay && !newDisplay) {
       return `${label} olib tashlandi: "${oldDisplay}"`;
+    }
+
+    return null;
+  }
+
+  private async describeProblemChange(
+    trx: DbClient,
+    field: 'initial_problems' | 'final_problems',
+    oldValue: unknown,
+    newValue: unknown,
+  ): Promise<string | null> {
+    const oldDisplay = await this.summarizeProblems(trx, oldValue);
+    const newDisplay = await this.summarizeProblems(trx, newValue);
+
+    if (oldDisplay && newDisplay && oldDisplay !== newDisplay) {
+      return `"${oldDisplay}" -> "${newDisplay}"`;
+    }
+
+    if (!oldDisplay && newDisplay) {
+      return `"${newDisplay}"`;
+    }
+
+    if (oldDisplay && !newDisplay) {
+      return `"${oldDisplay}"`;
     }
 
     return null;
@@ -368,6 +603,30 @@ export class RepairOrderHistoryCommentManager {
     return null;
   }
 
+  private async describeRouteChange(
+    trx: DbClient,
+    field: 'pickup' | 'delivery',
+    oldValue: unknown,
+    newValue: unknown,
+  ): Promise<string | null> {
+    const oldDisplay = await this.summarizeRoute(trx, oldValue);
+    const newDisplay = await this.summarizeRoute(trx, newValue);
+
+    if (oldDisplay && newDisplay && oldDisplay !== newDisplay) {
+      return `"${oldDisplay}" -> "${newDisplay}"`;
+    }
+
+    if (!oldDisplay && newDisplay) {
+      return `"${newDisplay}"`;
+    }
+
+    if (oldDisplay && !newDisplay) {
+      return `"${oldDisplay}"`;
+    }
+
+    return null;
+  }
+
   private async formatRentalDiff(
     trx: DbClient,
     oldValue: unknown,
@@ -391,6 +650,29 @@ export class RepairOrderHistoryCommentManager {
 
     if (oldDisplay && !newDisplay) {
       return `${label} olib tashlandi: "${oldDisplay}"`;
+    }
+
+    return null;
+  }
+
+  private async describeRentalChange(
+    trx: DbClient,
+    oldValue: unknown,
+    newValue: unknown,
+  ): Promise<string | null> {
+    const oldDisplay = await this.summarizeRental(trx, oldValue);
+    const newDisplay = await this.summarizeRental(trx, newValue);
+
+    if (oldDisplay && newDisplay && oldDisplay !== newDisplay) {
+      return `"${oldDisplay}" -> "${newDisplay}"`;
+    }
+
+    if (!oldDisplay && newDisplay) {
+      return `"${newDisplay}"`;
+    }
+
+    if (oldDisplay && !newDisplay) {
+      return `"${oldDisplay}"`;
     }
 
     return null;
@@ -423,6 +705,20 @@ export class RepairOrderHistoryCommentManager {
     if (!this.isRecord(payload)) return null;
 
     return this.formatScalarDiff(
+      trx,
+      'branch_id',
+      payload.old_branch_id ?? null,
+      payload.new_branch_id ?? null,
+    );
+  }
+
+  private async describeLegacyBranchTransfer(
+    trx: DbClient,
+    payload: unknown,
+  ): Promise<string | null> {
+    if (!this.isRecord(payload)) return null;
+
+    return this.describeScalarChange(
       trx,
       'branch_id',
       payload.old_branch_id ?? null,
@@ -481,6 +777,186 @@ export class RepairOrderHistoryCommentManager {
       default:
         return null;
     }
+  }
+
+  private async describeLegacyProductChange(
+    trx: DbClient,
+    payload: unknown,
+  ): Promise<string | null> {
+    if (!this.isRecord(payload)) return null;
+
+    const details: string[] = [];
+    if (payload.phone_category_id) {
+      const category = await this.resolvePhoneCategoryName(trx, String(payload.phone_category_id));
+      if (category) details.push(category);
+    }
+
+    if (payload.imei) {
+      details.push(`IMEI: ${String(payload.imei)}`);
+    }
+
+    return details.length ? details.join(', ') : null;
+  }
+
+  private async describeLegacyProblemChange(
+    trx: DbClient,
+    payload: unknown,
+  ): Promise<string | null> {
+    if (!this.isRecord(payload)) return null;
+
+    if (!payload.problem_category_id) {
+      return null;
+    }
+
+    const category = await this.resolveProblemCategoryName(
+      trx,
+      String(payload.problem_category_id),
+    );
+    return category ? `"${category}"` : null;
+  }
+
+  private describeAttachmentChange(payload: unknown): string | null {
+    if (!this.isRecord(payload) || !payload.file_name) {
+      return null;
+    }
+
+    return `"${String(payload.file_name)}"`;
+  }
+
+  private describeServiceFormChange(payload: unknown): string | null {
+    if (!this.isRecord(payload) || !payload.warranty_id) {
+      return null;
+    }
+
+    return `"${String(payload.warranty_id)}"`;
+  }
+
+  private buildActorComment(
+    actor: HistoryActorContext,
+    action: string,
+    detail?: string | null,
+  ): string | null {
+    if (!action.trim()) return null;
+
+    return detail
+      ? `${actor.display_name} ${action}: ${detail}`
+      : `${actor.display_name} ${action}`;
+  }
+
+  private getProblemAction(
+    field: 'initial_problems' | 'final_problems',
+    roleType: HistoryActorContext['role_type'],
+  ): string {
+    if (field === 'initial_problems') {
+      if (roleType === RoleType.SPECIALIST) {
+        return `diagnostika muammolarini o'zgartirdi`;
+      }
+
+      return `boshlang'ich muammolarni o'zgartirdi`;
+    }
+
+    if (roleType === RoleType.MASTER) {
+      return `ta'mirlash muammolarini o'zgartirdi`;
+    }
+
+    return `yakuniy muammolarni o'zgartirdi`;
+  }
+
+  private async resolveHistoryActorContext(
+    trx: DbClient,
+    history: RepairOrderChangeHistory,
+  ): Promise<HistoryActorContext> {
+    if (history.is_system) {
+      return {
+        display_name: ROLE_LABELS[SYSTEM_ROLE_TYPE],
+        full_name: null,
+        role_type: SYSTEM_ROLE_TYPE,
+        is_system: true,
+      };
+    }
+
+    const fullName = await this.resolveAdminName(trx, history.created_by);
+    const roleType = await this.resolvePreferredRoleType(trx, history.created_by, history.field);
+    const roleLabel = roleType ? ROLE_LABELS[roleType] : 'Admin';
+    const displayName = fullName ? `${roleLabel} ${fullName}` : roleLabel;
+
+    return {
+      display_name: displayName,
+      full_name: fullName,
+      role_type: roleType,
+      is_system: false,
+    };
+  }
+
+  private async resolvePreferredRoleType(
+    trx: DbClient,
+    adminId: string,
+    field: string,
+  ): Promise<RoleType | null> {
+    const roleTypes = await this.resolveAdminRoleTypes(trx, adminId);
+    if (!roleTypes.length) {
+      return null;
+    }
+
+    const preferredOrder =
+      field === 'initial_problems'
+        ? [
+            RoleType.SPECIALIST,
+            RoleType.MASTER,
+            RoleType.OPERATOR,
+            RoleType.SUPER_ADMIN,
+            RoleType.COURIER,
+          ]
+        : field === 'final_problems' ||
+            field === 'service_form_created' ||
+            field === 'service_form_updated'
+          ? [
+              RoleType.MASTER,
+              RoleType.SPECIALIST,
+              RoleType.OPERATOR,
+              RoleType.SUPER_ADMIN,
+              RoleType.COURIER,
+            ]
+          : [
+              RoleType.OPERATOR,
+              RoleType.SPECIALIST,
+              RoleType.MASTER,
+              RoleType.SUPER_ADMIN,
+              RoleType.COURIER,
+            ];
+
+    return preferredOrder.find((roleType) => roleTypes.includes(roleType)) ?? roleTypes[0] ?? null;
+  }
+
+  private async resolveAdminRoleTypes(trx: DbClient, adminId: string): Promise<RoleType[]> {
+    const cached = this.adminRoleTypesCache.get(adminId);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const roleAssignments = await trx('admin_roles')
+      .where({ admin_id: adminId })
+      .select<{ role_id: string }[]>('role_id');
+    const roleIds = roleAssignments
+      .map((row) => row.role_id)
+      .filter((roleId): roleId is string => Boolean(roleId));
+
+    if (!roleIds.length) {
+      this.adminRoleTypesCache.set(adminId, []);
+      return [];
+    }
+
+    const roles = await trx('roles')
+      .whereIn('id', roleIds)
+      .andWhere('status', 'Open')
+      .andWhere('is_active', true)
+      .select<{ type: RoleType | null }[]>('type');
+    const roleTypes = [
+      ...new Set(roles.map((row) => row.type).filter((type): type is RoleType => Boolean(type))),
+    ];
+
+    this.adminRoleTypesCache.set(adminId, roleTypes);
+    return roleTypes;
   }
 
   private async resolveFieldDisplayValue(
@@ -632,12 +1108,6 @@ export class RepairOrderHistoryCommentManager {
       : null;
 
     if (existing?.id) return existing.id;
-
-    const fallback = await trx('admins')
-      .where({ id: DEFAULT_SYSTEM_ADMIN_ID })
-      .first<{ id: string }>('id');
-
-    if (fallback?.id) return fallback.id;
 
     const firstAdmin = await trx('admins').orderBy('created_at', 'asc').first<{ id: string }>('id');
     if (!firstAdmin?.id) {
@@ -874,11 +1344,19 @@ export class RepairOrderHistoryCommentManager {
       return raw;
     }
 
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
-      date.getDate(),
-    ).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(
-      date.getMinutes(),
-    ).padStart(2, '0')}`;
+    const parts = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: TASHKENT_TIME_ZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(date);
+
+    const lookup = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+    return `${lookup.year}-${lookup.month}-${lookup.day} ${lookup.hour}:${lookup.minute}`;
   }
 
   private formatMoney(value: unknown, currency?: unknown): string | null {
@@ -887,7 +1365,7 @@ export class RepairOrderHistoryCommentManager {
     const parsed = Number(value);
     if (Number.isNaN(parsed)) return null;
 
-    const money = new Intl.NumberFormat('uz-UZ').format(parsed);
+    const money = new Intl.NumberFormat('uz-UZ').format(parsed).replace(/\u00A0/g, ' ');
     const currencyLabel =
       typeof currency === 'string' && CURRENCY_LABELS[currency]
         ? CURRENCY_LABELS[currency]

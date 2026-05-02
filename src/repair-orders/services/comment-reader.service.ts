@@ -38,6 +38,7 @@ interface RepairOrderCommentAudioFileRow extends RepairOrderCommentAudioFileDto 
 }
 
 const ONLINE_PBX_SINGLE_RECORDING_INTERNAL_TTL_MS = 29 * 60 * 1000;
+const COMMENT_TIME_ZONE = 'Asia/Tashkent';
 
 @Injectable()
 export class CommentReaderService {
@@ -150,6 +151,7 @@ export class CommentReaderService {
       total: Number(countRows[0]?.total ?? 0),
       limit,
       offset,
+      timezone: COMMENT_TIME_ZONE,
       audio_files: audioFiles,
     };
   }
@@ -268,7 +270,26 @@ export class CommentReaderService {
       },
       created_at: row.created_at,
       updated_at: row.updated_at,
+      created_at_local: this.formatLocalDateTime(row.created_at),
+      updated_at_local: this.formatLocalDateTime(row.updated_at),
     };
+  }
+
+  private formatLocalDateTime(value: string): string {
+    const date = new Date(value);
+    const parts = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: COMMENT_TIME_ZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).formatToParts(date);
+    const lookup = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+    return `${lookup.year}-${lookup.month}-${lookup.day} ${lookup.hour}:${lookup.minute}:${lookup.second}`;
   }
 }
 

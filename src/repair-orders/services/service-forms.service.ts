@@ -6,6 +6,7 @@ import { StorageService } from 'src/common/storage/storage.service';
 import { LoggerService } from 'src/common/logger/logger.service';
 import { OffersService } from 'src/offers/offers.service';
 import { loadSQL } from 'src/common/utils/sql-loader.util';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
 import {
@@ -17,6 +18,7 @@ import {
 import { GetServiceFormResponseDto } from '../dto/service-form-response.dto';
 import { PdfPayload } from 'src/pdf/interfaces/pdf-payload.interface';
 import { randomBytes } from 'crypto';
+import { RepairOrderChangeLoggerService } from './repair-order-change-logger.service';
 
 interface ServiceFormRow {
   id: string;
@@ -53,6 +55,7 @@ export class ServiceFormsService {
     private readonly storageService: StorageService,
     private readonly logger: LoggerService,
     private readonly offersService: OffersService,
+    private readonly changeLogger: RepairOrderChangeLoggerService,
   ) {}
 
   /**
@@ -70,6 +73,7 @@ export class ServiceFormsService {
   async createServiceForm(
     repairOrderId: string,
     dto: CreateServiceFormDto,
+    admin: AdminPayload,
   ): Promise<{ warranty_id: string; message: string }> {
     // 1. Fetch all data in a single SQL query
     const sql = loadSQL('repair-orders/queries/get-service-form-data.sql');
@@ -84,6 +88,11 @@ export class ServiceFormsService {
         location: 'repair_order_id',
       });
     }
+
+    const existingForm = await this.knex<ServiceFormRow>('service_forms')
+      .where({ repair_order_id: repairOrderId })
+      .orderBy('created_at', 'desc')
+      .first();
 
     // Check MinIO directly to ensure we clean up old PDF files
     const prefix = `service-forms/${repairOrderId}/`;
@@ -109,9 +118,6 @@ export class ServiceFormsService {
         );
       }
     }
-
-    // Clean up any corresponding records in the database
-    await this.knex('service_forms').where({ repair_order_id: repairOrderId }).del();
 
     // 2. Generate unique warranty ID
     const warrantyId = this.generateWarrantyId();
@@ -195,19 +201,31 @@ export class ServiceFormsService {
       );
     }
 
-    // 6. Save record to DB
+    // 6. Save record to DB and write a routed history comment
     const now = new Date().toISOString();
-    await this.knex('service_forms').insert({
-      warranty_id: warrantyId,
-      repair_order_id: repairOrderId,
-      file_path: filePath,
-      pattern: JSON.stringify(dto.pattern),
-      device_points: JSON.stringify(dto.device_points),
-      form: JSON.stringify({ ...dto.form, total_amount: payload.form.total_amount }),
-      checklist: JSON.stringify(dto.checklist),
-      comments: dto.comments,
-      created_at: now,
-      updated_at: now,
+    await this.knex.transaction(async (trx) => {
+      await trx('service_forms').where({ repair_order_id: repairOrderId }).del();
+
+      await trx('service_forms').insert({
+        warranty_id: warrantyId,
+        repair_order_id: repairOrderId,
+        file_path: filePath,
+        pattern: JSON.stringify(dto.pattern),
+        device_points: JSON.stringify(dto.device_points),
+        form: JSON.stringify({ ...dto.form, total_amount: payload.form.total_amount }),
+        checklist: JSON.stringify(dto.checklist),
+        comments: dto.comments,
+        created_at: now,
+        updated_at: now,
+      });
+
+      await this.changeLogger.logAction(
+        trx,
+        repairOrderId,
+        existingForm ? 'service_form_updated' : 'service_form_created',
+        { warranty_id: warrantyId },
+        admin.id,
+      );
     });
 
     return { warranty_id: warrantyId, message: 'Service form generated successfully' };

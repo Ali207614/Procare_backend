@@ -9,6 +9,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { RoleType } from 'src/common/types/role-type.enum';
 
 export class CreateRoleDto {
   @ApiProperty({ example: 'Admin', description: 'Role name' })
@@ -25,6 +26,17 @@ export class CreateRoleDto {
   @IsArray()
   @IsOptional()
   permission_ids?: string[];
+
+  @ApiProperty({
+    example: RoleType.SPECIALIST,
+    enum: RoleType,
+    required: false,
+    nullable: true,
+    description: 'Stable canonical type for system roles',
+  })
+  @IsOptional()
+  @IsEnum(RoleType, { context: { location: 'role_type' } })
+  type?: RoleType | null;
 
   @ApiProperty({ example: 'Open', enum: ['Open', 'Deleted'], description: 'Role status' })
   @IsOptional()

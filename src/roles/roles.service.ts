@@ -15,6 +15,7 @@ import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-per
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { EnumBooleanString, FindAllRolesDto } from 'src/roles/dto/find-all-roles.dto';
 import { HistoryService } from 'src/history/history.service';
+import { RoleType } from 'src/common/types/role-type.enum';
 
 export interface RoleWithPermissions extends Role {
   permissions: Permission[];
@@ -43,6 +44,10 @@ export class RolesService {
         });
       }
 
+      if (dto.type) {
+        await this.ensureRoleTypeIsAvailable(trx, dto.type);
+      }
+
       // 2️⃣ Permission ID-larni tekshirish
       if (dto.permission_ids?.length) {
         const foundPermissions: Permission[] = await trx('permissions')
@@ -60,6 +65,7 @@ export class RolesService {
       const [role]: Role[] = await trx('roles')
         .insert({
           name: dto.name,
+          type: dto.type ?? null,
           created_by: adminId,
         })
         .returning('*');
@@ -101,7 +107,7 @@ export class RolesService {
   }
 
   async findAll(dto: FindAllRolesDto): Promise<PaginationResult<Role>> {
-    const { search, is_active, is_protected, limit = 20, offset = 0 } = dto;
+    const { search, is_active, is_protected, type, limit = 20, offset = 0 } = dto;
 
     const baseQuery = this.knex('roles as r')
       .leftJoin('admins as a', 'r.created_by', 'a.id')
@@ -122,6 +128,10 @@ export class RolesService {
         } else if (is_protected === EnumBooleanString.FALSE) {
           void qb.andWhere('r.is_protected', false);
         }
+
+        if (type) {
+          void qb.andWhere('r.type', type);
+        }
       });
 
     const [rows, [{ count }]] = await Promise.all([
@@ -130,6 +140,7 @@ export class RolesService {
         .select(
           'r.id',
           'r.name',
+          'r.type',
           'r.is_active',
           'r.is_protected',
           'r.status',
@@ -169,6 +180,7 @@ export class RolesService {
       .select(
         'r.id',
         'r.name',
+        'r.type',
         'r.is_active',
         'r.is_protected',
         'r.status',
@@ -246,6 +258,19 @@ export class RolesService {
         }
       }
 
+      if (dto.type !== undefined && dto.type !== role.type) {
+        if (role.is_protected) {
+          throw new ForbiddenException({
+            message: 'This role is system-protected and its type cannot be changed.',
+            location: 'role_protected',
+          });
+        }
+
+        if (dto.type) {
+          await this.ensureRoleTypeIsAvailable(trx, dto.type, id);
+        }
+      }
+
       if (Array.isArray(dto.permission_ids)) {
         const foundPermissions = await trx('permissions')
           .whereIn('id', dto.permission_ids)
@@ -280,6 +305,7 @@ export class RolesService {
 
       const updatePayload = {
         ...(dto.name && { name: dto.name }),
+        ...(dto.type !== undefined && { type: dto.type }),
         ...(dto.is_active !== undefined && { is_active: dto.is_active }),
         ...(dto.status && { status: dto.status }),
         updated_at: new Date(),
@@ -339,6 +365,26 @@ export class RolesService {
 
     await this.repairOrderStatusPermissionsService.deletePermissionsByRole(id);
     return { message: 'Role deleted (soft) successfully' };
+  }
+
+  private async ensureRoleTypeIsAvailable(
+    trx: Knex.Transaction,
+    type: RoleType,
+    excludeRoleId?: string,
+  ): Promise<void> {
+    let query = trx('roles').where({ type, status: 'Open' });
+
+    if (excludeRoleId) {
+      query = query.andWhereNot({ id: excludeRoleId });
+    }
+
+    const existing = await query.first<{ id: string }>('id');
+    if (existing) {
+      throw new BadRequestException({
+        message: 'Role type already exists',
+        location: 'role_type',
+      });
+    }
   }
 
   private async recordRelationDiff(

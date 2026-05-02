@@ -17,6 +17,7 @@ import { PdfService } from '../../src/pdf/pdf.service';
 import { RepairOrderWebhookService } from '../../src/repair-orders/services/repair-order-webhook.service';
 import { NotificationService } from '../../src/notification/notification.service';
 import { getKnexConnectionToken } from 'nestjs-knex';
+import { HistoryService } from '../../src/history/history.service';
 
 function createUpdateTransaction(order: RepairOrder) {
   const builder = {
@@ -112,6 +113,7 @@ describe('RepairOrdersService', () => {
         { provide: PdfService, useValue: {} },
         { provide: RepairOrderWebhookService, useValue: { sendWebhook: jest.fn().mockResolvedValue(true) } },
         { provide: NotificationService, useValue: { create: jest.fn() } },
+        { provide: HistoryService, useValue: { recordEntityCreated: jest.fn().mockResolvedValue(null) } },
       ],
     }).compile();
 
@@ -120,6 +122,46 @@ describe('RepairOrdersService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('findViewableByAdminBranch', () => {
+    it('should wrap grouped repair orders in meta/data without changing the payload', async () => {
+      const admin = { id: 'admin-123', roles: [] };
+      const branchId = 'branch-123';
+      const query = {
+        branch_id: branchId,
+        limit: 50,
+        offset: 10,
+      } as any;
+      const groupedResult = {
+        'status-1': {
+          metrics: {
+            total_repair_orders: 2,
+          },
+          repair_orders: [RepairOrderFactory.create({ id: 'order-1' })],
+        },
+        'status-2': {
+          metrics: {
+            total_repair_orders: 5,
+          },
+          repair_orders: [RepairOrderFactory.create({ id: 'order-2' })],
+        },
+      };
+
+      jest.spyOn(service, 'findAllByAdminBranch').mockResolvedValue(groupedResult as any);
+
+      const result = await service.findViewableByAdminBranch(admin as any, branchId, query);
+
+      expect(service.findAllByAdminBranch).toHaveBeenCalledWith(admin, branchId, query);
+      expect(result).toEqual({
+        meta: {
+          total: 7,
+          limit: 50,
+          offset: 10,
+        },
+        data: groupedResult,
+      });
+    });
   });
 
   // Legacy tests (findAll, create, findOne) were removed because they no longer compile

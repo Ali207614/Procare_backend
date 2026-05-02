@@ -7,6 +7,7 @@ exports.seed = async function (knex) {
     {
       id: '00000000-0000-4000-8000-000000000000',
       name: 'Super Admin',
+      type: 'SuperAdmin',
       is_active: true,
       is_protected: true,
       status: 'Open',
@@ -16,6 +17,7 @@ exports.seed = async function (knex) {
     {
       id: '00000000-0000-4000-8000-000000000001',
       name: 'Courier',
+      type: 'Courier',
       is_active: true,
       is_protected: true,
       status: 'Open',

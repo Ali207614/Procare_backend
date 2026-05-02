@@ -178,6 +178,13 @@ describe('RepairOrdersService customer no-answer workflow', () => {
       }),
     );
     expect(changeLogger.logMultipleFieldsIfChanged).toHaveBeenCalled();
+    expect(changeLogger.logMultipleFieldsIfChanged).toHaveBeenCalledWith(
+      trx,
+      order.id,
+      expect.any(Array),
+      'system-admin',
+      { isSystemActor: true },
+    );
     expect(trx.commit).toHaveBeenCalled();
   });
 

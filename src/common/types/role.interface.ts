@@ -1,6 +1,9 @@
+import { RoleType } from './role-type.enum';
+
 export interface Role {
   id: string;
   name: string;
+  type: RoleType | null;
   is_active: boolean;
   is_protected: boolean;
   status: 'Open' | 'Deleted';

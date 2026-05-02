@@ -1,6 +1,9 @@
 export enum RoleType {
-  ADMIN = 'admin',
-  MANAGER = 'manager',
-  USER = 'user',
-  GUEST = 'guest',
+  SUPER_ADMIN = 'SuperAdmin',
+  OPERATOR = 'Operator',
+  SPECIALIST = 'Specialist',
+  MASTER = 'Master',
+  COURIER = 'Courier',
 }
+
+export const ROLE_TYPES = Object.values(RoleType);

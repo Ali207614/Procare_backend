@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Exclude, Expose, Type } from 'class-transformer';
+import { RoleType } from 'src/common/types/role-type.enum';
 
 @Exclude()
 class BranchMiniDto {
@@ -29,6 +30,10 @@ class RoleMiniDto {
   @ApiProperty()
   @Expose()
   name!: string;
+
+  @ApiProperty({ enum: RoleType, nullable: true, required: false })
+  @Expose()
+  type?: RoleType | null;
 }
 
 @Exclude()

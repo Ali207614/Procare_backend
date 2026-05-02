@@ -111,8 +111,7 @@ function createDbMock(initialRows: TableRows) {
           next[state.conflictColumn] != null &&
           (rows[table] ?? []).some(
             (existing) =>
-              existing[state.conflictColumn as string] ===
-              next[state.conflictColumn as string],
+              existing[state.conflictColumn as string] === next[state.conflictColumn as string],
           )
         ) {
           return acc;
@@ -172,8 +171,11 @@ function createDbMock(initialRows: TableRows) {
 }
 
 describe('RepairOrderHistoryCommentManager', () => {
-  it('formats status changes in Uzbek using resolved status names', async () => {
+  it('formats status changes with actor-aware text and resolved status names', async () => {
     const db = createDbMock({
+      admins: [{ id: 'admin-1', first_name: 'Ali', last_name: 'Valiyev' }],
+      admin_roles: [{ admin_id: 'admin-1', role_id: 'role-operator' }],
+      roles: [{ id: 'role-operator', type: 'Operator', status: 'Open', is_active: true }],
       repair_order_statuses: [
         { id: 'status-old', name_uz: 'Yangi buyurtma (lead)' },
         { id: 'status-new', name_uz: 'Diagnostika' },
@@ -191,10 +193,12 @@ describe('RepairOrderHistoryCommentManager', () => {
       created_at: '2026-04-13T00:00:00.000Z',
     });
 
-    expect(result).toBe(`Holat o'zgardi: "Yangi buyurtma (lead)" -> "Diagnostika"`);
+    expect(result).toBe(
+      `Operator Ali Valiyev buyurtma holatini o'zgartirdi: "Yangi buyurtma (lead)" -> "Diagnostika"`,
+    );
   });
 
-  it('ignores non-status history rows for comment generation', async () => {
+  it('ignores unsupported history rows for comment generation', async () => {
     const db = createDbMock({
       branches: [
         { id: 'branch-old', name_uz: 'Chilonzor' },
@@ -206,7 +210,7 @@ describe('RepairOrderHistoryCommentManager', () => {
     const result = await manager.buildCommentText(db, {
       id: 'history-2',
       repair_order_id: 'order-1',
-      field: 'branch_transferred',
+      field: 'unsupported_action',
       old_value: null,
       new_value: {
         old_branch_id: 'branch-old',
@@ -223,6 +227,8 @@ describe('RepairOrderHistoryCommentManager', () => {
     const db = createDbMock({
       repair_order_comments: [],
       admins: [{ id: 'admin-1', first_name: 'Super', last_name: 'Admin' }],
+      admin_roles: [{ admin_id: 'admin-1', role_id: 'role-operator' }],
+      roles: [{ id: 'role-operator', type: 'Operator', status: 'Open', is_active: true }],
       repair_order_statuses: [{ id: 'status-1', name_uz: 'Diagnostika' }],
       repair_order_change_histories: [
         {
@@ -254,7 +260,7 @@ describe('RepairOrderHistoryCommentManager', () => {
     expect(db.__rows.repair_order_comments[0]).toEqual(
       expect.objectContaining({
         repair_order_id: 'order-1',
-        text: `Holat belgilandi: "Diagnostika"`,
+        text: `Operator Super Admin buyurtma holatini o'zgartirdi: "Diagnostika"`,
         comment_type: 'history',
         history_change_id: 'history-3',
         created_by: 'admin-1',
@@ -285,5 +291,109 @@ describe('RepairOrderHistoryCommentManager', () => {
 
     expect(created).toBe(false);
     expect(db.__rows.repair_order_comments).toHaveLength(1);
+  });
+
+  it('routes initial problem comments through the specialist wording', async () => {
+    const db = createDbMock({
+      admins: [{ id: 'admin-1', first_name: 'Aziz', last_name: 'Karimov' }],
+      admin_roles: [{ admin_id: 'admin-1', role_id: 'role-specialist' }],
+      roles: [{ id: 'role-specialist', type: 'Specialist', status: 'Open', is_active: true }],
+      problem_categories: [{ id: 'problem-1', name_uz: 'Displey' }],
+    });
+    const manager = new RepairOrderHistoryCommentManager(db);
+
+    const result = await manager.buildCommentText(db, {
+      id: 'history-5',
+      repair_order_id: 'order-1',
+      field: 'initial_problems',
+      old_value: [],
+      new_value: [
+        { problem_category_id: 'problem-1', price: 120000, estimated_minutes: 30, parts: [] },
+      ],
+      created_by: 'admin-1',
+      created_at: '2026-05-02T07:00:00.000Z',
+    });
+
+    expect(result).toBe(
+      `Specialist Aziz Karimov diagnostika muammolarini o'zgartirdi: "Displey, 120 000 so'm, 30 daqiqa"`,
+    );
+  });
+
+  it('routes service form updates through the master wording', async () => {
+    const db = createDbMock({
+      admins: [{ id: 'admin-1', first_name: 'Bobur', last_name: 'Tursunov' }],
+      admin_roles: [{ admin_id: 'admin-1', role_id: 'role-master' }],
+      roles: [{ id: 'role-master', type: 'Master', status: 'Open', is_active: true }],
+    });
+    const manager = new RepairOrderHistoryCommentManager(db);
+
+    const result = await manager.buildCommentText(db, {
+      id: 'history-6',
+      repair_order_id: 'order-1',
+      field: 'service_form_updated',
+      old_value: null,
+      new_value: { warranty_id: 'SF-A3B9K2' },
+      created_by: 'admin-1',
+      created_at: '2026-05-02T07:05:00.000Z',
+    });
+
+    expect(result).toBe(`Usta Bobur Tursunov servis formasini yangiladi: "SF-A3B9K2"`);
+  });
+
+  it('treats the seeded super admin account as a human actor, not the system actor', async () => {
+    const db = createDbMock({
+      admins: [
+        { id: '00000000-0000-4000-8000-000000000000', first_name: 'Super', last_name: 'Admin' },
+      ],
+      admin_roles: [
+        {
+          admin_id: '00000000-0000-4000-8000-000000000000',
+          role_id: 'role-super-admin',
+        },
+      ],
+      roles: [
+        {
+          id: 'role-super-admin',
+          type: 'SuperAdmin',
+          status: 'Open',
+          is_active: true,
+        },
+      ],
+      repair_order_statuses: [{ id: 'status-1', name_uz: 'Diagnostika' }],
+    });
+    const manager = new RepairOrderHistoryCommentManager(db);
+
+    const result = await manager.buildCommentText(db, {
+      id: 'history-super-admin-manual',
+      repair_order_id: 'order-1',
+      field: 'status_id',
+      old_value: null,
+      new_value: 'status-1',
+      created_by: '00000000-0000-4000-8000-000000000000',
+      is_system: false,
+      created_at: '2026-05-02T07:10:00.000Z',
+    });
+
+    expect(result).toBe(`Super admin Super Admin buyurtma holatini o'zgartirdi: "Diagnostika"`);
+  });
+
+  it('routes system-authored comments through the system label', async () => {
+    const db = createDbMock({
+      repair_order_statuses: [{ id: 'status-1', name_uz: 'Diagnostika' }],
+    });
+    const manager = new RepairOrderHistoryCommentManager(db);
+
+    const result = await manager.buildCommentText(db, {
+      id: 'history-7',
+      repair_order_id: 'order-1',
+      field: 'status_id',
+      old_value: null,
+      new_value: 'status-1',
+      created_by: '00000000-0000-4000-8000-000000000000',
+      is_system: true,
+      created_at: '2026-05-02T07:10:00.000Z',
+    });
+
+    expect(result).toBe(`Tizim buyurtma holatini o'zgartirdi: "Diagnostika"`);
   });
 });

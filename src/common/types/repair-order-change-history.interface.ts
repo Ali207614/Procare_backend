@@ -5,5 +5,6 @@ export interface RepairOrderChangeHistory {
   old_value: unknown;
   new_value: unknown;
   created_by: string;
+  is_system?: boolean | null;
   created_at: string | Date;
 }

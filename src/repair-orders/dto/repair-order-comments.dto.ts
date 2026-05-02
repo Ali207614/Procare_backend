@@ -130,6 +130,12 @@ export class RepairOrderCommentItemDto {
 
   @ApiProperty({ example: '2026-04-30T08:15:00.000Z' })
   updated_at!: string;
+
+  @ApiProperty({ example: '2026-04-30 13:15:00' })
+  created_at_local!: string;
+
+  @ApiProperty({ example: '2026-04-30 13:15:00' })
+  updated_at_local!: string;
 }
 
 export class RepairOrderCommentAudioFileDto {
@@ -180,6 +186,9 @@ export class RepairOrderCommentsResponseDto {
 
   @ApiProperty({ example: 0 })
   offset!: number;
+
+  @ApiProperty({ example: 'Asia/Tashkent' })
+  timezone!: string;
 
   @ApiProperty({
     type: [RepairOrderCommentAudioFileDto],

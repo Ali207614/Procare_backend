@@ -10,6 +10,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { Transform, TransformFnParams, Type } from 'class-transformer';
+import { RoleType } from 'src/common/types/role-type.enum';
 
 export enum EnumBooleanString {
   TRUE = 'true',
@@ -64,6 +65,15 @@ export class FindAllRolesDto {
     return value as EnumBooleanString;
   })
   is_protected?: EnumBooleanString;
+
+  @ApiPropertyOptional({
+    description: 'Filter by canonical role type',
+    enum: RoleType,
+    example: RoleType.SPECIALIST,
+  })
+  @IsOptional()
+  @IsEnum(RoleType, { context: { location: 'type' } })
+  type?: RoleType;
 
   @ApiPropertyOptional({
     example: 20,

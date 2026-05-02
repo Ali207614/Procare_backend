@@ -11,7 +11,8 @@ WITH filtered AS (
         COALESCE(
                 json_agg(DISTINCT jsonb_build_object(
                 'id', r.id,
-                'name', r.name
+                'name', r.name,
+                'type', r.type
             )) FILTER (WHERE r.id IS NOT NULL),
                 '[]'
         ) AS roles,
