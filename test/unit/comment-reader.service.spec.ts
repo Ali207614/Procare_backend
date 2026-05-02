@@ -16,7 +16,11 @@ function resolvedQuery<T>(data: T): any {
   };
 }
 
-function createKnexMock(audioExpiresAt: string | null, audioUpdatedAt: string) {
+function createKnexMock(
+  audioExpiresAt: string | null,
+  audioUpdatedAt: string,
+  updateImplementation: jest.Mock<any, any> = jest.fn().mockResolvedValue(1),
+) {
   const commentRows = [
     {
       id: 'comment-1',
@@ -53,7 +57,7 @@ function createKnexMock(audioExpiresAt: string | null, audioUpdatedAt: string) {
       updated_at: audioUpdatedAt,
     },
   ];
-  const updateSpy = jest.fn().mockResolvedValue(1);
+  const updateSpy = updateImplementation;
   const rowsQuery = resolvedQuery(commentRows);
   const countQuery = resolvedQuery([{ total: '1' }]);
   const audioQuery = {
@@ -85,7 +89,7 @@ function createKnexMock(audioExpiresAt: string | null, audioUpdatedAt: string) {
 }
 
 describe('CommentReaderService', () => {
-  it('reuses the cached OnlinePBX recording URL while it is still valid', async () => {
+  it('refreshes the OnlinePBX recording URL on each comments request', async () => {
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     const oldUpdatedAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const { knex, updateSpy } = createKnexMock(expiresAt, oldUpdatedAt);
@@ -94,7 +98,9 @@ describe('CommentReaderService', () => {
       checkPermissionsOrThrow: jest.fn().mockResolvedValue(undefined),
     };
     const onlinePbxRecordingService = {
-      getFreshDownloadUrl: jest.fn(),
+      getFreshDownloadUrl: jest
+        .fn()
+        .mockResolvedValue('https://api2.onlinepbx.ru/calls-records/download/fresh/rec.mp3'),
     };
     const service = new CommentReaderService(
       knex as any,
@@ -107,15 +113,19 @@ describe('CommentReaderService', () => {
       offset: 0,
     } as any);
 
-    expect(onlinePbxRecordingService.getFreshDownloadUrl).not.toHaveBeenCalled();
-    expect(updateSpy).not.toHaveBeenCalled();
+    expect(onlinePbxRecordingService.getFreshDownloadUrl).toHaveBeenCalledWith('call-uuid');
+    expect(updateSpy).toHaveBeenCalledWith({
+      download_url: 'https://api2.onlinepbx.ru/calls-records/download/fresh/rec.mp3',
+      download_url_expires_at: expect.any(String),
+      updated_at: expect.any(String),
+    });
     expect(result.audio_files[0]).toEqual(
       expect.not.objectContaining({
         updated_at: expect.anything(),
       }),
     );
     expect(result.audio_files[0].download_url).toBe(
-      'https://api2.onlinepbx.ru/calls-records/download/old/rec.mp3',
+      'https://api2.onlinepbx.ru/calls-records/download/fresh/rec.mp3',
     );
     expect(result.timezone).toBe('Asia/Tashkent');
     expect(result.comments[0]).toEqual(
@@ -158,6 +168,84 @@ describe('CommentReaderService', () => {
     expect(result.audio_files[0].download_url).toBe(
       'https://api2.onlinepbx.ru/calls-records/download/fresh/rec.mp3',
     );
+  });
+
+  it('returns null instead of a stale cached URL when OnlinePBX refresh fails', async () => {
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    const { knex, updateSpy } = createKnexMock(expiresAt, new Date().toISOString());
+    const permissionService = {
+      findByRolesAndBranch: jest.fn().mockResolvedValue([]),
+      checkPermissionsOrThrow: jest.fn().mockResolvedValue(undefined),
+    };
+    const onlinePbxRecordingService = {
+      getFreshDownloadUrl: jest.fn().mockResolvedValue(null),
+    };
+    const service = new CommentReaderService(
+      knex as any,
+      permissionService as any,
+      onlinePbxRecordingService as any,
+    );
+
+    const result = await service.findByRepairOrder({ id: 'admin-1', roles: [] } as any, 'order-1', {
+      limit: 20,
+      offset: 0,
+    } as any);
+
+    expect(onlinePbxRecordingService.getFreshDownloadUrl).toHaveBeenCalledWith('call-uuid');
+    expect(updateSpy).not.toHaveBeenCalled();
+    expect(result.audio_files[0].download_url).toBeNull();
+  });
+
+  it('returns a fresh URL even if persisting the refreshed cache fails', async () => {
+    const updateSpy = jest.fn().mockRejectedValue(new Error('db write failed'));
+    const { knex } = createKnexMock(null, new Date().toISOString(), updateSpy);
+    const permissionService = {
+      findByRolesAndBranch: jest.fn().mockResolvedValue([]),
+      checkPermissionsOrThrow: jest.fn().mockResolvedValue(undefined),
+    };
+    const onlinePbxRecordingService = {
+      getFreshDownloadUrl: jest
+        .fn()
+        .mockResolvedValue('https://api2.onlinepbx.ru/calls-records/download/fresh/rec.mp3'),
+    };
+    const service = new CommentReaderService(
+      knex as any,
+      permissionService as any,
+      onlinePbxRecordingService as any,
+    );
+
+    const result = await service.findByRepairOrder({ id: 'admin-1', roles: [] } as any, 'order-1', {
+      limit: 20,
+      offset: 0,
+    } as any);
+
+    expect(result.audio_files[0].download_url).toBe(
+      'https://api2.onlinepbx.ru/calls-records/download/fresh/rec.mp3',
+    );
+  });
+
+  it('returns null instead of crashing when audio refresh throws unexpectedly', async () => {
+    const { knex, updateSpy } = createKnexMock(null, new Date().toISOString());
+    const permissionService = {
+      findByRolesAndBranch: jest.fn().mockResolvedValue([]),
+      checkPermissionsOrThrow: jest.fn().mockResolvedValue(undefined),
+    };
+    const onlinePbxRecordingService = {
+      getFreshDownloadUrl: jest.fn().mockRejectedValue(new Error('unexpected refresh failure')),
+    };
+    const service = new CommentReaderService(
+      knex as any,
+      permissionService as any,
+      onlinePbxRecordingService as any,
+    );
+
+    const result = await service.findByRepairOrder({ id: 'admin-1', roles: [] } as any, 'order-1', {
+      limit: 20,
+      offset: 0,
+    } as any);
+
+    expect(updateSpy).not.toHaveBeenCalled();
+    expect(result.audio_files[0].download_url).toBeNull();
   });
 
   it('deduplicates simultaneous refreshes for the same phone call', async () => {

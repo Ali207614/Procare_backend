@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
@@ -42,6 +42,7 @@ const COMMENT_TIME_ZONE = 'Asia/Tashkent';
 
 @Injectable()
 export class CommentReaderService {
+  private readonly logger = new Logger(CommentReaderService.name);
   private readonly audioRefreshPromises = new Map<string, Promise<string | null>>();
 
   constructor(
@@ -162,37 +163,51 @@ export class CommentReaderService {
     return Promise.all(
       audioFiles.map(async (audioFile) => {
         const { updated_at, download_url_expires_at, ...responseAudioFile } = audioFile;
-        if (
-          this.isCachedDownloadUrlValid(
-            responseAudioFile.download_url,
-            download_url_expires_at,
-            updated_at || responseAudioFile.created_at,
-          )
-        ) {
-          return responseAudioFile;
-        }
+        try {
+          const freshDownloadUrl = await this.getOrCreateRefreshPromise(
+            responseAudioFile.id,
+            responseAudioFile.uuid,
+          );
+          if (!freshDownloadUrl) {
+            return {
+              ...responseAudioFile,
+              download_url: null,
+            };
+          }
 
-        const freshDownloadUrl = await this.getOrCreateRefreshPromise(
-          responseAudioFile.id,
-          responseAudioFile.uuid,
-        );
-        if (!freshDownloadUrl) {
-          return responseAudioFile;
-        }
+          const now = new Date();
+          try {
+            await this.knex('phone_calls')
+              .where({ id: responseAudioFile.id })
+              .update({
+                download_url: freshDownloadUrl,
+                download_url_expires_at: this.buildDownloadUrlExpiresAt(now).toISOString(),
+                updated_at: now.toISOString(),
+              });
+          } catch (error) {
+            this.logger.warn(
+              `Failed to cache refreshed recording URL for phone_call=${responseAudioFile.id}: ${this.stringifyError(
+                error,
+              )}`,
+            );
+          }
 
-        const now = new Date();
-        await this.knex('phone_calls')
-          .where({ id: responseAudioFile.id })
-          .update({
+          return {
+            ...responseAudioFile,
             download_url: freshDownloadUrl,
-            download_url_expires_at: this.buildDownloadUrlExpiresAt(now).toISOString(),
-            updated_at: now.toISOString(),
-          });
+          };
+        } catch (error) {
+          this.logger.warn(
+            `Failed to resolve recording URL for phone_call=${responseAudioFile.id}: ${this.stringifyError(
+              error,
+            )}`,
+          );
 
-        return {
-          ...responseAudioFile,
-          download_url: freshDownloadUrl,
-        };
+          return {
+            ...responseAudioFile,
+            download_url: null,
+          };
+        }
       }),
     );
   }
@@ -209,28 +224,14 @@ export class CommentReaderService {
     return refreshPromise;
   }
 
-  private isCachedDownloadUrlValid(
-    downloadUrl: string | null,
-    expiresAt: string | Date | null | undefined,
-    fallbackRefreshedAt: string | Date | null | undefined,
-  ): boolean {
-    if (!downloadUrl) return false;
-
-    if (expiresAt) {
-      const expiresAtTime = new Date(expiresAt).getTime();
-      return Number.isFinite(expiresAtTime) && Date.now() < expiresAtTime;
-    }
-
-    if (!fallbackRefreshedAt) return false;
-
-    const refreshedAtTime = new Date(fallbackRefreshedAt).getTime();
-    if (!Number.isFinite(refreshedAtTime)) return false;
-
-    return Date.now() - refreshedAtTime < ONLINE_PBX_SINGLE_RECORDING_INTERNAL_TTL_MS;
-  }
-
   private buildDownloadUrlExpiresAt(refreshedAt: Date): Date {
     return new Date(refreshedAt.getTime() + ONLINE_PBX_SINGLE_RECORDING_INTERNAL_TTL_MS);
+  }
+
+  private stringifyError(error: unknown): string {
+    if (error instanceof Error) return error.message;
+
+    return String(error);
   }
 
   private normalizeTypes(query: FindRepairOrderCommentsDto): RepairOrderCommentType[] {
