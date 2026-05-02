@@ -52,3 +52,4 @@ test_order.txt
 .agents/
 .codex/
 outputs/
+.codex-pets/
