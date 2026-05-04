@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { CouriersService } from '../src/couriers/couriers.service';
 import { AuthService } from '../src/auth/auth.service';
@@ -437,7 +437,7 @@ describe('Couriers Controller Complete E2E', () => {
       const branches = await knex('branches').select('*');
 
       for (const courier of couriers) {
-        const branch = branches.find((b) => b.id === courier.branch_id);
+        const branch = branches.find((b: any) => b.id === courier.branch_id);
         expect(branch).toBeTruthy();
       }
     });

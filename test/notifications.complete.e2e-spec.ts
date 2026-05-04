@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { NotificationService } from '../src/notification/notification.service';
 import { AuthService } from '../src/auth/auth.service';
@@ -265,7 +265,7 @@ describe('Notifications Controller Complete E2E', () => {
       expect(response.body.meta.total).toBe(7);
 
       // All returned notifications should be unread
-      response.body.data.forEach((notification) => {
+      response.body.data.forEach((notification: any) => {
         expect(notification.is_read).toBe(false);
       });
     });
@@ -280,7 +280,7 @@ describe('Notifications Controller Complete E2E', () => {
       expect(response.body.meta.total).toBe(3);
 
       // All returned notifications should be read
-      response.body.data.forEach((notification) => {
+      response.body.data.forEach((notification: any) => {
         expect(notification.is_read).toBe(true);
       });
     });
@@ -319,7 +319,7 @@ describe('Notifications Controller Complete E2E', () => {
 
       expect(response.body.data.length).toBe(3);
       expect(response.body.meta.total).toBe(7); // Total unread notifications
-      response.body.data.forEach((notification) => {
+      response.body.data.forEach((notification: any) => {
         expect(notification.is_read).toBe(false);
       });
     });
@@ -333,7 +333,7 @@ describe('Notifications Controller Complete E2E', () => {
       expect(response.body.data.length).toBe(3); // Only notifications for second admin
       expect(response.body.meta.total).toBe(3);
 
-      response.body.data.forEach((notification) => {
+      response.body.data.forEach((notification: any) => {
         expect(notification.title).toContain('Second Admin');
       });
     });
@@ -614,7 +614,7 @@ describe('Notifications Controller Complete E2E', () => {
       const admins = await knex('admins').select('*');
 
       for (const notification of notifications) {
-        const admin = admins.find((a) => a.id === notification.admin_id);
+        const admin = admins.find((a: any) => a.id === notification.admin_id);
         expect(admin).toBeTruthy();
       }
     });
@@ -665,13 +665,13 @@ describe('Notifications Controller Complete E2E', () => {
 
       // Should only return secondTestAdmin notifications
       expect(response.body.data.length).toBe(3);
-      response.body.data.forEach((notification) => {
+      response.body.data.forEach((notification: any) => {
         expect(notification.title).toContain('Second Admin');
       });
 
       // None should be testAdmin notifications
       const testAdminTitles = testNotifications.map((n) => n.title);
-      response.body.data.forEach((notification) => {
+      response.body.data.forEach((notification: any) => {
         expect(testAdminTitles).not.toContain(notification.title);
       });
     });

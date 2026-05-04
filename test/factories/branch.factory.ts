@@ -1,8 +1,18 @@
 import { v4 as uuidv4 } from 'uuid';
 
+import { Knex } from 'knex';
+
 export class BranchFactory {
-  static create(overrides = {}) {
-    return {
+  static async create(knexOrOverrides: any = {}, overrides: any = {}) {
+    let knex: Knex | null = null;
+    let actualOverrides = knexOrOverrides;
+
+    if (knexOrOverrides && typeof knexOrOverrides.insert === 'function') {
+      knex = knexOrOverrides as Knex;
+      actualOverrides = overrides;
+    }
+
+    const data = {
       id: uuidv4(),
       name: 'Test Branch',
       address: '123 Test Street, Test City',
@@ -24,17 +34,27 @@ export class BranchFactory {
       created_at: new Date(),
       updated_at: new Date(),
       deleted_at: null,
-      ...overrides,
+      ...actualOverrides,
     };
+
+    if (knex) {
+      await knex('branches').insert(data);
+    }
+
+    return data;
   }
 
-  static createMany(count: number, overrides = {}) {
-    return Array.from({ length: count }, (_, index) =>
-      this.create({
-        name: `Test Branch ${index + 1}`,
-        ...overrides,
-      }),
-    );
+  static async createMany(count: number, overrides = {}) {
+    const results = [];
+    for (let i = 0; i < count; i++) {
+      results.push(
+        await this.create({
+          name: `Test Branch ${i + 1}`,
+          ...overrides,
+        }),
+      );
+    }
+    return results;
   }
 
   static createDto(overrides = {}) {

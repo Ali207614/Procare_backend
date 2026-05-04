@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PermissionsService } from '../src/permissions/permissions.service';
 import { AuthService } from '../src/auth/auth.service';
@@ -618,7 +618,7 @@ describe('Permissions Controller Complete E2E', () => {
       const permissions = await knex('permissions').select('*');
 
       for (const rolePermission of rolePermissions) {
-        const role = roles.find((r) => r.id === rolePermission.role_id);
+        const role = roles.find((r: any) => r.id === rolePermission.role_id);
         const permission = permissions.find((p) => p.id === rolePermission.permission_id);
         expect(role).toBeTruthy();
         expect(permission).toBeTruthy();

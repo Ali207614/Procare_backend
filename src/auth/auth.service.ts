@@ -52,6 +52,11 @@ export class AuthService {
     reset_token: 'auth:reset_token',
   };
 
+  // Helper to generate JWT token for testing
+  generateJwtToken(payload: string | Buffer | object): string {
+    return this.jwtService.sign(payload);
+  }
+
   // A helper function for sending OTP code
   async sendCode(
     phone: string,

@@ -1,4 +1,4 @@
-import { createMock } from 'jest-mock-extended';
+import { mock } from 'jest-mock-extended';
 import { ExecutionContext } from '@nestjs/common';
 
 /**
@@ -342,7 +342,7 @@ export class MockFactory {
    * Create a mock service based on service class
    */
   static createMockService(ServiceClass: any) {
-    const mockService = createMock<typeof ServiceClass.prototype>();
+    const mockService = mock<typeof ServiceClass.prototype>();
 
     // Add common service methods if they don't exist
     const commonMethods = [

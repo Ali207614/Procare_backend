@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { AdminsService } from '../src/admins/admins.service';
 import { AuthService } from '../src/auth/auth.service';
@@ -665,7 +665,7 @@ describe('Admins Controller Complete E2E', () => {
       );
 
       // Ensure no inactive admins are returned
-      const inactiveAdmins = response.body.rows.filter((admin) => admin.status !== 'Active');
+      const inactiveAdmins = response.body.rows.filter((admin: any) => admin.status !== 'Active');
       expect(inactiveAdmins).toHaveLength(0);
     });
 
@@ -723,7 +723,7 @@ describe('Admins Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(200);
 
-      const dates = response.body.rows.map((admin) => new Date(admin.created_at));
+      const dates = response.body.rows.map((admin: any) => new Date(admin.created_at));
       const sortedDates = [...dates].sort((a, b) => b.getTime() - a.getTime());
       expect(dates).toEqual(sortedDates);
     });
@@ -776,7 +776,7 @@ describe('Admins Controller Complete E2E', () => {
 
       for (const admin of admins) {
         if (admin.branch_id) {
-          const branch = branches.find((b) => b.id === admin.branch_id);
+          const branch = branches.find((b: any) => b.id === admin.branch_id);
           expect(branch).toBeTruthy();
         }
       }
@@ -803,7 +803,7 @@ describe('Admins Controller Complete E2E', () => {
 
       // Verify admin doesn't appear in active queries
       const activeAdmins = await knex('admins').whereNull('deleted_at');
-      expect(activeAdmins.find((a) => a.id === testAdmin.id)).toBeFalsy();
+      expect(activeAdmins.find((a: any) => a.id === testAdmin.id)).toBeFalsy();
     });
   });
 
@@ -817,7 +817,7 @@ describe('Admins Controller Complete E2E', () => {
       ];
 
       for (const endpoint of endpoints) {
-        await request(app.getHttpServer())[endpoint.method](endpoint.path).expect(401);
+        await (request(app.getHttpServer()) as any)[endpoint.method](endpoint.path).expect(401);
       }
     });
 
@@ -845,7 +845,7 @@ describe('Admins Controller Complete E2E', () => {
       ];
 
       for (const endpoint of protectedEndpoints) {
-        const req = request(app.getHttpServer())
+        const req = (request(app.getHttpServer()) as any)
           [endpoint.method](endpoint.path)
           .set('Authorization', `Bearer ${adminToken}`);
 
@@ -878,7 +878,7 @@ describe('Admins Controller Complete E2E', () => {
       }
 
       const results = await Promise.allSettled(promises);
-      const successful = results.filter((r) => r.status === 'fulfilled' && r.value.status === 201);
+      const successful = results.filter((r: any) => r.status === 'fulfilled' && r.value.status === 201);
 
       expect(successful.length).toBe(adminCount);
     });

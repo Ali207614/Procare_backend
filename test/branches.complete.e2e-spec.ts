@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { BranchesService } from '../src/branches/branches.service';
 import { AuthService } from '../src/auth/auth.service';
@@ -394,7 +394,7 @@ describe('Branches Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      const sorts = response.body.data.map((branch) => branch.sort);
+      const sorts = response.body.data.map((branch: any) => branch.sort);
       const sortedSorts = [...sorts].sort((a, b) => a - b);
       expect(sorts).toEqual(sortedSorts);
     });

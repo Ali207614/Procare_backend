@@ -73,9 +73,27 @@ export class TestModuleBuilder {
    */
   withDatabaseMocks(): TestModuleBuilder {
     this.providers.push(
-      { provide: 'KnexConnection', useValue: MockFactory.createMockKnex() },
-      { provide: 'RedisClient', useValue: MockFactory.createMockRedis() },
+      { provide: 'KNEX_CONNECTION', useValue: MockFactory.createMockKnex() },
+      { provide: 'REDIS_CLIENT', useValue: MockFactory.createMockRedis() },
     );
+    return this;
+  }
+
+  /**
+   * Use real database for integration/e2e tests
+   */
+  withRealDatabase(): TestModuleBuilder {
+    // Real database is already included via AppModule, 
+    // but this method can be used to explicitly signal its use
+    // or add specific configurations if needed.
+    return this;
+  }
+
+  /**
+   * Use real Redis for integration/e2e tests
+   */
+  withRealRedis(): TestModuleBuilder {
+    // Real Redis is already included via AppModule
     return this;
   }
 

@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { CampaignsService } from '../src/campaigns/campaigns.service';
 import { AuthService } from '../src/auth/auth.service';
@@ -501,7 +501,7 @@ describe('Campaigns Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      response.body.data.forEach((campaign) => {
+      response.body.data.forEach((campaign: any) => {
         expect(campaign.type).toBe('SMS');
       });
     });
@@ -512,7 +512,7 @@ describe('Campaigns Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      response.body.data.forEach((campaign) => {
+      response.body.data.forEach((campaign: any) => {
         expect(campaign.status).toBe('Draft');
       });
     });
@@ -547,7 +547,7 @@ describe('Campaigns Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      const dates = response.body.data.map((campaign) => new Date(campaign.created_at));
+      const dates = response.body.data.map((campaign: any) => new Date(campaign.created_at));
       const sortedDates = [...dates].sort((a, b) => b.getTime() - a.getTime());
       expect(dates).toEqual(sortedDates);
     });
@@ -559,7 +559,7 @@ describe('Campaigns Controller Complete E2E', () => {
         .expect(200);
 
       expect(response.body.data.length).toBeLessThanOrEqual(2);
-      response.body.data.forEach((campaign) => {
+      response.body.data.forEach((campaign: any) => {
         expect(campaign.type).toBe('SMS');
         expect(campaign.status).toBe('Draft');
       });
@@ -930,8 +930,8 @@ describe('Campaigns Controller Complete E2E', () => {
       const users = await knex('users').select('*');
 
       for (const recipient of recipients) {
-        const campaign = campaigns.find((c) => c.id === recipient.campaign_id);
-        const user = users.find((u) => u.id === recipient.user_id);
+        const campaign = campaigns.find((c: any) => c.id === recipient.campaign_id);
+        const user = users.find((u: any) => u.id === recipient.user_id);
         expect(campaign).toBeTruthy();
         expect(user).toBeTruthy();
       }
@@ -995,7 +995,7 @@ describe('Campaigns Controller Complete E2E', () => {
       ];
 
       for (const endpoint of protectedEndpoints) {
-        await request(app.getHttpServer())[endpoint.method](endpoint.path).expect(401);
+        await (request(app.getHttpServer()) as any)[endpoint.method](endpoint.path).expect(401);
       }
     });
 
@@ -1009,7 +1009,7 @@ describe('Campaigns Controller Complete E2E', () => {
       ];
 
       for (const endpoint of protectedEndpoints) {
-        const req = request(app.getHttpServer())
+        const req = (request(app.getHttpServer()) as any)
           [endpoint.method](endpoint.path)
           .set('Authorization', `Bearer ${limitedAdminToken}`);
 
@@ -1049,7 +1049,7 @@ describe('Campaigns Controller Complete E2E', () => {
       }
 
       const results = await Promise.allSettled(promises);
-      const successful = results.filter((r) => r.status === 'fulfilled' && r.value.status === 201);
+      const successful = results.filter((r: any) => r.status === 'fulfilled' && (r as any).value.status === 201);
 
       expect(successful.length).toBe(campaignCount);
     });

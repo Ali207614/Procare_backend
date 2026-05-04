@@ -1,8 +1,18 @@
 import { v4 as uuidv4 } from 'uuid';
 
+import { Knex } from 'knex';
+
 export class RoleFactory {
-  static create(overrides = {}) {
-    return {
+  static async create(knexOrOverrides: any = {}, overrides: any = {}) {
+    let knex: Knex | null = null;
+    let actualOverrides = knexOrOverrides;
+
+    if (knexOrOverrides && typeof knexOrOverrides.insert === 'function') {
+      knex = knexOrOverrides as Knex;
+      actualOverrides = overrides;
+    }
+
+    const data = {
       id: uuidv4(),
       name: 'Test Role',
       description: 'Test role description',
@@ -12,18 +22,28 @@ export class RoleFactory {
       created_at: new Date(),
       updated_at: new Date(),
       deleted_at: null,
-      ...overrides,
+      ...actualOverrides,
     };
+
+    if (knex) {
+      await knex('roles').insert(data);
+    }
+
+    return data;
   }
 
-  static createMany(count: number, overrides = {}) {
-    return Array.from({ length: count }, (_, index) =>
-      this.create({
-        name: `Test Role ${index + 1}`,
-        description: `Test role ${index + 1} description`,
-        ...overrides,
-      }),
-    );
+  static async createMany(count: number, overrides = {}) {
+    const results = [];
+    for (let i = 0; i < count; i++) {
+      results.push(
+        await this.create({
+          name: `Test Role ${i + 1}`,
+          description: `Test role ${i + 1} description`,
+          ...overrides,
+        }),
+      );
+    }
+    return results;
   }
 
   static createDto(overrides = {}) {

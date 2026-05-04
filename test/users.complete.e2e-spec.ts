@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { UsersService } from '../src/users/users.service';
 import { AuthService } from '../src/auth/auth.service';
@@ -352,7 +352,7 @@ describe('Users Controller Complete E2E', () => {
       );
 
       // Ensure no inactive users are returned
-      const inactiveUsers = response.body.data.filter((user) => user.status !== 'Active');
+      const inactiveUsers = response.body.data.filter((user: any) => user.status !== 'Active');
       expect(inactiveUsers).toHaveLength(0);
     });
 
@@ -364,7 +364,7 @@ describe('Users Controller Complete E2E', () => {
 
       expect(response.body.data.length).toBeGreaterThan(0);
       const foundUser = response.body.data.find(
-        (user) => user.first_name === 'Test' && user.last_name === 'User',
+        (user: any) => user.first_name === 'Test' && user.last_name === 'User',
       );
       expect(foundUser).toBeTruthy();
     });
@@ -409,7 +409,7 @@ describe('Users Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      const dates = response.body.data.map((user) => new Date(user.created_at));
+      const dates = response.body.data.map((user: any) => new Date(user.created_at));
       const sortedDates = [...dates].sort((a, b) => b.getTime() - a.getTime());
       expect(dates).toEqual(sortedDates);
     });
@@ -722,7 +722,7 @@ describe('Users Controller Complete E2E', () => {
 
       for (const order of repairOrders) {
         if (order.user_id) {
-          const user = users.find((u) => u.id === order.user_id);
+          const user = users.find((u: any) => u.id === order.user_id);
           expect(user).toBeTruthy();
         }
       }
@@ -749,7 +749,7 @@ describe('Users Controller Complete E2E', () => {
 
       // Verify user doesn't appear in active queries
       const activeUsers = await knex('users').whereNull('deleted_at');
-      expect(activeUsers.find((u) => u.id === testUser.id)).toBeFalsy();
+      expect(activeUsers.find((u: any) => u.id === testUser.id)).toBeFalsy();
     });
 
     it('should enforce unique constraints', async () => {
@@ -800,7 +800,7 @@ describe('Users Controller Complete E2E', () => {
       ];
 
       for (const endpoint of endpoints) {
-        await request(app.getHttpServer())[endpoint.method](endpoint.path).expect(401);
+        await (request(app.getHttpServer()) as any)[endpoint.method](endpoint.path).expect(401);
       }
     });
 
@@ -822,7 +822,7 @@ describe('Users Controller Complete E2E', () => {
       ];
 
       for (const endpoint of protectedEndpoints) {
-        const req = request(app.getHttpServer())
+        const req = (request(app.getHttpServer()) as any)
           [endpoint.method](endpoint.path)
           .set('Authorization', `Bearer ${adminToken}`);
 
@@ -854,7 +854,7 @@ describe('Users Controller Complete E2E', () => {
       }
 
       const results = await Promise.allSettled(promises);
-      const successful = results.filter((r) => r.status === 'fulfilled' && r.value.status === 201);
+      const successful = results.filter((r: any) => r.status === 'fulfilled' && r.value.status === 201);
 
       expect(successful.length).toBe(userCount);
     });

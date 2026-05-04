@@ -1,8 +1,43 @@
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, ValidationPipe, ClassSerializerInterceptor } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import request from 'supertest';
 import { Knex } from 'knex';
+import { SanitizationPipe } from '../../src/common/pipe/sanitization.pipe';
+import { extractError } from '../../src/common/utils/validation.util';
+import { HttpExceptionFilter } from '../../src/common/filters/http-exception.filter';
+import { LoggerService } from '../../src/common/logger/logger.service';
 
 export class TestHelpers {
+  /**
+   * Configure a test application with global pipes, filters, etc.
+   */
+  static configureTestApp(app: INestApplication): void {
+    const logger = new LoggerService();
+    const reflector = app.get(Reflector);
+
+    app.useGlobalFilters(new HttpExceptionFilter(logger));
+    app.useGlobalInterceptors(new ClassSerializerInterceptor(reflector));
+
+    app.useGlobalPipes(
+      new SanitizationPipe(),
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+        transformOptions: { enableImplicitConversion: true },
+        exceptionFactory: (errors) => {
+          const { message, location } = extractError(errors);
+          return {
+            response: { message, error: 'ValidationError', location },
+            status: 400,
+          };
+        },
+      }),
+    );
+
+    app.setGlobalPrefix('api/v1');
+  }
+
   /**
    * Authenticate admin and return JWT token
    */

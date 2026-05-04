@@ -45,7 +45,7 @@ export class DatabaseMockStrategy implements MockStrategy {
     mock.update.mockResolvedValue(1);
     mock.del.mockResolvedValue(1);
     mock.count.mockResolvedValue([{ count: '10' }]);
-    mock.transaction.mockImplementation((callback) => callback(mock));
+    mock.transaction.mockImplementation((callback: any) => callback(mock));
   }
 
   private configureErrorScenario(mock: any): void {
@@ -602,7 +602,7 @@ export class MockServiceProvider {
    */
   static createProvidersFor(services: string[], scenario?: string): Provider[] {
     const allProviders = this.createAllProviders(scenario);
-    const serviceMap = {
+    const serviceMap: Record<string, string> = {
       database: 'KnexConnection',
       redis: 'RedisClient',
       sms: 'SmsService',
@@ -613,7 +613,7 @@ export class MockServiceProvider {
       storage: 'FileStorageService',
     };
 
-    return allProviders.filter((provider) =>
+    return allProviders.filter((provider: any) =>
       services.some((service) => serviceMap[service] === provider.provide),
     );
   }
@@ -756,3 +756,22 @@ export class MockConfigurator {
     }
   }
 }
+
+/**
+ * External service mocks helper
+ */
+export const ExternalServiceMocks = {
+  Provider: MockServiceProvider,
+  Scenarios: TestScenarios,
+  Configurator: MockConfigurator,
+  Strategies: {
+    Database: DatabaseMockStrategy,
+    Redis: RedisMockStrategy,
+    Sms: SmsServiceMockStrategy,
+    Email: EmailServiceMockStrategy,
+    Telegram: TelegramServiceMockStrategy,
+    Queue: QueueMockStrategy,
+    Auth: AuthMockStrategy,
+    Storage: FileStorageMockStrategy,
+  },
+};
