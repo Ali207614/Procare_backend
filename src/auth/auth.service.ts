@@ -53,7 +53,7 @@ export class AuthService {
   };
 
   // Helper to generate JWT token for testing
-  generateJwtToken(payload: string | Buffer | object): string {
+  generateJwtToken(payload: object | Buffer): string {
     return this.jwtService.sign(payload);
   }
 
