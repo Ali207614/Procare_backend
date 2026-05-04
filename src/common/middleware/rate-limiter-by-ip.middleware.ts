@@ -41,6 +41,7 @@ export class RateLimiterByIpMiddleware implements NestMiddleware {
       ...(isRedisAvailable
         ? {
             store: new RedisStore({
+              prefix: 'rl:ip:',
               sendCommand: (...args: [string, ...string[]]): Promise<RedisReply> => {
                 if (!this.redisClient) {
                   this.logger.warn('⚠️ Redis not available during sendCommand');

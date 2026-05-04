@@ -162,7 +162,18 @@ export class CommentReaderService {
   ): Promise<RepairOrderCommentAudioFileDto[]> {
     return Promise.all(
       audioFiles.map(async (audioFile) => {
-        const { updated_at, download_url_expires_at, ...responseAudioFile } = audioFile;
+        const responseAudioFile: RepairOrderCommentAudioFileDto = {
+          id: audioFile.id,
+          uuid: audioFile.uuid,
+          direction: audioFile.direction,
+          event: audioFile.event,
+          caller: audioFile.caller,
+          callee: audioFile.callee,
+          call_duration: audioFile.call_duration,
+          dialog_duration: audioFile.dialog_duration,
+          download_url: audioFile.download_url,
+          created_at: audioFile.created_at,
+        };
         try {
           const freshDownloadUrl = await this.getOrCreateRefreshPromise(
             responseAudioFile.id,

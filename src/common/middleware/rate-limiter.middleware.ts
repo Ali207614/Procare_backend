@@ -19,14 +19,15 @@ export class RateLimiterMiddleware implements NestMiddleware {
 
     this.limiter = rateLimit({
       windowMs: 60 * 1000,
-      max: 30,
-      keyGenerator: (req: Request): string => req?.admin?.id ?? getClientIp(req),
+      max: 60,
+      keyGenerator: (req: Request): string =>
+        (req?.user?.id as string) ?? (req?.admin?.id as string) ?? getClientIp(req),
 
       handler: (req: Request, res: Response) => {
         const statusCode = 429;
         const statusMessage = HttpStatus[statusCode] || 'Too Many Requests';
         this.logger.warn(
-          `[${req.method}] ${req.originalUrl} - ${statusCode} ${statusMessage} - ip=${getClientIp(req)}`,
+          `[${req.method}] ${req.originalUrl} - ${statusCode} ${statusMessage} - user=${req?.user?.id ?? req?.admin?.id ?? 'guest'} - ip=${getClientIp(req)}`,
         );
 
         res.status(statusCode).json({
@@ -42,6 +43,7 @@ export class RateLimiterMiddleware implements NestMiddleware {
       ...(isRedisAvailable
         ? {
             store: new RedisStore({
+              prefix: 'rl:admin:',
               sendCommand: (...args: [string, ...string[]]): Promise<RedisReply> => {
                 if (!this.redisClient) {
                   this.logger.warn('⚠️ Redis not available during sendCommand');
