@@ -52,11 +52,19 @@ export class CalculatorService {
       .orderBy('pc.sort', 'asc');
 
     if (parentId) {
-      void query.where('pc.parent_id', parentId);
+      void query
+        .join('phone_categories as p_pc', 'p_pc.id', 'pc.parent_id')
+        .where('pc.parent_id', parentId)
+        .andWhere({
+          'p_pc.status': 'Open',
+          'p_pc.is_active': true,
+        });
     } else {
-      void query.where({
+      void query.join('phone_os_types as pot', 'pot.id', 'pc.phone_os_type_id').where({
         'pc.phone_os_type_id': osTypeId,
         'pc.parent_id': null,
+        'pot.status': 'Open',
+        'pot.is_active': true,
       });
     }
 
@@ -77,10 +85,13 @@ export class CalculatorService {
     // 1. Get root problems linked to this phone category
     const rootProblems = await this.knex('problem_categories as p')
       .join('phone_problem_mappings as ppm', 'ppm.problem_category_id', 'p.id')
+      .join('phone_categories as pc', 'pc.id', 'ppm.phone_category_id')
       .where({
         'ppm.phone_category_id': phoneCategoryId,
         'p.status': 'Open',
         'p.is_active': true,
+        'pc.status': 'Open',
+        'pc.is_active': true,
       })
       .select<{ id: string }[]>('p.id');
 
@@ -95,6 +106,8 @@ export class CalculatorService {
             id, name_uz, name_ru, name_en, parent_id, price, estimated_minutes, sort, is_active, status
         FROM problem_categories
         WHERE id IN (${rootIds.map(() => '?').join(',')})
+          AND status = 'Open'
+          AND is_active = true
         
         UNION ALL
         
