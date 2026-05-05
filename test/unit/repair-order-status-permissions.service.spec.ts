@@ -13,6 +13,12 @@ function createChainableQuery(result: unknown) {
     whereIn: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     join: jest.fn().mockReturnThis(),
+    modify: jest.fn(function (callback: (qb: unknown) => void) {
+      callback(this);
+      return this;
+    }),
+    select: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
     first: jest.fn().mockResolvedValue(result),
     del: jest.fn().mockResolvedValue(1),
     insert: jest.fn().mockReturnValue({
@@ -129,5 +135,82 @@ describe('RepairOrderStatusPermissionsService', () => {
         }),
       ]),
     );
+  });
+
+  it('returns permissions by role across all branches', async () => {
+    const roleId = '00000000-0000-4000-8000-000000000001';
+    const permissions = [
+      {
+        id: '00000000-0000-4000-8000-000000000010',
+        branch_id: '00000000-0000-4000-8000-000000000020',
+        role_id: roleId,
+        status_id: '00000000-0000-4000-8000-000000000030',
+      },
+      {
+        id: '00000000-0000-4000-8000-000000000011',
+        branch_id: '00000000-0000-4000-8000-000000000021',
+        role_id: roleId,
+        status_id: '00000000-0000-4000-8000-000000000031',
+      },
+    ];
+    const roleQuery = createChainableQuery({ id: roleId });
+    const permissionsQuery = createChainableQuery(permissions);
+
+    knex.mockReturnValueOnce(roleQuery).mockReturnValueOnce(permissionsQuery);
+
+    await expect(service.findPermissionsByRole(roleId)).resolves.toEqual({
+      data: permissions,
+      meta: {
+        total: 2,
+        role_id: roleId,
+      },
+    });
+
+    expect(permissionsQuery.andWhere).not.toHaveBeenCalledWith(
+      'repair_order_status_permissions.branch_id',
+      expect.any(String),
+    );
+  });
+
+  it('returns permissions by role filtered by branch', async () => {
+    const roleId = '00000000-0000-4000-8000-000000000001';
+    const branchId = '00000000-0000-4000-8000-000000000020';
+    const permissions = [
+      {
+        id: '00000000-0000-4000-8000-000000000010',
+        branch_id: branchId,
+        role_id: roleId,
+        status_id: '00000000-0000-4000-8000-000000000030',
+      },
+    ];
+    const roleQuery = createChainableQuery({ id: roleId });
+    const permissionsQuery = createChainableQuery(permissions);
+
+    knex.mockReturnValueOnce(roleQuery).mockReturnValueOnce(permissionsQuery);
+
+    await expect(service.findPermissionsByRole(roleId, branchId)).resolves.toEqual({
+      data: permissions,
+      meta: {
+        total: 1,
+        role_id: roleId,
+        branch_id: branchId,
+      },
+    });
+
+    expect(permissionsQuery.andWhere).toHaveBeenCalledWith(
+      'repair_order_status_permissions.branch_id',
+      branchId,
+    );
+  });
+
+  it('throws not found when role does not exist', async () => {
+    const roleId = '00000000-0000-4000-8000-000000000001';
+    const roleQuery = createChainableQuery(undefined);
+
+    knex.mockReturnValueOnce(roleQuery);
+
+    await expect(service.findPermissionsByRole(roleId)).rejects.toMatchObject({
+      status: 404,
+    });
   });
 });

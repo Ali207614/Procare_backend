@@ -35,3 +35,12 @@ export interface RepairOrderStatusPermission {
   created_at: string; // ISO timestamp
   updated_at: string; // ISO timestamp
 }
+
+export interface StatusPermissionsByRoleResponse {
+  data: RepairOrderStatusPermission[];
+  meta: {
+    total: number;
+    role_id?: string;
+    branch_id?: string;
+  };
+}

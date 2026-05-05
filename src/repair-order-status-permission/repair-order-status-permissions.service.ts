@@ -1,9 +1,19 @@
-import { BadRequestException, ForbiddenException, HttpException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  HttpException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectKnex } from 'nestjs-knex';
 import { Knex } from 'knex';
 import { RedisService } from 'src/common/redis/redis.service';
 import { AssignRepairOrderStatusPermissionsDto } from 'src/repair-order-status-permission/dto/create-repair-order-status-permission.dto';
-import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
+import {
+  RepairOrderStatusPermission,
+  StatusPermissionsByRoleResponse,
+} from 'src/common/types/repair-order-status-permssion.interface';
 import { RepairOrderStatus } from 'src/common/types/repair-order-status.interface';
 import { LoggerService } from 'src/common/logger/logger.service';
 
@@ -132,6 +142,59 @@ export class RepairOrderStatusPermissionsService {
     await this.redisService.set(key, permission ?? null, 3600);
 
     return permission ?? null;
+  }
+
+  async findPermissionsByRole(
+    roleId: string,
+    branchId?: string,
+  ): Promise<StatusPermissionsByRoleResponse> {
+    try {
+      const role = await this.knex('roles')
+        .where({ id: roleId, status: 'Open' })
+        .first<{ id: string }>('id');
+
+      if (!role) {
+        throw new NotFoundException({
+          message: 'Role not found',
+          location: 'role_id',
+        });
+      }
+
+      const query = this.knex<RepairOrderStatusPermission>(this.table)
+        .join('branches', `${this.table}.branch_id`, 'branches.id')
+        .join('repair_order_statuses', `${this.table}.status_id`, 'repair_order_statuses.id')
+        .where(`${this.table}.role_id`, roleId)
+        .andWhere('branches.status', 'Open')
+        .andWhere('repair_order_statuses.status', 'Open')
+        .modify((qb) => {
+          if (branchId) {
+            void qb.andWhere(`${this.table}.branch_id`, branchId);
+          }
+        })
+        .select(`${this.table}.*`)
+        .orderBy(`${this.table}.created_at`, 'desc');
+
+      const permissions = await query;
+
+      return {
+        data: permissions,
+        meta: {
+          total: permissions.length,
+          role_id: roleId,
+          ...(branchId ? { branch_id: branchId } : {}),
+        },
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      this.logger.error('Failed to fetch permissions by role');
+      throw new InternalServerErrorException({
+        message: 'Failed to fetch permissions by role',
+        location: 'fetch_permissions_by_role',
+      });
+    }
   }
 
   async findByRolesAndBranch(
