@@ -162,6 +162,26 @@ describe('RepairOrdersService', () => {
         data: groupedResult,
       });
     });
+
+    it('should route phone-like smart search to normalized phone fields', () => {
+      const condition = (service as any).buildViewableSearchCondition('+998 90 123 45 67');
+
+      expect(condition.sql).toContain('regexp_replace');
+      expect(condition.sql).toContain('ro.phone_number = ANY(:searchPhoneCandidates)');
+      expect(condition.sql).not.toContain('pc.name_uz');
+      expect(condition.params.searchPhoneDigitsPattern).toBe('%998901234567%');
+      expect(condition.params.searchPhoneCandidates).toEqual(['+998901234567', '901234567']);
+    });
+
+    it('should route text smart search to names and phone categories', () => {
+      const condition = (service as any).buildViewableSearchCondition('iPhone 14');
+
+      expect(condition.sql).toContain('ro.name');
+      expect(condition.sql).toContain('u.first_name');
+      expect(condition.sql).toContain('pc.name_uz');
+      expect(condition.params.searchTextPattern).toBe('%iphone 14%');
+      expect(condition.params.searchPhoneDigitsPattern).toBeUndefined();
+    });
   });
 
   // Legacy tests (findAll, create, findOne) were removed because they no longer compile

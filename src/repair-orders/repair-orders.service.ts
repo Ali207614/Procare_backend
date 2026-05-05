@@ -54,6 +54,10 @@ type RepairOrderAssignmentSource =
   | 'telephony_auto'
   | 'telephony_answered'
   | 'role_update_auto';
+type RepairOrderSearchCondition = {
+  sql: string;
+  params: Record<string, unknown>;
+};
 const ASSIGNMENT_SOURCE_TELEPHONY_AUTO: RepairOrderAssignmentSource = 'telephony_auto';
 const ASSIGNMENT_SOURCE_TELEPHONY_ANSWERED: RepairOrderAssignmentSource = 'telephony_answered';
 const ASSIGNMENT_SOURCE_ROLE_UPDATE_AUTO: RepairOrderAssignmentSource = 'role_update_auto';
@@ -985,6 +989,7 @@ export class RepairOrdersService {
       // Filters
       source_types,
       priorities,
+      search,
       customer_name,
       phone_number,
       device_model,
@@ -1027,6 +1032,7 @@ export class RepairOrdersService {
     const filterHash = JSON.stringify({
       source_types,
       priorities,
+      search,
       customer_name,
       phone_number,
       device_model,
@@ -1062,6 +1068,12 @@ export class RepairOrdersService {
     if (priorities?.length) {
       whereConditions.push(`ro.priority = ANY(:priorities)`);
       queryParams.priorities = priorities;
+    }
+
+    const searchCondition = this.buildViewableSearchCondition(search);
+    if (searchCondition) {
+      whereConditions.push(searchCondition.sql);
+      Object.assign(queryParams, searchCondition.params);
     }
 
     // Filter by customer name
@@ -1318,6 +1330,183 @@ export class RepairOrdersService {
       orderClause: `ORDER BY ro.status_id, ${agreedDateOrder}`,
       rowNumberOrder: `ORDER BY ${agreedDateOrder}`,
     };
+  }
+
+  private buildViewableSearchCondition(search?: string): RepairOrderSearchCondition | null {
+    const normalizedSearch = this.normalizeSearchTerm(search);
+    if (!normalizedSearch) {
+      return null;
+    }
+
+    const digits = normalizedSearch.replace(/\D/g, '');
+    const hasLetters = this.hasSearchLetters(normalizedSearch);
+    const clauses: string[] = [];
+    const params: Record<string, unknown> = {};
+
+    if (this.shouldRouteSearchToPhone(normalizedSearch, digits, hasLetters)) {
+      this.addPhoneSearchClauses(clauses, params, normalizedSearch, digits);
+    }
+
+    if (hasLetters) {
+      this.addTextSearchClauses(clauses, params, normalizedSearch);
+    } else if (digits.length > 0 && digits.length < 3) {
+      this.addPhoneCategorySearchClause(clauses, params, digits);
+    }
+
+    if (!hasLetters && digits.length > 0) {
+      this.addOrderNumberSearchClauses(clauses, params, digits);
+    }
+
+    if (!clauses.length) {
+      return null;
+    }
+
+    return {
+      sql: `(${clauses.join('\n        OR ')})`,
+      params,
+    };
+  }
+
+  private normalizeSearchTerm(search?: string): string {
+    return search?.trim().replace(/\s+/g, ' ') ?? '';
+  }
+
+  private hasSearchLetters(value: string): boolean {
+    return /\p{L}/u.test(value);
+  }
+
+  private shouldRouteSearchToPhone(search: string, digits: string, hasLetters: boolean): boolean {
+    if (digits.length < 3) {
+      return false;
+    }
+
+    if (!hasLetters) {
+      return /^[\d\s+().-]+$/.test(search);
+    }
+
+    return this.longestDigitRun(search) >= 5;
+  }
+
+  private longestDigitRun(value: string): number {
+    return Math.max(0, ...(value.match(/\d+/g) ?? []).map((part) => part.length));
+  }
+
+  private addPhoneSearchClauses(
+    clauses: string[],
+    params: Record<string, unknown>,
+    search: string,
+    digits: string,
+  ): void {
+    if (digits.length >= 9) {
+      const phoneCandidates = this.getPhoneLookupCandidates(search);
+      if (phoneCandidates.length) {
+        params.searchPhoneCandidates = phoneCandidates;
+        clauses.push(
+          `(
+          ro.phone_number = ANY(:searchPhoneCandidates)
+          OR ro.user_id IN (
+            SELECT search_u.id
+            FROM users search_u
+            WHERE search_u.phone_number1 = ANY(:searchPhoneCandidates)
+               OR search_u.phone_number2 = ANY(:searchPhoneCandidates)
+          )
+        )`,
+        );
+      }
+    }
+
+    params.searchPhoneDigitsPattern = `%${digits}%`;
+    clauses.push(
+      `(
+          ${this.phoneDigitsSql('ro.phone_number')} LIKE :searchPhoneDigitsPattern
+          OR ro.user_id IN (
+            SELECT search_u.id
+            FROM users search_u
+            WHERE ${this.phoneDigitsSql('search_u.phone_number1')} LIKE :searchPhoneDigitsPattern
+               OR ${this.phoneDigitsSql('search_u.phone_number2')} LIKE :searchPhoneDigitsPattern
+          )
+        )`,
+    );
+  }
+
+  private addTextSearchClauses(
+    clauses: string[],
+    params: Record<string, unknown>,
+    search: string,
+  ): void {
+    params.searchTextPattern = this.buildTextSearchPattern(search);
+    clauses.push(
+      `(
+          ${this.repairOrderNameSearchSql()} LIKE :searchTextPattern ESCAPE '\\'
+          OR ro.user_id IN (
+            SELECT search_u.id
+            FROM users search_u
+            WHERE ${this.userFullNameSearchSql('search_u')} LIKE :searchTextPattern ESCAPE '\\'
+          )
+          OR ro.phone_category_id IN (
+            SELECT search_pc.id
+            FROM phone_categories search_pc
+            WHERE ${this.phoneCategorySearchSql('search_pc')} LIKE :searchTextPattern ESCAPE '\\'
+          )
+        )`,
+    );
+  }
+
+  private addPhoneCategorySearchClause(
+    clauses: string[],
+    params: Record<string, unknown>,
+    digits: string,
+  ): void {
+    params.searchCategoryNumberPattern = `%${digits}%`;
+    clauses.push(
+      `ro.phone_category_id IN (
+          SELECT search_pc.id
+          FROM phone_categories search_pc
+          WHERE ${this.phoneCategorySearchSql(
+            'search_pc',
+          )} LIKE :searchCategoryNumberPattern ESCAPE '\\'
+        )`,
+    );
+  }
+
+  private addOrderNumberSearchClauses(
+    clauses: string[],
+    params: Record<string, unknown>,
+    digits: string,
+  ): void {
+    const parsedOrderNumber = Number(digits);
+    if (Number.isSafeInteger(parsedOrderNumber)) {
+      params.searchOrderNumber = parsedOrderNumber;
+      clauses.push(`ro.number_id = :searchOrderNumber`);
+    }
+
+    params.searchOrderNumberPrefix = `${digits}%`;
+    clauses.push(`ro.number_id::text LIKE :searchOrderNumberPrefix`);
+  }
+
+  private buildTextSearchPattern(search: string): string {
+    const escapedSearch = this.escapeSqlLikePattern(search.toLowerCase());
+    return search.replace(/\s/g, '').length < 3 ? `${escapedSearch}%` : `%${escapedSearch}%`;
+  }
+
+  private escapeSqlLikePattern(value: string): string {
+    return value.replace(/[\\%_]/g, (char) => `\\${char}`);
+  }
+
+  private phoneDigitsSql(column: string): string {
+    return `regexp_replace(COALESCE(${column}, ''), '\\D', '', 'g')`;
+  }
+
+  private repairOrderNameSearchSql(): string {
+    return `LOWER(COALESCE(ro.name, ''))`;
+  }
+
+  private userFullNameSearchSql(alias = 'u'): string {
+    return `LOWER(BTRIM(COALESCE(${alias}.first_name, '') || ' ' || COALESCE(${alias}.last_name, '')))`;
+  }
+
+  private phoneCategorySearchSql(alias = 'pc'): string {
+    return `LOWER(BTRIM(COALESCE(${alias}.name_uz, '') || ' ' || COALESCE(${alias}.name_ru, '') || ' ' || COALESCE(${alias}.name_en, '')))`;
   }
 
   async softDelete(admin: AdminPayload, orderId: string): Promise<{ message: string }> {

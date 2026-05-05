@@ -327,7 +327,7 @@ export class RepairOrdersController {
   @ApiOperation({
     summary: 'Get viewable repair orders in the standard meta/data response structure',
     description:
-      'Returns the same status-grouped repair order payload as GET /api/v1/repair-orders, but wrapped in { meta, data }. limit and offset are applied independently inside each status group.',
+      'Returns the same status-grouped repair order payload as GET /api/v1/repair-orders, but wrapped in { meta, data }. limit and offset are applied independently inside each status group. The search query parameter routes phone-like input to phone indexes and text/model input to customer name and phone category indexes.',
   })
   @ApiOkResponse({
     description:

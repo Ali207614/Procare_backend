@@ -86,6 +86,15 @@ export class FindAllRepairOrdersQueryDto {
   priorities?: string[];
 
   @ApiPropertyOptional({
+    description:
+      'Tezkor qidiruv: telefon raqami, mijoz ismi yoki qurilma modeli boyicha aqlli qidiradi',
+    example: 'iPhone 14',
+  })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({
     description: 'Mijoz ismi boyicha qidiruv',
     example: 'John Doe',
   })

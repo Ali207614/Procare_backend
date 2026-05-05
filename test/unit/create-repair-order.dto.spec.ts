@@ -93,4 +93,15 @@ describe('CreateRepairOrderDto', () => {
     expect(updateErrors.find((error) => error.property === 'source')).toBeUndefined();
     expect(filterErrors.find((error) => error.property === 'source_types')).toBeUndefined();
   });
+
+  it('accepts smart search in repair order filters', async () => {
+    const dto = new FindAllRepairOrdersQueryDto();
+    dto.branch_id = '00000000-0000-4000-8000-000000000000';
+    dto.search = 'iPhone 14';
+
+    const errors = await validate(dto);
+    const searchError = errors.find((error) => error.property === 'search');
+
+    expect(searchError).toBeUndefined();
+  });
 });
