@@ -295,6 +295,14 @@ export interface ViewableRepairOrdersResponse {
 
 import { RepairOrderStatusWithPermissions } from 'src/common/types/repair-order-status.interface';
 
+export interface RepairOrderStatusTransitionItem {
+  id: string;
+  name_uz: string;
+  name_ru: string;
+  name_en: string;
+  can_user_view: boolean;
+}
+
 export interface RepairOrderDetails {
   id: string;
   number_id: number;
@@ -348,7 +356,7 @@ export interface RepairOrderDetails {
     name_en: string;
     color?: string;
     bg_color?: string;
-    transitions?: any[];
+    transitions?: RepairOrderStatusTransitionItem[];
   };
   branch: {
     id: string;
