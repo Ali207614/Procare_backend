@@ -11,6 +11,7 @@ SELECT
     ro.description,
     ro.phone_number,
     ro.source,
+    ro.call_count,
     ro.customer_no_answer_count,
     ro.last_customer_no_answer_at,
     ro.customer_no_answer_due_at,

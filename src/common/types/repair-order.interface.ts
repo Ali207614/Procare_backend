@@ -77,6 +77,7 @@ export interface FreshRepairOrder {
     description: string | null;
   };
   source: RepairOrderSource | null;
+  call_count: number;
   customer_no_answer_count: number;
   last_customer_no_answer_at: string | null;
   customer_no_answer_due_at: string | null;
@@ -311,6 +312,7 @@ export interface RepairOrderDetails {
     description: string | null;
   };
   source: RepairOrderSource | null;
+  call_count: number;
   customer_no_answer_count: number;
   last_customer_no_answer_at: string | null;
   customer_no_answer_due_at: string | null;
@@ -510,6 +512,7 @@ export interface JoinedRepairOrder {
   pickup_method: 'Self' | 'Pickup';
   priority: 'Low' | 'Medium' | 'High' | 'Highest';
   status: 'Open' | 'Deleted' | 'Closed' | 'Cancelled';
+  call_count: number;
   created_at: string;
   description: string | null;
 

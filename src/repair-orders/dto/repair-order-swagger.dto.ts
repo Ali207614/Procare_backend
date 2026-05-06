@@ -76,6 +76,9 @@ export class RepairOrderListItemSwaggerDto {
   @ApiProperty({ nullable: true, enum: REPAIR_ORDER_SOURCES, example: "Sug'urta" })
   source!: string | null;
 
+  @ApiProperty({ example: 0, description: 'Number of calls made to the customer' })
+  call_count!: number;
+
   @ApiProperty({ nullable: true, example: '2026-03-27T07:15:00.000Z' })
   deadline_at!: string | null;
 

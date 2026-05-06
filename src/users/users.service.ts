@@ -65,6 +65,7 @@ export class UsersService {
         'ro.pickup_method',
         'ro.priority',
         'ro.status',
+        'ro.call_count',
         'ro.created_at',
         'ro.description',
 
@@ -99,6 +100,7 @@ export class UsersService {
       pickup_method: row.pickup_method,
       priority: row.priority,
       status: row.status,
+      call_count: row.call_count,
       created_at: row.created_at,
       description: row.description,
 
