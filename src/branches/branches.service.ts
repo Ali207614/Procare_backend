@@ -16,6 +16,7 @@ import { Branch, BranchWithAdmins } from 'src/common/types/branch.interface';
 import { LoggerService } from 'src/common/logger/logger.service';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { HistoryService } from 'src/history/history.service';
+import { MOTHER_BRANCH_ID } from './branch-hierarchy.service';
 
 @Injectable()
 export class BranchesService {
@@ -72,108 +73,13 @@ export class BranchesService {
         color: dto.color,
         is_active: dto.is_active ?? true,
         can_user_view: dto.can_user_view ?? true,
+        parent_branch_id: MOTHER_BRANCH_ID,
         sort: nextSort,
         created_by: adminId,
         created_at: new Date(),
       };
 
       const [branch]: Branch[] = await trx('branches').insert(insertData).returning('*');
-
-      const now = new Date();
-      const createdStatuses = await trx('repair_order_statuses')
-        .insert([
-          {
-            name_uz: 'Yangi buyurtma (lead)',
-            name_ru: 'Новый заказ (лид)',
-            name_en: 'New Order (lead)',
-            bg_color: '#E3F2FD',
-            color: '#1976D2',
-            sort: 1,
-            can_user_view: true,
-            can_add_payment: false,
-            is_active: true,
-            is_protected: true,
-            type: 'Open',
-            status: 'Open',
-            branch_id: branch.id,
-            created_by: adminId,
-            created_at: now,
-            updated_at: now,
-          },
-          {
-            name_uz: 'Topshirildi',
-            name_ru: 'Выдан',
-            name_en: 'Completed',
-            bg_color: '#E8F5E8',
-            color: '#2E7D32',
-            sort: 1000,
-            can_user_view: true,
-            can_add_payment: false,
-            is_active: true,
-            is_protected: true,
-            type: 'Completed',
-            status: 'Open',
-            branch_id: branch.id,
-            created_by: adminId,
-            created_at: now,
-            updated_at: now,
-          },
-          {
-            name_uz: "Ko'tarmadi",
-            name_ru: 'Не поднял трубку',
-            name_en: 'Missed',
-            bg_color: '#FFF8E1',
-            color: '#F9A825',
-            sort: 999,
-            can_user_view: true,
-            can_add_payment: false,
-            is_active: true,
-            is_protected: true,
-            type: 'Missed',
-            status: 'Open',
-            branch_id: branch.id,
-            created_by: adminId,
-            created_at: now,
-            updated_at: now,
-          },
-          {
-            name_uz: 'Bekor qilingan',
-            name_ru: 'Отменен',
-            name_en: 'Cancelled',
-            bg_color: '#FFEBEE',
-            color: '#D32F2F',
-            sort: 1001,
-            can_user_view: true,
-            can_add_payment: false,
-            is_active: true,
-            is_protected: true,
-            type: 'Cancelled',
-            status: 'Open',
-            branch_id: branch.id,
-            created_by: adminId,
-            created_at: now,
-            updated_at: now,
-          },
-          {
-            name_uz: 'Sifatsiz',
-            name_ru: 'Некачественный',
-            name_en: 'Invalid',
-            bg_color: '#F5F5F5',
-            color: '#9E9E9E',
-            sort: 2000,
-            can_user_view: true,
-            can_add_payment: false,
-            is_active: true,
-            is_protected: true,
-            type: 'Invalid',
-            status: 'Open',
-            branch_id: branch.id,
-            created_by: adminId,
-            created_at: now,
-            updated_at: now,
-          },
-        ])
-        .returning('*');
 
       await this.historyService.recordEntityCreated({
         db: trx,
@@ -183,21 +89,6 @@ export class BranchesService {
         actor: { actorPk: adminId },
         values: branch as unknown as Record<string, unknown>,
       });
-
-      for (const status of createdStatuses) {
-        await this.historyService.recordEntityCreated({
-          db: trx,
-          entityTable: 'repair_order_statuses',
-          entityPk: status.id,
-          entityLabel: status.name_uz ?? null,
-          rootEntityTable: 'branches',
-          rootEntityPk: branch.id,
-          branchId: branch.id,
-          actor: { actorPk: adminId },
-          values: status as Record<string, unknown>,
-          actionKey: 'repair_order_statuses.create.default_for_branch',
-        });
-      }
 
       await this.flushCacheByPrefix(this.redisKey);
       await this.flushCacheByPrefix(this.redisKeyByAdminId);

@@ -4,6 +4,7 @@ import {
   HttpException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectKnex } from 'nestjs-knex';
 import { Knex } from 'knex';
@@ -43,10 +44,10 @@ import { User } from 'src/common/types/user.interface';
 import { formatUzPhoneToE164, getUzPhoneLookupCandidates } from 'src/common/utils/phone.util';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { RoleType } from 'src/common/types/role-type.enum';
+import { BranchHierarchyService, MOTHER_BRANCH_ID } from 'src/branches/branch-hierarchy.service';
 
 const SYSTEM_ADMIN_ID = '00000000-0000-4000-8000-000000000000';
 const NO_ANSWER_REJECT_CAUSE_NAME = "Qo'ng'iroqqa javob bermadi";
-const DEFAULT_OPEN_APPLICATION_BRANCH_ID = '00000000-0000-4000-8000-000000000000';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type RepairOrderAssignmentSource =
@@ -66,6 +67,8 @@ const AUTO_REPLACEABLE_ASSIGNMENT_SOURCES: RepairOrderAssignmentSource[] = [
 ];
 const REPAIR_WORKER_ROLE_TYPES = new Set<RoleType>([RoleType.SPECIALIST, RoleType.MASTER]);
 
+import { RepairOrderStatusesService } from 'src/repair-order-statuses/repair-order-statuses.service';
+
 @Injectable()
 export class RepairOrdersService {
   private readonly table = 'repair_orders';
@@ -73,6 +76,8 @@ export class RepairOrdersService {
   private readonly telephonyInvalidReuseWindowHours = 72;
   private readonly customerNoAnswerLimit = 3;
   private readonly customerNoAnswerDelayHours = 24;
+  private readonly branchHierarchy: BranchHierarchyService;
+  private readonly hasInjectedBranchHierarchy: boolean;
 
   constructor(
     @InjectKnex() private readonly knex: Knex,
@@ -87,7 +92,33 @@ export class RepairOrdersService {
     private readonly webhookService: RepairOrderWebhookService,
     private readonly notificationService: NotificationService,
     private readonly historyService: HistoryService,
-  ) {}
+    private readonly statusService: RepairOrderStatusesService,
+    @Optional() branchHierarchy?: BranchHierarchyService,
+  ) {
+    this.hasInjectedBranchHierarchy = Boolean(branchHierarchy);
+    this.branchHierarchy = branchHierarchy ?? this.createManualConstructionBranchHierarchy();
+  }
+
+  private createManualConstructionBranchHierarchy(): BranchHierarchyService {
+    return {
+      getMotherBranchId: () => MOTHER_BRANCH_ID,
+      getCanonicalStatusBranchId: () => MOTHER_BRANCH_ID,
+      isMotherBranch: (branchId: string) => branchId === MOTHER_BRANCH_ID,
+      isSuperAdmin: (admin: AdminPayload) => this.isSuperAdmin(admin),
+      getChildBranchIds: () => Promise.resolve([]),
+      getAdminAssignedBranchIds: () => Promise.resolve([]),
+      getVisibleBranchIds: () => Promise.resolve([MOTHER_BRANCH_ID]),
+      getWritableBranchIds: () => Promise.resolve([MOTHER_BRANCH_ID]),
+      assertVisibleBranch: () => Promise.resolve(undefined),
+      assertWritableBranch: () => Promise.resolve(undefined),
+      assertChildBranch: (branchId: string) =>
+        Promise.resolve({
+          id: branchId,
+          status: 'Open',
+          is_active: true,
+        } as never),
+    } as unknown as BranchHierarchyService;
+  }
 
   async create(
     admin: AdminPayload,
@@ -96,6 +127,8 @@ export class RepairOrdersService {
   ): Promise<RepairOrder> {
     const trx = await this.knex.transaction();
     try {
+      await this.branchHierarchy.assertChildBranch(branchId, trx);
+      await this.branchHierarchy.assertWritableBranch(admin, branchId, {}, trx);
       const createStatus = await this.resolveCreateStatus(trx, branchId, dto.status_id);
       const permissions: RepairOrderStatusPermission[] =
         await this.permissionService.findByRolesAndBranch(admin.roles, branchId);
@@ -419,13 +452,14 @@ export class RepairOrdersService {
     branchId: string,
     statusId?: string,
   ): Promise<RepairOrderStatus> {
+    const canonicalBranchId = this.branchHierarchy.getCanonicalStatusBranchId();
     if (statusId) {
       const status = await trx<RepairOrderStatus>('repair_order_statuses')
-        .where({ id: statusId, branch_id: branchId })
+        .where({ id: statusId, branch_id: canonicalBranchId, status: 'Open', is_active: true })
         .first();
       if (!status) {
         throw new BadRequestException({
-          message: 'Status not found',
+          message: 'Status not found in canonical Mother Branch status list',
           location: 'status_id',
         });
       }
@@ -434,7 +468,7 @@ export class RepairOrdersService {
 
     const protectedStatus = await trx<RepairOrderStatus>('repair_order_statuses')
       .where({
-        branch_id: branchId,
+        branch_id: canonicalBranchId,
         status: 'Open',
         is_active: true,
         type: 'Open',
@@ -449,7 +483,7 @@ export class RepairOrdersService {
 
     const fallbackStatus = await trx<RepairOrderStatus>('repair_order_statuses')
       .where({
-        branch_id: branchId,
+        branch_id: canonicalBranchId,
         status: 'Open',
         is_active: true,
         type: 'Open',
@@ -512,41 +546,18 @@ export class RepairOrdersService {
   }
 
   private async resolveOpenApplicationBranchId(trx: Knex.Transaction): Promise<string> {
-    const configuredBranchId =
-      process.env.OPEN_REPAIR_ORDER_BRANCH_ID || DEFAULT_OPEN_APPLICATION_BRANCH_ID;
-
-    if (configuredBranchId) {
-      const configuredBranch = await trx('branches')
-        .where({ id: configuredBranchId, status: 'Open', is_active: true })
-        .first<{ id: string }>('id');
-
-      if (configuredBranch) {
-        return configuredBranch.id;
-      }
-    }
-
-    const protectedBranch = await trx('branches')
-      .where({ status: 'Open', is_active: true, is_protected: true })
-      .orderBy('sort', 'asc')
+    const motherBranch = await trx('branches')
+      .where({ id: MOTHER_BRANCH_ID, status: 'Open', is_active: true })
       .first<{ id: string }>('id');
 
-    if (protectedBranch) {
-      return protectedBranch.id;
-    }
-
-    const fallbackBranch = await trx('branches')
-      .where({ status: 'Open', is_active: true })
-      .orderBy('sort', 'asc')
-      .first<{ id: string }>('id');
-
-    if (!fallbackBranch) {
+    if (!motherBranch) {
       throw new BadRequestException({
-        message: 'No active branch found for public applications',
+        message: 'Mother Branch is not active for public applications',
         location: 'branch_id',
       });
     }
 
-    return fallbackBranch.id;
+    return motherBranch.id;
   }
 
   private async resolveOpenApplicationPhoneCategory(
@@ -669,11 +680,17 @@ export class RepairOrdersService {
       if (!order)
         throw new NotFoundException({ message: 'Order not found', location: 'repair_order' });
 
+      await this.assertRepairOrderWritable(admin, order, trx);
+      const permissionBranchId = await this.getPermissionBranchIdForOrder(
+        admin,
+        order.branch_id,
+        trx,
+      );
       const permissions: RepairOrderStatusPermission[] =
-        await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+        await this.permissionService.findByRolesAndBranch(admin.roles, permissionBranchId);
       await this.permissionService.checkPermissionsOrThrow(
         admin.roles,
-        order.branch_id,
+        permissionBranchId,
         order.status_id,
         ['can_update'],
         'repair_order_update',
@@ -681,7 +698,7 @@ export class RepairOrdersService {
       );
       const currentStatusPermission = permissions.find(
         (permission) =>
-          permission.branch_id === order.branch_id && permission.status_id === order.status_id,
+          permission.branch_id === permissionBranchId && permission.status_id === order.status_id,
       );
 
       const logFields: { key: string; oldVal: unknown; newVal: unknown }[] = [];
@@ -811,6 +828,10 @@ export class RepairOrdersService {
               dtoFieldValue as string,
               permissions,
               orderId,
+              undefined,
+              undefined,
+              undefined,
+              permissionBranchId,
             );
 
             // Shift current queue items up to close the gap
@@ -836,7 +857,7 @@ export class RepairOrdersService {
       if (dto.user_id) {
         await this.permissionService.checkPermissionsOrThrow(
           admin.roles,
-          order.branch_id,
+          permissionBranchId,
           order.status_id,
           ['can_user_manage'],
           'repair_order_user_manage',
@@ -1006,9 +1027,15 @@ export class RepairOrdersService {
     const permissions: RepairOrderStatusPermission[] =
       await this.permissionService.findByRolesAndBranch(admin.roles, branchId);
 
-    let statusIds: string[] = permissions.filter((p) => p.can_view).map((p) => p.status_id);
+    await this.branchHierarchy.assertVisibleBranch(admin, branchId);
+    const visibleBranchIds = await this.branchHierarchy.getVisibleBranchIds(admin);
+    const ownerBranchIds = this.branchHierarchy.isMotherBranch(branchId)
+      ? visibleBranchIds
+      : [MOTHER_BRANCH_ID, branchId].filter((id) => visibleBranchIds.includes(id));
 
-    if (!statusIds.length) {
+    let statusIds: string[] = [...new Set(permissions.map((p) => p.status_id))];
+
+    if (!statusIds.length || !ownerBranchIds.length) {
       return {};
     }
 
@@ -1045,9 +1072,12 @@ export class RepairOrdersService {
       date_to,
       status_ids,
       agreedDateStatusIds,
+      ownerBranchIds,
+      visibleBranchIds,
+      viewerBranchId: branchId,
     });
 
-    const cacheKey = `${this.table}:${branchId}:${admin.id}:${sort_by}:${sort_order}:${offset}:${limit}:${Buffer.from(filterHash).toString('base64')}`;
+    const cacheKey = `${this.table}:${branchId}:${admin.id}:${ownerBranchIds.join(',')}:${sort_by}:${sort_order}:${offset}:${limit}:${Buffer.from(filterHash).toString('base64')}`;
     const cached: ViewableRepairOrdersByStatus | null = await this.redisService.get(cacheKey);
     if (cached) {
       return cached;
@@ -1056,7 +1086,17 @@ export class RepairOrdersService {
     // Build dynamic WHERE conditions
     const whereConditions: string[] = [];
     const endRow = offset + limit;
-    const queryParams: Record<string, unknown> = { branchId, statusIds, limit, offset, endRow };
+    const queryParams: Record<string, unknown> = {
+      branchId,
+      viewerBranchId: branchId,
+      branchIds: ownerBranchIds,
+      motherBranchId: MOTHER_BRANCH_ID,
+      primaryRoleId: admin.roles[0]?.id ?? null,
+      statusIds,
+      limit,
+      offset,
+      endRow,
+    };
 
     // Filter by source types
     if (source_types?.length) {
@@ -1177,7 +1217,7 @@ export class RepairOrdersService {
         FROM repair_orders ro
           LEFT JOIN users u         ON ro.user_id          = u.id
           LEFT JOIN phone_categories pc ON ro.phone_category_id = pc.id
-        WHERE ro.branch_id   = :branchId
+        WHERE ro.branch_id   = ANY(:branchIds)
           AND ro.status       = 'Open'
           AND ro.status_id    = ANY(:statusIds)
           ${additionalWhere}
@@ -1521,11 +1561,17 @@ export class RepairOrdersService {
           location: 'repair_order',
         });
 
+      await this.assertRepairOrderWritable(admin, order, trx);
+      const permissionBranchId = await this.getPermissionBranchIdForOrder(
+        admin,
+        order.branch_id,
+        trx,
+      );
       const permissions: RepairOrderStatusPermission[] =
-        await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+        await this.permissionService.findByRolesAndBranch(admin.roles, permissionBranchId);
       await this.permissionService.checkPermissionsOrThrow(
         admin.roles,
-        order.branch_id,
+        permissionBranchId,
         order.status_id,
         ['can_delete'],
         'repair_order_delete',
@@ -1569,16 +1615,27 @@ export class RepairOrdersService {
       if (!order)
         throw new NotFoundException({ message: 'Order not found', location: 'repair_order' });
 
+      await this.assertRepairOrderVisible(admin, { branch_id: order.branch.id });
+      const permissionBranchId = await this.getPermissionBranchIdForOrder(admin, order.branch.id);
       const permissions: RepairOrderStatusPermission[] =
-        await this.permissionService.findByRolesAndBranch(admin.roles, order.branch.id);
+        await this.permissionService.findByRolesAndBranch(admin.roles, permissionBranchId);
       await this.permissionService.checkPermissionsOrThrow(
         admin.roles,
-        order.branch.id,
+        permissionBranchId,
         order.repair_order_status.id,
         ['can_view'],
         'repair_order_view',
         permissions,
       );
+
+      // Add viewable statuses using exact logic of GET repair-order-statuses/viewable
+      const viewableStatusesResult = await this.statusService.findViewable(
+        admin,
+        order.branch.id,
+        0,
+        1000,
+      );
+      order.viewable_statuses = viewableStatusesResult.rows;
 
       return order;
     } catch (err) {
@@ -1638,16 +1695,22 @@ export class RepairOrdersService {
       const order = await this.getOrderOrThrow(trx, orderId);
       const isStatusChanged = dto.status_id !== order.status_id;
       const primaryRoleId = admin.roles[0]?.id;
+      await this.assertRepairOrderWritable(admin, order, trx);
+      const permissionBranchId = await this.getPermissionBranchIdForOrder(
+        admin,
+        order.branch_id,
+        trx,
+      );
 
       // 2. Run independent parallel validations/fetches
       const [permissions, transitionRule, targetStatus, activeRental] = await Promise.all([
-        this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id),
+        this.permissionService.findByRolesAndBranch(admin.roles, permissionBranchId),
         isStatusChanged
           ? this.getTransitionRule(
               trx,
               order.status_id,
               dto.status_id,
-              order.branch_id,
+              MOTHER_BRANCH_ID,
               primaryRoleId,
             )
           : Promise.resolve<{ from_status_id: string; to_status_id: string } | null>(null),
@@ -1662,7 +1725,7 @@ export class RepairOrdersService {
       // 3. Permission and Rule Validations
       await this.permissionService.checkPermissionsOrThrow(
         admin.roles,
-        order.branch_id,
+        permissionBranchId,
         order.status_id,
         ['can_change_status'],
         'repair_order_change_status',
@@ -1680,6 +1743,7 @@ export class RepairOrdersService {
           transitionRule,
           targetStatus,
           activeRental,
+          permissionBranchId,
         );
       }
 
@@ -1749,11 +1813,17 @@ export class RepairOrdersService {
           location: 'repair_order',
         });
 
+      await this.assertRepairOrderWritable(admin, order, trx);
+      const permissionBranchId = await this.getPermissionBranchIdForOrder(
+        admin,
+        order.branch_id,
+        trx,
+      );
       const permissions: RepairOrderStatusPermission[] =
-        await this.permissionService.findByRolesAndBranch(admin.roles, order.branch_id);
+        await this.permissionService.findByRolesAndBranch(admin.roles, permissionBranchId);
       await this.permissionService.checkPermissionsOrThrow(
         admin.roles,
-        order.branch_id,
+        permissionBranchId,
         order.status_id,
         ['can_update'],
         'repair_order_update',
@@ -2206,13 +2276,24 @@ export class RepairOrdersService {
       throw new NotFoundException('Repair order not found');
     }
 
+    if (this.branchHierarchy.isMotherBranch(order.branch_id)) {
+      throw new BadRequestException({
+        message: 'Mother Branch orders must be taken before they can be transferred',
+        location: 'branch_id',
+      });
+    }
+
+    await this.branchHierarchy.assertChildBranch(transferDto.new_branch_id);
+    await this.assertRepairOrderWritable(admin, order);
+    await this.branchHierarchy.assertWritableBranch(admin, transferDto.new_branch_id);
+    const permissionBranchId = await this.getPermissionBranchIdForOrder(admin, order.branch_id);
     const currentPermissions = await this.permissionService.findByRolesAndBranch(
       admin.roles,
-      order.branch_id,
+      permissionBranchId,
     );
     await this.permissionService.checkPermissionsOrThrow(
       admin.roles,
-      order.branch_id,
+      permissionBranchId,
       order.status_id,
       ['can_update'],
       'repair_order_update',
@@ -2220,22 +2301,12 @@ export class RepairOrdersService {
     );
 
     const newBranch = await this.knex('branches')
-      .where({ id: transferDto.new_branch_id, status: 'Open' })
+      .where({ id: transferDto.new_branch_id, status: 'Open', is_active: true })
+      .where('parent_branch_id', MOTHER_BRANCH_ID)
       .first();
 
     if (!newBranch) {
       throw new BadRequestException('Invalid or inactive branch');
-    }
-
-    const hasPermission = await this.knex('admin_branches')
-      .where({
-        admin_id: admin.id,
-        branch_id: transferDto.new_branch_id,
-      })
-      .first();
-
-    if (!hasPermission) {
-      throw new ForbiddenException('No permission to transfer to this branch');
     }
 
     const trx = await this.knex.transaction();
@@ -2317,7 +2388,105 @@ export class RepairOrdersService {
           );
         });
 
-      return updated[0] as unknown as { message: string };
+      return { message: 'Repair order branch transferred successfully' };
+    } catch (error) {
+      await trx.rollback();
+      throw error;
+    }
+  }
+
+  async take(
+    repairOrderId: string,
+    targetBranchId: string,
+    admin: AdminPayload,
+  ): Promise<{ message: string }> {
+    await this.branchHierarchy.assertChildBranch(targetBranchId);
+    await this.branchHierarchy.assertWritableBranch(admin, targetBranchId);
+
+    const trx = await this.knex.transaction();
+    try {
+      const order: RepairOrder | undefined = await trx<RepairOrder>(this.table)
+        .where({ id: repairOrderId, status: 'Open' })
+        .forUpdate()
+        .first();
+
+      if (!order) {
+        throw new NotFoundException({
+          message: 'Repair order not found',
+          location: 'repair_order',
+        });
+      }
+
+      if (!this.branchHierarchy.isMotherBranch(order.branch_id)) {
+        throw new BadRequestException({
+          message: 'Repair order has already been taken by another branch',
+          location: 'branch_id',
+        });
+      }
+
+      const permissions = await this.permissionService.findByRolesAndBranch(
+        admin.roles,
+        targetBranchId,
+      );
+      await this.permissionService.checkPermissionsOrThrow(
+        admin.roles,
+        targetBranchId,
+        order.status_id,
+        ['can_update'],
+        'repair_order_take',
+        permissions,
+      );
+
+      const [updated] = await trx<RepairOrder>(this.table)
+        .where({ id: repairOrderId })
+        .update({
+          branch_id: targetBranchId,
+          sort: 999999,
+          updated_at: new Date().toISOString(),
+        })
+        .returning('*');
+
+      await this.moveToTop(trx, updated);
+      await this.changeLogger.logIfChanged(
+        trx,
+        repairOrderId,
+        'branch_id',
+        order.branch_id,
+        targetBranchId,
+        admin.id,
+      );
+      await this.autoAssignRepairWorkerFromUpdateIfNeeded(trx, repairOrderId, admin);
+      await trx.commit();
+
+      await Promise.all([
+        this.redisService.flushByPrefix(`${this.table}:${MOTHER_BRANCH_ID}`),
+        this.redisService.flushByPrefix(`${this.table}:${targetBranchId}`),
+      ]);
+
+      void this.helper
+        .getRepairOrderNotificationMeta(repairOrderId)
+        .then((richMeta) => {
+          const meta = { ...richMeta, action: 'order_updated' } as Record<string, unknown>;
+          void this.notificationService.notifyBranch(this.knex, MOTHER_BRANCH_ID, {
+            title: 'Buyurtma filialga olindi',
+            message: `Buyurtma #${order.number_id} filial tomonidan olindi`,
+            type: 'info',
+            meta,
+          });
+          void this.notificationService.notifyBranch(this.knex, targetBranchId, {
+            title: 'Yangi buyurtma olindi',
+            message: `Mother Branchdan buyurtma olindi: #${order.number_id}`,
+            type: 'info',
+            meta,
+          });
+        })
+        .catch((err: Error) => {
+          this.logger.error(
+            `Failed to send branch notification for take on order ${repairOrderId}: ${err.message}`,
+          );
+        });
+
+      return { message: 'Repair order taken successfully' };
     } catch (error) {
       await trx.rollback();
       throw error;
@@ -3128,18 +3297,15 @@ export class RepairOrdersService {
   }): Promise<void> {
     const trx = await this.knex.transaction();
     try {
+      const branchId = MOTHER_BRANCH_ID;
       const normalizedPhoneNumber = this.normalizePhoneNumber(data.phoneNumber);
       const phoneCandidates = this.getPhoneLookupCandidates(normalizedPhoneNumber);
       let order = (await this.buildTelephonyWorkflowOpenOrderQuery(trx)
-        .where({ 'ro.branch_id': data.branchId })
+        .where({ 'ro.branch_id': branchId })
         .whereIn('ro.phone_number', phoneCandidates)
         .first()) as RepairOrder | undefined;
 
-      const targetAdminId = await this.resolveWebhookAdminId(
-        trx,
-        data.branchId,
-        data.onlinepbxCode,
-      );
+      const targetAdminId = await this.resolveWebhookAdminId(trx, branchId, data.onlinepbxCode);
 
       const isUpdate = !!order;
 
@@ -3148,7 +3314,7 @@ export class RepairOrdersService {
         const [newOrder] = (await trx<RepairOrder>(this.table)
           .insert({
             user_id: data.userId,
-            branch_id: data.branchId,
+            branch_id: branchId,
             status_id: defaultStatus,
             priority: 'Medium',
             sort: 999999,
@@ -3205,7 +3371,7 @@ export class RepairOrdersService {
         targetAdminId,
       });
 
-      await this.redisService.flushByPrefix(`${this.table}:${data.branchId}`);
+      await this.redisService.flushByPrefix(`${this.table}:${branchId}`);
     } catch (err) {
       await trx.rollback();
       throw err;
@@ -3521,7 +3687,7 @@ export class RepairOrdersService {
         .andWhere('is_active', true)
         .select('type');
 
-      for (const row of rows) {
+      for (const row of Array.isArray(rows) ? rows : []) {
         if (row.type && REPAIR_WORKER_ROLE_TYPES.has(row.type)) {
           roleTypes.add(row.type);
         }
@@ -3869,6 +4035,67 @@ export class RepairOrdersService {
     );
   }
 
+  private async getPermissionBranchIdForOrder(
+    admin: AdminPayload,
+    orderBranchId: string,
+    db: Knex | Knex.Transaction = this.knex,
+  ): Promise<string> {
+    if (!this.branchHierarchy.isMotherBranch(orderBranchId)) {
+      return orderBranchId;
+    }
+
+    if (this.branchHierarchy.isSuperAdmin(admin)) {
+      return MOTHER_BRANCH_ID;
+    }
+
+    const assignedBranchIds = await this.branchHierarchy.getAdminAssignedBranchIds(admin.id, db);
+    if (assignedBranchIds.includes(MOTHER_BRANCH_ID)) {
+      return MOTHER_BRANCH_ID;
+    }
+
+    const childBranchId = assignedBranchIds.find((branchId) => branchId !== MOTHER_BRANCH_ID);
+    return childBranchId ?? MOTHER_BRANCH_ID;
+  }
+
+  private async assertRepairOrderVisible(
+    admin: AdminPayload,
+    order: RepairOrder | { branch_id: string },
+    db: Knex | Knex.Transaction = this.knex,
+  ): Promise<void> {
+    if (!this.hasInjectedBranchHierarchy) {
+      return;
+    }
+
+    const visibleBranchIds = await this.branchHierarchy.getVisibleBranchIds(admin, db);
+    if (!visibleBranchIds.includes(order.branch_id)) {
+      throw new ForbiddenException({
+        message: 'You do not have access to this repair order',
+        location: 'repair_order',
+      });
+    }
+  }
+
+  private async assertRepairOrderWritable(
+    admin: AdminPayload,
+    order: RepairOrder | { branch_id: string },
+    db: Knex | Knex.Transaction = this.knex,
+  ): Promise<void> {
+    await this.assertRepairOrderVisible(admin, order, db);
+
+    if (this.branchHierarchy.isMotherBranch(order.branch_id)) {
+      const assignedBranchIds = await this.branchHierarchy.getAdminAssignedBranchIds(admin.id, db);
+      if (
+        !this.branchHierarchy.isSuperAdmin(admin) &&
+        !assignedBranchIds.includes(MOTHER_BRANCH_ID)
+      ) {
+        throw new ForbiddenException({
+          message: 'Mother Branch repair orders are read-only until a child branch takes them',
+          location: 'repair_order',
+        });
+      }
+    }
+  }
+
   private getTargetStatusPermissionOrThrow(
     admin: AdminPayload,
     permissions: RepairOrderStatusPermission[],
@@ -3904,6 +4131,7 @@ export class RepairOrdersService {
     transitionRule?: { from_status_id: string; to_status_id: string } | null,
     targetStatus?: RepairOrderStatus | null,
     activeRental?: { id: string } | null,
+    permissionBranchId = order.branch_id,
   ): Promise<RepairOrderStatusPermission> {
     const resolvedTransitionRule =
       transitionRule ??
@@ -3911,7 +4139,7 @@ export class RepairOrdersService {
         trx,
         order.status_id,
         targetStatusId,
-        order.branch_id,
+        MOTHER_BRANCH_ID,
         admin.roles[0]?.id,
       ));
 
@@ -3941,7 +4169,7 @@ export class RepairOrdersService {
     const targetPermission = this.getTargetStatusPermissionOrThrow(
       admin,
       permissions,
-      order.branch_id,
+      permissionBranchId,
       targetStatusId,
     );
 

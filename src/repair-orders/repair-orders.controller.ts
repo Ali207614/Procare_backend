@@ -283,6 +283,17 @@ export class RepairOrdersController {
     return this.service.update(req.admin, repairOrderId, dto);
   }
 
+  @Patch(':repair_order_id/take')
+  @UseGuards(BranchExistGuard)
+  @ApiOperation({ summary: 'Take a Mother Branch repair order into a child branch' })
+  @ApiParam({ name: 'repair_order_id', description: 'Repair Order ID' })
+  take(
+    @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ message: string }> {
+    return this.service.take(repairOrderId, req.branch.id, req.admin);
+  }
+
   @Get()
   @UseGuards(BranchExistGuard)
   @ApiOperation({

@@ -11,6 +11,7 @@ export interface Branch {
 
   is_protected: boolean;
   can_user_view: boolean;
+  parent_branch_id?: string | null;
 
   lat?: number | null;
   long?: number | null;

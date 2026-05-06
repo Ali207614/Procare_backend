@@ -6,6 +6,7 @@ import { PermissionsModule } from 'src/permissions/permissions.module';
 import { RepairOrderStatusPermissionsModule } from 'src/repair-order-status-permission/repair-order-status-permissions.module';
 import { LoggerModule } from 'src/common/logger/logger.module';
 import { HistoryModule } from 'src/history/history.module';
+import { BranchHierarchyService } from './branch-hierarchy.service';
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { HistoryModule } from 'src/history/history.module';
     HistoryModule,
   ],
   controllers: [BranchesController],
-  providers: [BranchesService],
-  exports: [BranchesService],
+  providers: [BranchesService, BranchHierarchyService],
+  exports: [BranchesService, BranchHierarchyService],
 })
 export class BranchesModule {}

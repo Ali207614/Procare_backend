@@ -16,6 +16,7 @@ import {
 } from 'src/common/types/repair-order-status-permssion.interface';
 import { RepairOrderStatus } from 'src/common/types/repair-order-status.interface';
 import { LoggerService } from 'src/common/logger/logger.service';
+import { MOTHER_BRANCH_ID } from 'src/branches/branch-hierarchy.service';
 
 @Injectable()
 export class RepairOrderStatusPermissionsService {
@@ -55,13 +56,13 @@ export class RepairOrderStatusPermissionsService {
 
       const validStatuses: RepairOrderStatus[] = await trx('repair_order_statuses')
         .whereIn('id', status_ids)
-        .andWhere({ branch_id, status: 'Open' });
+        .andWhere({ branch_id: MOTHER_BRANCH_ID, status: 'Open' });
 
       if (validStatuses.length !== status_ids.length) {
         const validIds = validStatuses.map((s) => s.id);
         const invalidIds = status_ids.filter((id) => !validIds.includes(id));
         throw new BadRequestException({
-          message: 'Some statuses not found or not assigned to the specified branch',
+          message: 'Some statuses not found in the canonical Mother Branch status list',
           location: 'status_ids',
           invalid_ids: invalidIds,
         });

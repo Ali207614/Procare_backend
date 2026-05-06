@@ -26,7 +26,7 @@ queue_orders AS (
         ) AS remaining_minutes
     FROM repair_orders ro
         LEFT JOIN queue_problem_minutes qpm ON qpm.repair_order_id = ro.id
-    WHERE ro.branch_id = :branchId
+    WHERE ro.branch_id = ANY(:branchIds)
       AND ro.status = 'Open'
       AND ro.status_id = ANY(:statusIds)
 ),
@@ -52,7 +52,7 @@ per_status_ranked AS (
     FROM repair_orders ro
         LEFT JOIN users u         ON ro.user_id          = u.id
         LEFT JOIN phone_categories pc ON ro.phone_category_id = pc.id
-    WHERE ro.branch_id   = :branchId
+    WHERE ro.branch_id   = ANY(:branchIds)
       AND ro.status       = 'Open'
       AND ro.status_id    = ANY(:statusIds)
     /*ADDITIONAL_WHERE*/
@@ -70,6 +70,10 @@ SELECT
     ro.description,
     ro.phone_number,
     ro.source,
+    ro.branch_id AS current_owner_branch,
+    (ro.branch_id = :motherBranchId AND :viewerBranchId <> :motherBranchId) AS is_read_only,
+    (ro.branch_id = :motherBranchId AND :viewerBranchId <> :motherBranchId) AS can_take,
+    NOT COALESCE(sp.can_view, false) AS is_hidden_status_for_branch,
     ro.call_count,
     ro.customer_no_answer_count,
     ro.last_customer_no_answer_at,
@@ -302,8 +306,12 @@ FROM repair_orders ro
     LEFT JOIN repair_order_reject_causes rc ON ro.reject_cause_id = rc.id
     LEFT JOIN repair_order_regions ror ON ro.region_id = ror.id
     LEFT JOIN repair_order_statuses s ON ro.status_id       = s.id
+    LEFT JOIN repair_order_status_permissions sp
+      ON sp.branch_id = :viewerBranchId
+     AND sp.status_id = ro.status_id
+     AND sp.role_id = :primaryRoleId
 
-WHERE ro.branch_id  = :branchId
+WHERE ro.branch_id  = ANY(:branchIds)
   AND ro.status     = 'Open'
   AND ro.status_id  = ANY(:statusIds)
   -- Per-status pagination: offset/limit apply independently inside each status column

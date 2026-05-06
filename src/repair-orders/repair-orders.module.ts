@@ -8,6 +8,7 @@ import { RepairOrderStatusesModule } from 'src/repair-order-statuses/repair-orde
 import { OffersModule } from 'src/offers/offers.module';
 import { PdfModule } from 'src/pdf/pdf.module';
 import { HistoryModule } from 'src/history/history.module';
+import { BranchesModule } from 'src/branches/branches.module';
 import { AssignAdminController } from './controllers/assign-admin.controller';
 import { CommentController } from './controllers/comment.controller';
 import { DeliveryController } from './controllers/delivery.controller';
@@ -45,6 +46,7 @@ import { OnlinePbxRecordingService } from 'src/online-pbx/online-pbx-recording.s
     OffersModule,
     PdfModule,
     HistoryModule,
+    BranchesModule,
   ],
   controllers: [
     OpenRepairOrdersController,

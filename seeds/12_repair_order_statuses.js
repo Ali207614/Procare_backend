@@ -1,8 +1,6 @@
 exports.seed = async function (knex) {
+  const MOTHER_BRANCH_ID = '00000000-0000-4000-8000-000000000000';
   await knex('repair_order_statuses').del();
-
-  // Get all branches first
-  const branches = await knex('branches').select('id').where('status', 'Open');
 
   const statusTemplates = [
     {
@@ -176,29 +174,25 @@ exports.seed = async function (knex) {
     },
   ];
 
-  for (let branchIndex = 0; branchIndex < branches.length; branchIndex++) {
-    const branch = branches[branchIndex];
-
-    for (const template of statusTemplates) {
-      await knex('repair_order_statuses').insert({
-        id: `50000000-0000-0000-${String(branchIndex + 1).padStart(4, '0')}-${template.id_suffix}000000000`,
-        name_uz: template.name_uz,
-        name_ru: template.name_ru,
-        name_en: template.name_en,
-        bg_color: template.bg_color,
-        color: template.color,
-        sort: template.sort,
-        can_user_view: template.can_user_view,
-        is_active: true,
-        type: template.type,
-        is_protected: template.is_protected,
-        can_add_payment: template.can_add_payment,
-        status: 'Open',
-        branch_id: branch.id,
-        created_by: '00000000-0000-4000-8000-000000000000', // Super admin
-        created_at: knex.fn.now(),
-        updated_at: knex.fn.now(),
-      });
-    }
+  for (const template of statusTemplates) {
+    await knex('repair_order_statuses').insert({
+      id: `50000000-0000-0000-0001-${template.id_suffix}000000000`,
+      name_uz: template.name_uz,
+      name_ru: template.name_ru,
+      name_en: template.name_en,
+      bg_color: template.bg_color,
+      color: template.color,
+      sort: template.sort,
+      can_user_view: template.can_user_view,
+      is_active: true,
+      type: template.type,
+      is_protected: template.is_protected,
+      can_add_payment: template.can_add_payment,
+      status: 'Open',
+      branch_id: MOTHER_BRANCH_ID,
+      created_by: '00000000-0000-4000-8000-000000000000', // Super admin
+      created_at: knex.fn.now(),
+      updated_at: knex.fn.now(),
+    });
   }
 };

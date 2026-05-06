@@ -1,11 +1,12 @@
 exports.seed = async function (knex) {
+  const motherBranchId = '00000000-0000-4000-8000-000000000000';
   await knex('repair-order-status-transitions').del();
 
-  // Get all repair order statuses to create transitions between them
+  // Mother Branch owns the canonical workflow statuses.
   const statuses = await knex('repair_order_statuses')
     .select('id', 'sort', 'branch_id', 'type')
-    .where('status', 'Open')
-    .orderBy(['branch_id', 'sort']);
+    .where({ status: 'Open', branch_id: motherBranchId })
+    .orderBy('sort', 'asc');
 
   // Group statuses by branch
   const statusesByBranch = statuses.reduce((acc, status) => {

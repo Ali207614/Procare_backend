@@ -20,6 +20,7 @@ import {
 } from 'src/common/types/repair-order-status-transition.interface';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { HistoryService } from 'src/history/history.service';
+import { MOTHER_BRANCH_ID } from 'src/branches/branch-hierarchy.service';
 
 @Injectable()
 export class RepairOrderStatusesService {
@@ -38,10 +39,16 @@ export class RepairOrderStatusesService {
   async create(dto: CreateRepairOrderStatusDto, adminId: string): Promise<RepairOrderStatus> {
     const trx = await this.knex.transaction();
     try {
-      let branchId = dto.branch_id;
+      const branchId = dto.branch_id ?? MOTHER_BRANCH_ID;
       let branch: Branch | undefined;
 
       if (branchId) {
+        if (branchId !== MOTHER_BRANCH_ID) {
+          throw new BadRequestException({
+            message: 'Repair order statuses can only be created in the Mother Branch',
+            location: 'branch_id',
+          });
+        }
         const redisKey = `branches:by_id:${branchId}`;
         branch =
           (await this.redisService.get(redisKey)) ??
@@ -54,16 +61,6 @@ export class RepairOrderStatusesService {
         if (!branch.is_active)
           throw new BadRequestException({ message: 'Branch inactive', location: 'branch_id' });
         await this.redisService.set(redisKey, branch, 3600);
-      } else {
-        branch = await trx('branches')
-          .where({ is_protected: true, is_active: true, status: 'Open' })
-          .first();
-        if (!branch)
-          throw new BadRequestException({
-            message: 'Default protected branch not found',
-            location: 'default_branch_missing',
-          });
-        branchId = branch.id;
       }
 
       const existing: RepairOrderStatus | undefined = await trx<RepairOrderStatus>(
@@ -163,7 +160,7 @@ export class RepairOrderStatusesService {
     const trx = await this.knex.transaction();
     try {
       const baseQuery = trx<RepairOrderStatus>('repair_order_statuses').where({
-        branch_id: branchId,
+        branch_id: MOTHER_BRANCH_ID,
         status: 'Open',
       });
 
@@ -232,9 +229,7 @@ export class RepairOrderStatusesService {
     const permissions: RepairOrderStatusPermission[] =
       await this.repairOrderStatusPermissions.findByRolesAndBranch(admin.roles, branchId);
 
-    const viewableIds = Array.from(
-      new Set(permissions.filter((p) => p.can_view).map((p) => p.status_id)),
-    );
+    const viewableIds = Array.from(new Set(permissions.map((p) => p.status_id)));
     if (!viewableIds.length) {
       const empty: PaginationResult<RepairOrderStatusWithPermissions> = {
         rows: [],
@@ -250,12 +245,12 @@ export class RepairOrderStatusesService {
     try {
       const baseQuery = trx<RepairOrderStatus>('repair_order_statuses')
         .whereIn('id', viewableIds)
-        .andWhere({ is_active: true, status: 'Open', branch_id: branchId });
+        .andWhere({ is_active: true, status: 'Open', branch_id: MOTHER_BRANCH_ID });
 
       const [statuses, countResult, transitionScope, countsRaw] = await Promise.all([
         baseQuery.clone().orderBy('sort', 'asc').offset(offset).limit(limit),
         baseQuery.clone().count<{ count: string }[]>('* as count'),
-        this.findTransitionsForRoleScope(trx, viewableIds, branchId, primaryRoleId),
+        this.findTransitionsForRoleScope(trx, viewableIds, MOTHER_BRANCH_ID, primaryRoleId),
         trx('repair_orders')
           .whereIn('status_id', viewableIds)
           .andWhere('branch_id', branchId)
@@ -329,14 +324,14 @@ export class RepairOrderStatusesService {
     const statuses: RepairOrderStatus[] = await this.knex<RepairOrderStatus>(
       'repair_order_statuses',
     )
-      .where({ branch_id: branchId, status: 'Open' })
+      .where({ branch_id: MOTHER_BRANCH_ID, status: 'Open' })
       .orderBy('sort', 'asc');
 
     const statusIds = statuses.map((status) => status.id);
     const transitionScope = await this.findTransitionsForRoleScope(
       this.knex,
       statusIds,
-      branchId,
+      MOTHER_BRANCH_ID,
       roleId,
     );
     const transitionsMap = this.buildTransitionsMap(transitionScope.rows);

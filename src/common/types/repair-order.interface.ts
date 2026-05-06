@@ -44,6 +44,10 @@ export interface RepairOrder {
   name: string | null;
   description: string | null;
   source: RepairOrderSource | null;
+  current_owner_branch?: string;
+  is_read_only?: boolean;
+  can_take?: boolean;
+  is_hidden_status_for_branch?: boolean;
   call_count: number;
   missed_calls: number;
   customer_no_answer_count?: number;
@@ -289,6 +293,8 @@ export interface ViewableRepairOrdersResponse {
   data: ViewableRepairOrdersByStatus;
 }
 
+import { RepairOrderStatusWithPermissions } from 'src/common/types/repair-order-status.interface';
+
 export interface RepairOrderDetails {
   id: string;
   number_id: number;
@@ -340,6 +346,9 @@ export interface RepairOrderDetails {
     name_uz: string;
     name_ru: string;
     name_en: string;
+    color?: string;
+    bg_color?: string;
+    transitions?: any[];
   };
   branch: {
     id: string;
@@ -502,6 +511,7 @@ export interface RepairOrderDetails {
       updated_at: string | null;
     } | null;
   };
+  viewable_statuses?: RepairOrderStatusWithPermissions[];
 }
 
 export interface JoinedRepairOrder {
