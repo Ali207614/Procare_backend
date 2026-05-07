@@ -1,26 +1,34 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { AppModule } from 'src/app.module';
 import { RolesService } from 'src/roles/roles.service';
 import { AuthService } from 'src/auth/auth.service';
 import { TestModuleBuilder } from '../../utils/test-module-builder';
 import { CoverageHelpers } from '../../utils/coverage-helpers';
+import {
+  AdminResponse,
+  BranchResponse,
+  PermissionResponse,
+  RoleResponse,
+  TestKnex,
+  TestRedis,
+} from '../../utils/test-types';
 
 describe('Roles Controller Complete E2E', () => {
   let app: INestApplication;
   let authService: AuthService;
   let rolesService: RolesService;
-  let knex: any;
-  let redis: any;
+  let knex: TestKnex;
+  let redis: TestRedis;
   let adminToken: string;
   let limitedAdminToken: string;
-  let testAdmin: any;
-  let limitedAdmin: any;
-  let testBranch: any;
-  let testRole: any;
-  let secondTestRole: any;
-  let testPermissions: any[];
+  let testAdmin: AdminResponse;
+  let limitedAdmin: AdminResponse;
+  let testBranch: BranchResponse;
+  let testRole: RoleResponse;
+  let secondTestRole: RoleResponse;
+  let testPermissions: PermissionResponse[];
+  let deleteRoleId: string;
 
   beforeAll(async () => {
     const moduleBuilder = new TestModuleBuilder();
@@ -66,9 +74,9 @@ describe('Roles Controller Complete E2E', () => {
     await app.close();
   });
 
-  async function setupTestData() {
+  async function setupTestData(): Promise<void> {
     // Create test branch
-    testBranch = await knex('branches')
+    const branchResults = await knex('branches')
       .insert({
         id: knex.raw('gen_random_uuid()'),
         name: 'Test Branch',
@@ -79,7 +87,7 @@ describe('Roles Controller Complete E2E', () => {
         updated_at: new Date(),
       })
       .returning('*');
-    testBranch = testBranch[0];
+    testBranch = branchResults[0] as BranchResponse;
 
     // Create role permissions
     const rolePermissions = [
@@ -101,7 +109,7 @@ describe('Roles Controller Complete E2E', () => {
           updated_at: new Date(),
         })
         .returning('*');
-      testPermissions.push(perm[0]);
+      testPermissions.push(perm[0] as PermissionResponse);
     }
 
     // Create additional permissions for role assignment testing
@@ -126,11 +134,11 @@ describe('Roles Controller Complete E2E', () => {
           updated_at: new Date(),
         })
         .returning('*');
-      testPermissions.push(perm[0]);
+      testPermissions.push(perm[0] as PermissionResponse);
     }
 
     // Create test role with all role permissions
-    const fullRole = await knex('roles')
+    const fullRoleResults = await knex('roles')
       .insert({
         id: knex.raw('gen_random_uuid()'),
         name: 'Role Manager Role',
@@ -140,10 +148,10 @@ describe('Roles Controller Complete E2E', () => {
         updated_at: new Date(),
       })
       .returning('*');
-    const role = fullRole[0];
+    const role = fullRoleResults[0] as RoleResponse;
 
     // Create limited role with only view permission
-    const limitedRole = await knex('roles')
+    const limitedRoleResults = await knex('roles')
       .insert({
         id: knex.raw('gen_random_uuid()'),
         name: 'Limited Role',
@@ -153,10 +161,10 @@ describe('Roles Controller Complete E2E', () => {
         updated_at: new Date(),
       })
       .returning('*');
-    const limitedRoleRecord = limitedRole[0];
+    const limitedRoleRecord = limitedRoleResults[0] as RoleResponse;
 
     // Create test roles for testing CRUD operations
-    testRole = await knex('roles')
+    const testRoleResults = await knex('roles')
       .insert({
         id: knex.raw('gen_random_uuid()'),
         name: 'Test Role',
@@ -166,9 +174,9 @@ describe('Roles Controller Complete E2E', () => {
         updated_at: new Date(),
       })
       .returning('*');
-    testRole = testRole[0];
+    testRole = testRoleResults[0] as RoleResponse;
 
-    secondTestRole = await knex('roles')
+    const secondTestRoleResults = await knex('roles')
       .insert({
         id: knex.raw('gen_random_uuid()'),
         name: 'Second Test Role',
@@ -178,7 +186,7 @@ describe('Roles Controller Complete E2E', () => {
         updated_at: new Date(),
       })
       .returning('*');
-    secondTestRole = secondTestRole[0];
+    secondTestRole = secondTestRoleResults[0] as RoleResponse;
 
     // Assign all role permissions to full role
     const roleManagementPermissions = testPermissions.filter((p) => p.name.startsWith('role.'));
@@ -215,7 +223,7 @@ describe('Roles Controller Complete E2E', () => {
     }
 
     // Create test admins
-    testAdmin = await knex('admins')
+    const testAdminResults = await knex('admins')
       .insert({
         id: knex.raw('gen_random_uuid()'),
         first_name: 'Test',
@@ -229,9 +237,9 @@ describe('Roles Controller Complete E2E', () => {
         updated_at: new Date(),
       })
       .returning('*');
-    testAdmin = testAdmin[0];
+    testAdmin = testAdminResults[0] as AdminResponse;
 
-    limitedAdmin = await knex('admins')
+    const limitedAdminResults = await knex('admins')
       .insert({
         id: knex.raw('gen_random_uuid()'),
         first_name: 'Limited',
@@ -245,7 +253,7 @@ describe('Roles Controller Complete E2E', () => {
         updated_at: new Date(),
       })
       .returning('*');
-    limitedAdmin = limitedAdmin[0];
+    limitedAdmin = limitedAdminResults[0] as AdminResponse;
 
     // Assign roles to admins
     await knex('admin_roles').insert({
@@ -313,12 +321,17 @@ describe('Roles Controller Complete E2E', () => {
       });
 
       // Verify role was created in database
-      const createdRole = await knex('roles').where('id', response.body.id).first();
+      const createdRole = await knex('roles')
+        .where('id', (response.body as RoleResponse).id)
+        .first();
       expect(createdRole).toBeTruthy();
       expect(createdRole.name).toBe(newRoleData.name);
 
       // Verify permissions were assigned
-      const rolePermissions = await knex('role_permissions').where('role_id', response.body.id);
+      const rolePermissions = await knex('role_permissions').where(
+        'role_id',
+        (response.body as RoleResponse).id,
+      );
       expect(rolePermissions.length).toBe(2);
     });
 
@@ -335,10 +348,13 @@ describe('Roles Controller Complete E2E', () => {
         .send(roleData)
         .expect(201);
 
-      expect(response.body.name).toBe(roleData.name);
+      expect((response.body as RoleResponse).name).toBe(roleData.name);
 
       // Verify no permissions were assigned
-      const rolePermissions = await knex('role_permissions').where('role_id', response.body.id);
+      const rolePermissions = await knex('role_permissions').where(
+        'role_id',
+        (response.body as RoleResponse).id,
+      );
       expect(rolePermissions.length).toBe(0);
     });
 
@@ -432,11 +448,13 @@ describe('Roles Controller Complete E2E', () => {
         },
       });
 
-      expect(response.body.data.length).toBeGreaterThan(0);
-      expect(response.body.meta.total).toBeGreaterThanOrEqual(response.body.data.length);
+      expect((response.body.data as RoleResponse[]).length).toBeGreaterThan(0);
+      expect(response.body.meta.total).toBeGreaterThanOrEqual(
+        (response.body.data as RoleResponse[]).length,
+      );
 
       // Verify role structure
-      const role = response.body.data[0];
+      const role = (response.body.data as RoleResponse[])[0];
       expect(role).toMatchObject({
         id: expect.any(String),
         name: expect.any(String),
@@ -453,7 +471,7 @@ describe('Roles Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      response.body.data.forEach((role) => {
+      (response.body.data as RoleResponse[]).forEach((role) => {
         expect(role.status).toBe('Active');
       });
     });
@@ -464,8 +482,10 @@ describe('Roles Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body.data.length).toBeGreaterThan(0);
-      const foundRole = response.body.data.find((role) => role.name === 'Test Role');
+      expect((response.body.data as RoleResponse[]).length).toBeGreaterThan(0);
+      const foundRole = (response.body.data as RoleResponse[]).find(
+        (role) => role.name === 'Test Role',
+      );
       expect(foundRole).toBeTruthy();
     });
 
@@ -475,8 +495,8 @@ describe('Roles Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body.data.length).toBeGreaterThan(0);
-      response.body.data.forEach((role) => {
+      expect((response.body.data as RoleResponse[]).length).toBeGreaterThan(0);
+      (response.body.data as RoleResponse[]).forEach((role) => {
         const matchesName = role.name.toLowerCase().includes('test');
         const matchesDescription = role.description.toLowerCase().includes('test');
         expect(matchesName || matchesDescription).toBe(true);
@@ -494,7 +514,7 @@ describe('Roles Controller Complete E2E', () => {
 
       expect(response.body.meta.limit).toBe(limit);
       expect(response.body.meta.offset).toBe(offset);
-      expect(response.body.data.length).toBeLessThanOrEqual(limit);
+      expect((response.body.data as RoleResponse[]).length).toBeLessThanOrEqual(limit);
     });
 
     it('should sort roles by creation date', async () => {
@@ -503,7 +523,7 @@ describe('Roles Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      const dates = response.body.data.map((role) => new Date(role.created_at));
+      const dates = (response.body.data as RoleResponse[]).map((role) => new Date(role.created_at));
       const sortedDates = [...dates].sort((a, b) => b.getTime() - a.getTime());
       expect(dates).toEqual(sortedDates);
     });
@@ -514,8 +534,8 @@ describe('Roles Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body.data.length).toBeLessThanOrEqual(2);
-      response.body.data.forEach((role) => {
+      expect((response.body.data as RoleResponse[]).length).toBeLessThanOrEqual(2);
+      (response.body.data as RoleResponse[]).forEach((role) => {
         expect(role.status).toBe('Active');
       });
     });
@@ -747,12 +767,12 @@ describe('Roles Controller Complete E2E', () => {
         .returning('*');
 
       // Store the ID for use in tests
-      this.deleteRoleId = deleteRole[0].id;
+      deleteRoleId = (deleteRole[0] as RoleResponse).id;
     });
 
     it('should delete role successfully', async () => {
       const response = await request(app.getHttpServer())
-        .delete(`/api/v1/roles/${this.deleteRoleId}`)
+        .delete(`/api/v1/roles/${deleteRoleId}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
@@ -761,7 +781,7 @@ describe('Roles Controller Complete E2E', () => {
       });
 
       // Verify role was soft deleted in database
-      const deletedRole = await knex('roles').where('id', this.deleteRoleId).first();
+      const deletedRole = await knex('roles').where('id', deleteRoleId).first();
       expect(deletedRole.deleted_at).toBeTruthy();
     });
 
@@ -775,13 +795,13 @@ describe('Roles Controller Complete E2E', () => {
     it('should fail when trying to delete already deleted role', async () => {
       // Delete role first
       await request(app.getHttpServer())
-        .delete(`/api/v1/roles/${this.deleteRoleId}`)
+        .delete(`/api/v1/roles/${deleteRoleId}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
       // Try to delete again
       await request(app.getHttpServer())
-        .delete(`/api/v1/roles/${this.deleteRoleId}`)
+        .delete(`/api/v1/roles/${deleteRoleId}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(404);
     });
@@ -795,13 +815,13 @@ describe('Roles Controller Complete E2E', () => {
 
     it('should fail without proper permissions', async () => {
       await request(app.getHttpServer())
-        .delete(`/api/v1/roles/${this.deleteRoleId}`)
+        .delete(`/api/v1/roles/${deleteRoleId}`)
         .set('Authorization', `Bearer ${limitedAdminToken}`)
         .expect(403);
     });
 
     it('should fail without authentication', async () => {
-      await request(app.getHttpServer()).delete(`/api/v1/roles/${this.deleteRoleId}`).expect(401);
+      await request(app.getHttpServer()).delete(`/api/v1/roles/${deleteRoleId}`).expect(401);
     });
 
     it('should cascade delete role permissions when role is deleted', async () => {
@@ -809,7 +829,7 @@ describe('Roles Controller Complete E2E', () => {
       const permission = testPermissions[0];
       await knex('role_permissions').insert({
         id: knex.raw('gen_random_uuid()'),
-        role_id: this.deleteRoleId,
+        role_id: deleteRoleId,
         permission_id: permission.id,
         created_at: new Date(),
         updated_at: new Date(),
@@ -817,20 +837,20 @@ describe('Roles Controller Complete E2E', () => {
 
       // Delete role
       await request(app.getHttpServer())
-        .delete(`/api/v1/roles/${this.deleteRoleId}`)
+        .delete(`/api/v1/roles/${deleteRoleId}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
       // Verify role permissions were deleted
-      const rolePermissions = await knex('role_permissions').where('role_id', this.deleteRoleId);
+      const rolePermissions = await knex('role_permissions').where('role_id', deleteRoleId);
       expect(rolePermissions.length).toBe(0);
     });
   });
 
   describe('Database Consistency Verification', () => {
     it('should maintain referential integrity for role permissions', async () => {
-      const roles = await knex('roles').select('*');
-      const permissions = await knex('permissions').select('*');
+      const roles = (await knex('roles').select('*')) as RoleResponse[];
+      const permissions = (await knex('permissions').select('*')) as PermissionResponse[];
       const rolePermissions = await knex('role_permissions').select('*');
 
       for (const rolePermission of rolePermissions) {
@@ -842,7 +862,7 @@ describe('Roles Controller Complete E2E', () => {
     });
 
     it('should maintain audit fields correctly', async () => {
-      const roles = await knex('roles').select('*');
+      const roles = (await knex('roles').select('*')) as RoleResponse[];
 
       for (const role of roles) {
         expect(role.created_at).toBeTruthy();

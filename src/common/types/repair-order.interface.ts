@@ -118,6 +118,7 @@ export interface FreshRepairOrder {
     name_ru: string | null;
     name_en: string | null;
   };
+  is_mothers?: boolean;
   assigned_admins: {
     id: string;
     first_name: string | null;

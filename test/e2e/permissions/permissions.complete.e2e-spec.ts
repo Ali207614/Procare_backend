@@ -1,24 +1,41 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { AppModule } from 'src/app.module';
-import { PermissionsService } from 'src/permissions/permissions.service';
 import { AuthService } from 'src/auth/auth.service';
 import { TestModuleBuilder } from '../../utils/test-module-builder';
 import { CoverageHelpers } from '../../utils/coverage-helpers';
+import { Knex } from 'knex';
+import Redis from 'ioredis';
+
+interface AdminResponse {
+  id: string;
+  login: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  branch_id: string;
+  status: string;
+}
+
+interface PermissionResponse {
+  id: string;
+  name: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+}
 
 describe('Permissions Controller Complete E2E', () => {
   let app: INestApplication;
   let authService: AuthService;
-  let permissionsService: PermissionsService;
-  let knex: any;
-  let redis: any;
+  let knex: Knex;
+  let redis: Redis;
   let adminToken: string;
   let limitedAdminToken: string;
-  let testAdmin: any;
-  let limitedAdmin: any;
-  let testBranch: any;
-  let testPermissions: any[];
+  let testAdmin: AdminResponse;
+  let limitedAdmin: AdminResponse;
+  let testBranch: { id: string };
+  let testPermissions: PermissionResponse[];
 
   beforeAll(async () => {
     const moduleBuilder = new TestModuleBuilder();
@@ -33,9 +50,8 @@ describe('Permissions Controller Complete E2E', () => {
 
     // Get services
     authService = module.get<AuthService>(AuthService);
-    permissionsService = module.get<PermissionsService>(PermissionsService);
-    knex = module.get('KNEX_CONNECTION');
-    redis = module.get('REDIS_CLIENT');
+    knex = module.get<Knex>('KNEX_CONNECTION');
+    redis = module.get<Redis>('REDIS_CLIENT');
 
     // Clean database and cache
     await knex.raw('DELETE FROM admin_role_permissions');
@@ -64,9 +80,9 @@ describe('Permissions Controller Complete E2E', () => {
     await app.close();
   });
 
-  async function setupTestData() {
+  async function setupTestData(): Promise<void> {
     // Create test branch
-    testBranch = await knex('branches')
+    const branchResult = await knex('branches')
       .insert({
         id: knex.raw('gen_random_uuid()'),
         name: 'Test Branch',
@@ -77,7 +93,7 @@ describe('Permissions Controller Complete E2E', () => {
         updated_at: new Date(),
       })
       .returning('*');
-    testBranch = testBranch[0];
+    testBranch = branchResult[0];
 
     // Create comprehensive set of permissions
     const permissionData = [
@@ -132,7 +148,7 @@ describe('Permissions Controller Complete E2E', () => {
           updated_at: new Date(),
         })
         .returning('*');
-      testPermissions.push(permission[0]);
+      testPermissions.push(permission[0] as PermissionResponse);
     }
 
     // Create test role with permission.view access
@@ -163,16 +179,18 @@ describe('Permissions Controller Complete E2E', () => {
 
     // Assign permission.view to test role
     const viewPermission = testPermissions.find((p) => p.name === 'permission.view');
-    await knex('role_permissions').insert({
-      id: knex.raw('gen_random_uuid()'),
-      role_id: role.id,
-      permission_id: viewPermission.id,
-      created_at: new Date(),
-      updated_at: new Date(),
-    });
+    if (viewPermission) {
+      await knex('role_permissions').insert({
+        id: knex.raw('gen_random_uuid()'),
+        role_id: role.id,
+        permission_id: viewPermission.id,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+    }
 
     // Create test admins
-    testAdmin = await knex('admins')
+    const adminResult = await knex('admins')
       .insert({
         id: knex.raw('gen_random_uuid()'),
         first_name: 'Test',
@@ -186,9 +204,9 @@ describe('Permissions Controller Complete E2E', () => {
         updated_at: new Date(),
       })
       .returning('*');
-    testAdmin = testAdmin[0];
+    testAdmin = adminResult[0];
 
-    limitedAdmin = await knex('admins')
+    const limitedAdminResult = await knex('admins')
       .insert({
         id: knex.raw('gen_random_uuid()'),
         first_name: 'Limited',
@@ -202,7 +220,7 @@ describe('Permissions Controller Complete E2E', () => {
         updated_at: new Date(),
       })
       .returning('*');
-    limitedAdmin = limitedAdmin[0];
+    limitedAdmin = limitedAdminResult[0];
 
     // Assign roles to admins
     await knex('admin_roles').insert({
@@ -250,12 +268,13 @@ describe('Permissions Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body).toEqual(expect.any(Array));
-      expect(response.body.length).toBeGreaterThan(0);
-      expect(response.body.length).toBeLessThanOrEqual(20); // Default limit
+      const body = response.body as PermissionResponse[];
+      expect(body).toEqual(expect.any(Array));
+      expect(body.length).toBeGreaterThan(0);
+      expect(body.length).toBeLessThanOrEqual(20); // Default limit
 
       // Verify permission structure
-      const permission = response.body[0];
+      const permission = body[0];
       expect(permission).toMatchObject({
         id: expect.any(String),
         name: expect.any(String),
@@ -271,10 +290,11 @@ describe('Permissions Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body.length).toBeGreaterThan(0);
-      const foundPermission = response.body.find((p) => p.name === 'user.create');
+      const body = response.body as PermissionResponse[];
+      expect(body.length).toBeGreaterThan(0);
+      const foundPermission = body.find((p) => p.name === 'user.create');
       expect(foundPermission).toBeTruthy();
-      expect(foundPermission.description).toContain('Create users');
+      expect(foundPermission?.description).toContain('Create users');
     });
 
     it('should search permissions by description', async () => {
@@ -283,8 +303,9 @@ describe('Permissions Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body.length).toBeGreaterThan(0);
-      response.body.forEach((permission) => {
+      const body = response.body as PermissionResponse[];
+      expect(body.length).toBeGreaterThan(0);
+      body.forEach((permission) => {
         const matchesName = permission.name.toLowerCase().includes('create');
         const matchesDescription = permission.description.toLowerCase().includes('create');
         expect(matchesName || matchesDescription).toBe(true);
@@ -297,8 +318,9 @@ describe('Permissions Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body.length).toBeGreaterThan(0);
-      const adminPermission = response.body.find((p) => p.name.includes('admin'));
+      const body = response.body as PermissionResponse[];
+      expect(body.length).toBeGreaterThan(0);
+      const adminPermission = body.find((p) => p.name.includes('admin'));
       expect(adminPermission).toBeTruthy();
     });
 
@@ -311,7 +333,8 @@ describe('Permissions Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body.length).toBeLessThanOrEqual(limit);
+      const body = response.body as PermissionResponse[];
+      expect(body.length).toBeLessThanOrEqual(limit);
 
       // Verify pagination by checking different offsets
       const firstPageResponse = await request(app.getHttpServer())
@@ -324,9 +347,12 @@ describe('Permissions Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
+      const firstPageBody = firstPageResponse.body as PermissionResponse[];
+      const secondPageBody = secondPageResponse.body as PermissionResponse[];
+
       // First page and second page should have different permissions (assuming we have enough data)
-      if (firstPageResponse.body.length > 0 && secondPageResponse.body.length > 0) {
-        expect(firstPageResponse.body[0].id).not.toBe(secondPageResponse.body[0].id);
+      if (firstPageBody.length > 0 && secondPageBody.length > 0) {
+        expect(firstPageBody[0].id).not.toBe(secondPageBody[0].id);
       }
     });
 
@@ -336,7 +362,8 @@ describe('Permissions Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      const names = response.body.map((p) => p.name);
+      const body = response.body as PermissionResponse[];
+      const names = body.map((p) => p.name);
       const sortedNames = [...names].sort();
       expect(names).toEqual(sortedNames);
     });
@@ -347,7 +374,8 @@ describe('Permissions Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      const names = response.body.map((p) => p.name);
+      const body = response.body as PermissionResponse[];
+      const names = body.map((p) => p.name);
       const sortedNames = [...names].sort().reverse();
       expect(names).toEqual(sortedNames);
     });
@@ -358,7 +386,8 @@ describe('Permissions Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      const descriptions = response.body.map((p) => p.description);
+      const body = response.body as PermissionResponse[];
+      const descriptions = body.map((p) => p.description);
       const sortedDescriptions = [...descriptions].sort();
       expect(descriptions).toEqual(sortedDescriptions);
     });
@@ -369,7 +398,8 @@ describe('Permissions Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      const dates = response.body.map((p) => new Date(p.created_at));
+      const body = response.body as PermissionResponse[];
+      const dates = body.map((p) => new Date(p.created_at));
       const sortedDates = [...dates].sort((a, b) => b.getTime() - a.getTime());
       expect(dates).toEqual(sortedDates);
     });
@@ -380,15 +410,16 @@ describe('Permissions Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body.length).toBeLessThanOrEqual(3);
-      response.body.forEach((permission) => {
+      const body = response.body as PermissionResponse[];
+      expect(body.length).toBeLessThanOrEqual(3);
+      body.forEach((permission) => {
         const matchesName = permission.name.toLowerCase().includes('user');
         const matchesDescription = permission.description.toLowerCase().includes('user');
         expect(matchesName || matchesDescription).toBe(true);
       });
 
       // Should be sorted by name ascending
-      const names = response.body.map((p) => p.name);
+      const names = body.map((p) => p.name);
       const sortedNames = [...names].sort();
       expect(names).toEqual(sortedNames);
     });
@@ -408,9 +439,10 @@ describe('Permissions Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body).toEqual(expect.any(Array));
-      expect(response.body.length).toBeLessThanOrEqual(1000);
-      expect(response.body.length).toBe(testPermissions.length); // Should return all permissions
+      const body = response.body as PermissionResponse[];
+      expect(body).toEqual(expect.any(Array));
+      expect(body.length).toBeLessThanOrEqual(1000);
+      expect(body.length).toBe(testPermissions.length); // Should return all permissions
     });
 
     it('should handle zero limit (should return default)', async () => {
@@ -531,7 +563,10 @@ describe('Permissions Controller Complete E2E', () => {
       }
 
       const results = await Promise.allSettled(promises);
-      const successful = results.filter((r) => r.status === 'fulfilled' && r.value.status === 200);
+      const successful = results.filter(
+        (r): r is PromiseFulfilledResult<request.Response> =>
+          r.status === 'fulfilled' && r.value.status === 200,
+      );
 
       expect(successful.length).toBe(requestCount);
     });
@@ -605,9 +640,10 @@ describe('Permissions Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body).toEqual(expect.any(Array));
+      const body = response.body as PermissionResponse[];
+      expect(body).toEqual(expect.any(Array));
       // Should return all permissions but not crash
-      expect(response.body.length).toBeLessThanOrEqual(testPermissions.length);
+      expect(body.length).toBeLessThanOrEqual(testPermissions.length);
     });
   });
 
@@ -618,7 +654,7 @@ describe('Permissions Controller Complete E2E', () => {
       const permissions = await knex('permissions').select('*');
 
       for (const rolePermission of rolePermissions) {
-        const role = roles.find((r: any) => r.id === rolePermission.role_id);
+        const role = roles.find((r: { id: string }) => r.id === rolePermission.role_id);
         const permission = permissions.find((p) => p.id === rolePermission.permission_id);
         expect(role).toBeTruthy();
         expect(permission).toBeTruthy();
@@ -631,8 +667,8 @@ describe('Permissions Controller Complete E2E', () => {
       for (const permission of permissions) {
         expect(permission.created_at).toBeTruthy();
         expect(permission.updated_at).toBeTruthy();
-        expect(new Date(permission.created_at)).toBeInstanceOf(Date);
-        expect(new Date(permission.updated_at)).toBeInstanceOf(Date);
+        expect(new Date(permission.created_at as string)).toBeInstanceOf(Date);
+        expect(new Date(permission.updated_at as string)).toBeInstanceOf(Date);
       }
     });
 
@@ -646,8 +682,8 @@ describe('Permissions Controller Complete E2E', () => {
           updated_at: new Date(),
         });
         fail('Should have thrown unique constraint error');
-      } catch (error) {
-        expect(error.code).toBe('23505'); // PostgreSQL unique constraint violation
+      } catch (error: unknown) {
+        expect((error as { code: string }).code).toBe('23505'); // PostgreSQL unique constraint violation
       }
     });
 
@@ -657,7 +693,8 @@ describe('Permissions Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      response.body.forEach((permission) => {
+      const body = response.body as PermissionResponse[];
+      body.forEach((permission) => {
         // Permission names should follow the pattern: resource.action
         expect(permission.name).toMatch(/^[a-z_]+\.[a-z_]+(\.[a-z_]+)*$/);
         expect(permission.name).not.toContain(' ');
@@ -690,7 +727,8 @@ describe('Permissions Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      response.body.forEach((permission) => {
+      const body = response.body as PermissionResponse[];
+      body.forEach((permission) => {
         // Should not expose internal fields that might be sensitive
         expect(permission).not.toHaveProperty('internal_id');
         expect(permission).not.toHaveProperty('system_flag');
@@ -711,7 +749,7 @@ describe('Permissions Controller Complete E2E', () => {
         })
         .returning('*');
 
-      const superAdmin = await knex('admins')
+      const superAdminResult = await knex('admins')
         .insert({
           id: knex.raw('gen_random_uuid()'),
           first_name: 'Super',
@@ -725,33 +763,36 @@ describe('Permissions Controller Complete E2E', () => {
           updated_at: new Date(),
         })
         .returning('*');
+      const superAdmin = superAdminResult[0];
 
       // Assign permission.view to super admin
       const viewPermission = testPermissions.find((p) => p.name === 'permission.view');
-      await knex('role_permissions').insert({
-        id: knex.raw('gen_random_uuid()'),
-        role_id: superRole[0].id,
-        permission_id: viewPermission.id,
-        created_at: new Date(),
-        updated_at: new Date(),
-      });
+      if (viewPermission) {
+        await knex('role_permissions').insert({
+          id: knex.raw('gen_random_uuid()'),
+          role_id: superRole[0].id,
+          permission_id: viewPermission.id,
+          created_at: new Date(),
+          updated_at: new Date(),
+        });
+      }
 
       await knex('admin_roles').insert({
         id: knex.raw('gen_random_uuid()'),
-        admin_id: superAdmin[0].id,
+        admin_id: superAdmin.id,
         role_id: superRole[0].id,
         created_at: new Date(),
         updated_at: new Date(),
       });
 
       const superToken = authService.generateJwtToken({
-        id: superAdmin[0].id,
-        login: superAdmin[0].login,
-        first_name: superAdmin[0].first_name,
-        last_name: superAdmin[0].last_name,
-        phone: superAdmin[0].phone,
-        branch_id: superAdmin[0].branch_id,
-        status: superAdmin[0].status,
+        id: superAdmin.id,
+        login: superAdmin.login,
+        first_name: superAdmin.first_name,
+        last_name: superAdmin.last_name,
+        phone: superAdmin.phone,
+        branch_id: superAdmin.branch_id,
+        status: superAdmin.status,
       });
 
       // Super admin should have access
@@ -769,9 +810,10 @@ describe('Permissions Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body).toEqual(expect.any(Array));
+      const body = response.body as PermissionResponse[];
+      expect(body).toEqual(expect.any(Array));
 
-      response.body.forEach((permission) => {
+      body.forEach((permission) => {
         expect(permission).toEqual(
           expect.objectContaining({
             id: expect.any(String),

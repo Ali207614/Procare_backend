@@ -41,12 +41,12 @@ export class TestHelpers {
   /**
    * Authenticate admin and return JWT token
    */
-  static async authenticateAdmin(app: INestApplication): Promise<string> {
+  static async authenticateAdmin(app: INestApplication, adminData?: Record<string, any>): Promise<string> {
     const response = await request(app.getHttpServer())
       .post('/api/v1/auth/admin/login')
       .send({
-        phone: '+998901234567',
-        password: 'testpass',
+        phone: adminData?.phone || '+998901234567',
+        password: adminData?.password || 'testpass',
       })
       .expect(200);
 
@@ -65,6 +65,41 @@ export class TestHelpers {
       .expect(200);
 
     return response.body.access_token;
+  }
+
+  /**
+   * Clean permissions table
+   */
+  static async cleanPermissionsTable(knex: Knex): Promise<void> {
+    await knex('permissions').del();
+  }
+
+  /**
+   * Clean roles table
+   */
+  static async cleanRolesTable(knex: Knex): Promise<void> {
+    await knex('roles').del();
+  }
+
+  /**
+   * Clean campaigns table
+   */
+  static async cleanCampaignsTable(knex: Knex): Promise<void> {
+    await knex('campaigns').del();
+  }
+
+  /**
+   * Clean notifications table
+   */
+  static async cleanNotificationsTable(knex: Knex): Promise<void> {
+    await knex('notifications').del();
+  }
+
+  /**
+   * Clean repair orders table
+   */
+  static async cleanRepairOrdersTable(knex: Knex): Promise<void> {
+    await knex('repair_orders').del();
   }
 
   /**

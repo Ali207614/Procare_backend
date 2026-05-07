@@ -1,25 +1,23 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { AppModule } from 'src/app.module';
 import { UsersService } from 'src/users/users.service';
 import { AuthService } from 'src/auth/auth.service';
-import { BranchesService } from 'src/branches/branches.service';
 import { TestModuleBuilder } from '../../utils/test-module-builder';
 import { CoverageHelpers } from '../../utils/coverage-helpers';
+import { TestKnex, TestRedis, AdminResponse, UserResponse } from '../utils/test-types';
 
 describe('Users Controller Complete E2E', () => {
   let app: INestApplication;
   let authService: AuthService;
   let usersService: UsersService;
-  let branchesService: BranchesService;
-  let knex: any;
-  let redis: any;
+  let knex: TestKnex;
+  let redis: TestRedis;
   let adminToken: string;
-  let testAdmin: any;
-  let testBranch: any;
-  let testUser: any;
-  let secondTestUser: any;
+  let testAdmin: AdminResponse;
+  let testBranch: { id: string };
+  let testUser: UserResponse;
+  let secondTestUser: UserResponse;
 
   beforeAll(async () => {
     const moduleBuilder = new TestModuleBuilder();
@@ -35,9 +33,8 @@ describe('Users Controller Complete E2E', () => {
     // Get services
     authService = module.get<AuthService>(AuthService);
     usersService = module.get<UsersService>(UsersService);
-    branchesService = module.get<BranchesService>(BranchesService);
-    knex = module.get('KNEX_CONNECTION');
-    redis = module.get('REDIS_CLIENT');
+    knex = module.get<TestKnex>('KNEX_CONNECTION');
+    redis = module.get<TestRedis>('REDIS_CLIENT');
 
     // Clean database and cache
     await knex.raw('DELETE FROM repair_orders');
@@ -70,9 +67,9 @@ describe('Users Controller Complete E2E', () => {
     await app.close();
   });
 
-  async function setupTestData() {
+  async function setupTestData(): Promise<void> {
     // Create test branch
-    testBranch = await knex('branches')
+    const branchResult = await knex('branches')
       .insert({
         id: knex.raw('gen_random_uuid()'),
         name: 'Test Branch',
@@ -83,7 +80,7 @@ describe('Users Controller Complete E2E', () => {
         updated_at: new Date(),
       })
       .returning('*');
-    testBranch = testBranch[0];
+    testBranch = branchResult[0];
 
     // Create user permissions
     const userPermissions = ['user.create', 'user.update', 'user.delete', 'user.view'];
@@ -124,7 +121,7 @@ describe('Users Controller Complete E2E', () => {
     }
 
     // Create test admin
-    testAdmin = await knex('admins')
+    const adminResult = await knex('admins')
       .insert({
         id: knex.raw('gen_random_uuid()'),
         first_name: 'Test',
@@ -138,7 +135,7 @@ describe('Users Controller Complete E2E', () => {
         updated_at: new Date(),
       })
       .returning('*');
-    testAdmin = testAdmin[0];
+    testAdmin = adminResult[0];
 
     // Assign role to admin
     await knex('admin_roles').insert({
@@ -150,7 +147,7 @@ describe('Users Controller Complete E2E', () => {
     });
 
     // Create test users
-    testUser = await knex('users')
+    const userResult = await knex('users')
       .insert({
         id: knex.raw('gen_random_uuid()'),
         first_name: 'Test',
@@ -162,9 +159,9 @@ describe('Users Controller Complete E2E', () => {
         updated_at: new Date(),
       })
       .returning('*');
-    testUser = testUser[0];
+    testUser = userResult[0];
 
-    secondTestUser = await knex('users')
+    const secondUserResult = await knex('users')
       .insert({
         id: knex.raw('gen_random_uuid()'),
         first_name: 'Second',
@@ -176,7 +173,7 @@ describe('Users Controller Complete E2E', () => {
         updated_at: new Date(),
       })
       .returning('*');
-    secondTestUser = secondTestUser[0];
+    secondTestUser = secondUserResult[0];
 
     // Generate admin token
     adminToken = authService.generateJwtToken({
@@ -205,7 +202,8 @@ describe('Users Controller Complete E2E', () => {
         .send(newUserData)
         .expect(201);
 
-      expect(response.body).toMatchObject({
+      const body = response.body as UserResponse;
+      expect(body).toMatchObject({
         id: expect.any(String),
         first_name: newUserData.first_name,
         last_name: newUserData.last_name,
@@ -215,7 +213,7 @@ describe('Users Controller Complete E2E', () => {
       });
 
       // Verify user was created in database
-      const createdUser = await knex('users').where('id', response.body.id).first();
+      const createdUser = await knex('users').where('id', body.id).first();
       expect(createdUser).toBeTruthy();
       expect(createdUser.phone).toBe(newUserData.phone);
       expect(createdUser.email).toBe(newUserData.email);
@@ -273,7 +271,8 @@ describe('Users Controller Complete E2E', () => {
         .send(userData)
         .expect(201);
 
-      expect(response.body.email).toBeNull();
+      const body = response.body as UserResponse;
+      expect(body.email).toBeNull();
     });
 
     it('should fail without proper permissions', async () => {
@@ -328,7 +327,8 @@ describe('Users Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body).toMatchObject({
+      const body = response.body as { data: UserResponse[]; meta: { total: number; limit: number; offset: number } };
+      expect(body).toMatchObject({
         data: expect.any(Array),
         meta: {
           total: expect.any(Number),
@@ -337,8 +337,8 @@ describe('Users Controller Complete E2E', () => {
         },
       });
 
-      expect(response.body.data.length).toBeGreaterThan(0);
-      expect(response.body.meta.total).toBeGreaterThanOrEqual(response.body.data.length);
+      expect(body.data.length).toBeGreaterThan(0);
+      expect(body.meta.total).toBeGreaterThanOrEqual(body.data.length);
     });
 
     it('should filter users by status', async () => {
@@ -347,12 +347,13 @@ describe('Users Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body.data).toEqual(
+      const body = response.body as { data: UserResponse[] };
+      expect(body.data).toEqual(
         expect.arrayContaining([expect.objectContaining({ status: 'Active' })]),
       );
 
       // Ensure no inactive users are returned
-      const inactiveUsers = response.body.data.filter((user: any) => user.status !== 'Active');
+      const inactiveUsers = body.data.filter((user) => user.status !== 'Active');
       expect(inactiveUsers).toHaveLength(0);
     });
 
@@ -362,9 +363,10 @@ describe('Users Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body.data.length).toBeGreaterThan(0);
-      const foundUser = response.body.data.find(
-        (user: any) => user.first_name === 'Test' && user.last_name === 'User',
+      const body = response.body as { data: UserResponse[] };
+      expect(body.data.length).toBeGreaterThan(0);
+      const foundUser = body.data.find(
+        (user) => user.first_name === 'Test' && user.last_name === 'User',
       );
       expect(foundUser).toBeTruthy();
     });
@@ -375,18 +377,20 @@ describe('Users Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body.data.length).toBeGreaterThan(0);
-      expect(response.body.data[0].phone).toBe(testUser.phone);
+      const body = response.body as { data: UserResponse[] };
+      expect(body.data.length).toBeGreaterThan(0);
+      expect(body.data[0].phone).toBe(testUser.phone);
     });
 
     it('should search users by email', async () => {
       const response = await request(app.getHttpServer())
-        .get(`/api/v1/users?search=${testUser.email}`)
+        .get(`/api/v1/users?search=${testUser.email as string}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body.data.length).toBeGreaterThan(0);
-      expect(response.body.data[0].email).toBe(testUser.email);
+      const body = response.body as { data: UserResponse[] };
+      expect(body.data.length).toBeGreaterThan(0);
+      expect(body.data[0].email).toBe(testUser.email);
     });
 
     it('should paginate results correctly', async () => {
@@ -398,9 +402,10 @@ describe('Users Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body.meta.limit).toBe(limit);
-      expect(response.body.meta.offset).toBe(offset);
-      expect(response.body.data.length).toBeLessThanOrEqual(limit);
+      const body = response.body as { data: UserResponse[]; meta: { total: number; limit: number; offset: number } };
+      expect(body.meta.limit).toBe(limit);
+      expect(body.meta.offset).toBe(offset);
+      expect(body.data.length).toBeLessThanOrEqual(limit);
     });
 
     it('should sort users by creation date', async () => {
@@ -409,7 +414,8 @@ describe('Users Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      const dates = response.body.data.map((user: any) => new Date(user.created_at));
+      const body = response.body as { data: UserResponse[] };
+      const dates = body.data.map((user) => new Date(user.created_at));
       const sortedDates = [...dates].sort((a, b) => b.getTime() - a.getTime());
       expect(dates).toEqual(sortedDates);
     });
@@ -420,8 +426,9 @@ describe('Users Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body.data.length).toBeLessThanOrEqual(2);
-      expect(response.body.data).toEqual(
+      const body = response.body as { data: UserResponse[] };
+      expect(body.data.length).toBeLessThanOrEqual(2);
+      expect(body.data).toEqual(
         expect.arrayContaining([expect.objectContaining({ status: 'Active' })]),
       );
     });
@@ -432,8 +439,9 @@ describe('Users Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body.data).toHaveLength(0);
-      expect(response.body.meta.total).toBe(0);
+      const body = response.body as { data: UserResponse[]; meta: { total: number } };
+      expect(body.data).toHaveLength(0);
+      expect(body.meta.total).toBe(0);
     });
 
     it('should fail with invalid query parameters', async () => {
@@ -521,7 +529,7 @@ describe('Users Controller Complete E2E', () => {
         .patch(`/api/v1/users/${secondTestUser.id}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
-          email: testUser.email, // Trying to use existing email
+          email: testUser.email as string, // Trying to use existing email
         })
         .expect(400);
     });
@@ -635,7 +643,8 @@ describe('Users Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body).toMatchObject({
+      const body = response.body as UserResponse;
+      expect(body).toMatchObject({
         id: testUser.id,
         first_name: testUser.first_name,
         last_name: testUser.last_name,
@@ -645,8 +654,8 @@ describe('Users Controller Complete E2E', () => {
         repair_orders: expect.any(Array),
       });
 
-      expect(response.body.repair_orders.length).toBe(3);
-      expect(response.body.repair_orders[0]).toMatchObject({
+      expect(body.repair_orders?.length).toBe(3);
+      expect(body.repair_orders?.[0]).toMatchObject({
         id: expect.any(String),
         device_type: expect.any(String),
         device_model: expect.any(String),
@@ -665,7 +674,8 @@ describe('Users Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(response.body.repair_orders).toHaveLength(0);
+      const body = response.body as UserResponse;
+      expect(body.repair_orders).toHaveLength(0);
     });
 
     it('should fail when getting non-existent user', async () => {
@@ -698,7 +708,8 @@ describe('Users Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      const repairOrder = response.body.repair_orders[0];
+      const body = response.body as UserResponse;
+      const repairOrder = body.repair_orders?.[0];
       expect(repairOrder).toHaveProperty('id');
       expect(repairOrder).toHaveProperty('device_type');
       expect(repairOrder).toHaveProperty('device_model');
@@ -722,7 +733,7 @@ describe('Users Controller Complete E2E', () => {
 
       for (const order of repairOrders) {
         if (order.user_id) {
-          const user = users.find((u: any) => u.id === order.user_id);
+          const user = users.find((u: { id: string }) => u.id === order.user_id);
           expect(user).toBeTruthy();
         }
       }
@@ -734,8 +745,8 @@ describe('Users Controller Complete E2E', () => {
       for (const user of users) {
         expect(user.created_at).toBeTruthy();
         expect(user.updated_at).toBeTruthy();
-        expect(new Date(user.created_at)).toBeInstanceOf(Date);
-        expect(new Date(user.updated_at)).toBeInstanceOf(Date);
+        expect(new Date(user.created_at as string)).toBeInstanceOf(Date);
+        expect(new Date(user.updated_at as string)).toBeInstanceOf(Date);
       }
     });
 
@@ -749,7 +760,7 @@ describe('Users Controller Complete E2E', () => {
 
       // Verify user doesn't appear in active queries
       const activeUsers = await knex('users').whereNull('deleted_at');
-      expect(activeUsers.find((u: any) => u.id === testUser.id)).toBeFalsy();
+      expect(activeUsers.find((u: { id: string }) => u.id === testUser.id)).toBeFalsy();
     });
 
     it('should enforce unique constraints', async () => {
@@ -766,7 +777,7 @@ describe('Users Controller Complete E2E', () => {
           updated_at: new Date(),
         });
         fail('Should have thrown unique constraint error');
-      } catch (error) {
+      } catch (error: any) {
         expect(error.code).toBe('23505'); // PostgreSQL unique constraint violation
       }
 
@@ -783,7 +794,7 @@ describe('Users Controller Complete E2E', () => {
           updated_at: new Date(),
         });
         fail('Should have thrown unique constraint error');
-      } catch (error) {
+      } catch (error: any) {
         expect(error.code).toBe('23505'); // PostgreSQL unique constraint violation
       }
     });
@@ -855,7 +866,8 @@ describe('Users Controller Complete E2E', () => {
 
       const results = await Promise.allSettled(promises);
       const successful = results.filter(
-        (r: any) => r.status === 'fulfilled' && r.value.status === 201,
+        (r): r is PromiseFulfilledResult<request.Response> =>
+          r.status === 'fulfilled' && r.value.status === 201,
       );
 
       expect(successful.length).toBe(userCount);

@@ -43,10 +43,19 @@ import {
   RepairOrderDetails,
   ViewableRepairOrdersResponse,
 } from 'src/common/types/repair-order.interface';
-import { FindAllRepairOrdersQueryDto } from 'src/repair-orders/dto/find-all-repair-orders.dto';
+import {
+  FindAllRepairOrdersQueryDto,
+  FindViewableRepairOrdersQueryDto,
+} from 'src/repair-orders/dto/find-all-repair-orders.dto';
 import { FindAllUnfilteredRepairOrdersDto } from 'src/repair-orders/dto/find-all-unfiltered-repair-orders.dto';
 import { OpenRepairOrderApplicationDto } from 'src/repair-orders/dto/open-repair-order-application.dto';
-import { UpdateClientInfoDto, UpdateProductDto, UpdateProblemDto, TransferBranchDto } from './dto';
+import {
+  UpdateClientInfoDto,
+  UpdateProductDto,
+  UpdateProblemDto,
+  TransferBranchDto,
+  TakeRepairOrderDto,
+} from './dto';
 import {
   RepairOrderDetailsSwaggerDto,
   RepairOrderListItemSwaggerDto,
@@ -284,14 +293,15 @@ export class RepairOrdersController {
   }
 
   @Patch(':repair_order_id/take')
-  @UseGuards(BranchExistGuard)
   @ApiOperation({ summary: 'Take a Mother Branch repair order into a child branch' })
   @ApiParam({ name: 'repair_order_id', description: 'Repair Order ID' })
+  @ApiBody({ type: TakeRepairOrderDto })
   take(
     @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
     @Req() req: AuthenticatedRequest,
+    @Body() dto: TakeRepairOrderDto,
   ): Promise<{ message: string }> {
-    return this.service.take(repairOrderId, req.branch.id, req.admin);
+    return this.service.take(repairOrderId, dto.branch_id, req.admin);
   }
 
   @Get()
@@ -334,7 +344,6 @@ export class RepairOrdersController {
   }
 
   @Get('viewable')
-  @UseGuards(BranchExistGuard)
   @ApiOperation({
     summary: 'Get viewable repair orders in the standard meta/data response structure',
     description:
@@ -377,9 +386,9 @@ export class RepairOrdersController {
   })
   findViewable(
     @Req() req: AuthenticatedRequest,
-    @Query() query: FindAllRepairOrdersQueryDto,
+    @Query() query: FindViewableRepairOrdersQueryDto,
   ): Promise<ViewableRepairOrdersResponse> {
-    return this.service.findViewableByAdminBranch(req.admin, req.branch.id, query);
+    return this.service.findViewableByAdminBranch(req.admin, query.branch_ids, query);
   }
 
   @Get('all')

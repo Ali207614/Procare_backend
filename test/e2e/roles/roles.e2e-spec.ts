@@ -2,15 +2,17 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from 'src/app.module';
-import { AdminFactory } from '../../factories/admin.factory';
+import { AdminFactory, AdminFactoryResult } from '../../factories/admin.factory';
 import { RoleFactory } from '../../factories/role.factory';
 import { PermissionFactory } from '../../factories/permission.factory';
 import { TestHelpers } from '../../utils/test-helpers';
+import { Knex } from 'knex';
+import { RoleResponse, AdminResponse } from '../utils/test-types';
 
 describe('Roles (e2e)', () => {
   let app: INestApplication;
-  let knex: any;
-  let adminData: any;
+  let knex: Knex;
+  let adminData: AdminFactoryResult;
   let authToken: string;
 
   beforeAll(async () => {
@@ -21,7 +23,7 @@ describe('Roles (e2e)', () => {
     app = moduleFixture.createNestApplication();
     await app.init();
 
-    knex = moduleFixture.get('KnexConnection');
+    knex = moduleFixture.get<Knex>('KnexConnection');
 
     adminData = await AdminFactory.create(knex);
     authToken = await TestHelpers.authenticateAdmin(app, adminData);
@@ -39,7 +41,7 @@ describe('Roles (e2e)', () => {
   describe('/roles (GET)', () => {
     it('should return roles with pagination', async () => {
       // Arrange
-      const roles = await RoleFactory.createMany(knex, 5);
+      await RoleFactory.createMany(knex, 5);
 
       // Act & Assert
       const response = await request(app.getHttpServer())
@@ -48,10 +50,11 @@ describe('Roles (e2e)', () => {
         .query({ limit: 3, offset: 0 })
         .expect(200);
 
-      expect(response.body.data).toHaveLength(3);
-      expect(response.body.meta.total).toBe(5);
-      expect(response.body.meta.limit).toBe(3);
-      expect(response.body.meta.offset).toBe(0);
+      const body = response.body as { data: RoleResponse[]; meta: { total: number; limit: number; offset: number } };
+      expect(body.data).toHaveLength(3);
+      expect(body.meta.total).toBe(5);
+      expect(body.meta.limit).toBe(3);
+      expect(body.meta.offset).toBe(0);
     });
 
     it('should search roles by name', async () => {
@@ -67,8 +70,9 @@ describe('Roles (e2e)', () => {
         .query({ search: 'admin' })
         .expect(200);
 
-      expect(response.body.data).toHaveLength(1);
-      expect(response.body.data[0].name).toBe('Administrator');
+      const body = response.body as { data: RoleResponse[] };
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].name).toBe('Administrator');
     });
 
     it('should return 401 without authentication', async () => {
@@ -91,7 +95,8 @@ describe('Roles (e2e)', () => {
         .send(roleDto)
         .expect(201);
 
-      expect(response.body.message).toBe('Role created successfully');
+      const body = response.body as { message: string };
+      expect(body.message).toBe('Role created successfully');
 
       const role = await knex('roles').where({ name: 'Test Role' }).first();
 
@@ -130,7 +135,8 @@ describe('Roles (e2e)', () => {
         .send(duplicateDto)
         .expect(409);
 
-      expect(response.body.message).toContain('already exists');
+      const body = response.body as { message: string };
+      expect(body.message).toContain('already exists');
     });
   });
 
@@ -153,15 +159,16 @@ describe('Roles (e2e)', () => {
         .send(roleDto)
         .expect(201);
 
-      expect(response.body.message).toBe('Role created with permissions successfully');
+      const body = response.body as { message: string };
+      expect(body.message).toBe('Role created with permissions successfully');
 
       const role = await knex('roles').where({ name: 'Role with Permissions' }).first();
 
       const rolePermissions = await knex('role_permissions').where({ role_id: role.id });
 
       expect(rolePermissions).toHaveLength(2);
-      expect(rolePermissions.map((rp) => rp.permission_id)).toContain(permission1.id);
-      expect(rolePermissions.map((rp) => rp.permission_id)).toContain(permission2.id);
+      expect(rolePermissions.map((rp: { permission_id: string }) => rp.permission_id)).toContain(permission1.id);
+      expect(rolePermissions.map((rp: { permission_id: string }) => rp.permission_id)).toContain(permission2.id);
     });
 
     it('should return 400 for invalid permission ids', async () => {
@@ -178,7 +185,8 @@ describe('Roles (e2e)', () => {
         .send(roleDto)
         .expect(400);
 
-      expect(response.body.message).toContain('permission IDs do not exist');
+      const body = response.body as { message: string };
+      expect(body.message).toContain('permission IDs do not exist');
     });
   });
 
@@ -199,10 +207,11 @@ describe('Roles (e2e)', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
-      expect(response.body.data.id).toBe(role.id);
-      expect(response.body.data.name).toBe(role.name);
-      expect(response.body.data.permissions).toHaveLength(1);
-      expect(response.body.data.permissions[0].id).toBe(permission.id);
+      const body = response.body as { data: RoleResponse & { permissions: { id: string }[] } };
+      expect(body.data.id).toBe(role.id);
+      expect(body.data.name).toBe(role.name);
+      expect(body.data.permissions).toHaveLength(1);
+      expect(body.data.permissions[0].id).toBe(permission.id);
     });
 
     it('should return 404 for non-existent role', async () => {
@@ -212,7 +221,8 @@ describe('Roles (e2e)', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .expect(404);
 
-      expect(response.body.message).toContain('not found');
+      const body = response.body as { message: string };
+      expect(body.message).toContain('not found');
     });
   });
 
@@ -236,7 +246,8 @@ describe('Roles (e2e)', () => {
         .send(updateDto)
         .expect(200);
 
-      expect(response.body.message).toBe('Role updated successfully');
+      const body = response.body as { message: string };
+      expect(body.message).toBe('Role updated successfully');
 
       const updatedRole = await knex('roles').where({ id: role.id }).first();
 
@@ -256,7 +267,8 @@ describe('Roles (e2e)', () => {
         .send({ name: 'Existing Role' })
         .expect(409);
 
-      expect(response.body.message).toContain('already exists');
+      const body = response.body as { message: string };
+      expect(body.message).toContain('already exists');
     });
   });
 
@@ -284,14 +296,15 @@ describe('Roles (e2e)', () => {
         .send(updateDto)
         .expect(200);
 
-      expect(response.body.message).toBe('Role permissions updated successfully');
+      const body = response.body as { message: string };
+      expect(body.message).toBe('Role permissions updated successfully');
 
       const rolePermissions = await knex('role_permissions').where({ role_id: role.id });
 
       expect(rolePermissions).toHaveLength(2);
-      expect(rolePermissions.map((rp) => rp.permission_id)).toContain(newPermission1.id);
-      expect(rolePermissions.map((rp) => rp.permission_id)).toContain(newPermission2.id);
-      expect(rolePermissions.map((rp) => rp.permission_id)).not.toContain(oldPermission.id);
+      expect(rolePermissions.map((rp: { permission_id: string }) => rp.permission_id)).toContain(newPermission1.id);
+      expect(rolePermissions.map((rp: { permission_id: string }) => rp.permission_id)).toContain(newPermission2.id);
+      expect(rolePermissions.map((rp: { permission_id: string }) => rp.permission_id)).not.toContain(oldPermission.id);
     });
 
     it('should remove all permissions when empty array provided', async () => {
@@ -311,7 +324,8 @@ describe('Roles (e2e)', () => {
         .send({ permission_ids: [] })
         .expect(200);
 
-      expect(response.body.message).toBe('Role permissions updated successfully');
+      const body = response.body as { message: string };
+      expect(body.message).toBe('Role permissions updated successfully');
 
       const rolePermissions = await knex('role_permissions').where({ role_id: role.id });
 
@@ -330,7 +344,8 @@ describe('Roles (e2e)', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
-      expect(response.body.message).toBe('Role deleted successfully');
+      const body = response.body as { message: string };
+      expect(body.message).toBe('Role deleted successfully');
 
       const deletedRole = await knex('roles').where({ id: role.id }).first();
 
@@ -348,7 +363,8 @@ describe('Roles (e2e)', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .expect(400);
 
-      expect(response.body.message).toContain('Cannot delete role with assigned admins');
+      const body = response.body as { message: string };
+      expect(body.message).toContain('Cannot delete role with assigned admins');
     });
   });
 
@@ -366,9 +382,10 @@ describe('Roles (e2e)', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
-      expect(response.body.data).toHaveLength(2);
-      expect(response.body.data.map((a) => a.id)).toContain(admin1.id);
-      expect(response.body.data.map((a) => a.id)).toContain(admin2.id);
+      const body = response.body as { data: AdminResponse[] };
+      expect(body.data).toHaveLength(2);
+      expect(body.data.map((a) => a.id)).toContain(admin1.id);
+      expect(body.data.map((a) => a.id)).toContain(admin2.id);
     });
   });
 
@@ -388,9 +405,10 @@ describe('Roles (e2e)', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
-      expect(response.body.data.total_roles).toBe(2);
-      expect(response.body.data.roles_with_admins).toBe(2);
-      expect(response.body.data.total_admin_assignments).toBe(3);
+      const body = response.body as { data: { total_roles: number; roles_with_admins: number; total_admin_assignments: number } };
+      expect(body.data.total_roles).toBe(2);
+      expect(body.data.roles_with_admins).toBe(2);
+      expect(body.data.total_admin_assignments).toBe(3);
     });
   });
 
@@ -398,14 +416,15 @@ describe('Roles (e2e)', () => {
     it('should handle server errors gracefully', async () => {
       // Simulate server error
       const originalKnex = knex.raw;
-      knex.raw = () => Promise.reject(new Error('Database connection failed'));
+      knex.raw = (): Promise<never> => Promise.reject(new Error('Database connection failed'));
 
       const response = await request(app.getHttpServer())
         .get('/roles')
         .set('Authorization', `Bearer ${authToken}`)
         .expect(500);
 
-      expect(response.body.message).toContain('Internal server error');
+      const body = response.body as { message: string };
+      expect(body.message).toContain('Internal server error');
 
       knex.raw = originalKnex;
     });

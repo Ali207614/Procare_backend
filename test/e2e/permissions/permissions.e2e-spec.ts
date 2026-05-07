@@ -2,14 +2,15 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from 'src/app.module';
-import { AdminFactory } from '../../factories/admin.factory';
+import { AdminFactory, AdminFactoryResult } from '../../factories/admin.factory';
 import { PermissionFactory } from '../../factories/permission.factory';
 import { TestHelpers } from '../../utils/test-helpers';
+import { Knex } from 'knex';
 
 describe('Permissions (e2e)', () => {
   let app: INestApplication;
-  let knex: any;
-  let adminData: any;
+  let knex: Knex;
+  let adminData: AdminFactoryResult;
   let authToken: string;
 
   beforeAll(async () => {
@@ -20,7 +21,7 @@ describe('Permissions (e2e)', () => {
     app = moduleFixture.createNestApplication();
     await app.init();
 
-    knex = moduleFixture.get('KnexConnection');
+    knex = moduleFixture.get<Knex>('KnexConnection');
 
     // Create test admin with appropriate permissions
     adminData = await AdminFactory.create(knex);
@@ -39,7 +40,7 @@ describe('Permissions (e2e)', () => {
   describe('/permissions (GET)', () => {
     it('should return permissions with pagination', async () => {
       // Arrange
-      const permissions = await PermissionFactory.createMany(knex, 5);
+      await PermissionFactory.createMany(knex, 5);
 
       // Act & Assert
       const response = await request(app.getHttpServer())
@@ -301,7 +302,7 @@ describe('Permissions (e2e)', () => {
     it('should handle server errors gracefully', async () => {
       // Simulate server error by using invalid database query
       const originalKnex = knex.raw;
-      knex.raw = () => Promise.reject(new Error('Database connection failed'));
+      knex.raw = (): Promise<never> => Promise.reject(new Error('Database connection failed'));
 
       const response = await request(app.getHttpServer())
         .get('/permissions')
@@ -336,7 +337,7 @@ describe('Permissions (e2e)', () => {
   describe('Performance', () => {
     it('should handle large datasets efficiently', async () => {
       // Arrange
-      const permissions = await PermissionFactory.createMany(knex, 100);
+      await PermissionFactory.createMany(knex, 100);
 
       // Act
       const start = Date.now();

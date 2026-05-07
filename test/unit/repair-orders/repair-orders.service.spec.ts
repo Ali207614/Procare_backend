@@ -1,9 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RepairOrdersService } from 'src/repair-orders/repair-orders.service';
-import { RepairOrderFactory } from '../factories/repair-order.factory';
-import { AdminFactory } from '../factories/admin.factory';
-import { UserFactory } from '../factories/user.factory';
-import { BranchFactory } from '../factories/branch.factory';
 import { RepairOrder } from 'src/common/types/repair-order.interface';
 
 import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
@@ -18,6 +14,8 @@ import { RepairOrderWebhookService } from 'src/repair-orders/services/repair-ord
 import { NotificationService } from 'src/notification/notification.service';
 import { getKnexConnectionToken } from 'nestjs-knex';
 import { HistoryService } from 'src/history/history.service';
+import { MOTHER_BRANCH_ID } from 'src/branches/branch-hierarchy.service';
+import { RepairOrderStatusesService } from 'src/repair-order-statuses/repair-order-statuses.service';
 
 function createUpdateTransaction(order: RepairOrder) {
   const builder = {
@@ -60,6 +58,7 @@ describe('RepairOrdersService', () => {
   let service: RepairOrdersService;
   let mockKnex: any;
   let mockRedis: any;
+  let mockPermissionService: any;
 
   beforeEach(async () => {
     mockKnex = {
@@ -89,6 +88,10 @@ describe('RepairOrdersService', () => {
       flushall: jest.fn(),
       flushByPrefix: jest.fn(),
     };
+    mockPermissionService = {
+      findByRolesAndBranch: jest.fn().mockResolvedValue([]),
+      checkPermissionsOrThrow: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -96,10 +99,7 @@ describe('RepairOrdersService', () => {
         { provide: getKnexConnectionToken('default'), useValue: mockKnex },
         {
           provide: RepairOrderStatusPermissionsService,
-          useValue: {
-            findByRolesAndBranch: jest.fn().mockResolvedValue([]),
-            checkPermissionsOrThrow: jest.fn(),
-          },
+          useValue: mockPermissionService,
         },
         {
           provide: RepairOrderChangeLoggerService,
@@ -132,6 +132,7 @@ describe('RepairOrdersService', () => {
           provide: HistoryService,
           useValue: { recordEntityCreated: jest.fn().mockResolvedValue(null) },
         },
+        { provide: RepairOrderStatusesService, useValue: { findViewable: jest.fn() } },
       ],
     }).compile();
 
@@ -156,13 +157,13 @@ describe('RepairOrdersService', () => {
           metrics: {
             total_repair_orders: 2,
           },
-          repair_orders: [RepairOrderFactory.create({ id: 'order-1' })],
+          repair_orders: [{ id: 'order-1' }],
         },
         'status-2': {
           metrics: {
             total_repair_orders: 5,
           },
-          repair_orders: [RepairOrderFactory.create({ id: 'order-2' })],
+          repair_orders: [{ id: 'order-2' }],
         },
       };
 
@@ -170,7 +171,9 @@ describe('RepairOrdersService', () => {
 
       const result = await service.findViewableByAdminBranch(admin as any, branchId, query);
 
-      expect(service.findAllByAdminBranch).toHaveBeenCalledWith(admin, branchId, query);
+      expect(service.findAllByAdminBranch).toHaveBeenCalledWith(admin, branchId, query, {
+        viewableEndpoint: true,
+      });
       expect(result).toEqual({
         meta: {
           total: 7,
@@ -199,6 +202,119 @@ describe('RepairOrdersService', () => {
       expect(condition.sql).toContain('pc.name_uz');
       expect(condition.params.searchTextPattern).toBe('%iphone 14%');
       expect(condition.params.searchPhoneDigitsPattern).toBeUndefined();
+    });
+
+    it('should sanitize viewable rows without changing the legacy row shape', () => {
+      const row = {
+        id: 'order-1',
+        branch: {
+          id: MOTHER_BRANCH_ID,
+          name_uz: "Farg'ona Filial",
+          name_ru: 'Фергана Филиал',
+          name_en: 'Fergana Branch',
+        },
+        current_owner_branch: MOTHER_BRANCH_ID,
+        is_read_only: true,
+        is_hidden_status_for_branch: false,
+        can_take: true,
+      };
+
+      const result = (service as any).toViewableRepairOrder(row);
+
+      expect(result).toEqual({
+        id: 'order-1',
+        branch: {
+          id: MOTHER_BRANCH_ID,
+          name_en: 'Fergana Branch',
+          name_ru: 'Фергана Филиал',
+          name_uz: "Farg'ona Filial",
+        },
+        is_mothers: true,
+      });
+      expect(result).not.toHaveProperty('current_owner_branch');
+      expect(result).not.toHaveProperty('is_read_only');
+      expect(result).not.toHaveProperty('is_hidden_status_for_branch');
+      expect(result).not.toHaveProperty('can_take');
+    });
+
+    it('should filter hidden statuses only for the viewable endpoint', async () => {
+      const admin = { id: 'admin-123', roles: [{ id: 'role-1', name: 'Operator' }] };
+      const query = { limit: 20, offset: 0 } as any;
+      const rawCalls: any[] = [];
+
+      mockPermissionService.findByRolesAndBranch.mockResolvedValue([
+        { role_id: 'role-1', status_id: 'visible-status', can_view: true },
+        { role_id: 'role-1', status_id: 'hidden-status', can_view: false },
+      ]);
+      mockRedis.get.mockResolvedValue(null);
+      mockKnex.raw.mockImplementation((sql: string, params: Record<string, unknown>) => {
+        rawCalls.push({ sql, params });
+        return Promise.resolve({ rows: [] });
+      });
+
+      await service.findAllByAdminBranch(admin as any, MOTHER_BRANCH_ID, query, {
+        viewableEndpoint: true,
+      });
+      expect(rawCalls[0].params.statusIds).toEqual(['visible-status']);
+
+      rawCalls.length = 0;
+      await service.findAllByAdminBranch(admin as any, MOTHER_BRANCH_ID, query);
+      expect(rawCalls[0].params.statusIds).toEqual(['visible-status', 'hidden-status']);
+    });
+
+    it('should use selected branches as the permission scope for viewable orders', async () => {
+      const admin = { id: 'admin-123', roles: [{ id: 'role-1', name: 'Operator' }] };
+      const query = { branch_ids: ['branch-a', 'branch-b'], limit: 20, offset: 0 } as any;
+      const rawCalls: any[] = [];
+
+      (service as any).branchHierarchy.getVisibleBranchIds = jest
+        .fn()
+        .mockResolvedValue([MOTHER_BRANCH_ID, 'branch-a', 'branch-b']);
+      mockPermissionService.findByRolesAndBranch.mockImplementation(
+        (_roles: unknown, branchId: string) => {
+          if (branchId === 'branch-a') {
+            return Promise.resolve([
+              {
+                branch_id: 'branch-a',
+                role_id: 'role-1',
+                status_id: 'shared-status',
+                can_view: false,
+              },
+            ]);
+          }
+
+          return Promise.resolve([
+            {
+              branch_id: 'branch-b',
+              role_id: 'role-1',
+              status_id: 'shared-status',
+              can_view: true,
+            },
+          ]);
+        },
+      );
+      mockRedis.get.mockResolvedValue(null);
+      mockKnex.raw.mockImplementation((sql: string, params: Record<string, unknown>) => {
+        rawCalls.push({ sql, params });
+        return Promise.resolve({ rows: [] });
+      });
+
+      await service.findAllByAdminBranch(admin as any, query.branch_ids, query, {
+        viewableEndpoint: true,
+      });
+
+      expect(mockPermissionService.findByRolesAndBranch).toHaveBeenCalledWith(
+        admin.roles,
+        'branch-a',
+      );
+      expect(mockPermissionService.findByRolesAndBranch).toHaveBeenCalledWith(
+        admin.roles,
+        'branch-b',
+      );
+      expect(rawCalls[0].params.branchIds).toEqual([MOTHER_BRANCH_ID, 'branch-a', 'branch-b']);
+      expect(rawCalls[0].params.permissionBranchIds).toEqual(['branch-a', 'branch-b']);
+      expect(rawCalls[0].params.statusIds).toEqual(['shared-status']);
+      expect(rawCalls[0].sql).toContain('vp.branch_id = ro.branch_id');
     });
   });
 

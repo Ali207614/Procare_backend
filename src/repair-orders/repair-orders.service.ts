@@ -30,7 +30,10 @@ import { CreateRepairOrderDto } from 'src/repair-orders/dto/create-repair-order.
 import { OpenRepairOrderApplicationDto } from 'src/repair-orders/dto/open-repair-order-application.dto';
 import { UpdateRepairOrderDto } from 'src/repair-orders/dto/update-repair-order.dto';
 import { MoveRepairOrderDto } from 'src/repair-orders/dto/move-repair-order.dto';
-import { FindAllRepairOrdersQueryDto } from 'src/repair-orders/dto/find-all-repair-orders.dto';
+import {
+  FindAllRepairOrdersQueryDto,
+  FindViewableRepairOrdersQueryDto,
+} from 'src/repair-orders/dto/find-all-repair-orders.dto';
 import { FindAllUnfilteredRepairOrdersDto } from 'src/repair-orders/dto/find-all-unfiltered-repair-orders.dto';
 import { UpdateClientInfoDto, UpdateProductDto, UpdateProblemDto, TransferBranchDto } from './dto';
 import { PdfService } from 'src/pdf/pdf.service';
@@ -59,6 +62,23 @@ type RepairOrderAssignmentSource =
 type RepairOrderSearchCondition = {
   sql: string;
   params: Record<string, unknown>;
+};
+type FindAllByAdminBranchOptions = {
+  viewableEndpoint?: boolean;
+};
+type FindAllBranchScope = {
+  requestedBranchIds: string[];
+  ownerBranchIds: string[];
+  permissionBranchIds: string[];
+  viewerBranchId: string;
+};
+type RepairOrderBranchInput = string | string[] | undefined;
+type RepairOrderListQueryDto = FindAllRepairOrdersQueryDto | FindViewableRepairOrdersQueryDto;
+type FreshRepairOrderRow = FreshRepairOrder & {
+  current_owner_branch?: string | null;
+  is_read_only?: boolean;
+  can_take?: boolean;
+  is_hidden_status_for_branch?: boolean;
 };
 const ASSIGNMENT_SOURCE_TELEPHONY_AUTO: RepairOrderAssignmentSource = 'telephony_auto';
 const ASSIGNMENT_SOURCE_TELEPHONY_ANSWERED: RepairOrderAssignmentSource = 'telephony_answered';
@@ -1004,10 +1024,72 @@ export class RepairOrdersService {
     }
   }
 
+  private normalizeRepairOrderBranchIds(branchIds: RepairOrderBranchInput): string[] {
+    const values = Array.isArray(branchIds) ? branchIds : branchIds ? [branchIds] : [];
+    return [...new Set(values.map((id) => id?.trim()).filter((id): id is string => Boolean(id)))];
+  }
+
+  private async resolveFindAllBranchScope(
+    admin: AdminPayload,
+    branchIds: RepairOrderBranchInput,
+    useMultiBranchPermissions: boolean,
+  ): Promise<FindAllBranchScope> {
+    const requestedBranchIds = this.normalizeRepairOrderBranchIds(branchIds);
+    if (!requestedBranchIds.length) {
+      throw new BadRequestException({
+        message: 'At least one branch ID must be provided in branch_ids',
+        location: 'branch_ids',
+      });
+    }
+
+    if (!useMultiBranchPermissions) {
+      const branchId = requestedBranchIds[0];
+      await this.branchHierarchy.assertVisibleBranch(admin, branchId);
+      const visibleBranchIds = await this.branchHierarchy.getVisibleBranchIds(admin);
+      const ownerBranchIds = this.branchHierarchy.isMotherBranch(branchId)
+        ? visibleBranchIds
+        : [MOTHER_BRANCH_ID, branchId].filter((id) => visibleBranchIds.includes(id));
+
+      return {
+        requestedBranchIds: [branchId],
+        ownerBranchIds,
+        permissionBranchIds: [branchId],
+        viewerBranchId: branchId,
+      };
+    }
+
+    const visibleBranchIds = await this.branchHierarchy.getVisibleBranchIds(admin);
+    const unavailableBranchIds = requestedBranchIds.filter((id) => !visibleBranchIds.includes(id));
+    if (unavailableBranchIds.length) {
+      throw new ForbiddenException({
+        message: 'You do not have access to one or more requested branches',
+        location: 'branch_ids',
+      });
+    }
+
+    const includesMotherBranch = requestedBranchIds.includes(MOTHER_BRANCH_ID);
+    const ownerBranchIds = includesMotherBranch
+      ? visibleBranchIds
+      : [...new Set([MOTHER_BRANCH_ID, ...requestedBranchIds])].filter((id) =>
+          visibleBranchIds.includes(id),
+        );
+    const permissionBranchIds = includesMotherBranch
+      ? visibleBranchIds
+      : [...new Set(requestedBranchIds)];
+
+    return {
+      requestedBranchIds,
+      ownerBranchIds,
+      permissionBranchIds,
+      viewerBranchId: includesMotherBranch ? MOTHER_BRANCH_ID : requestedBranchIds[0],
+    };
+  }
+
   async findAllByAdminBranch(
     admin: AdminPayload,
-    branchId: string,
-    query: FindAllRepairOrdersQueryDto,
+    branchIds: RepairOrderBranchInput,
+    query: RepairOrderListQueryDto,
+    options: FindAllByAdminBranchOptions = {},
   ): Promise<ViewableRepairOrdersByStatus> {
     const {
       offset,
@@ -1031,16 +1113,27 @@ export class RepairOrdersService {
       status_ids,
     } = query;
 
-    const permissions: RepairOrderStatusPermission[] =
-      await this.permissionService.findByRolesAndBranch(admin.roles, branchId);
+    const branchScope = await this.resolveFindAllBranchScope(
+      admin,
+      branchIds,
+      options.viewableEndpoint === true,
+    );
+    const { requestedBranchIds, ownerBranchIds, permissionBranchIds, viewerBranchId } = branchScope;
+    const permissions: RepairOrderStatusPermission[] = (
+      await Promise.all(
+        permissionBranchIds.map((permissionBranchId) =>
+          this.permissionService.findByRolesAndBranch(admin.roles, permissionBranchId),
+        ),
+      )
+    ).flat();
 
-    await this.branchHierarchy.assertVisibleBranch(admin, branchId);
-    const visibleBranchIds = await this.branchHierarchy.getVisibleBranchIds(admin);
-    const ownerBranchIds = this.branchHierarchy.isMotherBranch(branchId)
-      ? visibleBranchIds
-      : [MOTHER_BRANCH_ID, branchId].filter((id) => visibleBranchIds.includes(id));
-
-    let statusIds: string[] = [...new Set(permissions.map((p) => p.status_id))];
+    const primaryRoleId = admin.roles[0]?.id ?? null;
+    const statusPermissions = options.viewableEndpoint
+      ? permissions.filter(
+          (permission) => permission.role_id === primaryRoleId && permission.can_view,
+        )
+      : permissions;
+    let statusIds: string[] = [...new Set(statusPermissions.map((p) => p.status_id))];
 
     if (!statusIds.length || !ownerBranchIds.length) {
       return {};
@@ -1079,12 +1172,14 @@ export class RepairOrdersService {
       date_to,
       status_ids,
       agreedDateStatusIds,
+      requestedBranchIds,
       ownerBranchIds,
-      visibleBranchIds,
-      viewerBranchId: branchId,
+      permissionBranchIds,
+      viewerBranchId,
+      viewableEndpoint: options.viewableEndpoint === true,
     });
 
-    const cacheKey = `${this.table}:${branchId}:${admin.id}:${ownerBranchIds.join(',')}:${sort_by}:${sort_order}:${offset}:${limit}:${Buffer.from(filterHash).toString('base64')}`;
+    const cacheKey = `${this.table}:${requestedBranchIds.join(',')}:${admin.id}:${ownerBranchIds.join(',')}:${sort_by}:${sort_order}:${offset}:${limit}:${options.viewableEndpoint ? 'viewable' : 'legacy'}:${Buffer.from(filterHash).toString('base64')}`;
     const cached: ViewableRepairOrdersByStatus | null = await this.redisService.get(cacheKey);
     if (cached) {
       return cached;
@@ -1094,9 +1189,10 @@ export class RepairOrdersService {
     const whereConditions: string[] = [];
     const endRow = offset + limit;
     const queryParams: Record<string, unknown> = {
-      branchId,
-      viewerBranchId: branchId,
+      branchId: viewerBranchId,
+      viewerBranchId,
       branchIds: ownerBranchIds,
+      permissionBranchIds,
       motherBranchId: MOTHER_BRANCH_ID,
       primaryRoleId: admin.roles[0]?.id ?? null,
       statusIds,
@@ -1217,6 +1313,21 @@ export class RepairOrdersService {
     const additionalWhere =
       whereConditions.length > 0 ? `\n  AND ${whereConditions.join('\n  AND ')}` : '';
     querySql = querySql.replace('/*ADDITIONAL_WHERE*/', additionalWhere);
+    const visibilityWhere = options.viewableEndpoint
+      ? `
+  AND EXISTS (
+    SELECT 1
+    FROM repair_order_status_permissions vp
+    WHERE vp.role_id = :primaryRoleId
+      AND vp.status_id = ro.status_id
+      AND vp.can_view = true
+      AND (
+        (ro.branch_id <> :motherBranchId AND vp.branch_id = ro.branch_id)
+        OR (ro.branch_id = :motherBranchId AND vp.branch_id = ANY(:permissionBranchIds))
+      )
+  )`
+      : '';
+    querySql = querySql.split('/*VISIBILITY_WHERE*/').join(visibilityWhere);
 
     try {
       const countSql = `
@@ -1228,11 +1339,12 @@ export class RepairOrdersService {
           AND ro.status       = 'Open'
           AND ro.status_id    = ANY(:statusIds)
           ${additionalWhere}
+          ${visibilityWhere}
         GROUP BY ro.status_id
       `;
 
-      const [freshOrders, countResults] = await Promise.all([
-        this.knex.raw(querySql, queryParams).then((r) => r.rows as FreshRepairOrder[]),
+      const [freshOrdersRaw, countResults] = await Promise.all([
+        this.knex.raw(querySql, queryParams).then((r) => r.rows as FreshRepairOrderRow[]),
         this.knex
           .raw(countSql, queryParams)
           .then((r) => r.rows as { status_id: string; total_count: string }[]),
@@ -1245,6 +1357,10 @@ export class RepairOrdersService {
         },
         {} as Record<string, number>,
       );
+
+      const freshOrders: FreshRepairOrder[] = options.viewableEndpoint
+        ? freshOrdersRaw.map((order) => this.toViewableRepairOrder(order))
+        : freshOrdersRaw;
 
       const result: ViewableRepairOrdersByStatus = {};
       for (const statusId of statusIds) {
@@ -1272,10 +1388,12 @@ export class RepairOrdersService {
 
   async findViewableByAdminBranch(
     admin: AdminPayload,
-    branchId: string,
-    query: FindAllRepairOrdersQueryDto,
+    branchIds: RepairOrderBranchInput,
+    query: FindViewableRepairOrdersQueryDto,
   ): Promise<ViewableRepairOrdersResponse> {
-    const data = await this.findAllByAdminBranch(admin, branchId, query);
+    const data = await this.findAllByAdminBranch(admin, branchIds ?? query.branch_ids, query, {
+      viewableEndpoint: true,
+    });
     const total = Object.values(data).reduce(
       (sum, statusGroup) => sum + statusGroup.metrics.total_repair_orders,
       0,
@@ -1288,6 +1406,33 @@ export class RepairOrdersService {
         offset: query.offset ?? 0,
       },
       data,
+    };
+  }
+
+  private toViewableRepairOrder(order: FreshRepairOrderRow): FreshRepairOrder {
+    const sanitized = { ...order };
+    const currentOwnerBranch = sanitized.current_owner_branch ?? sanitized.branch?.id;
+    delete sanitized.current_owner_branch;
+    delete sanitized.is_read_only;
+    delete sanitized.can_take;
+    delete sanitized.is_hidden_status_for_branch;
+
+    const branch = sanitized.branch ?? {
+      id: null,
+      name_uz: null,
+      name_ru: null,
+      name_en: null,
+    };
+
+    return {
+      ...sanitized,
+      branch: {
+        id: branch.id,
+        name_en: branch.name_en,
+        name_ru: branch.name_ru,
+        name_uz: branch.name_uz,
+      },
+      is_mothers: currentOwnerBranch === MOTHER_BRANCH_ID,
     };
   }
 

@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
 import {
   IsIn,
   IsInt,
@@ -6,6 +6,8 @@ import {
   Matches,
   Min,
   IsArray,
+  ArrayNotEmpty,
+  ArrayUnique,
   IsString,
   IsDateString,
 } from 'class-validator';
@@ -204,4 +206,23 @@ export class FindAllRepairOrdersQueryDto {
     message: 'Each value in status_ids must be a valid UUID',
   })
   status_ids?: string[];
+}
+
+export class FindViewableRepairOrdersQueryDto extends OmitType(FindAllRepairOrdersQueryDto, [
+  'branch_id',
+] as const) {
+  @ApiProperty({
+    description: 'Branch IDs',
+    isArray: true,
+    example: ['c7a77f42-2f13-4b8e-b8cb-7d5f2c82fbbb'],
+  })
+  @ToArray()
+  @IsArray()
+  @ArrayNotEmpty({ message: 'branch_ids must contain at least one branch ID' })
+  @ArrayUnique({ message: 'branch_ids must not contain duplicate values' })
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    each: true,
+    message: 'Each value in branch_ids must be a valid UUID',
+  })
+  branch_ids!: string[];
 }

@@ -29,6 +29,7 @@ queue_orders AS (
     WHERE ro.branch_id = ANY(:branchIds)
       AND ro.status = 'Open'
       AND ro.status_id = ANY(:statusIds)
+      /*VISIBILITY_WHERE*/
 ),
 queue_deadlines AS (
     SELECT
@@ -55,6 +56,7 @@ per_status_ranked AS (
     WHERE ro.branch_id   = ANY(:branchIds)
       AND ro.status       = 'Open'
       AND ro.status_id    = ANY(:statusIds)
+      /*VISIBILITY_WHERE*/
     /*ADDITIONAL_WHERE*/
 )
 SELECT
@@ -310,10 +312,10 @@ FROM repair_orders ro
       ON sp.branch_id = :viewerBranchId
      AND sp.status_id = ro.status_id
      AND sp.role_id = :primaryRoleId
-
 WHERE ro.branch_id  = ANY(:branchIds)
   AND ro.status     = 'Open'
   AND ro.status_id  = ANY(:statusIds)
+  /*VISIBILITY_WHERE*/
   -- Per-status pagination: offset/limit apply independently inside each status column
   AND psr.rn >  :offset
   AND psr.rn <= :endRow
