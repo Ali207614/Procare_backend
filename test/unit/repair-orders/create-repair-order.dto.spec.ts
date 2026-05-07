@@ -1,7 +1,11 @@
 import 'reflect-metadata';
+import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { CreateRepairOrderDto } from 'src/repair-orders/dto/create-repair-order.dto';
-import { FindAllRepairOrdersQueryDto } from 'src/repair-orders/dto/find-all-repair-orders.dto';
+import {
+  FindAllRepairOrdersQueryDto,
+  FindViewableRepairOrdersQueryDto,
+} from 'src/repair-orders/dto/find-all-repair-orders.dto';
 import { UpdateRepairOrderDto } from 'src/repair-orders/dto/update-repair-order.dto';
 
 describe('CreateRepairOrderDto', () => {
@@ -103,5 +107,17 @@ describe('CreateRepairOrderDto', () => {
     const searchError = errors.find((error) => error.property === 'search');
 
     expect(searchError).toBeUndefined();
+  });
+
+  it('accepts a single UUID string in viewable repair order branch_ids query', async () => {
+    const dto = plainToInstance(FindViewableRepairOrdersQueryDto, {
+      branch_ids: '00000000-0000-4000-8000-000000000000',
+    });
+
+    const errors = await validate(dto);
+    const branchIdsError = errors.find((error) => error.property === 'branch_ids');
+
+    expect(dto.branch_ids).toEqual(['00000000-0000-4000-8000-000000000000']);
+    expect(branchIdsError).toBeUndefined();
   });
 });

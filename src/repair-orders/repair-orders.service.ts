@@ -1058,6 +1058,7 @@ export class RepairOrdersService {
       };
     }
 
+    const includesMotherBranch = requestedBranchIds.includes(MOTHER_BRANCH_ID);
     const visibleBranchIds = await this.branchHierarchy.getVisibleBranchIds(admin);
     const unavailableBranchIds = requestedBranchIds.filter((id) => !visibleBranchIds.includes(id));
     if (unavailableBranchIds.length) {
@@ -1067,20 +1068,10 @@ export class RepairOrdersService {
       });
     }
 
-    const includesMotherBranch = requestedBranchIds.includes(MOTHER_BRANCH_ID);
-    const ownerBranchIds = includesMotherBranch
-      ? visibleBranchIds
-      : [...new Set([MOTHER_BRANCH_ID, ...requestedBranchIds])].filter((id) =>
-          visibleBranchIds.includes(id),
-        );
-    const permissionBranchIds = includesMotherBranch
-      ? visibleBranchIds
-      : [...new Set(requestedBranchIds)];
-
     return {
       requestedBranchIds,
-      ownerBranchIds,
-      permissionBranchIds,
+      ownerBranchIds: requestedBranchIds,
+      permissionBranchIds: requestedBranchIds,
       viewerBranchId: includesMotherBranch ? MOTHER_BRANCH_ID : requestedBranchIds[0],
     };
   }
@@ -1119,6 +1110,7 @@ export class RepairOrdersService {
       options.viewableEndpoint === true,
     );
     const { requestedBranchIds, ownerBranchIds, permissionBranchIds, viewerBranchId } = branchScope;
+    const primaryRoleId = admin.roles[0]?.id ?? null;
     const permissions: RepairOrderStatusPermission[] = (
       await Promise.all(
         permissionBranchIds.map((permissionBranchId) =>
@@ -1127,7 +1119,6 @@ export class RepairOrdersService {
       )
     ).flat();
 
-    const primaryRoleId = admin.roles[0]?.id ?? null;
     const statusPermissions = options.viewableEndpoint
       ? permissions.filter(
           (permission) => permission.role_id === primaryRoleId && permission.can_view,

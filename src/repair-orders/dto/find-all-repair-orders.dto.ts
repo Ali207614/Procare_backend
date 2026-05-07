@@ -220,7 +220,7 @@ export class FindViewableRepairOrdersQueryDto extends OmitType(FindAllRepairOrde
   @IsArray()
   @ArrayNotEmpty({ message: 'branch_ids must contain at least one branch ID' })
   @ArrayUnique({ message: 'branch_ids must not contain duplicate values' })
-  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
     each: true,
     message: 'Each value in branch_ids must be a valid UUID',
   })

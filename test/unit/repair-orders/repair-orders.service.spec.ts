@@ -262,7 +262,7 @@ describe('RepairOrdersService', () => {
       expect(rawCalls[0].params.statusIds).toEqual(['visible-status', 'hidden-status']);
     });
 
-    it('should use selected branches as the permission scope for viewable orders', async () => {
+    it('should use only selected branches as the data scope for viewable orders', async () => {
       const admin = { id: 'admin-123', roles: [{ id: 'role-1', name: 'Operator' }] };
       const query = { branch_ids: ['branch-a', 'branch-b'], limit: 20, offset: 0 } as any;
       const rawCalls: any[] = [];
@@ -311,10 +311,44 @@ describe('RepairOrdersService', () => {
         admin.roles,
         'branch-b',
       );
-      expect(rawCalls[0].params.branchIds).toEqual([MOTHER_BRANCH_ID, 'branch-a', 'branch-b']);
+      expect(rawCalls[0].params.branchIds).toEqual(['branch-a', 'branch-b']);
       expect(rawCalls[0].params.permissionBranchIds).toEqual(['branch-a', 'branch-b']);
       expect(rawCalls[0].params.statusIds).toEqual(['shared-status']);
       expect(rawCalls[0].sql).toContain('vp.branch_id = ro.branch_id');
+    });
+
+    it('should not expand Mother Branch selection to all visible branches for Super Admins', async () => {
+      const admin = { id: 'admin-123', roles: [{ id: 'role-1', name: 'Super Admin' }] };
+      const query = { branch_ids: [MOTHER_BRANCH_ID], limit: 20, offset: 0 } as any;
+      const rawCalls: any[] = [];
+
+      (service as any).branchHierarchy.getVisibleBranchIds = jest
+        .fn()
+        .mockResolvedValue([MOTHER_BRANCH_ID, 'branch-a', 'branch-b']);
+      mockPermissionService.findByRolesAndBranch.mockResolvedValue([
+        {
+          branch_id: MOTHER_BRANCH_ID,
+          role_id: 'role-1',
+          status_id: 'visible-status',
+          can_view: true,
+        },
+      ]);
+      mockRedis.get.mockResolvedValue(null);
+      mockKnex.raw.mockImplementation((sql: string, params: Record<string, unknown>) => {
+        rawCalls.push({ sql, params });
+        return Promise.resolve({ rows: [] });
+      });
+
+      await service.findAllByAdminBranch(admin as any, query.branch_ids, query, {
+        viewableEndpoint: true,
+      });
+
+      expect(rawCalls[0].params.branchIds).toEqual([MOTHER_BRANCH_ID]);
+      expect(mockPermissionService.findByRolesAndBranch).toHaveBeenCalledTimes(1);
+      expect(mockPermissionService.findByRolesAndBranch).toHaveBeenCalledWith(
+        admin.roles,
+        MOTHER_BRANCH_ID,
+      );
     });
   });
 
