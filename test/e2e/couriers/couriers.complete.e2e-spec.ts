@@ -1,17 +1,16 @@
-import { Test, TestingModule } from '@nestjs/testing';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { AppModule } from 'src/app.module';
-import { CouriersService } from 'src/couriers/couriers.service';
 import { AuthService } from 'src/auth/auth.service';
 import { TestModuleBuilder } from '../../utils/test-module-builder';
 import { CoverageHelpers } from '../../utils/coverage-helpers';
+import { Knex } from 'knex';
 
 describe('Couriers Controller Complete E2E', () => {
   let app: INestApplication;
   let authService: AuthService;
-  let couriersService: CouriersService;
-  let knex: any;
+  let knex: Knex;
   let redis: any;
   let adminToken: string;
   let testAdmin: any;
@@ -32,8 +31,7 @@ describe('Couriers Controller Complete E2E', () => {
 
     // Get services
     authService = module.get<AuthService>(AuthService);
-    couriersService = module.get<CouriersService>(CouriersService);
-    knex = module.get('KNEX_CONNECTION');
+    knex = module.get<Knex>('KNEX_CONNECTION');
     redis = module.get('REDIS_CLIENT');
 
     // Clean database and cache
@@ -65,7 +63,7 @@ describe('Couriers Controller Complete E2E', () => {
     await app.close();
   });
 
-  async function setupTestData() {
+  async function setupTestData(): Promise<void> {
     // Create test branches
     testBranch = await knex('branches')
       .insert({
@@ -228,7 +226,7 @@ describe('Couriers Controller Complete E2E', () => {
       });
 
       // All couriers should belong to the requested branch
-      response.body.data.forEach((courier) => {
+      response.body.data.forEach((courier: any) => {
         expect(courier.branch_id).toBe(testBranch.id);
       });
     });
@@ -242,7 +240,7 @@ describe('Couriers Controller Complete E2E', () => {
       expect(response.body.data.length).toBe(2); // 2 couriers for second test branch
       expect(response.body.meta.total).toBe(2);
 
-      response.body.data.forEach((courier) => {
+      response.body.data.forEach((courier: any) => {
         expect(courier.branch_id).toBe(secondTestBranch.id);
       });
     });
@@ -342,7 +340,7 @@ describe('Couriers Controller Complete E2E', () => {
         .expect(200);
 
       expect(response.body.data.length).toBeLessThanOrEqual(2);
-      response.body.data.forEach((courier) => {
+      response.body.data.forEach((courier: any) => {
         expect(courier.name.toLowerCase()).toContain('courier');
       });
     });
@@ -448,8 +446,8 @@ describe('Couriers Controller Complete E2E', () => {
       for (const courier of couriers) {
         expect(courier.created_at).toBeTruthy();
         expect(courier.updated_at).toBeTruthy();
-        expect(new Date(courier.created_at)).toBeInstanceOf(Date);
-        expect(new Date(courier.updated_at)).toBeInstanceOf(Date);
+        expect(new Date(courier.created_at as string)).toBeInstanceOf(Date);
+        expect(new Date(courier.updated_at as string)).toBeInstanceOf(Date);
       }
     });
 
@@ -465,8 +463,8 @@ describe('Couriers Controller Complete E2E', () => {
           created_at: new Date(),
           updated_at: new Date(),
         });
-        fail('Should have thrown unique constraint error');
-      } catch (error) {
+        throw new Error('Should have thrown unique constraint error');
+      } catch (error: any) {
         expect(error.code).toBe('23505'); // PostgreSQL unique constraint violation
       }
     });
@@ -483,8 +481,8 @@ describe('Couriers Controller Complete E2E', () => {
           created_at: new Date(),
           updated_at: new Date(),
         });
-        fail('Should have thrown unique constraint error');
-      } catch (error) {
+        throw new Error('Should have thrown unique constraint error');
+      } catch (error: any) {
         expect(error.code).toBe('23505'); // PostgreSQL unique constraint violation
       }
     });
@@ -532,7 +530,9 @@ describe('Couriers Controller Complete E2E', () => {
       }
 
       const results = await Promise.allSettled(promises);
-      const successful = results.filter((r) => r.status === 'fulfilled' && r.value.status === 200);
+      const successful = results.filter(
+        (r) => r.status === 'fulfilled' && (r.value as any).status === 200,
+      );
 
       expect(successful.length).toBe(requestCount);
     });
@@ -652,7 +652,7 @@ describe('Couriers Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      response.body.data.forEach((courier) => {
+      response.body.data.forEach((courier: any) => {
         // Should not expose internal fields that might be sensitive
         expect(courier).not.toHaveProperty('password');
         expect(courier).not.toHaveProperty('internal_id');
@@ -668,7 +668,7 @@ describe('Couriers Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      response.body.data.forEach((courier) => {
+      response.body.data.forEach((courier: any) => {
         expect(courier.branch_id).toBe(testBranch.id);
       });
     });
@@ -692,7 +692,7 @@ describe('Couriers Controller Complete E2E', () => {
         }),
       );
 
-      response.body.data.forEach((courier) => {
+      response.body.data.forEach((courier: any) => {
         expect(courier).toEqual(
           expect.objectContaining({
             id: expect.any(String),
@@ -715,8 +715,8 @@ describe('Couriers Controller Complete E2E', () => {
         );
 
         // Validate date format
-        expect(new Date(courier.created_at)).toBeInstanceOf(Date);
-        expect(new Date(courier.updated_at)).toBeInstanceOf(Date);
+        expect(new Date(courier.created_at as string)).toBeInstanceOf(Date);
+        expect(new Date(courier.updated_at as string)).toBeInstanceOf(Date);
 
         // Validate phone format
         expect(courier.phone).toMatch(/^\+998\d{9}$/);
