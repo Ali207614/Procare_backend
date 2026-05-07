@@ -1,6 +1,6 @@
-import { RepairOrdersService } from '../../src/repair-orders/repair-orders.service';
-import { CustomerNoAnswerCronService } from '../../src/repair-orders/services/customer-no-answer-cron.service';
-import { RepairOrder } from '../../src/common/types/repair-order.interface';
+import { RepairOrdersService } from 'src/repair-orders/repair-orders.service';
+import { CustomerNoAnswerCronService } from 'src/repair-orders/services/customer-no-answer-cron.service';
+import { RepairOrder } from 'src/common/types/repair-order.interface';
 
 type Builder = {
   where: jest.Mock;

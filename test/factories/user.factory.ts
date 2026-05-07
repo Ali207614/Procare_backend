@@ -2,19 +2,41 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { Knex } from 'knex';
 
-export class UserFactory {
-  static create(overrides?: any): Promise<any>;
-  static create(knex: Knex, overrides?: any): Promise<any>;
-  static async create(knexOrOverrides: any = {}, overrides: any = {}): Promise<any> {
-    let knex: Knex | null = null;
-    let actualOverrides = knexOrOverrides;
+export interface UserFactoryResult {
+  id: string;
+  phone: string;
+  full_name: string;
+  email: string;
+  address: string;
+  birth_date: string;
+  status: string;
+  registered_at: Date;
+  last_login: Date | null;
+  created_at: Date;
+  updated_at: Date;
+  deleted_at: Date | null;
+  phone_number?: string;
+}
 
-    if (knexOrOverrides && typeof knexOrOverrides.insert === 'function') {
+export class UserFactory {
+  static create(overrides?: Record<string, unknown>): Promise<UserFactoryResult>;
+  static create(knex: Knex, overrides?: Record<string, unknown>): Promise<UserFactoryResult>;
+  static async create(
+    knexOrOverrides: Knex | Record<string, unknown> = {},
+    overrides: Record<string, unknown> = {},
+  ): Promise<UserFactoryResult> {
+    let knex: Knex | null = null;
+    let actualOverrides = knexOrOverrides as Record<string, unknown>;
+
+    if (
+      knexOrOverrides &&
+      typeof (knexOrOverrides as Record<string, unknown>).insert === 'function'
+    ) {
       knex = knexOrOverrides as Knex;
       actualOverrides = overrides;
     }
 
-    const data = {
+    const data: UserFactoryResult = {
       id: uuidv4(),
       phone: '+998901234568',
       full_name: 'Test User',
@@ -28,24 +50,27 @@ export class UserFactory {
       updated_at: new Date(),
       deleted_at: null,
       ...actualOverrides,
-    };
+    } as UserFactoryResult;
 
     if (knex) {
       // In this project, users table might have phone_number instead of phone
       // and other differences. Let's adjust based on common patterns if needed.
-      const dbData = { ...data };
+      const dbData: Record<string, unknown> = { ...data };
       if (dbData.phone && !dbData.phone_number) {
-        (dbData as any).phone_number = dbData.phone;
+        dbData.phone_number = dbData.phone;
       }
-      
+
       await knex('users').insert(dbData);
     }
 
     return data;
   }
 
-  static async createMany(count: number, overrides = {}) {
-    const results = [];
+  static async createMany(
+    count: number,
+    overrides: Record<string, unknown> = {},
+  ): Promise<UserFactoryResult[]> {
+    const results: UserFactoryResult[] = [];
     for (let i = 0; i < count; i++) {
       results.push(
         await this.create({
@@ -59,7 +84,7 @@ export class UserFactory {
     return results;
   }
 
-  static createDto(overrides = {}) {
+  static createDto(overrides: Record<string, unknown> = {}): Record<string, unknown> {
     return {
       phone: '+998901234568',
       full_name: 'Test User',
@@ -70,7 +95,7 @@ export class UserFactory {
     };
   }
 
-  static createPayload(overrides = {}) {
+  static createPayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
     return {
       id: uuidv4(),
       phone_number: '+998901234568',

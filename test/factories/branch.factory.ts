@@ -2,17 +2,41 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { Knex } from 'knex';
 
-export class BranchFactory {
-  static async create(knexOrOverrides: any = {}, overrides: any = {}) {
-    let knex: Knex | null = null;
-    let actualOverrides = knexOrOverrides;
+export interface BranchFactoryResult {
+  id: string;
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+  manager_id: string | null;
+  status: string;
+  working_hours: Record<string, unknown>;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: Date;
+  updated_at: Date;
+  deleted_at: Date | null;
+}
 
-    if (knexOrOverrides && typeof knexOrOverrides.insert === 'function') {
+export class BranchFactory {
+  static create(overrides?: Record<string, unknown>): Promise<BranchFactoryResult>;
+  static create(knex: Knex, overrides?: Record<string, unknown>): Promise<BranchFactoryResult>;
+  static async create(
+    knexOrOverrides: Knex | Record<string, unknown> = {},
+    overrides: Record<string, unknown> = {},
+  ): Promise<BranchFactoryResult> {
+    let knex: Knex | null = null;
+    let actualOverrides = knexOrOverrides as Record<string, unknown>;
+
+    if (
+      knexOrOverrides &&
+      typeof (knexOrOverrides as Record<string, unknown>).insert === 'function'
+    ) {
       knex = knexOrOverrides as Knex;
       actualOverrides = overrides;
     }
 
-    const data = {
+    const data: BranchFactoryResult = {
       id: uuidv4(),
       name: 'Test Branch',
       address: '123 Test Street, Test City',
@@ -35,7 +59,7 @@ export class BranchFactory {
       updated_at: new Date(),
       deleted_at: null,
       ...actualOverrides,
-    };
+    } as BranchFactoryResult;
 
     if (knex) {
       await knex('branches').insert(data);
@@ -44,8 +68,11 @@ export class BranchFactory {
     return data;
   }
 
-  static async createMany(count: number, overrides = {}) {
-    const results = [];
+  static async createMany(
+    count: number,
+    overrides: Record<string, unknown> = {},
+  ): Promise<BranchFactoryResult[]> {
+    const results: BranchFactoryResult[] = [];
     for (let i = 0; i < count; i++) {
       results.push(
         await this.create({
@@ -57,7 +84,7 @@ export class BranchFactory {
     return results;
   }
 
-  static createDto(overrides = {}) {
+  static createDto(overrides: Record<string, unknown> = {}): Record<string, unknown> {
     return {
       name: 'Test Branch',
       address: '123 Test Street, Test City',

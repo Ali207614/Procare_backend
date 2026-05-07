@@ -1,19 +1,39 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Knex } from 'knex';
 
-export class CampaignFactory {
-  static create(overrides?: any): Promise<any>;
-  static create(knex: Knex, overrides?: any): Promise<any>;
-  static async create(knexOrOverrides: any = {}, overrides: any = {}): Promise<any> {
-    let knex: Knex | null = null;
-    let actualOverrides = knexOrOverrides;
+export interface CampaignFactoryResult {
+  id: string;
+  type: string;
+  subject: string | null;
+  message: string;
+  target_audience: string;
+  status: string;
+  created_by: string;
+  created_at: Date;
+  updated_at: Date;
+  deleted_at: Date | null;
+  sent_at: Date | null;
+}
 
-    if (knexOrOverrides && typeof knexOrOverrides.insert === 'function') {
+export class CampaignFactory {
+  static create(overrides?: Record<string, unknown>): Promise<CampaignFactoryResult>;
+  static create(knex: Knex, overrides?: Record<string, unknown>): Promise<CampaignFactoryResult>;
+  static async create(
+    knexOrOverrides: Knex | Record<string, unknown> = {},
+    overrides: Record<string, unknown> = {},
+  ): Promise<CampaignFactoryResult> {
+    let knex: Knex | null = null;
+    let actualOverrides = knexOrOverrides as Record<string, unknown>;
+
+    if (
+      knexOrOverrides &&
+      typeof (knexOrOverrides as Record<string, unknown>).insert === 'function'
+    ) {
       knex = knexOrOverrides as Knex;
       actualOverrides = overrides;
     }
 
-    const data = {
+    const data: CampaignFactoryResult = {
       id: uuidv4(),
       type: 'SMS',
       subject: null,
@@ -26,7 +46,7 @@ export class CampaignFactory {
       deleted_at: null,
       sent_at: null,
       ...actualOverrides,
-    };
+    } as CampaignFactoryResult;
 
     if (knex) {
       await knex('campaigns').insert(data);
@@ -35,30 +55,41 @@ export class CampaignFactory {
     return data;
   }
 
-  static createMany(count: number, overrides?: any): Promise<any[]>;
-  static createMany(knex: Knex, count: number, overrides?: any): Promise<any[]>;
-  static async createMany(knexOrCount: any, countOrOverrides: any = {}, overrides: any = {}): Promise<any[]> {
+  static createMany(
+    count: number,
+    overrides?: Record<string, unknown>,
+  ): Promise<CampaignFactoryResult[]>;
+  static createMany(
+    knex: Knex,
+    count: number,
+    overrides?: Record<string, unknown>,
+  ): Promise<CampaignFactoryResult[]>;
+  static async createMany(
+    knexOrCount: Knex | number,
+    countOrOverrides: number | Record<string, unknown> = {},
+    overrides: Record<string, unknown> = {},
+  ): Promise<CampaignFactoryResult[]> {
     let knex: Knex | null = null;
     let count: number;
-    let actualOverrides: any;
+    let actualOverrides: Record<string, unknown>;
 
     if (typeof knexOrCount === 'number') {
       count = knexOrCount;
-      actualOverrides = countOrOverrides;
+      actualOverrides = countOrOverrides as Record<string, unknown>;
     } else {
-      knex = knexOrCount as Knex;
+      knex = knexOrCount;
       count = countOrOverrides as number;
       actualOverrides = overrides;
     }
 
-    const results = [];
+    const results: CampaignFactoryResult[] = [];
     for (let i = 0; i < count; i++) {
-      results.push(await this.create(knex as any, actualOverrides));
+      results.push(await this.create(knex ?? actualOverrides, actualOverrides));
     }
     return results;
   }
 
-  static createDto(overrides = {}) {
+  static createDto(overrides: Record<string, unknown> = {}): Record<string, unknown> {
     return {
       type: 'SMS',
       message: 'Test SMS message',
@@ -67,7 +98,7 @@ export class CampaignFactory {
     };
   }
 
-  static createPayload(overrides = {}) {
+  static createPayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
     return {
       id: uuidv4(),
       type: 'SMS',

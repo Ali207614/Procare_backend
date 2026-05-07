@@ -83,7 +83,7 @@ export class TestModuleBuilder {
    * Use real database for integration/e2e tests
    */
   withRealDatabase(): TestModuleBuilder {
-    // Real database is already included via AppModule, 
+    // Real database is already included via AppModule,
     // but this method can be used to explicitly signal its use
     // or add specific configurations if needed.
     return this;

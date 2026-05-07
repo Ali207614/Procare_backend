@@ -45,6 +45,7 @@ import { formatUzPhoneToE164, getUzPhoneLookupCandidates } from 'src/common/util
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { RoleType } from 'src/common/types/role-type.enum';
 import { BranchHierarchyService, MOTHER_BRANCH_ID } from 'src/branches/branch-hierarchy.service';
+import { isWithinCalendarDays } from 'src/common/utils/date.util';
 
 const SYSTEM_ADMIN_ID = '00000000-0000-4000-8000-000000000000';
 const NO_ANSWER_REJECT_CAUSE_NAME = "Qo'ng'iroqqa javob bermadi";
@@ -73,7 +74,6 @@ import { RepairOrderStatusesService } from 'src/repair-order-statuses/repair-ord
 export class RepairOrdersService {
   private readonly table = 'repair_orders';
   private readonly terminalStatusTypes = new Set(['Cancelled', 'Canceled', 'Completed', 'Invalid']);
-  private readonly telephonyInvalidReuseWindowHours = 72;
   private readonly customerNoAnswerLimit = 3;
   private readonly customerNoAnswerDelayHours = 24;
   private readonly branchHierarchy: BranchHierarchyService;
@@ -232,6 +232,13 @@ export class RepairOrdersService {
 
       if (dto.phone_category_id) {
         this.ensureImeiForMatchingPhoneCategory(
+          existingCustomerOrders,
+          dto.phone_category_id,
+          normalizedImei,
+        );
+
+        await this.checkForRecentInvalidDuplicatesOrThrow(
+          trx,
           existingCustomerOrders,
           dto.phone_category_id,
           normalizedImei,
@@ -1783,6 +1790,9 @@ export class RepairOrdersService {
       }
 
       await this.changeLogger.logMultipleFieldsIfChanged(trx, orderId, logs, admin.id);
+      if (isStatusChanged) {
+        await this.handleInvalidStatusReassignment(trx, order, dto.status_id, admin);
+      }
       if (logs.length > 0) {
         await this.autoAssignRepairWorkerFromUpdateIfNeeded(trx, orderId, admin);
       }
@@ -3101,6 +3111,42 @@ export class RepairOrdersService {
     });
   }
 
+  private async checkForRecentInvalidDuplicatesOrThrow(
+    trx: Knex.Transaction,
+    existingOrders: RepairOrder[],
+    phoneCategoryId: string,
+    imei: string | undefined,
+  ): Promise<void> {
+    const invalidStatusIds = await trx('repair_order_statuses')
+      .where({ type: 'Invalid', status: 'Open', is_active: true })
+      .pluck('id');
+
+    if (!invalidStatusIds.length) {
+      return;
+    }
+
+    const candidateOrders = existingOrders.filter(
+      (order) =>
+        invalidStatusIds.includes(order.status_id) &&
+        order.phone_category_id === phoneCategoryId &&
+        (imei ? order.imei === imei : !order.imei),
+    );
+
+    if (candidateOrders.length === 0) {
+      return;
+    }
+
+    for (const order of candidateOrders) {
+      const isReusable = await this.isInvalidRepairOrderReusable(order, trx);
+      if (isReusable) {
+        throw new BadRequestException({
+          message: `Ushbu mijoz va telefon uchun oxirgi 3 kalendar kuni ichida "Sifatsiz" statusidagi buyurtma mavjud. Iltimos, keyinroq urinib ko'ring yoki mavjud buyurtmani tekshiring.`,
+          location: 'phone_category_id',
+        });
+      }
+    }
+  }
+
   private validateAgreedDateOrThrow(value: string): void {
     const inputDate = parseAgreedDateInput(value);
 
@@ -3929,8 +3975,8 @@ export class RepairOrdersService {
           .orWhereNotIn('ros.type', Array.from(this.terminalStatusTypes))
           .orWhereRaw(
             `
-            ros.type = ?
-            AND COALESCE(
+            ros.type = 'Invalid'
+            AND (NOW()::date - COALESCE(
               (
                 SELECT MAX(h.created_at)
                 FROM repair_order_change_histories h
@@ -3940,9 +3986,25 @@ export class RepairOrdersService {
               ),
               ro.updated_at,
               ro.created_at
-            ) >= NOW() - (? * INTERVAL '1 hour')
+            )::date) < 3
+            AND (
+              (
+                SELECT COUNT(*)
+                FROM repair_order_change_histories h
+                JOIN repair_order_statuses s ON (h.new_value #>> '{}') = s.id::text
+                WHERE h.repair_order_id = ro.id
+                  AND h.field = 'status_id'
+                  AND s.type = 'Invalid'
+              )
+              +
+              (
+                CASE WHEN NOT EXISTS (
+                  SELECT 1 FROM repair_order_change_histories h
+                  WHERE h.repair_order_id = ro.id AND h.field = 'status_id'
+                ) AND ros.type = 'Invalid' THEN 1 ELSE 0 END
+              )
+            ) < 2
           `,
-            ['Invalid', this.telephonyInvalidReuseWindowHours],
           );
       });
   }
@@ -3988,7 +4050,7 @@ export class RepairOrdersService {
   }
 
   private async getStatusDetails(
-    trx: Knex.Transaction,
+    trx: Knex | Knex.Transaction,
     statusId: string,
   ): Promise<RepairOrderStatus | null> {
     const status = await trx<RepairOrderStatus>('repair_order_statuses')
@@ -4321,5 +4383,154 @@ export class RepairOrdersService {
       fromStatusId: order.status_id,
       toStatusId,
     });
+  }
+
+  private isInvalidStatus(status: RepairOrderStatus): boolean {
+    return status.type === 'Invalid';
+  }
+
+  private isOperatorAdmin(admin: AdminPayload): boolean {
+    return admin.roles.some((role) => role.type === RoleType.OPERATOR);
+  }
+
+  private async getInvalidStatusEntryInfo(
+    orderId: string,
+    trx?: Knex | Knex.Transaction,
+  ): Promise<{ count: number; latestDate: Date | null }> {
+    const db = trx || this.knex;
+
+    const invalidStatusIds = await db('repair_order_statuses')
+      .where({ type: 'Invalid', status: 'Open' })
+      .pluck('id');
+
+    if (!invalidStatusIds.length) {
+      return { count: 0, latestDate: null };
+    }
+
+    const entries = (await db('repair_order_change_histories')
+      .where({ repair_order_id: orderId, field: 'status_id' })
+      .whereIn(
+        'new_value',
+        invalidStatusIds.map((id) => JSON.stringify(id)),
+      )
+      .select('created_at')
+      .orderBy('created_at', 'desc')) as { created_at: string | number | Date }[];
+
+    return {
+      count: entries.length,
+      latestDate: entries.length > 0 ? new Date(entries[0].created_at) : null,
+    };
+  }
+
+  private async isInvalidRepairOrderReusable(
+    order: RepairOrder,
+    trx?: Knex | Knex.Transaction,
+  ): Promise<boolean> {
+    const db = trx || this.knex;
+    const status = await this.getStatusDetails(db, order.status_id);
+    if (!status || !this.isInvalidStatus(status)) {
+      return false;
+    }
+
+    const { count, latestDate } = await this.getInvalidStatusEntryInfo(order.id, db);
+
+    const initialStatusIsInvalid =
+      count === 0 &&
+      (await db('repair_order_statuses').where({ id: order.status_id, type: 'Invalid' }).first());
+
+    const totalInvalidEntries = count + (initialStatusIsInvalid ? 1 : 0);
+
+    if (totalInvalidEntries >= 2) {
+      return false;
+    }
+
+    if (latestDate) {
+      return isWithinCalendarDays(latestDate, 3);
+    }
+
+    return isWithinCalendarDays(order.updated_at || order.created_at, 3);
+  }
+
+  private async getLastDialogueDuration(
+    orderId: string,
+    adminId: string,
+    trx?: Knex | Knex.Transaction,
+  ): Promise<number> {
+    const db = trx || this.knex;
+    const admin = await db('admins').where({ id: adminId }).first<{
+      onlinepbx_code: string | null;
+      phone_number: string | null;
+    }>('onlinepbx_code', 'phone_number');
+    if (!admin) return 0;
+
+    const call = await db('phone_calls')
+      .where({ repair_order_id: orderId })
+      .andWhere((qb) => {
+        if (admin.onlinepbx_code) {
+          void qb
+            .where('caller', 'like', `%${admin.onlinepbx_code}`)
+            .orWhere('callee', 'like', `%${admin.onlinepbx_code}`);
+        }
+        if (admin.phone_number) {
+          void qb.orWhere('caller', admin.phone_number).orWhere('callee', admin.phone_number);
+        }
+      })
+      .orderBy('created_at', 'desc')
+      .first<{ dialog_duration: number | null }>('dialog_duration');
+
+    return call ? Number(call.dialog_duration ?? 0) : 0;
+  }
+
+  private async handleInvalidStatusReassignment(
+    trx: Knex.Transaction,
+    order: RepairOrder,
+    targetStatusId: string,
+    actingAdmin: AdminPayload,
+  ): Promise<void> {
+    if (!this.isOperatorAdmin(actingAdmin)) return;
+    if (order.status_id === targetStatusId) return;
+
+    const currentStatus = await this.getStatusDetails(trx, order.status_id);
+    if (!currentStatus || !this.isInvalidStatus(currentStatus)) return;
+
+    const targetStatus = await this.getStatusDetails(trx, targetStatusId);
+    if (!targetStatus || this.isInvalidStatus(targetStatus)) return;
+
+    const isReusable = await this.isInvalidRepairOrderReusable(order, trx);
+    if (!isReusable) return;
+
+    const dialogueDuration = await this.getLastDialogueDuration(order.id, actingAdmin.id, trx);
+    if (dialogueDuration <= 0) return;
+
+    const currentAssignedAdmins = await trx('repair_order_assign_admins')
+      .where({ repair_order_id: order.id })
+      .pluck('admin_id');
+
+    if (currentAssignedAdmins.includes(actingAdmin.id)) return;
+
+    const assignedOperators = await trx('admins as a')
+      .join('admin_roles as ar', 'a.id', 'ar.admin_id')
+      .join('roles as r', 'ar.role_id', 'r.id')
+      .whereIn('a.id', currentAssignedAdmins)
+      .andWhere('r.type', RoleType.OPERATOR)
+      .select('a.id');
+
+    const assignedOperatorIds = (assignedOperators as { id: string }[]).map((o) => o.id);
+
+    if (assignedOperatorIds.length > 0) {
+      await trx('repair_order_assign_admins')
+        .where({ repair_order_id: order.id })
+        .whereIn('admin_id', assignedOperatorIds)
+        .delete();
+
+      this.logger.log(
+        `[Reassignment] Removed existing operators ${assignedOperatorIds.join(', ')} from RO ${order.id}`,
+      );
+    }
+
+    await this.assignAdminToOrderIfNeeded(trx, order.id, actingAdmin.id, 'manual');
+    this.logger.log(
+      `[Reassignment] Assigned operator ${actingAdmin.id} to RO ${order.id} after moving from Invalid status`,
+    );
   }
 }

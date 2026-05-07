@@ -473,24 +473,25 @@ export class MockFactory {
    * Create mock configuration service
    */
   static createMockConfigService() {
-    return {
-      get: jest.fn().mockImplementation((key: string) => {
-        const config = {
-          DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
-          REDIS_URL: 'redis://localhost:6379',
-          JWT_SECRET: 'test-secret',
-          NODE_ENV: 'test',
-        };
-        return config[key];
-      }),
+    const config: Record<string, string> = {
+      DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
+      REDIS_URL: 'redis://localhost:6379',
+      JWT_SECRET: 'test-secret',
+      NODE_ENV: 'test',
+    };
+
+    const mockConfigService = {
+      get: jest.fn().mockImplementation((key: string) => config[key]),
       getOrThrow: jest.fn().mockImplementation((key: string) => {
-        const value = this.get(key);
+        const value = config[key];
         if (value === undefined) {
           throw new Error(`Configuration key "${key}" not found`);
         }
         return value;
       }),
     };
+
+    return mockConfigService;
   }
 
   /**
