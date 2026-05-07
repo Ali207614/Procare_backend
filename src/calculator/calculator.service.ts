@@ -82,12 +82,12 @@ export class CalculatorService {
   }
 
   async getProblemCategories(phoneCategoryId: string): Promise<ProblemCategoryWithCost[]> {
-    // 1. Get root problems linked to this phone category
     const rootProblems = await this.knex('problem_categories as p')
       .join('phone_problem_mappings as ppm', 'ppm.problem_category_id', 'p.id')
       .join('phone_categories as pc', 'pc.id', 'ppm.phone_category_id')
       .where({
         'ppm.phone_category_id': phoneCategoryId,
+        'p.parent_id': null,
         'p.status': 'Open',
         'p.is_active': true,
         'pc.status': 'Open',
@@ -98,39 +98,26 @@ export class CalculatorService {
     const rootIds = rootProblems.map((p) => p.id);
     if (rootIds.length === 0) return [];
 
-    // 2. Get all descendants recursively and calculate cost
     const result = await this.knex.raw<{ rows: ProblemCategoryWithCost[] }>(
       `
-      WITH RECURSIVE problem_tree AS (
-        SELECT 
-            id, name_uz, name_ru, name_en, parent_id, price, estimated_minutes, sort, is_active, status
-        FROM problem_categories
-        WHERE id IN (${rootIds.map(() => '?').join(',')})
-          AND status = 'Open'
-          AND is_active = true
-        
-        UNION ALL
-        
-        SELECT 
-            p.id, p.name_uz, p.name_ru, p.name_en, p.parent_id, p.price, p.estimated_minutes, p.sort, p.is_active, p.status
-        FROM problem_categories p
-        JOIN problem_tree pt ON p.parent_id = pt.id
-        WHERE p.status = 'Open' AND p.is_active = true
-      )
       SELECT 
-        id, name_uz, name_ru, name_en, parent_id, price, estimated_minutes, sort,
+        p.id, p.name_uz, p.name_ru, p.name_en, p.parent_id, p.price, p.estimated_minutes, p.sort,
         (
-            CAST(price AS DECIMAL) + COALESCE((
+            CAST(p.price AS DECIMAL) + COALESCE((
                 SELECT SUM(rp.part_price)
                 FROM repair_part_assignments rpa
                 JOIN repair_parts rp ON rp.id = rpa.repair_part_id
-                WHERE rpa.problem_category_id = problem_tree.id
+                WHERE rpa.problem_category_id = p.id
                   AND rpa.is_required = true
                   AND rp.status = 'Open'
             ), 0)
         ) as cost
-      FROM problem_tree
-      ORDER BY sort ASC
+      FROM problem_categories p
+      WHERE p.id IN (${rootIds.map(() => '?').join(',')})
+        AND p.parent_id IS NULL
+        AND p.status = 'Open'
+        AND p.is_active = true
+      ORDER BY p.sort ASC
     `,
       rootIds,
     );

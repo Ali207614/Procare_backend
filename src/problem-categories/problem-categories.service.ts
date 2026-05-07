@@ -208,7 +208,7 @@ export class ProblemCategoriesService {
           'p.*',
           trx.raw(`EXISTS (
           SELECT 1 FROM problem_categories c
-          WHERE c.parent_id = p.id AND c.status = 'Open' 
+          WHERE c.parent_id = p.id AND c.status = 'Open' AND c.is_active = true
         ) as has_children`),
           trx.raw(`(
             SELECT COALESCE(JSON_AGG(json_build_object(
@@ -230,6 +230,7 @@ export class ProblemCategoriesService {
           'ppm.phone_category_id': phone_category_id,
           'p.parent_id': null,
           'p.status': 'Open',
+          'p.is_active': true,
         });
 
       applyFilters(baseQuery);
@@ -240,6 +241,7 @@ export class ProblemCategoriesService {
           'ppm.phone_category_id': phone_category_id,
           'p.parent_id': null,
           'p.status': 'Open',
+          'p.is_active': true,
         });
 
       applyFilters(countQuery);
@@ -311,7 +313,7 @@ export class ProblemCategoriesService {
           'p.*',
           trx.raw(`EXISTS (
           SELECT 1 FROM problem_categories c
-          WHERE c.parent_id = p.id AND c.status = 'Open'
+          WHERE c.parent_id = p.id AND c.status = 'Open' AND c.is_active = true
         ) as has_children`),
           trx.raw(`(
             SELECT COALESCE(JSON_AGG(json_build_object(
@@ -343,13 +345,14 @@ export class ProblemCategoriesService {
             [parent_id],
           ),
         )
-        .where({ 'p.parent_id': parent_id, 'p.status': 'Open' });
+        .where({ 'p.parent_id': parent_id, 'p.status': 'Open', 'p.is_active': true });
 
       applyFilters(baseQuery);
 
       const countQuery = trx('problem_categories as p').where({
         'p.parent_id': parent_id,
         'p.status': 'Open',
+        'p.is_active': true,
       });
 
       applyFilters(countQuery);

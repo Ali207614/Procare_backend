@@ -1,24 +1,50 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { AppModule } from 'src/app.module';
-import { NotificationService } from 'src/notification/notification.service';
 import { AuthService } from 'src/auth/auth.service';
 import { TestModuleBuilder } from '../../utils/test-module-builder';
 import { CoverageHelpers } from '../../utils/coverage-helpers';
+import { Knex } from 'knex';
+import { Redis } from 'ioredis';
+
+interface Admin {
+  id: string;
+  login: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  branch_id: string;
+  status: string;
+}
+
+interface Branch {
+  id: string;
+  name: string;
+}
+
+interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  is_read: boolean;
+  created_at: string;
+  updated_at: string;
+  read_at?: string | null;
+  admin_id: string;
+}
 
 describe('Notifications Controller Complete E2E', () => {
   let app: INestApplication;
   let authService: AuthService;
-  let notificationService: NotificationService;
-  let knex: any;
-  let redis: any;
+  let knex: Knex;
+  let redis: Redis;
   let adminToken: string;
   let secondAdminToken: string;
-  let testAdmin: any;
-  let secondTestAdmin: any;
-  let testBranch: any;
-  let testNotifications: any[];
+  let testAdmin: Admin;
+  let secondTestAdmin: Admin;
+  let testBranch: Branch;
+  let testNotifications: Notification[];
 
   beforeAll(async () => {
     const moduleBuilder = new TestModuleBuilder();
@@ -33,7 +59,6 @@ describe('Notifications Controller Complete E2E', () => {
 
     // Get services
     authService = module.get<AuthService>(AuthService);
-    notificationService = module.get<NotificationService>(NotificationService);
     knex = module.get('KNEX_CONNECTION');
     redis = module.get('REDIS_CLIENT');
 
@@ -66,9 +91,9 @@ describe('Notifications Controller Complete E2E', () => {
     await app.close();
   });
 
-  async function setupTestData() {
+  async function setupTestData(): Promise<void> {
     // Create test branch
-    testBranch = await knex('branches')
+    const branchResult = await knex('branches')
       .insert({
         id: knex.raw('gen_random_uuid()'),
         name: 'Test Branch',
@@ -79,7 +104,7 @@ describe('Notifications Controller Complete E2E', () => {
         updated_at: new Date(),
       })
       .returning('*');
-    testBranch = testBranch[0];
+    testBranch = branchResult[0] as Branch;
 
     // Create basic permissions for testing
     const permissions = ['notification.view', 'notification.manage'];
@@ -120,7 +145,7 @@ describe('Notifications Controller Complete E2E', () => {
     }
 
     // Create test admins
-    testAdmin = await knex('admins')
+    const adminResult = await knex('admins')
       .insert({
         id: knex.raw('gen_random_uuid()'),
         first_name: 'Test',
@@ -134,9 +159,9 @@ describe('Notifications Controller Complete E2E', () => {
         updated_at: new Date(),
       })
       .returning('*');
-    testAdmin = testAdmin[0];
+    testAdmin = adminResult[0] as Admin;
 
-    secondTestAdmin = await knex('admins')
+    const secondAdminResult = await knex('admins')
       .insert({
         id: knex.raw('gen_random_uuid()'),
         first_name: 'Second',
@@ -150,7 +175,7 @@ describe('Notifications Controller Complete E2E', () => {
         updated_at: new Date(),
       })
       .returning('*');
-    secondTestAdmin = secondTestAdmin[0];
+    secondTestAdmin = secondAdminResult[0] as Admin;
 
     // Assign roles to admins
     await knex('admin_roles').insert({
@@ -184,7 +209,7 @@ describe('Notifications Controller Complete E2E', () => {
           updated_at: new Date(),
         })
         .returning('*');
-      testNotifications.push(notification[0]);
+      testNotifications.push(notification[0] as Notification);
     }
 
     // Create notifications for second admin
@@ -265,7 +290,7 @@ describe('Notifications Controller Complete E2E', () => {
       expect(response.body.meta.total).toBe(7);
 
       // All returned notifications should be unread
-      response.body.data.forEach((notification: any) => {
+      response.body.data.forEach((notification: Notification) => {
         expect(notification.is_read).toBe(false);
       });
     });
@@ -280,7 +305,7 @@ describe('Notifications Controller Complete E2E', () => {
       expect(response.body.meta.total).toBe(3);
 
       // All returned notifications should be read
-      response.body.data.forEach((notification: any) => {
+      response.body.data.forEach((notification: Notification) => {
         expect(notification.is_read).toBe(true);
       });
     });
@@ -306,7 +331,9 @@ describe('Notifications Controller Complete E2E', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      const dates = response.body.data.map((notification) => new Date(notification.created_at));
+      const dates = response.body.data.map(
+        (notification: Notification) => new Date(notification.created_at),
+      );
       const sortedDates = [...dates].sort((a, b) => b.getTime() - a.getTime());
       expect(dates).toEqual(sortedDates);
     });
@@ -319,7 +346,7 @@ describe('Notifications Controller Complete E2E', () => {
 
       expect(response.body.data.length).toBe(3);
       expect(response.body.meta.total).toBe(7); // Total unread notifications
-      response.body.data.forEach((notification: any) => {
+      response.body.data.forEach((notification: Notification) => {
         expect(notification.is_read).toBe(false);
       });
     });
@@ -333,14 +360,14 @@ describe('Notifications Controller Complete E2E', () => {
       expect(response.body.data.length).toBe(3); // Only notifications for second admin
       expect(response.body.meta.total).toBe(3);
 
-      response.body.data.forEach((notification: any) => {
+      response.body.data.forEach((notification: Notification) => {
         expect(notification.title).toContain('Second Admin');
       });
     });
 
     it('should handle empty results', async () => {
       // Create a new admin with no notifications
-      const emptyAdmin = await knex('admins')
+      const emptyAdminResult = await knex('admins')
         .insert({
           id: knex.raw('gen_random_uuid()'),
           first_name: 'Empty',
@@ -354,15 +381,16 @@ describe('Notifications Controller Complete E2E', () => {
           updated_at: new Date(),
         })
         .returning('*');
+      const emptyAdmin = emptyAdminResult[0] as Admin;
 
       const emptyToken = authService.generateJwtToken({
-        id: emptyAdmin[0].id,
-        login: emptyAdmin[0].login,
-        first_name: emptyAdmin[0].first_name,
-        last_name: emptyAdmin[0].last_name,
-        phone: emptyAdmin[0].phone,
-        branch_id: emptyAdmin[0].branch_id,
-        status: emptyAdmin[0].status,
+        id: emptyAdmin.id,
+        login: emptyAdmin.login,
+        first_name: emptyAdmin.first_name,
+        last_name: emptyAdmin.last_name,
+        phone: emptyAdmin.phone,
+        branch_id: emptyAdmin.branch_id,
+        status: emptyAdmin.status,
       });
 
       const response = await request(app.getHttpServer())
@@ -396,7 +424,7 @@ describe('Notifications Controller Complete E2E', () => {
   describe('PATCH /api/v1/notifications/:id/read (Mark Notification as Read)', () => {
     it('should mark notification as read successfully', async () => {
       // Get an unread notification
-      const unreadNotification = testNotifications.find((n) => !n.is_read);
+      const unreadNotification = testNotifications.find((n) => !n.is_read)!;
 
       const response = await request(app.getHttpServer())
         .patch(`/api/v1/notifications/${unreadNotification.id}/read`)
@@ -408,16 +436,16 @@ describe('Notifications Controller Complete E2E', () => {
       });
 
       // Verify notification was marked as read in database
-      const updatedNotification = await knex('notifications')
+      const updatedNotification = (await knex('notifications')
         .where('id', unreadNotification.id)
-        .first();
+        .first()) as Notification;
       expect(updatedNotification.is_read).toBe(true);
       expect(updatedNotification.read_at).toBeTruthy();
     });
 
     it('should handle already read notification', async () => {
       // Get a read notification
-      const readNotification = testNotifications.find((n) => n.is_read);
+      const readNotification = testNotifications.find((n) => n.is_read)!;
 
       const response = await request(app.getHttpServer())
         .patch(`/api/v1/notifications/${readNotification.id}/read`)
@@ -462,7 +490,7 @@ describe('Notifications Controller Complete E2E', () => {
     });
 
     it('should update read_at timestamp when marking as read', async () => {
-      const unreadNotification = testNotifications.find((n) => !n.is_read);
+      const unreadNotification = testNotifications.find((n) => !n.is_read)!;
       const beforeTime = new Date();
 
       await request(app.getHttpServer())
@@ -473,11 +501,11 @@ describe('Notifications Controller Complete E2E', () => {
       const afterTime = new Date();
 
       // Verify read_at timestamp was set
-      const updatedNotification = await knex('notifications')
+      const updatedNotification = (await knex('notifications')
         .where('id', unreadNotification.id)
-        .first();
+        .first()) as Notification;
 
-      const readAt = new Date(updatedNotification.read_at);
+      const readAt = new Date(updatedNotification.read_at as string);
       expect(readAt.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
       expect(readAt.getTime()).toBeLessThanOrEqual(afterTime.getTime());
     });
@@ -503,7 +531,10 @@ describe('Notifications Controller Complete E2E', () => {
       });
 
       // Verify all notifications for admin are now read
-      const notifications = await knex('notifications').where('admin_id', testAdmin.id);
+      const notifications = (await knex('notifications').where(
+        'admin_id',
+        testAdmin.id,
+      )) as Notification[];
 
       notifications.forEach((notification) => {
         expect(notification.is_read).toBe(true);
@@ -548,7 +579,7 @@ describe('Notifications Controller Complete E2E', () => {
 
     it('should handle case when admin has no notifications', async () => {
       // Create admin with no notifications
-      const emptyAdmin = await knex('admins')
+      const emptyAdminResult = await knex('admins')
         .insert({
           id: knex.raw('gen_random_uuid()'),
           first_name: 'Empty',
@@ -562,15 +593,16 @@ describe('Notifications Controller Complete E2E', () => {
           updated_at: new Date(),
         })
         .returning('*');
+      const emptyAdmin = emptyAdminResult[0] as Admin;
 
       const emptyToken = authService.generateJwtToken({
-        id: emptyAdmin[0].id,
-        login: emptyAdmin[0].login,
-        first_name: emptyAdmin[0].first_name,
-        last_name: emptyAdmin[0].last_name,
-        phone: emptyAdmin[0].phone,
-        branch_id: emptyAdmin[0].branch_id,
-        status: emptyAdmin[0].status,
+        id: emptyAdmin.id,
+        login: emptyAdmin.login,
+        first_name: emptyAdmin.first_name,
+        last_name: emptyAdmin.last_name,
+        phone: emptyAdmin.phone,
+        branch_id: emptyAdmin.branch_id,
+        status: emptyAdmin.status,
       });
 
       const response = await request(app.getHttpServer())
@@ -594,10 +626,13 @@ describe('Notifications Controller Complete E2E', () => {
       const afterTime = new Date();
 
       // Verify all notifications have read_at timestamp
-      const notifications = await knex('notifications').where('admin_id', testAdmin.id);
+      const notifications = (await knex('notifications').where(
+        'admin_id',
+        testAdmin.id,
+      )) as Notification[];
 
       notifications.forEach((notification) => {
-        const readAt = new Date(notification.read_at);
+        const readAt = new Date(notification.read_at as string);
         expect(readAt.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
         expect(readAt.getTime()).toBeLessThanOrEqual(afterTime.getTime());
       });
@@ -610,17 +645,17 @@ describe('Notifications Controller Complete E2E', () => {
 
   describe('Database Consistency Verification', () => {
     it('should maintain referential integrity for notifications and admins', async () => {
-      const notifications = await knex('notifications').select('*');
-      const admins = await knex('admins').select('*');
+      const notifications: Notification[] = await knex('notifications').select('*');
+      const admins: Admin[] = await knex('admins').select('*');
 
       for (const notification of notifications) {
-        const admin = admins.find((a: any) => a.id === notification.admin_id);
+        const admin = admins.find((a: Admin) => a.id === notification.admin_id);
         expect(admin).toBeTruthy();
       }
     });
 
     it('should maintain audit fields correctly', async () => {
-      const notifications = await knex('notifications').select('*');
+      const notifications: Notification[] = await knex('notifications').select('*');
 
       for (const notification of notifications) {
         expect(notification.created_at).toBeTruthy();
@@ -631,14 +666,17 @@ describe('Notifications Controller Complete E2E', () => {
     });
 
     it('should properly handle read_at timestamps', async () => {
-      const readNotifications = await knex('notifications').where('is_read', true);
+      const readNotifications: Notification[] = await knex('notifications').where('is_read', true);
 
       for (const notification of readNotifications) {
         expect(notification.read_at).toBeTruthy();
-        expect(new Date(notification.read_at)).toBeInstanceOf(Date);
+        expect(new Date(notification.read_at as string)).toBeInstanceOf(Date);
       }
 
-      const unreadNotifications = await knex('notifications').where('is_read', false);
+      const unreadNotifications: Notification[] = await knex('notifications').where(
+        'is_read',
+        false,
+      );
 
       for (const notification of unreadNotifications) {
         expect(notification.read_at).toBeNull();
@@ -646,7 +684,7 @@ describe('Notifications Controller Complete E2E', () => {
     });
 
     it('should maintain proper notification types', async () => {
-      const notifications = await knex('notifications').select('*');
+      const notifications: Notification[] = await knex('notifications').select('*');
       const validTypes = ['system', 'repair_order', 'general', 'campaign'];
 
       for (const notification of notifications) {
@@ -665,13 +703,13 @@ describe('Notifications Controller Complete E2E', () => {
 
       // Should only return secondTestAdmin notifications
       expect(response.body.data.length).toBe(3);
-      response.body.data.forEach((notification: any) => {
+      response.body.data.forEach((notification: Notification) => {
         expect(notification.title).toContain('Second Admin');
       });
 
       // None should be testAdmin notifications
       const testAdminTitles = testNotifications.map((n) => n.title);
-      response.body.data.forEach((notification: any) => {
+      response.body.data.forEach((notification: Notification) => {
         expect(testAdminTitles).not.toContain(notification.title);
       });
     });
@@ -691,13 +729,14 @@ describe('Notifications Controller Complete E2E', () => {
       ];
 
       for (const endpoint of endpoints) {
-        await request(app.getHttpServer())[endpoint.method](endpoint.path).expect(401);
+        const method = endpoint.method as 'get' | 'patch';
+        await request(app.getHttpServer())[method](endpoint.path).expect(401);
       }
     });
 
     it('should isolate notification operations by admin', async () => {
       // Mark notification as read for testAdmin
-      const testAdminNotification = testNotifications.find((n) => !n.is_read);
+      const testAdminNotification = testNotifications.find((n) => !n.is_read)!;
       await request(app.getHttpServer())
         .patch(`/api/v1/notifications/${testAdminNotification.id}/read`)
         .set('Authorization', `Bearer ${adminToken}`)
@@ -753,7 +792,10 @@ describe('Notifications Controller Complete E2E', () => {
       }
 
       const results = await Promise.allSettled(promises);
-      const successful = results.filter((r) => r.status === 'fulfilled' && r.value.status === 200);
+      const successful = results.filter(
+        (r): r is PromiseFulfilledResult<request.Response> =>
+          r.status === 'fulfilled' && r.value.status === 200,
+      );
 
       expect(successful.length).toBe(unreadNotifications.length);
     });
@@ -774,7 +816,7 @@ describe('Notifications Controller Complete E2E', () => {
   describe('Edge Cases and Error Handling', () => {
     it('should handle notification with null message gracefully', async () => {
       // Create notification with null message
-      const notification = await knex('notifications')
+      const notificationResult = await knex('notifications')
         .insert({
           id: knex.raw('gen_random_uuid()'),
           admin_id: testAdmin.id,
@@ -786,19 +828,22 @@ describe('Notifications Controller Complete E2E', () => {
           updated_at: new Date(),
         })
         .returning('*');
+      const notification = notificationResult[0] as Notification;
 
       const response = await request(app.getHttpServer())
         .get('/api/v1/notifications')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      const nullMessageNotification = response.body.data.find((n) => n.id === notification[0].id);
+      const nullMessageNotification = response.body.data.find(
+        (n: Notification) => n.id === notification.id,
+      );
       expect(nullMessageNotification.message).toBeNull();
     });
 
     it('should handle very long notification content', async () => {
       const longMessage = 'A'.repeat(1000); // Very long message
-      const notification = await knex('notifications')
+      const notificationResult = await knex('notifications')
         .insert({
           id: knex.raw('gen_random_uuid()'),
           admin_id: testAdmin.id,
@@ -810,13 +855,16 @@ describe('Notifications Controller Complete E2E', () => {
           updated_at: new Date(),
         })
         .returning('*');
+      const notification = notificationResult[0] as Notification;
 
       const response = await request(app.getHttpServer())
         .get('/api/v1/notifications')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      const longMessageNotification = response.body.data.find((n) => n.id === notification[0].id);
+      const longMessageNotification = response.body.data.find(
+        (n: Notification) => n.id === notification.id,
+      );
       expect(longMessageNotification.message).toBe(longMessage);
     });
 
