@@ -34,6 +34,31 @@ export class RepairOrderLookupSwaggerDto {
   name_en!: string | null;
 }
 
+export class RepairOrderTransferBranchSwaggerDto {
+  @ApiProperty({ example: 'c7a77f42-2f13-4b8e-b8cb-7d5f2c82fbbb' })
+  id!: string;
+
+  @ApiProperty({ example: "Farg'ona Filial" })
+  name_uz!: string;
+
+  @ApiProperty({ example: 'Фергана Филиал' })
+  name_ru!: string;
+
+  @ApiProperty({ example: 'Fergana Branch' })
+  name_en!: string;
+}
+
+export class RepairOrderDetailsBranchSwaggerDto extends RepairOrderLookupSwaggerDto {
+  [key: string]: unknown;
+
+  @ApiProperty({
+    type: [RepairOrderTransferBranchSwaggerDto],
+    description:
+      'Active child branches that PATCH /repair-orders/:repair_order_id/transfer-branch accepts for the current admin and that are visible to the admin.',
+  })
+  transfer_branches!: RepairOrderTransferBranchSwaggerDto[];
+}
+
 export class ViewableRepairOrderAssignedAdminSwaggerDto {
   @ApiProperty({ example: 'c7a77f42-2f13-4b8e-b8cb-7d5f2c82fbbb' })
   id!: string;
@@ -224,6 +249,9 @@ export class RepairOrderListItemSwaggerDto {
 }
 
 export class RepairOrderDetailsSwaggerDto extends RepairOrderListItemSwaggerDto {
+  @ApiProperty({ type: RepairOrderDetailsBranchSwaggerDto })
+  branch!: RepairOrderDetailsBranchSwaggerDto;
+
   @ApiProperty({ type: 'object', additionalProperties: true })
   pickups!: Record<string, unknown>;
 

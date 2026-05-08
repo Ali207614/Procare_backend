@@ -348,6 +348,13 @@ export interface RepairOrderStatusTransitionItem {
   can_user_view: boolean;
 }
 
+export interface RepairOrderTransferBranch {
+  id: string;
+  name_uz: string;
+  name_ru: string;
+  name_en: string;
+}
+
 export interface RepairOrderDetails {
   id: string;
   number_id: number;
@@ -406,6 +413,7 @@ export interface RepairOrderDetails {
     name_uz: string;
     name_ru: string;
     name_en: string;
+    transfer_branches?: RepairOrderTransferBranch[];
   };
   assigned_admins: {
     id: string;

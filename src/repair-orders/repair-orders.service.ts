@@ -15,6 +15,7 @@ import { parseAgreedDateInput } from 'src/common/utils/agreed-date.util';
 import {
   RepairOrder,
   RepairOrderDetails,
+  RepairOrderTransferBranch,
   RepairOrderStatusTransitionItem,
   FreshRepairOrder,
   ViewableRepairOrderListItem,
@@ -2008,6 +2009,14 @@ export class RepairOrdersService {
         permissionBranchId,
         permissions,
       );
+      order.branch.transfer_branches = await this.findTransferBranches(
+        admin,
+        {
+          branch_id: order.branch.id,
+          status_id: order.repair_order_status.id,
+        },
+        permissions,
+      );
 
       return order;
     } catch (err) {
@@ -2671,16 +2680,19 @@ export class RepairOrdersService {
       throw new NotFoundException('Repair order not found');
     }
 
-    if (this.branchHierarchy.isMotherBranch(order.branch_id)) {
+    if (
+      this.branchHierarchy.isMotherBranch(order.branch_id) &&
+      !(await this.canTransferFromMotherBranch(admin))
+    ) {
       throw new BadRequestException({
-        message: 'Mother Branch orders must be taken before they can be transferred',
+        message: 'Mother Branch orders can only be transferred by admins assigned to Mother Branch',
         location: 'mother_branch',
       });
     }
 
     await this.branchHierarchy.assertChildBranch(transferDto.new_branch_id);
     await this.assertRepairOrderWritable(admin, order);
-    await this.branchHierarchy.assertWritableBranch(admin, transferDto.new_branch_id);
+    await this.assertTransferTargetBranchWritable(admin, transferDto.new_branch_id);
     const permissionBranchId = await this.getPermissionBranchIdForOrder(admin, order.branch_id);
     const currentPermissions = await this.permissionService.findByRolesAndBranch(
       admin.roles,
@@ -2787,6 +2799,102 @@ export class RepairOrdersService {
     } catch (error) {
       await trx.rollback();
       throw error;
+    }
+  }
+
+  private async findTransferBranches(
+    admin: AdminPayload,
+    order: Pick<RepairOrder, 'branch_id' | 'status_id'>,
+    currentPermissions?: RepairOrderStatusPermission[],
+    db: Knex | Knex.Transaction = this.knex,
+  ): Promise<RepairOrderTransferBranch[]> {
+    if (
+      this.branchHierarchy.isMotherBranch(order.branch_id) &&
+      !(await this.canTransferFromMotherBranch(admin, db))
+    ) {
+      return [];
+    }
+
+    const permissionBranchId = await this.getPermissionBranchIdForOrder(admin, order.branch_id, db);
+    const permissions =
+      currentPermissions ??
+      (await this.permissionService.findByRolesAndBranch(admin.roles, permissionBranchId));
+
+    try {
+      await this.assertRepairOrderWritable(admin, order, db);
+      await this.permissionService.checkPermissionsOrThrow(
+        admin.roles,
+        permissionBranchId,
+        order.status_id,
+        ['can_update'],
+        'repair_order_update',
+        permissions,
+      );
+    } catch (error) {
+      if (error instanceof ForbiddenException) {
+        return [];
+      }
+
+      throw error;
+    }
+
+    const [targetBranchIds, visibleBranchIds] = await Promise.all([
+      this.getTransferTargetBranchIds(admin, db),
+      this.branchHierarchy.getVisibleBranchIds(admin, db),
+    ]);
+    const validBranchIds = targetBranchIds.filter((branchId) =>
+      visibleBranchIds.includes(branchId),
+    );
+
+    if (!validBranchIds.length) {
+      return [];
+    }
+
+    return db<RepairOrderTransferBranch>('branches')
+      .whereIn('id', validBranchIds)
+      .andWhere('parent_branch_id', MOTHER_BRANCH_ID)
+      .andWhere('status', 'Open')
+      .andWhere('is_active', true)
+      .select('id', 'name_uz', 'name_ru', 'name_en')
+      .orderBy('sort', 'asc');
+  }
+
+  private async canTransferFromMotherBranch(
+    admin: AdminPayload,
+    db: Knex | Knex.Transaction = this.knex,
+  ): Promise<boolean> {
+    if (this.branchHierarchy.isSuperAdmin(admin)) {
+      return true;
+    }
+
+    const assignedBranchIds = await this.branchHierarchy.getAdminAssignedBranchIds(admin.id, db);
+    return assignedBranchIds.includes(MOTHER_BRANCH_ID);
+  }
+
+  private async getTransferTargetBranchIds(
+    admin: AdminPayload,
+    db: Knex | Knex.Transaction = this.knex,
+  ): Promise<string[]> {
+    const childBranchIds = await this.branchHierarchy.getChildBranchIds(db);
+    if (this.branchHierarchy.isSuperAdmin(admin)) {
+      return childBranchIds;
+    }
+
+    const assignedBranchIds = await this.branchHierarchy.getAdminAssignedBranchIds(admin.id, db);
+    return assignedBranchIds.filter((branchId) => childBranchIds.includes(branchId));
+  }
+
+  private async assertTransferTargetBranchWritable(
+    admin: AdminPayload,
+    branchId: string,
+    db: Knex | Knex.Transaction = this.knex,
+  ): Promise<void> {
+    const transferTargetBranchIds = await this.getTransferTargetBranchIds(admin, db);
+    if (!transferTargetBranchIds.includes(branchId)) {
+      throw new ForbiddenException({
+        message: 'You do not have write access to this branch',
+        location: 'branch_id',
+      });
     }
   }
 
