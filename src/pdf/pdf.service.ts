@@ -24,47 +24,55 @@ export class PdfService {
       const mergedPdf = await PDFDocument.create();
       const pagesToRender = ['page_1.html', 'page_2.html'];
 
-      for (const fileName of pagesToRender) {
-        this.logger.debug(`Rendering ${fileName}...`);
-        const page = await browser.newPage();
+      // ⚡ Bolt: Process pages in parallel
+      // Performance Impact: Renders `page_1.html` and `page_2.html` concurrently,
+      // reducing total Puppeteer rendering time by up to ~50%.
+      const pdfBuffers = await Promise.all(
+        pagesToRender.map(async (fileName) => {
+          this.logger.debug(`Rendering ${fileName}...`);
+          const page = await browser.newPage();
 
-        try {
-          await page.setViewport({
-            width: 1122,
-            height: 794,
-            deviceScaleFactor: 2,
-          });
+          try {
+            await page.setViewport({
+              width: 1122,
+              height: 794,
+              deviceScaleFactor: 2,
+            });
 
-          // Resolve path to the copied templates in the dist/ directory
-          const filePath = path.join(__dirname, '..', 'pdf-templates', fileName);
-          await page.goto(`file://${filePath}`, { waitUntil: 'networkidle0' });
+            // Resolve path to the copied templates in the dist/ directory
+            const filePath = path.join(__dirname, '..', 'pdf-templates', fileName);
+            await page.goto(`file://${filePath}`, { waitUntil: 'networkidle0' });
 
-          // Inject payload and render
-          await page.evaluate((data: PdfPayload) => {
-            const win = window as unknown as PuppeteerWindow;
-            if (win.renderApp) {
-              win.renderApp(data);
-            }
-          }, payload);
+            // Inject payload and render
+            await page.evaluate((data: PdfPayload) => {
+              const win = window as unknown as PuppeteerWindow;
+              if (win.renderApp) {
+                win.renderApp(data);
+              }
+            }, payload);
 
-          // Wait for rendering to complete
-          await page.waitForFunction(
-            () => (window as unknown as PuppeteerWindow).isRendered === true,
-          );
+            // Wait for rendering to complete
+            await page.waitForFunction(
+              () => (window as unknown as PuppeteerWindow).isRendered === true,
+            );
 
-          const pdfBuffer = await page.pdf({
-            format: 'A4',
-            landscape: true,
-            printBackground: true,
-            margin: { top: '0', right: '0', bottom: '0', left: '0' },
-          });
+            return await page.pdf({
+              format: 'A4',
+              landscape: true,
+              printBackground: true,
+              margin: { top: '0', right: '0', bottom: '0', left: '0' },
+            });
+          } finally {
+            await page.close();
+          }
+        }),
+      );
 
-          const currentPdf = await PDFDocument.load(pdfBuffer);
-          const copiedPages = await mergedPdf.copyPages(currentPdf, currentPdf.getPageIndices());
-          copiedPages.forEach((p) => mergedPdf.addPage(p));
-        } finally {
-          await page.close();
-        }
+      // Merge PDFs sequentially to preserve order
+      for (const pdfBuffer of pdfBuffers) {
+        const currentPdf = await PDFDocument.load(pdfBuffer);
+        const copiedPages = await mergedPdf.copyPages(currentPdf, currentPdf.getPageIndices());
+        copiedPages.forEach((p) => mergedPdf.addPage(p));
       }
 
       const finalPdfBytes = await mergedPdf.save();
