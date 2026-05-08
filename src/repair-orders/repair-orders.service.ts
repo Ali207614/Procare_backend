@@ -76,6 +76,12 @@ type FindAllBranchScope = {
 };
 type RepairOrderBranchInput = string | string[] | undefined;
 type RepairOrderListQueryDto = FindAllRepairOrdersQueryDto | FindViewableRepairOrdersQueryDto;
+type RepairOrderProblemCleanupConfig = {
+  problemType: 'initial' | 'final';
+  problemTable: 'repair_order_initial_problems' | 'repair_order_final_problems';
+  problemIdColumn: 'repair_order_initial_problem_id' | 'repair_order_final_problem_id';
+  historyField: 'initial_problems' | 'final_problems';
+};
 type FreshRepairOrderRow = FreshRepairOrder & {
   current_owner_branch?: string | null;
   is_read_only?: boolean;
@@ -149,8 +155,6 @@ export class RepairOrdersService {
   ): Promise<RepairOrder> {
     const trx = await this.knex.transaction();
     try {
-      await this.branchHierarchy.assertChildBranch(branchId, trx);
-      await this.branchHierarchy.assertWritableBranch(admin, branchId, {}, trx);
       const createStatus = await this.resolveCreateStatus(trx, branchId, dto.status_id);
       const permissions: RepairOrderStatusPermission[] =
         await this.permissionService.findByRolesAndBranch(admin.roles, branchId);
@@ -2272,18 +2276,38 @@ export class RepairOrdersService {
 
     updateFields.updated_at = new Date();
 
-    const updated = await this.knex(this.table)
-      .where({ id: repairOrderId })
-      .update(updateFields)
-      .returning('*');
+    const trx = await this.knex.transaction();
+    let updated: RepairOrder[] = [];
+    try {
+      updated = await trx(this.table)
+        .where({ id: repairOrderId })
+        .update(updateFields)
+        .returning('*');
 
-    await this.changeLogger.logMultipleFieldsIfChanged(
-      this.knex,
-      repairOrderId,
-      historyFields,
-      admin.id,
-    );
-    await this.autoAssignRepairWorkerFromUpdateIfNeeded(this.knex, repairOrderId, admin);
+      await this.changeLogger.logMultipleFieldsIfChanged(
+        trx,
+        repairOrderId,
+        historyFields,
+        admin.id,
+      );
+
+      if (updateDto.phone_category_id !== undefined) {
+        await this.cleanupProblemsForPhoneCategory(
+          trx,
+          repairOrderId,
+          updateDto.phone_category_id,
+          admin,
+        );
+      }
+
+      await this.autoAssignRepairWorkerFromUpdateIfNeeded(trx, repairOrderId, admin);
+      await trx.commit();
+    } catch (err) {
+      await trx.rollback();
+      this.logger.error(`Failed to update product info for repair order ${repairOrderId}`);
+      throw err;
+    }
+
     await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
 
     // Notify branch about the update
@@ -4555,6 +4579,149 @@ export class RepairOrdersService {
         .andWhere('sort', '>', order.sort)
         .update({ sort: this.knex.raw('sort - 1') });
     }
+  }
+
+  private async cleanupProblemsForPhoneCategory(
+    trx: Knex.Transaction,
+    repairOrderId: string,
+    phoneCategoryId: string,
+    admin: AdminPayload,
+  ): Promise<void> {
+    const configs: RepairOrderProblemCleanupConfig[] = [
+      {
+        problemType: 'initial',
+        problemTable: 'repair_order_initial_problems',
+        problemIdColumn: 'repair_order_initial_problem_id',
+        historyField: 'initial_problems',
+      },
+      {
+        problemType: 'final',
+        problemTable: 'repair_order_final_problems',
+        problemIdColumn: 'repair_order_final_problem_id',
+        historyField: 'final_problems',
+      },
+    ];
+
+    for (const config of configs) {
+      await this.cleanupProblemTypeForPhoneCategory(
+        trx,
+        repairOrderId,
+        phoneCategoryId,
+        admin,
+        config,
+      );
+    }
+  }
+
+  private async cleanupProblemTypeForPhoneCategory(
+    trx: Knex.Transaction,
+    repairOrderId: string,
+    phoneCategoryId: string,
+    admin: AdminPayload,
+    config: RepairOrderProblemCleanupConfig,
+  ): Promise<void> {
+    const problems = await trx(config.problemTable)
+      .where({ repair_order_id: repairOrderId })
+      .select<{ id: string; problem_category_id: string }[]>('id', 'problem_category_id');
+
+    if (!problems.length) {
+      return;
+    }
+
+    const old = await this.getProblemHistorySnapshot(trx, repairOrderId, config.problemType);
+    const problemCategoryIds = [...new Set(problems.map((problem) => problem.problem_category_id))];
+    const allowedProblemCategoryIds = await this.getAllowedProblemCategoryIdsForPhoneCategory(
+      trx,
+      phoneCategoryId,
+      problemCategoryIds,
+    );
+    const invalidProblemIds = problems
+      .filter((problem) => !allowedProblemCategoryIds.has(problem.problem_category_id))
+      .map((problem) => problem.id);
+
+    let changed = false;
+    if (invalidProblemIds.length) {
+      await trx('repair_order_parts')
+        .where({ repair_order_id: repairOrderId })
+        .whereIn(config.problemIdColumn, invalidProblemIds)
+        .delete();
+      await trx(config.problemTable).whereIn('id', invalidProblemIds).delete();
+      changed = true;
+    }
+
+    const invalidPartRows = await trx('repair_order_parts as rop')
+      .join(
+        `${config.problemTable} as repair_order_problem`,
+        `rop.${config.problemIdColumn}`,
+        'repair_order_problem.id',
+      )
+      .leftJoin('repair_part_assignments as rpa', function () {
+        this.on('rpa.repair_part_id', '=', 'rop.repair_part_id').andOn(
+          'rpa.problem_category_id',
+          '=',
+          'repair_order_problem.problem_category_id',
+        );
+      })
+      .where('rop.repair_order_id', repairOrderId)
+      .whereNotNull(`rop.${config.problemIdColumn}`)
+      .whereNull('rpa.id')
+      .select<{ id: string }[]>('rop.id');
+
+    const invalidPartIds = invalidPartRows.map((part) => part.id);
+    if (invalidPartIds.length) {
+      await trx('repair_order_parts').whereIn('id', invalidPartIds).delete();
+      changed = true;
+    }
+
+    if (!changed) {
+      return;
+    }
+
+    const current = await this.getProblemHistorySnapshot(trx, repairOrderId, config.problemType);
+    await this.changeLogger.logIfChanged(
+      trx,
+      repairOrderId,
+      config.historyField,
+      old,
+      current,
+      admin.id,
+    );
+  }
+
+  private async getAllowedProblemCategoryIdsForPhoneCategory(
+    trx: Knex.Transaction,
+    phoneCategoryId: string,
+    problemCategoryIds: string[],
+  ): Promise<Set<string>> {
+    if (!problemCategoryIds.length) {
+      return new Set();
+    }
+
+    const pathRows = await trx
+      .withRecursive('problem_path', (qb) => {
+        void qb
+          .select('id', 'parent_id', 'id as start_id')
+          .from('problem_categories')
+          .whereIn('id', problemCategoryIds)
+          .unionAll(function () {
+            void this.select('p.id', 'p.parent_id', 'pp.start_id')
+              .from('problem_categories as p')
+              .join('problem_path as pp', 'pp.parent_id', 'p.id');
+          });
+      })
+      .select<{ id: string; start_id: string }[]>('id', 'start_id')
+      .from('problem_path');
+
+    const mappedCategoryIds: string[] = await trx('phone_problem_mappings')
+      .where({ phone_category_id: phoneCategoryId })
+      .pluck('problem_category_id');
+    const mappedCategoryIdSet = new Set(mappedCategoryIds);
+
+    return new Set(
+      pathRows
+        .filter((row) => mappedCategoryIdSet.has(row.id))
+        .map((row) => String(row.start_id)),
+    );
   }
 
   private async getProblemHistorySnapshot(

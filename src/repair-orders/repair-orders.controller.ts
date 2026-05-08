@@ -283,7 +283,7 @@ export class RepairOrdersController {
     @Req() req: AuthenticatedRequest,
     @Body() dto: CreateRepairOrderDto,
   ): Promise<RepairOrder> {
-    return this.service.create(req.admin, req.branch.id, dto);
+    return this.service.create(req.admin, dto.branch_id, dto);
   }
 
   @Patch(':repair_order_id')
