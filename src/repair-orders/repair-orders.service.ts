@@ -1225,7 +1225,10 @@ export class RepairOrdersService {
       queryParams.priorities = priorities;
     }
 
-    const searchCondition = this.buildViewableSearchCondition(search);
+    const searchCondition = this.buildBranchScopedSearchCondition(
+      this.buildViewableSearchCondition(search),
+      this.buildViewableExactSearchCondition(search),
+    );
     if (searchCondition) {
       whereConditions.push(searchCondition.sql);
       Object.assign(queryParams, searchCondition.params);
@@ -1234,37 +1237,103 @@ export class RepairOrdersService {
     // Filter by customer name
     if (customer_name) {
       whereConditions.push(
-        `(
+        this.buildBranchScopedSearchCondition(
+          {
+            sql: `(
           LOWER(COALESCE(u.first_name || ' ' || u.last_name, ro.name, '')) ILIKE LOWER(:customerName)
           OR LOWER(COALESCE(u.first_name, ro.name, '')) ILIKE LOWER(:customerName)
           OR LOWER(COALESCE(u.last_name, ro.name, '')) ILIKE LOWER(:customerName)
           OR LOWER(COALESCE(ro.name, '')) ILIKE LOWER(:customerName)
         )`,
+            params: { customerName: `%${customer_name}%` },
+          },
+          {
+            sql: `(
+          ${this.repairOrderNameSearchSql()} = :customerNameExact
+          OR ${this.userFullNameSearchSql()} = :customerNameExact
+          OR LOWER(BTRIM(COALESCE(u.first_name, ''))) = :customerNameExact
+          OR LOWER(BTRIM(COALESCE(u.last_name, ''))) = :customerNameExact
+        )`,
+            params: { customerNameExact: this.buildExactTextValue(customer_name) },
+          },
+        )?.sql ?? 'FALSE',
       );
       queryParams.customerName = `%${customer_name}%`;
+      queryParams.customerNameExact = this.buildExactTextValue(customer_name);
     }
 
     // Filter by phone number
     if (phone_number) {
       const normalizedPhone = this.normalizePhoneNumber(phone_number);
+      const phoneCandidates = this.getPhoneLookupCandidates(normalizedPhone);
       whereConditions.push(
-        `(u.phone_number1 ILIKE :phoneNumber OR u.phone_number2 ILIKE :phoneNumber OR ro.phone_number LIKE :phoneNumber)`,
+        this.buildBranchScopedSearchCondition(
+          {
+            sql: `(u.phone_number1 ILIKE :phoneNumber OR u.phone_number2 ILIKE :phoneNumber OR ro.phone_number LIKE :phoneNumber)`,
+            params: { phoneNumber: `%${normalizedPhone}%` },
+          },
+          phoneCandidates.length
+            ? {
+                sql: `(
+          ro.phone_number = ANY(:phoneNumberExactCandidates)
+          OR u.phone_number1 = ANY(:phoneNumberExactCandidates)
+          OR u.phone_number2 = ANY(:phoneNumberExactCandidates)
+        )`,
+                params: { phoneNumberExactCandidates: phoneCandidates },
+              }
+            : null,
+        )?.sql ?? 'FALSE',
       );
       queryParams.phoneNumber = `%${normalizedPhone}%`;
+      if (phoneCandidates.length) {
+        queryParams.phoneNumberExactCandidates = phoneCandidates;
+      }
     }
 
     // Filter by device model
     if (device_model) {
       whereConditions.push(
-        `LOWER(pc.name_uz) ILIKE LOWER(:deviceModel) OR LOWER(pc.name_ru) ILIKE LOWER(:deviceModel) OR LOWER(pc.name_en) LIKE LOWER(:deviceModel)`,
+        this.buildBranchScopedSearchCondition(
+          {
+            sql: `(LOWER(pc.name_uz) ILIKE LOWER(:deviceModel) OR LOWER(pc.name_ru) ILIKE LOWER(:deviceModel) OR LOWER(pc.name_en) LIKE LOWER(:deviceModel))`,
+            params: { deviceModel: `%${device_model}%` },
+          },
+          {
+            sql: `(
+          LOWER(BTRIM(COALESCE(pc.name_uz, ''))) = :deviceModelExact
+          OR LOWER(BTRIM(COALESCE(pc.name_ru, ''))) = :deviceModelExact
+          OR LOWER(BTRIM(COALESCE(pc.name_en, ''))) = :deviceModelExact
+        )`,
+            params: { deviceModelExact: this.buildExactTextValue(device_model) },
+          },
+        )?.sql ?? 'FALSE',
       );
       queryParams.deviceModel = `%${device_model}%`;
+      queryParams.deviceModelExact = this.buildExactTextValue(device_model);
     }
 
     // Filter by order number
     if (order_number) {
-      whereConditions.push(`ro.number_id::text ILIKE :orderNumber`);
+      const trimmedOrderNumber = order_number.trim();
+      const parsedOrderNumber = trimmedOrderNumber ? Number(trimmedOrderNumber) : Number.NaN;
+      whereConditions.push(
+        this.buildBranchScopedSearchCondition(
+          {
+            sql: `ro.number_id::text ILIKE :orderNumber`,
+            params: { orderNumber: `%${order_number}%` },
+          },
+          Number.isSafeInteger(parsedOrderNumber)
+            ? {
+                sql: `ro.number_id = :orderNumberExact`,
+                params: { orderNumberExact: parsedOrderNumber },
+              }
+            : null,
+        )?.sql ?? 'FALSE',
+      );
       queryParams.orderNumber = `%${order_number}%`;
+      if (Number.isSafeInteger(parsedOrderNumber)) {
+        queryParams.orderNumberExact = parsedOrderNumber;
+      }
     }
 
     // Filter by delivery methods
@@ -1576,6 +1645,33 @@ export class RepairOrdersService {
     };
   }
 
+  private buildBranchScopedSearchCondition(
+    partialCondition: RepairOrderSearchCondition | null,
+    exactMotherCondition: RepairOrderSearchCondition | null,
+  ): RepairOrderSearchCondition | null {
+    if (!partialCondition && !exactMotherCondition) {
+      return null;
+    }
+
+    const branchClauses: string[] = [];
+    const params: Record<string, unknown> = {};
+
+    if (partialCondition) {
+      branchClauses.push(`(ro.branch_id <> :motherBranchId AND ${partialCondition.sql})`);
+      Object.assign(params, partialCondition.params);
+    }
+
+    if (exactMotherCondition) {
+      branchClauses.push(`(ro.branch_id = :motherBranchId AND ${exactMotherCondition.sql})`);
+      Object.assign(params, exactMotherCondition.params);
+    }
+
+    return {
+      sql: `(${branchClauses.join('\n        OR ')})`,
+      params,
+    };
+  }
+
   private buildViewableSearchCondition(search?: string): RepairOrderSearchCondition | null {
     const normalizedSearch = this.normalizeSearchTerm(search);
     if (!normalizedSearch) {
@@ -1599,6 +1695,76 @@ export class RepairOrdersService {
 
     if (!hasLetters && digits.length > 0) {
       this.addOrderNumberSearchClauses(clauses, params, digits);
+    }
+
+    if (!clauses.length) {
+      return null;
+    }
+
+    return {
+      sql: `(${clauses.join('\n        OR ')})`,
+      params,
+    };
+  }
+
+  private buildViewableExactSearchCondition(search?: string): RepairOrderSearchCondition | null {
+    const normalizedSearch = this.normalizeSearchTerm(search);
+    if (!normalizedSearch) {
+      return null;
+    }
+
+    const digits = normalizedSearch.replace(/\D/g, '');
+    const hasLetters = this.hasSearchLetters(normalizedSearch);
+    const clauses: string[] = [];
+    const params: Record<string, unknown> = {};
+
+    if (this.shouldRouteSearchToPhone(normalizedSearch, digits, hasLetters) && digits.length >= 9) {
+      const phoneCandidates = this.getPhoneLookupCandidates(normalizedSearch);
+      if (phoneCandidates.length) {
+        params.searchPhoneExactCandidates = phoneCandidates;
+        clauses.push(
+          `(
+          ro.phone_number = ANY(:searchPhoneExactCandidates)
+          OR ro.user_id IN (
+            SELECT search_u.id
+            FROM users search_u
+            WHERE search_u.phone_number1 = ANY(:searchPhoneExactCandidates)
+               OR search_u.phone_number2 = ANY(:searchPhoneExactCandidates)
+          )
+        )`,
+        );
+      }
+    }
+
+    if (hasLetters) {
+      params.searchTextExact = this.buildExactTextValue(normalizedSearch);
+      clauses.push(
+        `(
+          ${this.repairOrderNameSearchSql()} = :searchTextExact
+          OR ro.user_id IN (
+            SELECT search_u.id
+            FROM users search_u
+            WHERE ${this.userFullNameSearchSql('search_u')} = :searchTextExact
+               OR LOWER(BTRIM(COALESCE(search_u.first_name, ''))) = :searchTextExact
+               OR LOWER(BTRIM(COALESCE(search_u.last_name, ''))) = :searchTextExact
+          )
+          OR ro.phone_category_id IN (
+            SELECT search_pc.id
+            FROM phone_categories search_pc
+            WHERE LOWER(BTRIM(COALESCE(search_pc.name_uz, ''))) = :searchTextExact
+               OR LOWER(BTRIM(COALESCE(search_pc.name_ru, ''))) = :searchTextExact
+               OR LOWER(BTRIM(COALESCE(search_pc.name_en, ''))) = :searchTextExact
+          )
+        )`,
+      );
+    }
+
+    if (!hasLetters && digits.length > 0) {
+      const parsedOrderNumber = Number(digits);
+      if (Number.isSafeInteger(parsedOrderNumber)) {
+        params.searchOrderNumberExact = parsedOrderNumber;
+        clauses.push(`ro.number_id = :searchOrderNumberExact`);
+      }
     }
 
     if (!clauses.length) {
@@ -1731,6 +1897,10 @@ export class RepairOrdersService {
   private buildTextSearchPattern(search: string): string {
     const escapedSearch = this.escapeSqlLikePattern(search.toLowerCase());
     return search.replace(/\s/g, '').length < 3 ? `${escapedSearch}%` : `%${escapedSearch}%`;
+  }
+
+  private buildExactTextValue(search: string): string {
+    return this.normalizeSearchTerm(search).toLowerCase();
   }
 
   private escapeSqlLikePattern(value: string): string {
@@ -2504,7 +2674,7 @@ export class RepairOrdersService {
     if (this.branchHierarchy.isMotherBranch(order.branch_id)) {
       throw new BadRequestException({
         message: 'Mother Branch orders must be taken before they can be transferred',
-        location: 'branch_id',
+        location: 'mother_branch',
       });
     }
 
@@ -4718,9 +4888,7 @@ export class RepairOrdersService {
     const mappedCategoryIdSet = new Set(mappedCategoryIds);
 
     return new Set(
-      pathRows
-        .filter((row) => mappedCategoryIdSet.has(row.id))
-        .map((row) => String(row.start_id)),
+      pathRows.filter((row) => mappedCategoryIdSet.has(row.id)).map((row) => String(row.start_id)),
     );
   }
 

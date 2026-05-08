@@ -204,6 +204,42 @@ describe('RepairOrdersService', () => {
       expect(condition.params.searchPhoneDigitsPattern).toBeUndefined();
     });
 
+    it('should scope fuzzy search to child branches and exact search to Mother Branch', async () => {
+      const admin = { id: 'admin-123', roles: [{ id: 'role-1', name: 'Operator' }] };
+      const query = { branch_ids: [MOTHER_BRANCH_ID, 'branch-a'], search: 'iPhone 14' } as any;
+      const rawCalls: any[] = [];
+
+      (service as any).branchHierarchy.getVisibleBranchIds = jest
+        .fn()
+        .mockResolvedValue([MOTHER_BRANCH_ID, 'branch-a']);
+      mockPermissionService.findByRolesAndBranch.mockResolvedValue([
+        {
+          branch_id: 'branch-a',
+          role_id: 'role-1',
+          status_id: 'visible-status',
+          can_view: true,
+        },
+      ]);
+      mockRedis.get.mockResolvedValue(null);
+      mockKnex.raw.mockImplementation((sql: string, params: Record<string, unknown>) => {
+        rawCalls.push({ sql, params });
+        return Promise.resolve({ rows: [] });
+      });
+
+      await service.findAllByAdminBranch(admin as any, query.branch_ids, query, {
+        viewableEndpoint: true,
+      });
+
+      expect(rawCalls[0].sql).toMatch(
+        /ro\.branch_id <> :motherBranchId AND \([\s\S]*LIKE :searchTextPattern/,
+      );
+      expect(rawCalls[0].sql).toMatch(
+        /ro\.branch_id = :motherBranchId AND \([\s\S]*= :searchTextExact/,
+      );
+      expect(rawCalls[0].params.searchTextPattern).toBe('%iphone 14%');
+      expect(rawCalls[0].params.searchTextExact).toBe('iphone 14');
+    });
+
     it('should sanitize viewable rows without changing the legacy row shape', () => {
       const row = {
         id: 'order-1',
