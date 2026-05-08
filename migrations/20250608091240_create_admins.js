@@ -1,0 +1,44 @@
+exports.up = async function (knex) {
+  await knex.raw('CREATE EXTENSION IF NOT EXISTS "pgcrypto";');
+
+  await knex.schema.createTable('admins', (table) => {
+    table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+
+    table.string('first_name');
+    table.string('last_name');
+    table.string('phone_number').notNullable();
+    table.boolean('phone_verified').defaultTo(false);
+    table.string('verification_code');
+    table.string('password');
+    table.boolean('is_protected').defaultTo(false);
+
+    table.string('onlinepbx_code').nullable();
+    table.jsonb('work_days').notNullable().defaultTo(JSON.stringify({
+      monday: true,
+      tuesday: true,
+      wednesday: true,
+      thursday: true,
+      friday: true,
+      saturday: true,
+      sunday: false,
+    }));
+    table.string("work_start_time").defaultTo("09:00")
+    table.string("work_end_time").defaultTo("18:00")
+
+    table.string('passport_series');
+    table.date('birth_date');
+    table.date('hire_date');
+    table.string('id_card_number');
+    table.string('language').defaultTo('uz');
+
+    table.boolean('is_active').defaultTo(true);
+    table.enu('status', ['Pending', 'Open', 'Deleted', 'Banned']).defaultTo('Open');
+
+    table.timestamp('created_at').defaultTo(knex.fn.now());
+    table.timestamp('updated_at').defaultTo(knex.fn.now());
+  });
+};
+
+exports.down = async function (knex) {
+  await knex.schema.dropTableIfExists('admins');
+};

@@ -1,0 +1,92 @@
+import {
+  Controller,
+  Post,
+  Get,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  UseGuards,
+  Query,
+  UseInterceptors,
+} from '@nestjs/common';
+import { RolesService } from './roles.service';
+import { CreateRoleDto } from './dto/create-role.dto';
+import { UpdateRoleDto } from './dto/update-role.dto';
+import { SetPermissions } from 'src/common/decorators/permission-decorator';
+import { ApiTags, ApiOperation, ApiParam, ApiBearerAuth, ApiOkResponse } from '@nestjs/swagger';
+import { PermissionsGuard } from 'src/common/guards/permission.guard';
+import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
+import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
+import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
+import { Role } from 'src/common/types/role.interface';
+import { Permission } from 'src/common/types/permission.interface';
+import { FindAllRolesDto } from 'src/roles/dto/find-all-roles.dto';
+import { PaginationResult } from 'src/common/utils/pagination.util';
+import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
+
+export interface RoleWithPermissions extends Role {
+  permissions: Permission[];
+}
+
+@ApiTags('Roles')
+@ApiBearerAuth()
+@UseGuards(JwtAdminAuthGuard)
+@Controller('roles')
+export class RolesController {
+  constructor(private readonly service: RolesService) {}
+
+  @Post()
+  @UseGuards(PermissionsGuard)
+  @SetPermissions('role.create')
+  @ApiOperation({ summary: 'Create new role' })
+  async create(@CurrentAdmin() admin: AdminPayload, @Body() dto: CreateRoleDto): Promise<Role> {
+    return this.service.create(dto, admin.id);
+  }
+
+  @Get()
+  @UseGuards(PermissionsGuard)
+  @UseInterceptors(PaginationInterceptor)
+  @SetPermissions('role.view')
+  @ApiOperation({ summary: 'Get all roles (with filters and pagination)' })
+  @ApiOkResponse({
+    description: 'List of roles with pagination metadata',
+    isArray: false,
+  })
+  async findAll(@Query() dto: FindAllRolesDto): Promise<PaginationResult<Role>> {
+    return this.service.findAll(dto);
+  }
+
+  @Get(':id')
+  @UseGuards(PermissionsGuard)
+  @SetPermissions('role.view')
+  @ApiParam({ name: 'id', description: 'Role ID (UUID)' })
+  @ApiOperation({ summary: 'Get role by ID' })
+  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<RoleWithPermissions> {
+    return this.service.findOne(id);
+  }
+
+  @Patch(':id')
+  @UseGuards(PermissionsGuard)
+  @SetPermissions('role.update')
+  @ApiOperation({ summary: 'Update role by ID' })
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateRoleDto,
+    @CurrentAdmin() admin: AdminPayload,
+  ): Promise<{ message: string }> {
+    return this.service.update(id, dto, admin.id);
+  }
+
+  @Delete(':id')
+  @UseGuards(PermissionsGuard)
+  @SetPermissions('role.delete')
+  @ApiOperation({ summary: 'Delete role by ID (soft delete)' })
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentAdmin() admin: AdminPayload,
+  ): Promise<{ message: string }> {
+    return this.service.delete(id, admin.id);
+  }
+}

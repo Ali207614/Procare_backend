@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procare - Where Experts Meet</title>
+    <style>
+        :root {
+            --primary-blue: #00a0e3;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .page-container {
+            width: 297mm; /* A4 Landscape */
+            height: 210mm;
+            background: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            box-sizing: border-box;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .content-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 300px; /* Extended gap to match page_002.png */
+        }
+
+        .logo {
+            height: 100px; /* Larger logo for this page */
+        }
+
+        .tagline {
+            font-size: 32px;
+            color: #333;
+            font-weight: 500;
+            position: relative;
+        }
+
+        /* Responsive scaling for viewport */
+        @media print {
+            body { background: none; }
+            .page-container { margin: 0; border: none; box-shadow: none; box-sizing: border-box; }
+            @page { size: A4 landscape; margin: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <div class="content-wrapper">
+            <img src="assets/logo.png" class="logo" alt="Procare">
+            <div class="tagline">Where Experts Meet</div>
+        </div>
+    </div>
+
+    <script>
+        // Simple script to indicate rendering is done, even though there's no dynamic data here
+        window.renderApp = function(payload) {
+            window.isRendered = true;
+        };
+        // Auto-render
+        window.renderApp({});
+    </script>
+</body>
+</html>

@@ -1,0 +1,121 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
+import { JwtAdminAuthGuard } from '../common/guards/jwt-admin.guard';
+import { AdminsService } from './admins.service';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
+import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
+import { ClassSerializerInterceptor } from 'src/common/interceptors/class-serializer.interceptor';
+import { plainToInstance } from 'class-transformer';
+import { AdminProfileDto } from './dto/admin-profile.dto';
+import { PermissionsGuard } from 'src/common/guards/permission.guard';
+import { SetAllPermissions, SetPermissions } from 'src/common/decorators/permission-decorator';
+import { CreateAdminDto } from './dto/create-admin.dto';
+import { UpdateAdminDto } from './dto/update-admin.dto';
+import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
+import { FindAllAdminsDto } from './dto/find-all-admins.dto';
+import { Admin, AdminListItem } from 'src/common/types/admin.interface';
+import { AuthenticatedRequest } from 'src/common/types/authenticated-request.type';
+import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
+import { AdminListItemDto } from './dto/admin-list-item.dto';
+
+@ApiBearerAuth()
+@UseGuards(JwtAdminAuthGuard)
+@ApiTags('Employees')
+@Controller('admins')
+export class AdminsController {
+  constructor(private readonly adminsService: AdminsService) {}
+
+  @ApiOkResponse({ type: AdminProfileDto, description: 'Return current admin profile' })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+  @UseInterceptors(ClassSerializerInterceptor)
+  @Get('me')
+  async getProfile(@CurrentAdmin() admin: AdminPayload): Promise<AdminProfileDto> {
+    const adminData = await this.adminsService.findById(admin.id);
+    return plainToInstance(AdminProfileDto, adminData);
+  }
+
+  @Post()
+  @UseGuards(PermissionsGuard)
+  @SetPermissions('admin.manage.create')
+  @ApiOperation({ summary: 'Create new admin (without password)' })
+  async create(@CurrentAdmin() admin: AdminPayload, @Body() dto: CreateAdminDto): Promise<Admin> {
+    return this.adminsService.create(admin.id, dto);
+  }
+
+  @Patch(':id')
+  @UseGuards(PermissionsGuard)
+  @SetPermissions('admin.manage.update', 'admin.profile.edit.basic', 'admin.profile.edit.sensitive')
+  @ApiParam({ name: 'id', description: 'Admin ID' })
+  @ApiOperation({ summary: 'Update admin data' })
+  async update(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateAdminDto,
+  ): Promise<{ message: string }> {
+    return this.adminsService.update(req.admin, id, dto);
+  }
+
+  @Delete(':id')
+  @UseGuards(PermissionsGuard)
+  @SetAllPermissions('admin.manage.delete')
+  @ApiParam({ name: 'id', description: 'Admin ID (UUID)' })
+  @ApiOperation({ summary: 'Delete admin by ID (soft delete)' })
+  async delete(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ message: string }> {
+    return this.adminsService.delete(req.admin, id);
+  }
+
+  @Get(':id')
+  @UseInterceptors(ClassSerializerInterceptor)
+  @UseGuards(PermissionsGuard)
+  @SetAllPermissions('admin.manage.view_details')
+  @ApiOkResponse({ type: AdminProfileDto, description: 'Admin details' })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+  @ApiForbiddenResponse({ description: 'Forbidden' })
+  @ApiNotFoundResponse({ description: 'Admin not found' })
+  @ApiParam({ name: 'id', description: 'Admin ID (UUID)' })
+  @ApiOperation({ summary: 'Get admin details by ID' })
+  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<AdminProfileDto> {
+    const adminData = await this.adminsService.findById(id);
+    return plainToInstance(AdminProfileDto, adminData);
+  }
+
+  @Get()
+  @UseInterceptors(ClassSerializerInterceptor, PaginationInterceptor)
+  @UseGuards(PermissionsGuard)
+  @SetAllPermissions('admin.manage.view_all')
+  @ApiOperation({ summary: 'Get all admins with filters and pagination' })
+  async findAll(
+    @Query() query: FindAllAdminsDto,
+  ): Promise<{ rows: AdminListItemDto[]; total: number; limit: number; offset: number }> {
+    const result = await this.adminsService.findAll(query);
+
+    return {
+      ...result,
+      rows: result.rows.map((admin: AdminListItem) => plainToInstance(AdminListItemDto, admin)),
+    };
+  }
+}

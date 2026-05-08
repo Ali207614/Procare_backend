@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="uz">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Procare - Ommaviy Oferta</title>
+    <style>
+      :root {
+        --primary-blue: #12aeea;
+        --text-dark: #252525;
+        --text-muted: #4a4a4a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #fff;
+        color: var(--text-dark);
+        font-family: 'Segoe UI', Arial, sans-serif;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      @page {
+        size: A4 portrait;
+        margin: 25mm;
+      }
+
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        margin-bottom: 15mm;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      .logo {
+        width: 45mm;
+        height: auto;
+        display: block;
+      }
+
+      .tagline-wrap {
+        display: flex;
+        align-items: center;
+        gap: 6mm;
+        color: #303030;
+        font-size: 24px;
+        font-weight: 500;
+        letter-spacing: 0;
+        white-space: nowrap;
+      }
+
+      .tagline-line {
+        width: 2px;
+        height: 13mm;
+        background: #111;
+        display: block;
+      }
+
+      .title-blue {
+        margin: 0 0 14px;
+        color: var(--primary-blue);
+        font-size: 20px;
+        font-weight: 700;
+        line-height: 1.35;
+      }
+
+      .offer-content {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        word-break: normal;
+        text-align: justify;
+        text-align-last: left;
+      }
+
+      .offer-content p,
+      .offer-content ul,
+      .offer-content ol {
+        margin: 0 0 14px;
+        font-size: 14px;
+        line-height: 1.62;
+        orphans: 2;
+        widows: 2;
+      }
+
+      .offer-content ul,
+      .offer-content ol {
+        padding-left: 18px;
+      }
+
+      .offer-content li {
+        margin: 0 0 8px;
+        padding-left: 2px;
+      }
+
+      .offer-content p,
+      .offer-content li,
+      .offer-content h1,
+      .offer-content h2,
+      .offer-content h3 {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      .offer-content h1,
+      .offer-content h2,
+      .offer-content h3 {
+        margin: 18px 0 10px;
+        color: var(--primary-blue);
+        font-size: 18px;
+        line-height: 1.35;
+      }
+
+      .offer-content strong,
+      .offer-content b {
+        font-weight: 700;
+      }
+
+      .footer {
+        margin-top: 24px;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      .confirmation-text,
+      .customer-info-title {
+        color: var(--primary-blue);
+        font-size: 19px;
+        font-weight: 700;
+        line-height: 1.35;
+      }
+
+      .confirmation-text {
+        margin-bottom: 22px;
+      }
+
+      .customer-info-title {
+        margin-bottom: 20px;
+      }
+
+      .bottom-section {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 50mm;
+        gap: 12mm;
+        align-items: end;
+        width: 100%;
+      }
+
+      .fields {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .field-row {
+        display: grid;
+        grid-template-columns: 39mm minmax(45mm, 1fr);
+        align-items: end;
+        gap: 9px;
+        min-height: 22px;
+      }
+
+      .label,
+      .signature-label {
+        color: #151515;
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1.2;
+        white-space: nowrap;
+      }
+
+      .value,
+      .signature-line {
+        min-height: 20px;
+        border-bottom: 1px solid #111;
+      }
+
+      .value {
+        padding: 0 8px 2px;
+        font-style: italic;
+        line-height: 1.35;
+      }
+
+      .signature {
+        display: grid;
+        grid-template-columns: max-content minmax(20mm, 1fr);
+        gap: 10px;
+        align-items: end;
+        min-width: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="header">
+      <img src="assets/logo.png" class="logo" alt="Procare" />
+      <div class="tagline-wrap">
+        <span class="tagline-line"></span>
+        <span>Where Experts Meet</span>
+      </div>
+    </header>
+
+    <main>
+      <h1 class="title-blue">Hurmatli mijoz,</h1>
+      <section class="offer-content" id="offer-content"></section>
+
+      <section class="footer">
+        <div class="confirmation-text">Men buni tushunaman va roziligimni bildiraman.</div>
+        <div class="customer-info-title">Mijoz ma'lumotlari:</div>
+
+        <div class="bottom-section">
+          <div class="fields">
+            <div class="field-row">
+              <span class="label">F.I.SH:</span>
+              <div class="value"></div>
+            </div>
+            <div class="field-row">
+              <span class="label">Telefon raqami:</span>
+              <div class="value"></div>
+            </div>
+            <div class="field-row">
+              <span class="label">Qurilma raqami:</span>
+              <div class="value"></div>
+            </div>
+            <div class="field-row">
+              <span class="label">IMEI / Seriya raqami:</span>
+              <div class="value"></div>
+            </div>
+            <div class="field-row">
+              <span class="label">Topshirish sanasi:</span>
+              <div class="value"></div>
+            </div>
+          </div>
+
+          <div class="signature">
+            <span class="signature-label">Mijoz imzosi:</span>
+            <div class="signature-line"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      window.renderApp = function (payload) {
+        const content = document.getElementById('offer-content');
+        content.innerHTML = payload && payload.offer_content ? payload.offer_content : '';
+        window.isRendered = true;
+      };
+    </script>
+  </body>
+</html>

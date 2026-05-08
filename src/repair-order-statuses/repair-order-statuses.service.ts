@@ -1,0 +1,656 @@
+import { InjectKnex } from 'nestjs-knex';
+import { Knex } from 'knex';
+import { getNextSortValue } from 'src/common/utils/sort.util';
+import { CreateRepairOrderStatusDto } from './dto/create-repair-order-status.dto';
+import { UpdateRepairOrderStatusDto } from './dto/update-repair-order-status.dto';
+import { RedisService } from 'src/common/redis/redis.service';
+import { RepairOrderStatusPermissionsService } from 'src/repair-order-status-permission/repair-order-status-permissions.service';
+import { BadRequestException, ForbiddenException, HttpException, Injectable } from '@nestjs/common';
+import { LoggerService } from 'src/common/logger/logger.service';
+import {
+  RepairOrderStatus,
+  RepairOrderStatusWithPermissions,
+} from 'src/common/types/repair-order-status.interface';
+import { Branch } from 'src/common/types/branch.interface';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
+import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
+import {
+  RepairOrderStatusTransferPermissionsResult,
+  RepairOrderStatusTransition,
+} from 'src/common/types/repair-order-status-transition.interface';
+import { PaginationResult } from 'src/common/utils/pagination.util';
+import { HistoryService } from 'src/history/history.service';
+import { MOTHER_BRANCH_ID } from 'src/branches/branch-hierarchy.service';
+
+@Injectable()
+export class RepairOrderStatusesService {
+  private readonly redisKeyView = 'status_viewable:';
+  private readonly redisKeyAll = 'repair_order_statuses:all:';
+  private readonly redisKeyById = 'repair_order_statuses:id';
+
+  constructor(
+    @InjectKnex() private readonly knex: Knex,
+    private readonly redisService: RedisService,
+    private readonly repairOrderStatusPermissions: RepairOrderStatusPermissionsService,
+    private readonly logger: LoggerService,
+    private readonly historyService: HistoryService,
+  ) {}
+
+  async create(dto: CreateRepairOrderStatusDto, adminId: string): Promise<RepairOrderStatus> {
+    const trx = await this.knex.transaction();
+    try {
+      const branchId = dto.branch_id ?? MOTHER_BRANCH_ID;
+      let branch: Branch | undefined;
+
+      if (branchId) {
+        if (branchId !== MOTHER_BRANCH_ID) {
+          throw new BadRequestException({
+            message: 'Repair order statuses can only be created in the Mother Branch',
+            location: 'branch_id',
+          });
+        }
+        const redisKey = `branches:by_id:${branchId}`;
+        branch =
+          (await this.redisService.get(redisKey)) ??
+          (await trx<Branch>('branches').where({ id: branchId, status: 'Open' }).first());
+        if (!branch)
+          throw new BadRequestException({
+            message: 'Branch not found or deleted',
+            location: 'branch_id',
+          });
+        if (!branch.is_active)
+          throw new BadRequestException({ message: 'Branch inactive', location: 'branch_id' });
+        await this.redisService.set(redisKey, branch, 3600);
+      }
+
+      const existing: RepairOrderStatus | undefined = await trx<RepairOrderStatus>(
+        'repair_order_statuses',
+      )
+        .where({ branch_id: branchId })
+        .andWhereNot({ status: 'Deleted' })
+        .andWhere((qb) => {
+          void qb
+            .whereRaw('LOWER(name_uz) = LOWER(?)', [dto.name_uz])
+            .orWhereRaw('LOWER(name_ru) = LOWER(?)', [dto.name_ru])
+            .orWhereRaw('LOWER(name_en) = LOWER(?)', [dto.name_en]);
+        })
+        .first();
+
+      if (existing) {
+        throw new BadRequestException({
+          message: 'Status name already exists in this branch (any language)',
+          location: 'name_conflict',
+        });
+      }
+
+      const nextSort = await getNextSortValue(trx, 'repair_order_statuses', {
+        where: { branch_id: branchId },
+      });
+
+      const insertData: Partial<RepairOrderStatus> = {
+        name_uz: dto.name_uz,
+        name_ru: dto.name_ru,
+        name_en: dto.name_en,
+        branch_id: branchId,
+        is_active: dto.is_active ?? true,
+        can_user_view: dto.can_user_view ?? true,
+        can_add_payment: dto.can_add_payment ?? false,
+        bg_color: dto.bg_color,
+        color: dto.color,
+        status: 'Open',
+        sort: nextSort,
+        created_by: adminId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const [created]: RepairOrderStatus[] = await trx('repair_order_statuses')
+        .insert(insertData)
+        .returning('*');
+      await this.historyService.recordEntityCreated({
+        db: trx,
+        entityTable: 'repair_order_statuses',
+        entityPk: created.id,
+        entityLabel: created.name_uz ?? null,
+        rootEntityTable: 'branches',
+        rootEntityPk: branchId,
+        branchId,
+        actor: { actorPk: adminId },
+        values: created as unknown as Record<string, unknown>,
+      });
+      await trx.commit();
+
+      await Promise.all([
+        this.redisService.flushByPrefix(`${this.redisKeyView}${branchId}:`),
+        this.redisService.flushByPrefix(`${this.redisKeyAll}${branchId}`),
+        this.redisService.set(`${this.redisKeyById}:${created.id}`, created, 3600),
+      ]);
+      this.logger.log(`Created repair order status ${created.id}`);
+      return created;
+    } catch (err) {
+      await trx.rollback();
+      if (err instanceof HttpException) {
+        throw err;
+      }
+
+      this.logger.error(
+        `Failed to create status: ${err instanceof Error ? err.message : String(err)}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+
+      throw new BadRequestException({
+        message: 'Failed to create status',
+        location: 'create_status',
+      });
+    }
+  }
+
+  async findAllStatuses(
+    branchId: string,
+    offset = 0,
+    limit = 20,
+  ): Promise<PaginationResult<RepairOrderStatus>> {
+    const cacheKey = `${this.redisKeyAll}${branchId}:${offset}:${limit}`;
+    const cached: PaginationResult<RepairOrderStatus> | null =
+      await this.redisService.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const trx = await this.knex.transaction();
+    try {
+      const baseQuery = trx<RepairOrderStatus>('repair_order_statuses').where({
+        branch_id: MOTHER_BRANCH_ID,
+        status: 'Open',
+      });
+
+      const [rows, countResult, countsRaw] = await Promise.all([
+        baseQuery.clone().orderBy('sort', 'asc').offset(offset).limit(limit),
+        baseQuery.clone().count<{ count: string }[]>('* as count'),
+        trx('repair_orders')
+          .where('branch_id', branchId)
+          .andWhereNot('status', 'Deleted')
+          .groupBy('status_id')
+          .select('status_id')
+          .count<{ status_id: string; count: string }[]>('* as count'),
+      ]);
+
+      const total: number = Number(countResult[0].count);
+
+      const countsMap = countsRaw.reduce<Record<string, number>>((acc, c) => {
+        acc[c.status_id] = Number(c.count);
+        return acc;
+      }, {});
+
+      const mergedRows: RepairOrderStatus[] = rows.map((status) => ({
+        ...status,
+        metrics: {
+          total_repair_orders: countsMap[status.id] || 0,
+        },
+      }));
+
+      const result: PaginationResult<RepairOrderStatus> = {
+        rows: mergedRows,
+        total: Number(total),
+        limit,
+        offset,
+      };
+
+      await trx.commit();
+      await this.redisService.set(cacheKey, result, 3600);
+      return result;
+    } catch (err) {
+      await trx.rollback();
+      this.logger.error(
+        `Failed to fetch all statuses: ${err instanceof Error ? err.message : String(err)}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+      throw new BadRequestException({
+        message: 'Failed to fetch statuses',
+        location: 'findAllStatuses',
+      });
+    }
+  }
+
+  async findViewable(
+    admin: AdminPayload,
+    branchId: string,
+    offset = 0,
+    limit = 50,
+  ): Promise<PaginationResult<RepairOrderStatusWithPermissions>> {
+    const primaryRoleId = admin.roles[0]?.id;
+    const cacheKey = `${this.redisKeyView}${branchId}:${admin.id}:${primaryRoleId ?? 'no-role'}:${offset}:${limit}`;
+    const cached: PaginationResult<RepairOrderStatusWithPermissions> | null =
+      await this.redisService.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const permissions: RepairOrderStatusPermission[] =
+      await this.repairOrderStatusPermissions.findByRolesAndBranch(admin.roles, branchId);
+
+    const viewableIds = Array.from(new Set(permissions.map((p) => p.status_id)));
+    if (!viewableIds.length) {
+      const empty: PaginationResult<RepairOrderStatusWithPermissions> = {
+        rows: [],
+        total: 0,
+        limit,
+        offset,
+      };
+      await this.redisService.set(cacheKey, empty, 300);
+      return empty;
+    }
+
+    const trx = await this.knex.transaction();
+    try {
+      const baseQuery = trx<RepairOrderStatus>('repair_order_statuses')
+        .whereIn('id', viewableIds)
+        .andWhere({ is_active: true, status: 'Open', branch_id: MOTHER_BRANCH_ID });
+
+      const [statuses, countResult, transitionScope, countsRaw] = await Promise.all([
+        baseQuery.clone().orderBy('sort', 'asc').offset(offset).limit(limit),
+        baseQuery.clone().count<{ count: string }[]>('* as count'),
+        this.findTransitionsForRoleScope(trx, viewableIds, MOTHER_BRANCH_ID, primaryRoleId),
+        trx('repair_orders')
+          .whereIn('status_id', viewableIds)
+          .andWhere('branch_id', branchId)
+          .andWhereNot('status', 'Deleted')
+          .groupBy('status_id')
+          .select('status_id')
+          .count<{ status_id: string; count: string }[]>('* as count'),
+      ]);
+
+      const total: number = Number(countResult[0].count);
+
+      const transitionsMap = this.buildTransitionsMap(transitionScope.rows);
+
+      const countsMap = countsRaw.reduce<Record<string, number>>((acc, c) => {
+        acc[c.status_id] = Number(c.count);
+        return acc;
+      }, {});
+
+      const merged: RepairOrderStatusWithPermissions[] = statuses.map((status) => ({
+        ...status,
+        permissions:
+          permissions.find((p) => p.status_id === status.id) ?? ({} as RepairOrderStatusPermission),
+        transitions: transitionsMap[status.id] || [],
+        metrics: {
+          total_repair_orders: countsMap[status.id] || 0,
+        },
+      }));
+
+      await trx.commit();
+
+      const result: PaginationResult<RepairOrderStatusWithPermissions> = {
+        rows: merged,
+        total: Number(total),
+        limit,
+        offset,
+      };
+
+      await this.redisService.set(cacheKey, result, 3600);
+      return result;
+    } catch (err: unknown) {
+      await trx.rollback();
+      if (err instanceof HttpException) throw err;
+
+      this.logger.error(
+        `Failed to fetch viewable statuses:`,
+        err instanceof Error ? err.stack : String(err),
+      );
+
+      throw new BadRequestException({
+        message: 'Failed to fetch viewable statuses',
+        location: 'find_viewable',
+      });
+    }
+  }
+
+  async findTransferPermissions(
+    branchId: string,
+    roleId: string,
+  ): Promise<RepairOrderStatusTransferPermissionsResult> {
+    const role = await this.knex<{ id: string }>('roles')
+      .where('id', roleId)
+      .andWhere('status', 'Open')
+      .first();
+    if (!role) {
+      throw new BadRequestException({
+        message: 'Role not found or deleted',
+        location: 'role_id',
+      });
+    }
+
+    const statuses: RepairOrderStatus[] = await this.knex<RepairOrderStatus>(
+      'repair_order_statuses',
+    )
+      .where({ branch_id: MOTHER_BRANCH_ID, status: 'Open' })
+      .orderBy('sort', 'asc');
+
+    const statusIds = statuses.map((status) => status.id);
+    const transitionScope = await this.findTransitionsForRoleScope(
+      this.knex,
+      statusIds,
+      MOTHER_BRANCH_ID,
+      roleId,
+    );
+    const transitionsMap = this.buildTransitionsMap(transitionScope.rows);
+    const responseRoleId = transitionScope.source === 'role' ? roleId : null;
+
+    return {
+      branch_id: branchId,
+      role_id: roleId,
+      source: transitionScope.source,
+      rows: statuses.map((status) => ({
+        status_id: status.id,
+        role_id: responseRoleId,
+        transitions: transitionsMap[status.id] ?? [],
+      })),
+    };
+  }
+
+  private async findTransitionsForRoleScope(
+    db: Knex | Knex.Transaction,
+    statusIds: string[],
+    branchId: string,
+    roleId?: string,
+  ): Promise<{ source: 'role' | 'fallback'; rows: RepairOrderStatusTransition[] }> {
+    if (!statusIds.length) {
+      return { source: 'fallback', rows: [] };
+    }
+
+    const useRoleScope = roleId ? await this.hasRoleScopedTransitions(db, branchId, roleId) : false;
+
+    let query = db<RepairOrderStatusTransition>('repair-order-status-transitions').whereIn(
+      'from_status_id',
+      statusIds,
+    );
+
+    if (useRoleScope && roleId) {
+      query = query.andWhere({ role_id: roleId });
+      return { source: 'role', rows: await query };
+    }
+
+    query = query.whereNull('role_id');
+    return { source: 'fallback', rows: await query };
+  }
+
+  private async hasRoleScopedTransitions(
+    db: Knex | Knex.Transaction,
+    branchId: string,
+    roleId: string,
+  ): Promise<boolean> {
+    const row = await db('repair-order-status-transitions as transition')
+      .join('repair_order_statuses as from_status', 'transition.from_status_id', 'from_status.id')
+      .where('transition.role_id', roleId)
+      .andWhere('from_status.branch_id', branchId)
+      .andWhere('from_status.status', 'Open')
+      .first<{ id: string }>('transition.id');
+
+    return Boolean(row);
+  }
+
+  private buildTransitionsMap(
+    transitions: RepairOrderStatusTransition[],
+  ): Record<string, string[]> {
+    return transitions.reduce<Record<string, string[]>>((acc, transition) => {
+      acc[transition.from_status_id] = acc[transition.from_status_id] || [];
+      acc[transition.from_status_id].push(transition.to_status_id);
+      return acc;
+    }, {});
+  }
+
+  async updateSort(
+    status: RepairOrderStatus,
+    newSort: number,
+    adminId?: string,
+  ): Promise<{ message: string }> {
+    const trx = await this.knex.transaction();
+    let cacheIdsToDelete: string[] = [];
+    try {
+      const currentStatus: RepairOrderStatus | undefined = await trx<RepairOrderStatus>(
+        'repair_order_statuses',
+      )
+        .where({ id: status.id, status: 'Open' })
+        .first();
+
+      if (!currentStatus) {
+        throw new BadRequestException({
+          message: 'Repair order status not found or inactive',
+          location: 'status_id',
+        });
+      }
+
+      if (newSort === currentStatus.sort) {
+        await trx.commit();
+        return { message: 'No change needed' };
+      }
+
+      const affectedIds: Pick<RepairOrderStatus, 'id'>[] = await trx<RepairOrderStatus>(
+        'repair_order_statuses',
+      )
+        .where({ branch_id: currentStatus.branch_id, status: 'Open' })
+        .andWhere((qb) => {
+          if (newSort < currentStatus.sort) {
+            void qb.where('sort', '>=', newSort).andWhere('sort', '<=', currentStatus.sort);
+          } else {
+            void qb.where('sort', '>=', currentStatus.sort).andWhere('sort', '<=', newSort);
+          }
+        })
+        .select('id');
+      cacheIdsToDelete = Array.from(new Set([...affectedIds.map((row) => row.id), status.id]));
+
+      if (newSort < currentStatus.sort) {
+        await trx('repair_order_statuses')
+          .where({ branch_id: currentStatus.branch_id, status: 'Open' })
+          .andWhere('sort', '>=', newSort)
+          .andWhere('sort', '<', currentStatus.sort)
+          .update({ sort: this.knex.raw('sort + 1') });
+      } else {
+        await trx('repair_order_statuses')
+          .where({ branch_id: currentStatus.branch_id, status: 'Open' })
+          .andWhere('sort', '<=', newSort)
+          .andWhere('sort', '>', currentStatus.sort)
+          .update({ sort: this.knex.raw('sort - 1') });
+      }
+
+      await trx('repair_order_statuses')
+        .where({ id: currentStatus.id })
+        .update({ sort: newSort, updated_at: new Date() });
+      await this.historyService.recordEntityUpdated({
+        db: trx,
+        entityTable: 'repair_order_statuses',
+        entityPk: currentStatus.id,
+        entityLabel: currentStatus.name_uz ?? null,
+        rootEntityTable: 'branches',
+        rootEntityPk: currentStatus.branch_id,
+        branchId: currentStatus.branch_id,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: currentStatus as unknown as Record<string, unknown>,
+        after: { ...currentStatus, sort: newSort } as Record<string, unknown>,
+        fields: ['sort'],
+      });
+      await trx.commit();
+
+      await Promise.all([
+        ...cacheIdsToDelete.map((id) => this.redisService.del(`${this.redisKeyById}:${id}`)),
+        this.redisService.flushByPrefix(`${this.redisKeyView}${currentStatus.branch_id}:`),
+        this.redisService.flushByPrefix(`${this.redisKeyAll}${currentStatus.branch_id}`),
+      ]);
+      return { message: 'Sort updated successfully' };
+    } catch (err) {
+      await trx.rollback();
+
+      if (err instanceof HttpException) {
+        throw err;
+      }
+      this.logger.error(`Failed to update sort for status ${status.id}`);
+      throw new BadRequestException({ message: 'Failed to update sort', location: 'update_sort' });
+    }
+  }
+
+  async update(
+    status: RepairOrderStatus,
+    dto: UpdateRepairOrderStatusDto,
+    adminId?: string,
+  ): Promise<{ message: string }> {
+    const trx = await this.knex.transaction();
+    try {
+      if (dto.is_active === false && status.is_protected) {
+        throw new ForbiddenException({
+          message: 'Cannot deactivate protected status',
+          location: 'status_protected',
+        });
+      }
+
+      const branchId: string | undefined = dto.branch_id;
+      if (branchId) {
+        const branch: Branch | undefined = await trx<Branch>('branches')
+          .where({ id: branchId, status: 'Open' })
+          .first();
+        if (!branch)
+          throw new BadRequestException({
+            message: 'Branch not found or deleted',
+            location: 'branch_id',
+          });
+        if (!branch.is_active)
+          throw new BadRequestException({ message: 'Branch inactive', location: 'branch_id' });
+        await this.redisService.set(`branches:by_id:${branchId}`, branch, 3600);
+      }
+
+      if (dto.name_uz || dto.name_ru || dto.name_en) {
+        const conflict = await trx('repair_order_statuses')
+          .whereNot('id', status.id)
+          .andWhere({ status: 'Open' })
+          .andWhere((qb) => {
+            if (dto.name_uz) void qb.orWhereRaw('LOWER(name_uz) = LOWER(?)', [dto.name_uz]);
+            if (dto.name_ru) void qb.orWhereRaw('LOWER(name_ru) = LOWER(?)', [dto.name_ru]);
+            if (dto.name_en) void qb.orWhereRaw('LOWER(name_en) = LOWER(?)', [dto.name_en]);
+          })
+          .first();
+        if (conflict)
+          throw new BadRequestException({
+            message: 'Status name already exists',
+            location: 'name_conflict',
+          });
+      }
+
+      const updateData: Partial<RepairOrderStatus> = {
+        name_uz: dto.name_uz || status.name_uz,
+        name_ru: dto.name_ru || status.name_ru,
+        name_en: dto.name_en || status.name_en,
+        bg_color: dto.bg_color || status.bg_color,
+        color: dto.color || status.color,
+        branch_id: dto.branch_id,
+        is_active: dto.is_active,
+        can_user_view: dto.can_user_view,
+        updated_at: new Date().toISOString(),
+      };
+
+      await trx('repair_order_statuses').where({ id: status.id }).update(updateData);
+      const updated = await trx('repair_order_statuses').where({ id: status.id }).first();
+      await this.historyService.recordEntityUpdated({
+        db: trx,
+        entityTable: 'repair_order_statuses',
+        entityPk: status.id,
+        entityLabel: status.name_uz ?? null,
+        rootEntityTable: 'branches',
+        rootEntityPk: status.branch_id,
+        branchId: status.branch_id,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: status as unknown as Record<string, unknown>,
+        after: updated as Record<string, unknown>,
+        fields: Object.keys(dto),
+      });
+
+      await trx.commit();
+      await Promise.all([
+        this.redisService.set(`${this.redisKeyById}:${status.id}`, updated, 3600),
+        this.redisService.flushByPrefix(`${this.redisKeyView}${status.branch_id}:`),
+        this.redisService.flushByPrefix(`${this.redisKeyAll}${status.branch_id}`),
+      ]);
+      return { message: 'Status updated successfully' };
+    } catch (err) {
+      await trx.rollback();
+      if (err instanceof HttpException) {
+        throw err;
+      }
+      this.logger.error(`Failed to update status ${status.id}`);
+      throw new BadRequestException({
+        message: 'Failed to update status',
+        location: 'update_status',
+      });
+    }
+  }
+
+  async delete(status: RepairOrderStatus, adminId?: string): Promise<{ message: string }> {
+    const trx = await this.knex.transaction();
+    try {
+      if (status.is_protected) {
+        throw new ForbiddenException({
+          message: 'Cannot delete protected status',
+          location: 'status_protected',
+        });
+      }
+
+      await trx('repair_order_statuses')
+        .where({ id: status.id })
+        .update({ status: 'Deleted', updated_at: new Date() });
+      await this.historyService.recordEntityDeleted({
+        db: trx,
+        entityTable: 'repair_order_statuses',
+        entityPk: status.id,
+        entityLabel: status.name_uz ?? null,
+        rootEntityTable: 'branches',
+        rootEntityPk: status.branch_id,
+        branchId: status.branch_id,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: status as unknown as Record<string, unknown>,
+        fields: ['status'],
+      });
+      await this.repairOrderStatusPermissions.deletePermissionsByStatus(status.id);
+
+      await trx.commit();
+      await Promise.all([
+        this.redisService.del(`${this.redisKeyById}:${status.id}`),
+        this.redisService.flushByPrefix(`${this.redisKeyView}${status.branch_id}:`),
+        this.redisService.flushByPrefix(`${this.redisKeyAll}${status.branch_id}`),
+      ]);
+      return { message: 'Status deleted successfully' };
+    } catch (err) {
+      await trx.rollback();
+      if (err instanceof HttpException) {
+        throw err;
+      }
+      this.logger.error(`Failed to delete status ${status.id}`);
+      throw new BadRequestException({
+        message: 'Failed to delete status',
+        location: 'delete_status',
+      });
+    }
+  }
+
+  async getOrLoadStatusById(statusId: string): Promise<RepairOrderStatus> {
+    const redisKey = `${this.redisKeyById}:${statusId}`;
+    const cached: RepairOrderStatus | null = await this.redisService.get(redisKey);
+    if (cached) {
+      this.logger.debug(`Cache hit for status ${statusId}`);
+      return cached;
+    }
+
+    const status: RepairOrderStatus | undefined = await this.knex<RepairOrderStatus>(
+      'repair_order_statuses',
+    )
+      .where({ id: statusId, status: 'Open' })
+      .first();
+    if (!status) {
+      throw new BadRequestException({
+        message: 'Repair order status not found or inactive',
+        location: 'status_id',
+      });
+    }
+
+    await this.redisService.set(redisKey, status, 3600);
+    return status;
+  }
+}

@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procare - Shartnoma Shartlari</title>
+    <style>
+        :root {
+            --primary-blue: #00a0e3;
+            --text-dark: #333;
+            --text-black: #000;
+            --text-gray: #555;
+            --line-color: #333;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+
+        #pages-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        /* The physical paper is Landscape */
+        .page-container {
+            width: 297mm;
+            height: 210mm;
+            background: #fff;
+            position: relative;
+            overflow: visible;
+            clip-path: inset(0);
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex: none;
+            break-after: page;
+            page-break-after: always;
+        }
+
+        .page-container:last-child {
+            break-after: auto;
+            page-break-after: auto;
+        }
+
+        /* The content is Portrait, rotated -90 degrees (CCW).
+         * We let flexbox center the footprint (210x297) and rotate around center.
+         */
+        .content-wrapper {
+            width: 210mm;
+            height: 297mm;
+            transform: rotate(-90deg);
+            transform-origin: center center;
+            padding: 30mm;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #fff;
+            flex: none;
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+            padding-bottom: 10px;
+        }
+
+        .logo-main {
+            height: 52px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            height: 52px;
+        }
+
+        .header-line {
+            width: 2px;
+            height: 40px;
+            background-color: #000;
+            margin-right: 18px;
+        }
+
+        .tagline {
+            font-size: 24px;
+            font-weight: 500;
+            color: #333;
+            letter-spacing: 0.5px;
+        }
+
+        /* ===== MAIN CONTENT ===== */
+        .content-render-area {
+            position: relative;
+            z-index: 2;
+            color: var(--text-black);
+            /* Explicit width prevents text from overflowing the
+             * padded content area (210mm - 30mm*2 = 150mm). */
+            max-width: 150mm;
+            width: 100%;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .content-render-area p,
+        .content-render-area ul,
+        .content-render-area ol {
+            font-size: 13.5px;
+            line-height: 1.6;
+            margin: 0 0 14px 0;
+        }
+
+        .content-render-area ul,
+        .content-render-area ol {
+            padding-left: 22px;
+        }
+
+        .content-render-area li {
+            font-size: 13px;
+            line-height: 1.55;
+            margin-bottom: 10px;
+        }
+
+        .content-render-area li:last-child {
+            margin-bottom: 0;
+        }
+
+        .content-render-area h1,
+        .content-render-area h2,
+        .content-render-area h3 {
+            color: var(--text-black);
+            font-size: 16px;
+            line-height: 1.35;
+            margin: 0 0 12px 0;
+        }
+
+        .content-render-area strong {
+            font-weight: 700;
+        }
+
+        .title-blue {
+            color: var(--primary-blue);
+            font-size: 19px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .intro-para {
+            font-size: 13.5px;
+            line-height: 1.6;
+            color: var(--text-black);
+            margin-bottom: 25px;
+            max-width: 100%;
+        }
+
+        .sections {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            margin-bottom: 25px;
+        }
+
+        .section-item {
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--text-black);
+        }
+
+        .section-header {
+            font-weight: bold;
+            margin-right: 4px;
+        }
+
+        .shu-sababli {
+            margin-top: 20px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .shu-sababli-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .bullet-point {
+            padding-left: 15px;
+            margin-bottom: 6px;
+        }
+
+        .confirmation-text {
+            color: var(--primary-blue);
+            font-weight: bold;
+            font-size: 17px;
+            margin-top: 35px;
+            margin-bottom: 18px;
+        }
+
+        /* ===== CUSTOMER INFO ===== */
+        .customer-info-title {
+            color: var(--primary-blue);
+            font-weight: bold;
+            font-size: 17px;
+            margin-bottom: 18px;
+        }
+
+        .bottom-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-top: 10px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .fields-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 60%; /* Reduced from 65% to increase gap */
+        }
+
+        .input-row {
+            display: flex;
+            align-items: flex-end;
+            font-size: 14px;
+        }
+
+        .label {
+            font-weight: bold;
+            margin-right: 10px;
+            white-space: nowrap;
+        }
+
+        .value {
+            border-bottom: 1px solid #000;
+            flex-grow: 1;
+            min-height: 22px;
+            padding-bottom: 2px;
+            padding-left: 8px;
+            font-style: italic;
+        }
+
+        /* ===== SIGNATURE ===== */
+        .signature-area {
+            width: 35%;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            margin-bottom: 5px;
+            margin-right: 5px; /* Moves it towards left from the right edge */
+        }
+
+        .signature-row {
+            display: flex;
+            align-items: flex-end;
+            gap: 12px;
+            width: 100%;
+        }
+
+        .signature-label {
+            font-weight: bold;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        .signature-line {
+            border-bottom: 1px solid #000;
+            flex-grow: 1;
+            min-height: 22px;
+        }
+
+        /* ===== BACKGROUND SHAPE ===== */
+        .bg-shape {
+            position: absolute;
+            bottom: -30px;
+            right: -30px;
+            width: 400px;
+            height: 400px;
+            opacity: 0.1;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .bg-shape img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        @media print {
+            body {
+                background: none;
+                display: block;
+                min-height: auto;
+            }
+            #pages-container {
+                display: block;
+            }
+            .page-container { 
+                margin: 0; 
+                box-shadow: none; 
+                width: 297mm; 
+                height: 210mm; 
+                padding: 0;
+            }
+            @page { 
+                size: A4 landscape; 
+                margin: 0; 
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="pages-container"></div>
+
+    <!-- Page Template -->
+    <template id="page-template">
+        <div class="page-container">
+            <div class="content-wrapper">
+                <!-- Header -->
+                <div class="header">
+                    <img src="assets/logo.png" class="logo-main" alt="Procare">
+                    <div class="header-right">
+                        <div class="header-line"></div>
+                        <div class="tagline">Where Experts Meet</div>
+                    </div>
+                </div>
+
+                <!-- Dynamic Content Area -->
+                <div class="content-render-area"></div>
+
+                <!-- Background Pattern -->
+                <div class="bg-shape">
+                    <img src="assets/half_logo.svg" alt="">
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Footer Template (Only for the last page) -->
+    <template id="footer-template">
+        <div class="footer-wrap">
+            <div class="confirmation-text">Men buni tushunaman va roziligimni bildiraman.</div>
+            <div class="customer-info-title">Mijoz ma'lumotlari:</div>
+            
+            <div class="bottom-section">
+                <div class="fields-container">
+                    <div class="input-row">
+                        <span class="label">F.I.SH:</span>
+                        <div class="value field-customer_name"></div>
+                    </div>
+                    <div class="input-row">
+                        <span class="label">Telefon raqami:</span>
+                        <div class="value field-phone_number"></div>
+                    </div>
+                    <div class="input-row">
+                        <span class="label">Qurilma raqami:</span>
+                        <div class="value field-device_name"></div>
+                    </div>
+                    <div class="input-row">
+                        <span class="label">IMEI / Seriya raqami:</span>
+                        <div class="value field-imei"></div>
+                    </div>
+                    <div class="input-row">
+                        <span class="label">Topshirish sanasi:</span>
+                        <div class="value field-date"></div>
+                    </div>
+                </div>
+
+                <div class="signature-area">
+                    <div class="signature-row">
+                        <span class="signature-label">Mijoz imzosi:</span>
+                        <div class="signature-line"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <script>
+    /**
+     * Renders page 3 based on the provided payload, handling multi-page overflow.
+     */
+    window.renderApp = function(payload) {
+        if (!payload) {
+            console.error("No payload provided to renderApp");
+            window.isRendered = true;
+            return;
+        }
+
+        const pagesContainer = document.getElementById('pages-container');
+        const pageTemplate = document.getElementById('page-template');
+        const footerTemplate = document.getElementById('footer-template');
+        const offerHtml = payload.offer_content || '';
+        const form = payload.form || {};
+        pagesContainer.innerHTML = '';
+
+        // Helper: Create a new page
+        function createNewPage() {
+            const clone = pageTemplate.content.cloneNode(true);
+            pagesContainer.appendChild(clone);
+            return pagesContainer.lastElementChild.querySelector('.content-render-area');
+        }
+
+        function getMaxContentHeight(pageArea) {
+            const wrapper = pageArea.closest('.content-wrapper');
+            const wrapperRect = wrapper.getBoundingClientRect();
+            const areaRect = pageArea.getBoundingClientRect();
+            
+            // Because the wrapper is rotated -90deg:
+            // Portrait HEIGHT = Visual landscape WIDTH (297mm)
+            // Portrait TOP padding = Visual landscape LEFT distance
+            // Portrait BOTTOM padding = Visual landscape RIGHT distance
+            
+            const totalPortraitHeight = wrapperRect.width; 
+            const topDistance = areaRect.left - wrapperRect.left;
+            const wrapperStyles = window.getComputedStyle(wrapper);
+            // Visual RIGHT padding is original portrait BOTTOM padding
+            const bottomPadding = parseFloat(wrapperStyles.paddingBottom) || 0;
+            
+            return totalPortraitHeight - topDistance - bottomPadding;
+        }
+
+        function pageOverflowed(pageArea) {
+            // Check scrollHeight against the actual portrait height available
+            return pageArea.scrollHeight > getMaxContentHeight(pageArea) + 1;
+        }
+
+        // 1. Create a dummy container to measure text
+        const measurer = document.createElement('div');
+        measurer.className = 'content-render-area'; // Inherit styles
+        measurer.style.width = '150mm'; // Portrait width (210 - 30 - 30)
+        measurer.style.position = 'absolute';
+        measurer.style.visibility = 'hidden';
+        measurer.innerHTML = offerHtml;
+        document.body.appendChild(measurer);
+
+        const nodes = Array.from(measurer.childNodes).filter((node) => {
+            return node.nodeType !== Node.TEXT_NODE || node.textContent.trim() !== '';
+        });
+        let currentPageArea = createNewPage();
+        
+        // Always start with "Hurmatli mijoz"
+        const introTitle = document.createElement('div');
+        introTitle.className = 'title-blue';
+        introTitle.textContent = 'Hurmatli mijoz,';
+        currentPageArea.appendChild(introTitle);
+
+        function addNodeToPage(node) {
+            const clone = node.cloneNode(true);
+            currentPageArea.appendChild(clone);
+            
+            // Check if we exceeded the limit
+            if (pageOverflowed(currentPageArea)) {
+                currentPageArea.removeChild(clone);
+                currentPageArea = createNewPage();
+                currentPageArea.appendChild(clone);
+            }
+        }
+
+        nodes.forEach(node => addNodeToPage(node));
+
+        // 2. Add Footer - Check if it fits, otherwise move to next page
+        const footerClone = footerTemplate.content.cloneNode(true);
+        const footerMeasurer = document.createElement('div');
+        footerMeasurer.style.width = '150mm';
+        footerMeasurer.appendChild(footerClone);
+        currentPageArea.appendChild(footerMeasurer);
+
+        if (pageOverflowed(currentPageArea)) {
+            currentPageArea.removeChild(footerMeasurer);
+            currentPageArea = createNewPage();
+            currentPageArea.appendChild(footerMeasurer);
+        }
+
+        // 3. Fill data in the footer
+        function setAllText(className, value) {
+            const elements = document.getElementsByClassName(className);
+            for (let el of elements) {
+                el.textContent = value || '';
+            }
+        }
+
+        // Date formatting
+        let formattedDate = form.date || '';
+        if (form.date) {
+            const dateParts = form.date.split('-');
+            if (dateParts.length === 3) {
+                const [y, m, d] = dateParts;
+                formattedDate = `${d}.${m}.${y}`;
+            }
+        }
+
+        setAllText('field-date', formattedDate);
+        setAllText('field-customer_name', form.customer_name);
+        setAllText('field-phone_number',  form.phone_number);
+        setAllText('field-device_name',   form.device_name);
+        setAllText('field-imei',          form.imei);
+
+        // Clean up
+        document.body.removeChild(measurer);
+
+        // Signal rendering complete
+        window.isRendered = true;
+    };
+;
+
+    // Auto-render if PAYLOAD is already defined globally
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof PAYLOAD !== 'undefined') {
+            window.renderApp(PAYLOAD);
+        } else {
+            const params = new URLSearchParams(window.location.search);
+            if (!params.has('no-auto')) {
+                setTimeout(() => {
+                   if (!window.isRendered) {
+                        console.log("Auto-marking as rendered (timeout reached)");
+                        window.isRendered = true;
+                   }
+                }, 3000);
+            }
+        }
+    });
+    </script>
+</body>
+</html>

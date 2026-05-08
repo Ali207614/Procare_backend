@@ -1,0 +1,111 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { PhoneCategoriesService } from './phone-categories.service';
+import { CreatePhoneCategoryDto } from './dto/create-phone-category.dto';
+import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
+import { PermissionsGuard } from 'src/common/guards/permission.guard';
+import { SetPermissions } from 'src/common/decorators/permission-decorator';
+import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
+import { UpdatePhoneCategoryDto } from './dto/update-phone-category.dto';
+import { UpdatePhoneCategorySortDto } from './dto/update-phone-category-sort.dto';
+import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
+import { FindAllPhoneCategoriesDto } from './dto/find-all-phone-categories.dto';
+import { PhoneCategory, PhoneCategoryWithMeta } from 'src/common/types/phone-category.interface';
+import { PaginationResult } from 'src/common/utils/pagination.util';
+import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
+
+@ApiTags('Phone Categories')
+@ApiBearerAuth()
+@UseGuards(JwtAdminAuthGuard)
+@Controller('phone-categories')
+export class PhoneCategoriesController {
+  constructor(private readonly service: PhoneCategoriesService) {}
+
+  @Post()
+  @UseGuards(PermissionsGuard)
+  @SetPermissions('phone.category.create')
+  @ApiOperation({ summary: 'Create new phone category' })
+  @ApiResponse({ status: 201, description: 'Phone category created successfully' })
+  @ApiResponse({ status: 400, description: 'Validation failed' })
+  async create(
+    @CurrentAdmin() admin: AdminPayload,
+    @Body() dto: CreatePhoneCategoryDto,
+  ): Promise<PhoneCategory> {
+    return this.service.create(dto, admin.id);
+  }
+
+  @Get()
+  @UseInterceptors(PaginationInterceptor)
+  @ApiQuery({ name: 'phone_os_type_id', required: false })
+  @ApiQuery({ name: 'parent_id', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'offset', required: false })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiOperation({ summary: 'Get phone categories (root or children)' })
+  async findAll(
+    @Query() query: FindAllPhoneCategoriesDto,
+  ): Promise<PaginationResult<PhoneCategoryWithMeta>> {
+    return this.service.findWithParentOrRoot(query);
+  }
+
+  @Patch(':id/sort')
+  @UseGuards(PermissionsGuard)
+  @SetPermissions('phone.category.update')
+  @ApiOperation({ summary: 'Update branch sort order' })
+  @ApiParam({ name: 'id', description: 'phone-category ID' })
+  @ApiResponse({ status: 200, description: 'Sort updated' })
+  @ApiResponse({ status: 404, description: 'phone-category not found' })
+  async updateSort(
+    @CurrentAdmin() admin: AdminPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePhoneCategorySortDto,
+  ): Promise<{ message: string }> {
+    return this.service.updateSort(id, dto.sort, admin.id);
+  }
+
+  @Patch(':id')
+  @UseGuards(PermissionsGuard)
+  @SetPermissions('phone.category.update')
+  @ApiOperation({ summary: 'Update phone-category by ID' })
+  @ApiParam({ name: 'id', description: 'phone-category ID (UUID)' })
+  @ApiResponse({ status: 200, description: 'phone-category updated successfully' })
+  @ApiResponse({ status: 404, description: 'phone-category not found' })
+  async update(
+    @CurrentAdmin() admin: AdminPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePhoneCategoryDto,
+  ): Promise<{ message: string }> {
+    return this.service.update(id, dto, admin.id);
+  }
+
+  @Delete(':id')
+  @UseGuards(PermissionsGuard)
+  @SetPermissions('phone.category.delete')
+  @ApiOperation({ summary: 'Delete phone-category by ID (soft delete)' })
+  @ApiParam({ name: 'id', description: 'phone-category ID (UUID)' })
+  async delete(
+    @CurrentAdmin() admin: AdminPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ message: string }> {
+    return this.service.delete(id, admin.id);
+  }
+}

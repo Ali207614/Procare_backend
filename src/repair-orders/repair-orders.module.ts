@@ -1,0 +1,96 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { LoggerModule } from 'src/common/logger/logger.module';
+import { RedisModule } from 'src/common/redis/redis.module';
+import { NotificationModule } from 'src/notification/notification.module';
+import { RepairOrderStatusPermissionsModule } from 'src/repair-order-status-permission/repair-order-status-permissions.module';
+import { RepairOrderStatusesModule } from 'src/repair-order-statuses/repair-order-statuses.module';
+import { OffersModule } from 'src/offers/offers.module';
+import { PdfModule } from 'src/pdf/pdf.module';
+import { HistoryModule } from 'src/history/history.module';
+import { BranchesModule } from 'src/branches/branches.module';
+import { AssignAdminController } from './controllers/assign-admin.controller';
+import { CommentController } from './controllers/comment.controller';
+import { DeliveryController } from './controllers/delivery.controller';
+import { PickupController } from './controllers/pickup.controller';
+import { RentalPhoneController } from './controllers/rental-phone.controller';
+import { AttachmentsController } from './controllers/attachments.controller';
+import { ServiceFormsController } from './controllers/service-forms.controller';
+import { OpenRepairOrdersController, RepairOrdersController } from './repair-orders.controller';
+import { RepairOrdersService } from './repair-orders.service';
+import { ServiceFormsService } from './services/service-forms.service';
+import { AssignAdminUpdaterService } from './services/assign-admin-updater.service';
+import { CommentUpdaterService } from './services/comment-updater.service';
+import { DeliveryUpdaterService } from './services/delivery-updater.service';
+import { FinalProblemUpdaterService } from './services/final-problem-updater.service';
+import { InitialProblemUpdaterService } from './services/initial-problem-updater.service';
+import { PickupUpdaterService } from './services/pickup-updater.service';
+import { RentalPhoneUpdaterService } from './services/rental-phone-updater.service';
+import { RepairOrderChangeLoggerService } from './services/repair-order-change-logger.service';
+import { RepairOrderCreateHelperService } from './services/repair-order-create-helper.service';
+import { CommentReaderService } from './services/comment-reader.service';
+import { AttachmentsService } from './services/attachments.service';
+import { RepairOrderWebhookService } from './services/repair-order-webhook.service';
+import { AgreedDateCronService } from './services/agreed-date-cron.service';
+import { CustomerNoAnswerCronService } from './services/customer-no-answer-cron.service';
+import { OnlinePbxRecordingService } from 'src/online-pbx/online-pbx-recording.service';
+
+@Module({
+  imports: [
+    RepairOrderStatusPermissionsModule,
+    ConfigModule,
+    RedisModule,
+    NotificationModule,
+    RepairOrderStatusesModule,
+    LoggerModule,
+    OffersModule,
+    PdfModule,
+    HistoryModule,
+    BranchesModule,
+  ],
+  controllers: [
+    OpenRepairOrdersController,
+    RepairOrdersController,
+    AssignAdminController,
+    CommentController,
+    DeliveryController,
+    PickupController,
+    RentalPhoneController,
+    AttachmentsController,
+    ServiceFormsController,
+  ],
+  providers: [
+    AssignAdminUpdaterService,
+    InitialProblemUpdaterService,
+    FinalProblemUpdaterService,
+    CommentUpdaterService,
+    CommentReaderService,
+    PickupUpdaterService,
+    DeliveryUpdaterService,
+    RepairOrderChangeLoggerService,
+    RepairOrderCreateHelperService,
+    RentalPhoneUpdaterService,
+    RepairOrdersService,
+    AttachmentsService,
+    ServiceFormsService,
+    RepairOrderWebhookService,
+    AgreedDateCronService,
+    CustomerNoAnswerCronService,
+    OnlinePbxRecordingService,
+  ],
+  exports: [
+    AssignAdminUpdaterService,
+    InitialProblemUpdaterService,
+    FinalProblemUpdaterService,
+    CommentUpdaterService,
+    CommentReaderService,
+    PickupUpdaterService,
+    DeliveryUpdaterService,
+    RepairOrderChangeLoggerService,
+    RepairOrderCreateHelperService,
+    RentalPhoneUpdaterService,
+    RepairOrdersService,
+    RepairOrderWebhookService,
+  ],
+})
+export class RepairOrdersModule {}

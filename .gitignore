@@ -1,0 +1,55 @@
+# compiled output
+/dist
+/node_modules
+
+# Logs
+logs
+*.log
+logs/
+*.log.*
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS
+.DS_Store
+
+# Tests
+/coverage
+/.nyc_output
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+.env
+.env.local
+.claude/
+CLAUDE.md
+ProCare_Backend_API.postman_collection.json
+.claude/settings.local.json
+/nestjs.testing.strategy.md
+/REPAIR_ORDER_MODIFICATION_APIS.md
+/SMS_INTEGRATION.md
+/TESTING_SETUP_COMPLETE.md
+notes.txt
+test_order.txt
+.agent/
+.agents/
+.codex/
+outputs/
+.codex-pets/

@@ -1,0 +1,430 @@
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { InjectKnex, Knex } from 'nestjs-knex';
+import { FindRentalPhoneDevicesDto } from './dto/find-rental-phone-devices.dto';
+import { CreateRentalPhoneDeviceDto } from './dto/create-rental-phone-device.dto';
+import { UpdateRentalPhoneDeviceDto } from './dto/update-rental-phone-device.dto';
+import { RentalPhoneDevice } from 'src/common/types/rental-phone-device.interface';
+import { PaginationResult } from 'src/common/utils/pagination.util';
+import { EnumBooleanString } from 'src/roles/dto/find-all-roles.dto';
+import { HistoryService } from 'src/history/history.service';
+
+@Injectable()
+export class RentalPhoneDevicesService {
+  constructor(
+    @InjectKnex() private readonly knex: Knex,
+    private readonly historyService: HistoryService,
+  ) {}
+
+  private readonly table = 'rental_phone_devices';
+
+  async findAll(dto: FindRentalPhoneDevicesDto): Promise<PaginationResult<RentalPhoneDevice>> {
+    const {
+      offset = 0,
+      limit = 20,
+      search,
+      brand,
+      status,
+      condition,
+      is_free,
+      is_available,
+      min_price,
+      max_price,
+      currency,
+    } = dto;
+
+    const baseQuery = this.knex(this.table);
+
+    // Search functionality
+    if (search) {
+      void baseQuery.andWhere((qb) => {
+        void qb
+          .whereILike('name', `%${search}%`)
+          .orWhereILike('brand', `%${search}%`)
+          .orWhereILike('model', `%${search}%`)
+          .orWhereILike('imei', `%${search}%`);
+      });
+    }
+
+    // Brand filter
+    if (brand) {
+      void baseQuery.andWhere('brand', brand);
+    }
+
+    // Status filter (multi-select)
+    if (status && status.length > 0) {
+      void baseQuery.andWhere((qb) => {
+        void qb.whereIn('status', status);
+      });
+    } else {
+      // Default results: only Available and Rented
+      void baseQuery.whereIn('status', ['Available', 'Rented']);
+    }
+
+    // Condition filter
+    if (condition) {
+      void baseQuery.andWhere('condition', condition);
+    }
+
+    // Free filter
+    if (is_free === EnumBooleanString.TRUE) {
+      void baseQuery.andWhere('is_free', true);
+    } else if (is_free === EnumBooleanString.FALSE) {
+      void baseQuery.andWhere('is_free', false);
+    }
+
+    // Available filter
+    if (is_available === EnumBooleanString.TRUE) {
+      void baseQuery.andWhere('is_available', true);
+    } else if (is_available === EnumBooleanString.FALSE) {
+      void baseQuery.andWhere('is_available', false);
+    }
+
+    // Price range filter
+    if (min_price !== undefined) {
+      void baseQuery.andWhere('daily_rent_price', '>=', min_price);
+    }
+    if (max_price !== undefined) {
+      void baseQuery.andWhere('daily_rent_price', '<=', max_price);
+    }
+
+    // Currency filter (multi-select)
+    if (currency && currency.length > 0) {
+      void baseQuery.andWhere((qb) => {
+        void qb.whereIn('currency', currency);
+      });
+    }
+
+    const rows = await baseQuery
+      .clone()
+      .select(
+        'id',
+        'name',
+        'brand',
+        'model',
+        'imei',
+        'color',
+        'storage_capacity',
+        'battery_capacity',
+        'is_free',
+        'daily_rent_price',
+        'deposit_amount',
+        'currency',
+        'is_available',
+        'status',
+        'condition',
+        'notes',
+        'specifications',
+        'sort',
+        'created_at',
+        'updated_at',
+        this.knex.raw(`(
+          SELECT rented_at 
+          FROM repair_order_rental_phones 
+          WHERE rental_phone_device_id = rental_phone_devices.id 
+          ORDER BY created_at DESC 
+          LIMIT 1
+        ) as rented_at`),
+        this.knex.raw(`(
+          SELECT returned_at 
+          FROM repair_order_rental_phones 
+          WHERE rental_phone_device_id = rental_phone_devices.id 
+          ORDER BY created_at DESC 
+          LIMIT 1
+        ) as returned_at`),
+      )
+      .orderBy('sort', 'asc')
+      .orderBy('name', 'asc')
+      .limit(limit)
+      .offset(offset);
+
+    const [{ count }] = await baseQuery.clone().count<{ count: string }[]>('* as count');
+
+    return {
+      rows,
+      total: Number(count),
+      limit,
+      offset,
+    };
+  }
+
+  async findById(id: string): Promise<RentalPhoneDevice> {
+    const device = await this.knex(this.table)
+      .where('rental_phone_devices.id', id)
+      .select([
+        'rental_phone_devices.*',
+        this.knex.raw(`(
+          SELECT rented_at 
+          FROM repair_order_rental_phones 
+          WHERE rental_phone_device_id = rental_phone_devices.id 
+          ORDER BY created_at DESC 
+          LIMIT 1
+        ) as rented_at`),
+        this.knex.raw(`(
+          SELECT returned_at 
+          FROM repair_order_rental_phones 
+          WHERE rental_phone_device_id = rental_phone_devices.id 
+          ORDER BY created_at DESC 
+          LIMIT 1
+        ) as returned_at`),
+      ])
+      .first();
+
+    if (!device) {
+      throw new NotFoundException({
+        message: 'Rental phone device not found',
+        location: 'device_not_found',
+      });
+    }
+
+    return device as RentalPhoneDevice;
+  }
+
+  async create(dto: CreateRentalPhoneDeviceDto, adminId?: string): Promise<RentalPhoneDevice> {
+    // Check if IMEI already exists (if provided)
+    if (dto.imei) {
+      const existingImei = await this.knex(this.table).where('imei', dto.imei).first();
+
+      if (existingImei) {
+        throw new BadRequestException({
+          message: 'Device with this IMEI already exists',
+          location: 'imei_already_exists',
+        });
+      }
+    }
+
+    // Ensure quantity_available is not greater than quantity
+    const quantity = dto.quantity ?? 1;
+    const quantityAvailable = dto.quantity_available ?? quantity;
+
+    if (quantityAvailable > quantity) {
+      throw new BadRequestException({
+        message: 'Available quantity cannot be greater than total quantity',
+        location: 'invalid_quantity',
+      });
+    }
+
+    // Use status from dto or default to 'Available'
+    const status = dto.status || 'Available';
+
+    const newDevice = await this.knex.transaction(async (trx) => {
+      const [created] = await trx<RentalPhoneDevice>(this.table)
+        .insert({
+          name: dto.name,
+          brand: dto.brand || null,
+          model: dto.model || null,
+          imei: dto.imei || null,
+          color: dto.color || null,
+          storage_capacity: dto.storage_capacity || null,
+          battery_capacity: dto.battery_capacity || null,
+          is_free: dto.is_free ?? false,
+          daily_rent_price: dto.daily_rent_price,
+          deposit_amount: dto.deposit_amount ?? 0,
+          currency: dto.currency ?? 'UZS',
+          status: status,
+          condition: dto.condition ?? 'Good',
+          notes: dto.notes || null,
+          specifications: dto.specifications || null,
+          quantity: quantity,
+          quantity_available: quantityAvailable,
+          // Enforce logical consistency for initial state
+          is_available: dto.is_available ?? (status === 'Available' && quantityAvailable > 0),
+          sort: dto.sort ?? 1,
+          created_at: trx.fn.now(),
+          updated_at: trx.fn.now(),
+        })
+        .returning('*');
+
+      await this.historyService.recordEntityCreated({
+        db: trx,
+        entityTable: this.table,
+        entityPk: created.id,
+        entityLabel: created.name ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        values: created as unknown as Record<string, unknown>,
+      });
+
+      return created;
+    });
+
+    return newDevice;
+  }
+
+  async update(
+    id: string,
+    dto: UpdateRentalPhoneDeviceDto,
+    adminId?: string,
+  ): Promise<RentalPhoneDevice> {
+    const existingDevice = await this.findById(id);
+
+    // Check if IMEI already exists (if being updated)
+    if (dto.imei && dto.imei !== existingDevice.imei) {
+      const imeiExists = await this.knex(this.table)
+        .where('imei', dto.imei)
+        .where('id', '!=', id)
+        .first();
+
+      if (imeiExists) {
+        throw new BadRequestException({
+          message: 'Device with this IMEI already exists',
+          location: 'imei_already_exists',
+        });
+      }
+    }
+
+    // Validate quantity relationship
+    if (dto.quantity !== undefined || dto.quantity_available !== undefined) {
+      const newQuantity = dto.quantity ?? existingDevice.quantity;
+      const newQuantityAvailable = dto.quantity_available ?? existingDevice.quantity_available;
+
+      if (newQuantityAvailable > newQuantity) {
+        throw new BadRequestException({
+          message: 'Available quantity cannot be greater than total quantity',
+          location: 'invalid_quantity',
+        });
+      }
+    }
+
+    if (Object.keys(dto).length === 0) {
+      throw new BadRequestException({
+        message: 'No update data provided',
+        location: 'empty_update_data',
+      });
+    }
+    const updatedDevice = await this.knex.transaction(async (trx) => {
+      const updateData = {
+        ...dto,
+        // Automatically update is_available if status is changed to something else
+        ...(dto.status && dto.status !== 'Available'
+          ? { is_available: false, quantity_available: 0 }
+          : {}),
+        // If status is changed back to Available, ensure quantity logic is sane
+        ...(dto.status === 'Available'
+          ? {
+              is_available: (dto.quantity_available ?? existingDevice.quantity_available) > 0,
+            }
+          : {}),
+        updated_at: trx.fn.now(),
+      };
+      const [updated] = await trx<RentalPhoneDevice>(this.table)
+        .where('id', id)
+        .update(updateData)
+        .returning('*');
+
+      await this.historyService.recordEntityUpdated({
+        db: trx,
+        entityTable: this.table,
+        entityPk: id,
+        entityLabel: existingDevice.name ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: existingDevice as unknown as Record<string, unknown>,
+        after: updated as unknown as Record<string, unknown>,
+        fields: Object.keys(dto),
+      });
+
+      return updated;
+    });
+
+    return updatedDevice;
+  }
+
+  async delete(id: string, adminId?: string): Promise<void> {
+    const existingDevice = await this.findById(id);
+
+    // Soft delete - mark as unavailable and retired
+    await this.knex.transaction(async (trx) => {
+      await trx(this.table).where('id', id).update({
+        is_available: false,
+        status: 'Retired', // 'Retired' is still a valid status for deletion/soft-delete
+        updated_at: trx.fn.now(),
+      });
+      await this.historyService.recordEntityDeleted({
+        db: trx,
+        entityTable: this.table,
+        entityPk: id,
+        entityLabel: existingDevice.name ?? null,
+        actor: adminId ? { actorPk: adminId } : null,
+        before: existingDevice as unknown as Record<string, unknown>,
+        fields: ['status', 'is_available'],
+      });
+    });
+  }
+
+  async updateQuantity(id: string, quantityChange: number): Promise<RentalPhoneDevice> {
+    const device = await this.findById(id);
+
+    const newQuantityAvailable = device.quantity_available + quantityChange;
+
+    if (newQuantityAvailable < 0) {
+      throw new BadRequestException({
+        message: 'Not enough quantity available',
+        location: 'insufficient_quantity',
+      });
+    }
+
+    if (newQuantityAvailable > device.quantity) {
+      throw new BadRequestException({
+        message: 'Available quantity cannot exceed total quantity',
+        location: 'quantity_exceeded',
+      });
+    }
+
+    const [updatedDevice] = await this.knex(this.table)
+      .where('id', id)
+      .update({
+        quantity_available: newQuantityAvailable,
+        is_available: newQuantityAvailable > 0,
+        updated_at: this.knex.fn.now(),
+      })
+      .returning('*');
+
+    return updatedDevice as RentalPhoneDevice;
+  }
+
+  async getAvailableDevices(): Promise<RentalPhoneDevice[]> {
+    return (await this.knex(this.table)
+      .where('status', 'Available')
+      .where('is_available', true)
+      .where('quantity_available', '>', 0)
+      .orderBy('sort', 'asc')
+      .orderBy('daily_rent_price', 'asc')) as RentalPhoneDevice[];
+  }
+
+  async getDevicesByBrand(brand: string): Promise<RentalPhoneDevice[]> {
+    return (await this.knex(this.table)
+      .where('is_available', true)
+      .where('brand', brand)
+      .orderBy('sort', 'asc')
+      .orderBy('name', 'asc')) as RentalPhoneDevice[];
+  }
+
+  async getStatistics(): Promise<{
+    totalDevices: number;
+    availableDevices: number;
+    rentedDevices: number;
+    maintenanceDevices: number;
+    totalValue: number;
+    averagePrice: number;
+  }> {
+    const [stats] = await this.knex(this.table)
+      .whereNot('status', 'Retired')
+      .select(
+        this.knex.raw('COUNT(*) as total_devices'),
+        this.knex.raw('COUNT(CASE WHEN status = ? THEN 1 END) as available_devices', ['Available']),
+        this.knex.raw('COUNT(CASE WHEN status = ? THEN 1 END) as rented_devices', ['Rented']),
+        this.knex.raw('COUNT(CASE WHEN status = ? THEN 1 END) as maintenance_devices', [
+          'Maintenance',
+        ]),
+        this.knex.raw('SUM(daily_rent_price * quantity) as total_value'),
+        this.knex.raw('AVG(daily_rent_price) as average_price'),
+      );
+
+    return {
+      totalDevices: Number(stats.total_devices) || 0,
+      availableDevices: Number(stats.available_devices) || 0,
+      rentedDevices: Number(stats.rented_devices) || 0,
+      maintenanceDevices: Number(stats.maintenance_devices) || 0,
+      totalValue: Number(stats.total_value) || 0,
+      averagePrice: Number(stats.average_price) || 0,
+    };
+  }
+}

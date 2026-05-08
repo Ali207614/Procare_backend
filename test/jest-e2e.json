@@ -1,0 +1,23 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "../",
+  "testEnvironment": "node",
+  "testRegex": "test/.*\\.e2e-spec\\.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "moduleNameMapper": {
+    "^src/(.*)$": "<rootDir>/src/$1",
+    "^marked$": "<rootDir>/node_modules/marked/lib/marked.umd.js"
+  },
+  "testTimeout": 30000,
+  "setupFilesAfterEnv": ["<rootDir>/test/setup.ts"],
+  "collectCoverageFrom": [
+    "src/**/*.(t|j)s",
+    "!src/**/*.module.ts",
+    "!src/**/dto/**",
+    "!src/migrations/**",
+    "!src/main.ts"
+  ],
+  "coverageDirectory": "./coverage/e2e"
+}
