@@ -49,6 +49,12 @@ SELECT
         'name_ru', pc.name_ru,
         'name_en', pc.name_en
     )), '{}'::jsonb) AS phone_category,
+    COALESCE((jsonb_build_object(
+        'id', pot.id,
+        'name_uz', pot.name_uz,
+        'name_ru', pot.name_ru,
+        'name_en', pot.name_en
+    )), '{}'::jsonb) AS os_type,
     COALESCE((
     jsonb_build_object(
         'id', s.id,
@@ -319,6 +325,7 @@ FROM repair_orders ro
     LEFT JOIN admins ca ON ro.created_by = ca.id
     LEFT JOIN branches b ON ro.branch_id = b.id
     LEFT JOIN phone_categories pc ON ro.phone_category_id = pc.id
+    LEFT JOIN phone_os_types pot ON pc.phone_os_type_id = pot.id
     LEFT JOIN repair_order_reject_causes rc ON ro.reject_cause_id = rc.id
     LEFT JOIN repair_order_regions ror ON ro.region_id = ror.id
     LEFT JOIN repair_order_statuses s ON ro.status_id = s.id

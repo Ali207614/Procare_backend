@@ -399,6 +399,12 @@ export interface RepairOrderDetails {
     name_ru: string | null;
     name_en: string | null;
   };
+  os_type: {
+    id: string | null;
+    name_uz: string | null;
+    name_ru: string | null;
+    name_en: string | null;
+  };
   repair_order_status: {
     id: string;
     name_uz: string;

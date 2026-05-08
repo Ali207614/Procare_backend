@@ -252,6 +252,9 @@ export class RepairOrderDetailsSwaggerDto extends RepairOrderListItemSwaggerDto 
   @ApiProperty({ type: RepairOrderDetailsBranchSwaggerDto })
   branch!: RepairOrderDetailsBranchSwaggerDto;
 
+  @ApiProperty({ type: RepairOrderLookupSwaggerDto })
+  os_type!: RepairOrderLookupSwaggerDto;
+
   @ApiProperty({ type: 'object', additionalProperties: true })
   pickups!: Record<string, unknown>;
 
