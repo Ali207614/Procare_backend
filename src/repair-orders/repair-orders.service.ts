@@ -15,6 +15,7 @@ import { parseAgreedDateInput } from 'src/common/utils/agreed-date.util';
 import {
   RepairOrder,
   RepairOrderDetails,
+  RepairOrderStatusTransitionItem,
   FreshRepairOrder,
   ViewableRepairOrderListItem,
   ViewableRepairOrdersByStatus,
@@ -92,8 +93,6 @@ const AUTO_REPLACEABLE_ASSIGNMENT_SOURCES: RepairOrderAssignmentSource[] = [
 ];
 const REPAIR_WORKER_ROLE_TYPES = new Set<RoleType>([RoleType.SPECIALIST, RoleType.MASTER]);
 
-import { RepairOrderStatusesService } from 'src/repair-order-statuses/repair-order-statuses.service';
-
 @Injectable()
 export class RepairOrdersService {
   private readonly table = 'repair_orders';
@@ -116,7 +115,6 @@ export class RepairOrdersService {
     private readonly webhookService: RepairOrderWebhookService,
     private readonly notificationService: NotificationService,
     private readonly historyService: HistoryService,
-    private readonly statusService: RepairOrderStatusesService,
     @Optional() branchHierarchy?: BranchHierarchyService,
   ) {
     this.hasInjectedBranchHierarchy = Boolean(branchHierarchy);
@@ -1830,14 +1828,12 @@ export class RepairOrdersService {
         permissions,
       );
 
-      // Add viewable statuses using exact logic of GET repair-order-statuses/viewable
-      const viewableStatusesResult = await this.statusService.findViewable(
+      order.repair_order_status.transitions = await this.findAllowedStatusTransitions(
         admin,
-        order.branch.id,
-        0,
-        1000,
+        order.repair_order_status.id,
+        permissionBranchId,
+        permissions,
       );
-      order.viewable_statuses = viewableStatusesResult.rows;
 
       return order;
     } catch (err) {
@@ -4229,8 +4225,66 @@ export class RepairOrdersService {
     return rule || null;
   }
 
+  private async findAllowedStatusTransitions(
+    admin: AdminPayload,
+    fromStatusId: string,
+    permissionBranchId: string,
+    permissions: RepairOrderStatusPermission[],
+  ): Promise<RepairOrderStatusTransitionItem[]> {
+    const currentPermission = permissions.find(
+      (permission) => permission.status_id === fromStatusId,
+    );
+    if (!currentPermission?.can_change_status) {
+      return [];
+    }
+
+    const primaryRole = this.getPrimaryRoleOrThrow(admin);
+    const useRoleScope = await this.hasRoleScopedTransitions(
+      this.knex,
+      MOTHER_BRANCH_ID,
+      primaryRole.id,
+    );
+
+    const permittedTargetStatusIds = new Set(
+      permissions
+        .filter(
+          (permission) =>
+            permission.role_id === primaryRole.id && permission.branch_id === permissionBranchId,
+        )
+        .map((permission) => permission.status_id),
+    );
+
+    if (!permittedTargetStatusIds.size) {
+      return [];
+    }
+
+    let query = this.knex('repair-order-status-transitions as transition')
+      .join('repair_order_statuses as target_status', 'transition.to_status_id', 'target_status.id')
+      .where('transition.from_status_id', fromStatusId)
+      .whereIn('transition.to_status_id', Array.from(permittedTargetStatusIds))
+      .andWhere({
+        'target_status.branch_id': MOTHER_BRANCH_ID,
+        'target_status.status': 'Open',
+        'target_status.is_active': true,
+      })
+      .select<RepairOrderStatusTransitionItem[]>(
+        'target_status.id',
+        'target_status.name_uz',
+        'target_status.name_ru',
+        'target_status.name_en',
+        'target_status.can_user_view',
+      )
+      .orderBy('target_status.sort', 'asc');
+
+    query = useRoleScope
+      ? query.andWhere('transition.role_id', primaryRole.id)
+      : query.whereNull('transition.role_id');
+
+    return query;
+  }
+
   private async hasRoleScopedTransitions(
-    trx: Knex.Transaction,
+    trx: Knex | Knex.Transaction,
     branchId: string,
     roleId: string,
   ): Promise<boolean> {

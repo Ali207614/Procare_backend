@@ -340,8 +340,6 @@ export interface ViewableRepairOrdersResponse {
   data: ViewableRepairOrdersByStatus<ViewableRepairOrderListItem>;
 }
 
-import { RepairOrderStatusWithPermissions } from 'src/common/types/repair-order-status.interface';
-
 export interface RepairOrderStatusTransitionItem {
   id: string;
   name_uz: string;
@@ -374,9 +372,7 @@ export interface RepairOrderDetails {
   };
   source: RepairOrderSource | null;
   call_count: number;
-  customer_no_answer_count: number;
-  last_customer_no_answer_at: string | null;
-  customer_no_answer_due_at: string | null;
+  missed_call_count: number;
   user: {
     id: string | null;
     first_name: string | null;
@@ -566,7 +562,6 @@ export interface RepairOrderDetails {
       updated_at: string | null;
     } | null;
   };
-  viewable_statuses?: RepairOrderStatusWithPermissions[];
 }
 
 export interface JoinedRepairOrder {

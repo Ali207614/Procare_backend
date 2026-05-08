@@ -177,6 +177,9 @@ export class RepairOrderListItemSwaggerDto {
   @ApiProperty({ example: 0, description: 'Number of calls made to the customer' })
   call_count!: number;
 
+  @ApiProperty({ example: 2 })
+  missed_call_count!: number;
+
   @ApiProperty({ nullable: true, example: '2026-03-27T07:15:00.000Z' })
   deadline_at!: string | null;
 
@@ -226,7 +229,4 @@ export class RepairOrderDetailsSwaggerDto extends RepairOrderListItemSwaggerDto 
 
   @ApiProperty({ type: 'object', additionalProperties: true })
   delivery!: Record<string, unknown>;
-
-  @ApiProperty({ type: 'array', items: { type: 'object', additionalProperties: true } })
-  viewable_statuses?: Record<string, unknown>[];
 }
