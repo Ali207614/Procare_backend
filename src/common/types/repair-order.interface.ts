@@ -276,12 +276,58 @@ export interface FreshRepairOrder {
   };
 }
 
-export interface ViewableRepairOrdersByStatus {
+export interface ViewableRepairOrderListItem {
+  id: string;
+  number_id: number;
+  status_id: string;
+  name: string | null;
+  phone_number: string | null;
+  agreed_date: string | null;
+  pickup_method: 'Self' | 'Pickup';
+  delivery_method: 'Self' | 'Delivery';
+  reject_cause: {
+    id: string | null;
+    name: string | null;
+  };
+  source: RepairOrderSource | null;
+  call_count: number;
+  missed_call_count: number;
+  comments_count: number;
+  created_at: string;
+  phone_category: {
+    id: string | null;
+    name_uz: string | null;
+    name_ru: string | null;
+    name_en: string | null;
+  };
+  repair_order_status: {
+    id: string | null;
+    name_uz: string | null;
+    name_ru: string | null;
+    name_en: string | null;
+  };
+  branch: {
+    id: string | null;
+    name_uz: string | null;
+    name_ru: string | null;
+    name_en: string | null;
+  };
+  assigned_admins: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    phone_number: string | null;
+    created_at: string;
+  }[];
+  is_mothers: boolean;
+}
+
+export interface ViewableRepairOrdersByStatus<TRepairOrder = FreshRepairOrder> {
   [statusId: string]: {
     metrics: {
       total_repair_orders: number;
     };
-    repair_orders: FreshRepairOrder[];
+    repair_orders: TRepairOrder[];
   };
 }
 
@@ -291,7 +337,7 @@ export interface ViewableRepairOrdersResponse {
     limit: number;
     offset: number;
   };
-  data: ViewableRepairOrdersByStatus;
+  data: ViewableRepairOrdersByStatus<ViewableRepairOrderListItem>;
 }
 
 import { RepairOrderStatusWithPermissions } from 'src/common/types/repair-order-status.interface';

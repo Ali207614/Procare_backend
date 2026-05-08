@@ -59,6 +59,7 @@ import {
 import {
   RepairOrderDetailsSwaggerDto,
   RepairOrderListItemSwaggerDto,
+  ViewableRepairOrderListItemSwaggerDto,
 } from './dto/repair-order-swagger.dto';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 
@@ -266,7 +267,11 @@ export class OpenRepairOrdersController {
 @ApiTags('Repair Orders')
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
-@ApiExtraModels(RepairOrderListItemSwaggerDto, RepairOrderDetailsSwaggerDto)
+@ApiExtraModels(
+  RepairOrderListItemSwaggerDto,
+  RepairOrderDetailsSwaggerDto,
+  ViewableRepairOrderListItemSwaggerDto,
+)
 @Controller('repair-orders')
 export class RepairOrdersController {
   constructor(private readonly service: RepairOrdersService) {}
@@ -376,7 +381,7 @@ export class RepairOrdersController {
               },
               repair_orders: {
                 type: 'array',
-                items: { $ref: getSchemaPath(RepairOrderListItemSwaggerDto) },
+                items: { $ref: getSchemaPath(ViewableRepairOrderListItemSwaggerDto) },
               },
             },
           },

@@ -16,6 +16,7 @@ import {
   RepairOrder,
   RepairOrderDetails,
   FreshRepairOrder,
+  ViewableRepairOrderListItem,
   ViewableRepairOrdersByStatus,
   ViewableRepairOrdersResponse,
 } from 'src/common/types/repair-order.interface';
@@ -79,6 +80,9 @@ type FreshRepairOrderRow = FreshRepairOrder & {
   is_read_only?: boolean;
   can_take?: boolean;
   is_hidden_status_for_branch?: boolean;
+  missed_calls?: number;
+  comments_count?: number;
+  created_at: string;
 };
 const ASSIGNMENT_SOURCE_TELEPHONY_AUTO: RepairOrderAssignmentSource = 'telephony_auto';
 const ASSIGNMENT_SOURCE_TELEPHONY_ANSWERED: RepairOrderAssignmentSource = 'telephony_answered';
@@ -1080,8 +1084,20 @@ export class RepairOrdersService {
     admin: AdminPayload,
     branchIds: RepairOrderBranchInput,
     query: RepairOrderListQueryDto,
+    options: FindAllByAdminBranchOptions & { viewableEndpoint: true },
+  ): Promise<ViewableRepairOrdersByStatus<ViewableRepairOrderListItem>>;
+  async findAllByAdminBranch(
+    admin: AdminPayload,
+    branchIds: RepairOrderBranchInput,
+    query: RepairOrderListQueryDto,
+    options?: FindAllByAdminBranchOptions,
+  ): Promise<ViewableRepairOrdersByStatus<FreshRepairOrder>>;
+  async findAllByAdminBranch(
+    admin: AdminPayload,
+    branchIds: RepairOrderBranchInput,
+    query: RepairOrderListQueryDto,
     options: FindAllByAdminBranchOptions = {},
-  ): Promise<ViewableRepairOrdersByStatus> {
+  ): Promise<ViewableRepairOrdersByStatus<FreshRepairOrder | ViewableRepairOrderListItem>> {
     const {
       offset,
       limit,
@@ -1170,8 +1186,11 @@ export class RepairOrdersService {
       viewableEndpoint: options.viewableEndpoint === true,
     });
 
-    const cacheKey = `${this.table}:${requestedBranchIds.join(',')}:${admin.id}:${ownerBranchIds.join(',')}:${sort_by}:${sort_order}:${offset}:${limit}:${options.viewableEndpoint ? 'viewable' : 'legacy'}:${Buffer.from(filterHash).toString('base64')}`;
-    const cached: ViewableRepairOrdersByStatus | null = await this.redisService.get(cacheKey);
+    const endpointCacheSegment = options.viewableEndpoint ? 'viewable-card-v2' : 'legacy';
+    const cacheKey = `${this.table}:${requestedBranchIds.join(',')}:${admin.id}:${ownerBranchIds.join(',')}:${sort_by}:${sort_order}:${offset}:${limit}:${endpointCacheSegment}:${Buffer.from(filterHash).toString('base64')}`;
+    const cached: ViewableRepairOrdersByStatus<
+      FreshRepairOrder | ViewableRepairOrderListItem
+    > | null = await this.redisService.get(cacheKey);
     if (cached) {
       return cached;
     }
@@ -1349,15 +1368,15 @@ export class RepairOrdersService {
         {} as Record<string, number>,
       );
 
-      const freshOrders: FreshRepairOrder[] = options.viewableEndpoint
-        ? freshOrdersRaw.map((order) => this.toViewableRepairOrder(order))
-        : freshOrdersRaw;
-
-      const result: ViewableRepairOrdersByStatus = {};
+      const result: ViewableRepairOrdersByStatus<FreshRepairOrder | ViewableRepairOrderListItem> =
+        {};
       for (const statusId of statusIds) {
-        const ordersForStatus = freshOrders.filter(
-          (o: FreshRepairOrder) => o.repair_order_status.id === statusId,
+        const rawOrdersForStatus = freshOrdersRaw.filter(
+          (order) => order.repair_order_status.id === statusId,
         );
+        const ordersForStatus = options.viewableEndpoint
+          ? rawOrdersForStatus.map((order) => this.toViewableRepairOrder(order))
+          : rawOrdersForStatus;
 
         result[statusId] = {
           metrics: {
@@ -1400,30 +1419,70 @@ export class RepairOrdersService {
     };
   }
 
-  private toViewableRepairOrder(order: FreshRepairOrderRow): FreshRepairOrder {
-    const sanitized = { ...order };
-    const currentOwnerBranch = sanitized.current_owner_branch ?? sanitized.branch?.id;
-    delete sanitized.current_owner_branch;
-    delete sanitized.is_read_only;
-    delete sanitized.can_take;
-    delete sanitized.is_hidden_status_for_branch;
-
-    const branch = sanitized.branch ?? {
+  private toViewableRepairOrder(order: FreshRepairOrderRow): ViewableRepairOrderListItem {
+    const branch = order.branch ?? {
       id: null,
       name_uz: null,
       name_ru: null,
       name_en: null,
     };
+    const phoneCategory = order.phone_category ?? {
+      id: null,
+      name_uz: null,
+      name_ru: null,
+      name_en: null,
+    };
+    const repairOrderStatus = order.repair_order_status ?? {
+      id: null,
+      name_uz: null,
+      name_ru: null,
+      name_en: null,
+    };
+    const rejectCause = order.reject_cause ?? {
+      id: null,
+      name: null,
+    };
+    const userName = [order.user?.first_name, order.user?.last_name].filter(Boolean).join(' ');
 
     return {
-      ...sanitized,
+      id: order.id,
+      number_id: order.number_id,
+      status_id: order.status_id,
+      name: order.name ?? (userName || null),
+      phone_number:
+        order.phone_number ?? order.user?.phone_number1 ?? order.user?.phone_number2 ?? null,
+      agreed_date: order.agreed_date,
+      pickup_method: order.pickup_method,
+      delivery_method: order.delivery_method,
+      reject_cause: {
+        id: rejectCause.id,
+        name: rejectCause.name,
+      },
+      source: order.source,
+      call_count: order.call_count,
+      missed_call_count: Number(order.missed_calls ?? 0),
+      comments_count: Number(order.comments_count ?? 0),
+      created_at: order.created_at,
+      phone_category: {
+        id: phoneCategory.id,
+        name_en: phoneCategory.name_en,
+        name_ru: phoneCategory.name_ru,
+        name_uz: phoneCategory.name_uz,
+      },
+      repair_order_status: {
+        id: repairOrderStatus.id,
+        name_en: repairOrderStatus.name_en,
+        name_ru: repairOrderStatus.name_ru,
+        name_uz: repairOrderStatus.name_uz,
+      },
       branch: {
         id: branch.id,
         name_en: branch.name_en,
         name_ru: branch.name_ru,
         name_uz: branch.name_uz,
       },
-      is_mothers: currentOwnerBranch === MOTHER_BRANCH_ID,
+      assigned_admins: order.assigned_admins ?? [],
+      is_mothers: order.can_take === true,
     };
   }
 
