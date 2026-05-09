@@ -105,7 +105,7 @@ describe('RepairOrderStatusPermissionsService', () => {
     trx.rollback = jest.fn().mockResolvedValue(undefined);
 
     knex.transaction.mockResolvedValue(trx);
-    jest.spyOn(service, 'flushAndReloadCacheByRole').mockResolvedValue(undefined);
+    const flushAndReloadSpy = jest.spyOn(service, 'flushAndReloadCacheByRole');
 
     const result = await service.createManyByRole({
       branch_id: 'branch-id',
@@ -121,6 +121,7 @@ describe('RepairOrderStatusPermissionsService', () => {
     });
     expect(trx.commit).toHaveBeenCalled();
     expect(trx.rollback).not.toHaveBeenCalled();
+    expect(flushAndReloadSpy).not.toHaveBeenCalled();
     expect(insertQuery.insert).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({
@@ -139,6 +140,47 @@ describe('RepairOrderStatusPermissionsService', () => {
         }),
       ]),
     );
+    expect(redisService.del).toHaveBeenCalledWith(
+      'repair_order_status_role_permissions:by_role_status:role-id:status-1',
+    );
+    expect(redisService.del).toHaveBeenCalledWith(
+      'repair_order_status_role_permissions:by_role_status:role-id:status-1:all',
+    );
+    expect(redisService.del).toHaveBeenCalledWith(
+      'repair_order_status_role_permissions:by_role_status:role-id:status-1:branch-id',
+    );
+    expect(redisService.del).toHaveBeenCalledWith(
+      'repair_order_status_role_permissions:by_role_branch:role-id:branch-id',
+    );
+    expect(redisService.flushByPrefix).toHaveBeenCalledWith('status_viewable:branch-id:');
+  });
+
+  it('uses branch-aware cache key when fetching by role and status', async () => {
+    const roleId = '00000000-0000-4000-8000-000000000001';
+    const statusId = '00000000-0000-4000-8000-000000000030';
+    const branchId = '00000000-0000-4000-8000-000000000020';
+    const permission = {
+      id: '00000000-0000-4000-8000-000000000010',
+      branch_id: branchId,
+      role_id: roleId,
+      status_id: statusId,
+      can_update: true,
+    };
+    const permissionQuery = createChainableQuery(permission);
+
+    knex.mockReturnValueOnce(permissionQuery);
+
+    await expect(service.findByRoleStatus(roleId, statusId, branchId)).resolves.toEqual(
+      permission,
+    );
+
+    const cacheKey = `repair_order_status_role_permissions:by_role_status:${roleId}:${statusId}:${branchId}`;
+    expect(redisService.get).toHaveBeenCalledWith(cacheKey);
+    expect(permissionQuery.andWhere).toHaveBeenCalledWith(
+      'repair_order_status_permissions.branch_id',
+      branchId,
+    );
+    expect(redisService.set).toHaveBeenCalledWith(cacheKey, permission, 3600);
   });
 
   it('returns permissions by role across all branches', async () => {
