@@ -21,7 +21,7 @@ RUN apk add --no-cache \
     ca-certificates \
     ttf-freefont
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.15.0 --activate
 
 COPY package.json pnpm-lock.yaml ./
 
