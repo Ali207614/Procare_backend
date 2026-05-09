@@ -141,6 +141,13 @@ export class ViewableRepairOrderListItemSwaggerDto {
       'True only when the current view can take a Mother Branch repair order into a child branch.',
   })
   is_mothers!: boolean;
+
+  @ApiProperty({
+    example: true,
+    description:
+      'True when the repair order was previously in Mother Branch and has been taken into a child branch.',
+  })
+  is_taken_from_mother!: boolean;
 }
 
 export class RepairOrderListItemSwaggerDto {

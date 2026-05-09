@@ -87,6 +87,7 @@ type FreshRepairOrderRow = FreshRepairOrder & {
   current_owner_branch?: string | null;
   is_read_only?: boolean;
   can_take?: boolean;
+  is_taken_from_mother?: boolean;
   is_hidden_status_for_branch?: boolean;
   missed_calls?: number;
   comments_count?: number;
@@ -1189,7 +1190,7 @@ export class RepairOrdersService {
       viewableEndpoint: options.viewableEndpoint === true,
     });
 
-    const endpointCacheSegment = options.viewableEndpoint ? 'viewable-card-v2' : 'legacy';
+    const endpointCacheSegment = options.viewableEndpoint ? 'viewable-card-v3' : 'legacy';
     const cacheKey = `${this.table}:${requestedBranchIds.join(',')}:${admin.id}:${ownerBranchIds.join(',')}:${sort_by}:${sort_order}:${offset}:${limit}:${endpointCacheSegment}:${Buffer.from(filterHash).toString('base64')}`;
     const cached: ViewableRepairOrdersByStatus<
       FreshRepairOrder | ViewableRepairOrderListItem
@@ -1555,6 +1556,7 @@ export class RepairOrdersService {
       },
       assigned_admins: order.assigned_admins ?? [],
       is_mothers: order.can_take === true,
+      is_taken_from_mother: order.is_taken_from_mother === true,
     };
   }
 
@@ -2966,34 +2968,183 @@ export class RepairOrdersService {
         this.redisService.flushByPrefix(`${this.table}:${targetBranchId}`),
       ]);
 
-      void this.helper
-        .getRepairOrderNotificationMeta(repairOrderId)
-        .then((richMeta) => {
-          const meta = { ...richMeta, action: 'order_updated' } as Record<string, unknown>;
-          void this.notificationService.notifyBranch(this.knex, MOTHER_BRANCH_ID, {
-            title: 'Buyurtma filialga olindi',
-            message: `Buyurtma #${order.number_id} filial tomonidan olindi`,
-            type: 'info',
-            meta,
-          });
-          void this.notificationService.notifyBranch(this.knex, targetBranchId, {
-            title: 'Yangi buyurtma olindi',
-            message: `Mother Branchdan buyurtma olindi: #${order.number_id}`,
-            type: 'info',
-            meta,
-          });
-        })
-        .catch((err: Error) => {
-          this.logger.error(
-            `Failed to send branch notification for take on order ${repairOrderId}: ${err.message}`,
-          );
-        });
+      this.notifyMotherBranchMovement(repairOrderId, order.number_id, {
+        action: 'take',
+        childBranchId: targetBranchId,
+      });
 
       return { message: 'Repair order taken successfully' };
     } catch (error) {
       await trx.rollback();
       throw error;
     }
+  }
+
+  async restoreToMother(repairOrderId: string, admin: AdminPayload): Promise<{ message: string }> {
+    const trx = await this.knex.transaction();
+    try {
+      const order: RepairOrder | undefined = await trx<RepairOrder>(this.table)
+        .where({ id: repairOrderId, status: 'Open' })
+        .forUpdate()
+        .first();
+
+      if (!order) {
+        throw new NotFoundException({
+          message: 'Repair order not found',
+          location: 'repair_order',
+        });
+      }
+
+      if (this.branchHierarchy.isMotherBranch(order.branch_id)) {
+        throw new BadRequestException({
+          message: 'Repair order is already in Mother Branch',
+          location: 'branch_id',
+        });
+      }
+
+      await this.assertRepairOrderWritable(admin, order, trx);
+      const permissionBranchId = await this.getPermissionBranchIdForOrder(
+        admin,
+        order.branch_id,
+        trx,
+      );
+      const permissions = await this.permissionService.findByRolesAndBranch(
+        admin.roles,
+        permissionBranchId,
+      );
+      await this.permissionService.checkPermissionsOrThrow(
+        admin.roles,
+        permissionBranchId,
+        order.status_id,
+        ['can_update'],
+        'repair_order_restore',
+        permissions,
+      );
+
+      const wasTakenFromMother = await this.wasRepairOrderTakenFromMother(trx, repairOrderId);
+      if (!wasTakenFromMother) {
+        throw new BadRequestException({
+          message: 'Only repair orders taken from Mother Branch can be restored',
+          location: 'repair_order',
+        });
+      }
+
+      await trx(this.table)
+        .where({ branch_id: order.branch_id, status_id: order.status_id, status: 'Open' })
+        .andWhere('sort', '>', order.sort)
+        .decrement('sort', 1);
+
+      const [updated] = await trx<RepairOrder>(this.table)
+        .where({ id: repairOrderId })
+        .update({
+          branch_id: MOTHER_BRANCH_ID,
+          sort: 999999,
+          updated_at: new Date().toISOString(),
+        })
+        .returning('*');
+
+      await this.moveToTop(trx, updated);
+      await this.changeLogger.logIfChanged(
+        trx,
+        repairOrderId,
+        'branch_id',
+        order.branch_id,
+        MOTHER_BRANCH_ID,
+        admin.id,
+      );
+      await trx.commit();
+
+      await Promise.all([
+        this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`),
+        this.redisService.flushByPrefix(`${this.table}:${MOTHER_BRANCH_ID}`),
+      ]);
+
+      this.notifyMotherBranchMovement(repairOrderId, order.number_id, {
+        action: 'restore',
+        childBranchId: order.branch_id,
+      });
+
+      return { message: 'Repair order restored to Mother Branch successfully' };
+    } catch (error) {
+      await trx.rollback();
+      throw error;
+    }
+  }
+
+  private async wasRepairOrderTakenFromMother(
+    db: Knex | Knex.Transaction,
+    repairOrderId: string,
+  ): Promise<boolean> {
+    const history = await db('repair_order_change_histories')
+      .where({ repair_order_id: repairOrderId, field: 'branch_id' })
+      .whereRaw("old_value #>> '{}' = ?", [MOTHER_BRANCH_ID])
+      .whereRaw("new_value #>> '{}' <> ?", [MOTHER_BRANCH_ID])
+      .first('id');
+
+    return Boolean(history);
+  }
+
+  private notifyMotherBranchMovement(
+    repairOrderId: string,
+    numberId: number,
+    options: { action: 'take' | 'restore'; childBranchId: string },
+  ): void {
+    const isTake = options.action === 'take';
+    const fromBranchId = isTake ? MOTHER_BRANCH_ID : options.childBranchId;
+    const toBranchId = isTake ? options.childBranchId : MOTHER_BRANCH_ID;
+
+    void this.helper
+      .getRepairOrderNotificationMeta(repairOrderId)
+      .then((richMeta) => {
+        const meta = {
+          ...richMeta,
+          action: 'order_updated',
+          branch_action: isTake ? 'order_taken_from_mother' : 'order_restored_to_mother',
+          from_branch_id: fromBranchId,
+          to_branch_id: toBranchId,
+        } as Record<string, unknown>;
+
+        const motherPayload = isTake
+          ? {
+              title: 'Buyurtma filialga olindi',
+              message: `Buyurtma #${numberId} filial tomonidan olindi`,
+            }
+          : {
+              title: 'Buyurtma qaytarildi',
+              message: `Filialdan buyurtma Mother Branchga qaytarildi: #${numberId}`,
+            };
+        const childPayload = isTake
+          ? {
+              title: 'Yangi buyurtma olindi',
+              message: `Mother Branchdan buyurtma olindi: #${numberId}`,
+            }
+          : {
+              title: 'Buyurtma Mother Branchga qaytarildi',
+              message: `Buyurtma #${numberId} Mother Branchga qaytarildi`,
+            };
+
+        void Promise.all([
+          this.notificationService.notifyBranch(this.knex, MOTHER_BRANCH_ID, {
+            ...motherPayload,
+            type: 'info',
+            meta,
+          }),
+          this.notificationService.notifyBranch(this.knex, options.childBranchId, {
+            ...childPayload,
+            type: 'info',
+            meta,
+          }),
+        ]).catch((err: Error) => {
+          this.logger.error(
+            `Failed to send branch notification for ${options.action} on order ${repairOrderId}: ${err.message}`,
+          );
+        });
+      })
+      .catch((err: Error) => {
+        this.logger.error(
+          `Failed to fetch meta for branch notification for ${options.action} on order ${repairOrderId}: ${err.message}`,
+        );
+      });
   }
 
   async findOpenOrderByPhoneNumber(

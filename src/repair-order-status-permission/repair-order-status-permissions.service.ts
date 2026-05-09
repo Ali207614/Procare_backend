@@ -231,8 +231,8 @@ export class RepairOrderStatusPermissionsService {
         return [];
       }
 
-      const keys: string[] = roleIds.map(
-        (roleId: string): string => this.buildRoleBranchCacheKey(roleId, branchId),
+      const keys: string[] = roleIds.map((roleId: string): string =>
+        this.buildRoleBranchCacheKey(roleId, branchId),
       );
       const cachedResults = await Promise.all(
         keys.map((key) => this.redisService.get<RepairOrderStatusPermission[]>(key)),

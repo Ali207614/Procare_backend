@@ -309,6 +309,16 @@ export class RepairOrdersController {
     return this.service.take(repairOrderId, dto.branch_id, req.admin);
   }
 
+  @Delete(':repair_order_id/restore')
+  @ApiOperation({ summary: 'Restore a taken Mother Branch repair order back to Mother Branch' })
+  @ApiParam({ name: 'repair_order_id', description: 'Repair Order ID' })
+  restoreToMother(
+    @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ message: string }> {
+    return this.service.restoreToMother(repairOrderId, req.admin);
+  }
+
   @Get()
   @UseGuards(BranchExistGuard)
   @ApiOperation({

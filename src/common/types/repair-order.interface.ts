@@ -320,6 +320,7 @@ export interface ViewableRepairOrderListItem {
     created_at: string;
   }[];
   is_mothers: boolean;
+  is_taken_from_mother: boolean;
 }
 
 export interface ViewableRepairOrdersByStatus<TRepairOrder = FreshRepairOrder> {

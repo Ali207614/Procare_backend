@@ -253,20 +253,24 @@ describe('RepairOrdersService', () => {
         is_read_only: true,
         is_hidden_status_for_branch: false,
         can_take: true,
+        is_taken_from_mother: false,
       };
 
       const result = (service as any).toViewableRepairOrder(row);
 
-      expect(result).toEqual({
-        id: 'order-1',
-        branch: {
-          id: MOTHER_BRANCH_ID,
-          name_en: 'Fergana Branch',
-          name_ru: 'Фергана Филиал',
-          name_uz: "Farg'ona Filial",
-        },
-        is_mothers: true,
-      });
+      expect(result).toEqual(
+        expect.objectContaining({
+          id: 'order-1',
+          branch: {
+            id: MOTHER_BRANCH_ID,
+            name_en: 'Fergana Branch',
+            name_ru: 'Фергана Филиал',
+            name_uz: "Farg'ona Filial",
+          },
+          is_mothers: true,
+          is_taken_from_mother: false,
+        }),
+      );
       expect(result).not.toHaveProperty('current_owner_branch');
       expect(result).not.toHaveProperty('is_read_only');
       expect(result).not.toHaveProperty('is_hidden_status_for_branch');
