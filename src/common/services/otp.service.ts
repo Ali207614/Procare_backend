@@ -387,7 +387,7 @@ export class OtpService {
 
     const min = Math.pow(10, this.codeLength - 1);
     const max = Math.pow(10, this.codeLength) - 1;
-    // Fix: Use cryptographically secure random number generation
+
     return crypto.randomInt(min, max + 1).toString();
   }
 }
