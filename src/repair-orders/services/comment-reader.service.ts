@@ -126,7 +126,6 @@ export class CommentReaderService {
       .leftJoin('admins as a', 'a.id', 'c.created_by')
       .leftJoin('repair_order_statuses as s', 's.id', 'c.status_by')
       .select<CommentRowSelection[]>(commentColumns)
-      .orderByRaw("CASE WHEN c.comment_type = 'manual' THEN 1 ELSE 2 END ASC")
       .orderBy('c.created_at', 'desc')
       .orderBy('c.id', 'desc')
       .offset(offset)

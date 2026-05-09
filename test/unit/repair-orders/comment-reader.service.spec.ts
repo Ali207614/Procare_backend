@@ -87,14 +87,14 @@ function createKnexMock(
     throw new Error(`Unexpected table ${table}`);
   });
 
-  return { knex, updateSpy };
+  return { knex, rowsQuery, updateSpy };
 }
 
 describe('CommentReaderService', () => {
   it('refreshes the OnlinePBX recording URL on each comments request', async () => {
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     const oldUpdatedAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const { knex, updateSpy } = createKnexMock(expiresAt, oldUpdatedAt);
+    const { knex, rowsQuery, updateSpy } = createKnexMock(expiresAt, oldUpdatedAt);
     const permissionService = {
       findByRolesAndBranch: jest.fn().mockResolvedValue([]),
       checkPermissionsOrThrow: jest.fn().mockResolvedValue(undefined),
@@ -116,6 +116,9 @@ describe('CommentReaderService', () => {
     } as any);
 
     expect(onlinePbxRecordingService.getFreshDownloadUrl).toHaveBeenCalledWith('call-uuid');
+    expect(rowsQuery.orderByRaw).not.toHaveBeenCalled();
+    expect(rowsQuery.orderBy).toHaveBeenNthCalledWith(1, 'c.created_at', 'desc');
+    expect(rowsQuery.orderBy).toHaveBeenNthCalledWith(2, 'c.id', 'desc');
     expect(updateSpy).toHaveBeenCalledWith({
       download_url: 'https://api2.onlinepbx.ru/calls-records/download/fresh/rec.mp3',
       download_url_expires_at: expect.any(String),

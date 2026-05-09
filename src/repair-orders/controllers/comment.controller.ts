@@ -82,7 +82,7 @@ export class CommentController {
       '',
       'Use `type=manual` or `type=history` for a single type, or `types=manual,history` / repeated `types` params for multiple types.',
       '',
-      'Manual comments are returned before generated history comments, and each group is ordered newest first.',
+      'Comments are ordered newest first. Use `offset` and `limit` to page older comments, similar to messenger timelines.',
       '',
       'Audio files are linked from local `phone_calls` rows, and each `download_url` is refreshed from OnlinePBX before the response is returned.',
     ].join('\n'),
