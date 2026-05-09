@@ -119,6 +119,12 @@ export class RepairOrderCommentItemDto {
   @ApiProperty({ example: true })
   is_deletable!: boolean;
 
+  @ApiProperty({
+    description: '`true` when the comment text has been changed after creation.',
+    example: false,
+  })
+  is_edited!: boolean;
+
   @ApiProperty({ type: RepairOrderCommentAdminDto })
   created_by_admin!: RepairOrderCommentAdminDto;
 

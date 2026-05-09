@@ -16,6 +16,7 @@ export interface RepairOrderComment {
 export interface RepairOrderCommentResponse extends RepairOrderComment {
   is_editable: boolean;
   is_deletable: boolean;
+  is_edited: boolean;
   created_by_admin: {
     id: string | null;
     first_name: string | null;

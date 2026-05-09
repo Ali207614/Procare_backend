@@ -267,7 +267,8 @@ export class CommentController {
   })
   @ApiBody({
     type: CreateCommentDto,
-    description: 'Replacement comment text. `text` is required and must be 1000 characters or less.',
+    description:
+      'Replacement comment text. `text` is required and must be 1000 characters or less.',
     examples: {
       editedText: {
         summary: 'Edited manual note',
