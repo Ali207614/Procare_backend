@@ -1000,6 +1000,22 @@ export class RepairOrderHistoryCommentManager {
     const items = Array.isArray(value) ? value : [];
     if (!items.length) return null;
 
+    // ⚡ Bolt: Preload problem categories and repair parts in bulk to prevent N+1 queries.
+    // This optimization extracts all IDs upfront and performs a batch fetch.
+    const categoryIds = items
+      .map((item) => (this.isRecord(item) ? this.asString(item.problem_category_id) : null))
+      .filter((id): id is string => Boolean(id));
+
+    const partIds = items.flatMap((item) => {
+      if (!this.isRecord(item) || !Array.isArray(item.parts)) return [];
+      return item.parts
+        .map((p) => (this.isRecord(p) ? this.asString(p.repair_part_id ?? p.id) : null))
+        .filter((id): id is string => Boolean(id));
+    });
+
+    await this.preloadLookupLabels(trx, 'problem_categories', categoryIds);
+    await this.preloadRepairParts(trx, partIds);
+
     const parts = await Promise.all(
       items.map(async (item) => {
         if (!this.isRecord(item)) return null;
@@ -1028,6 +1044,14 @@ export class RepairOrderHistoryCommentManager {
   private async summarizeProblemParts(trx: DbClient, value: unknown): Promise<string | null> {
     const items = Array.isArray(value) ? value : [];
     if (!items.length) return null;
+
+    // ⚡ Bolt: Preload repair parts in bulk to prevent N+1 queries.
+    // This optimization extracts all part IDs upfront and performs a batch fetch.
+    const partIds = items
+      .map((item) => (this.isRecord(item) ? this.asString(item.repair_part_id ?? item.id) : null))
+      .filter((id): id is string => Boolean(id));
+
+    await this.preloadRepairParts(trx, partIds);
 
     const parts = await Promise.all(
       items.map(async (item) => {
@@ -1328,6 +1352,60 @@ export class RepairOrderHistoryCommentManager {
         return trx(table)
           .where({ id })
           .first<NameLookupRow>('id', 'name_uz', 'name_ru', 'name_en', 'name', 'title');
+    }
+  }
+
+  private async selectLookupRows(
+    trx: DbClient,
+    table: string,
+    ids: string[],
+  ): Promise<NameLookupRow[]> {
+    if (!ids.length) return [];
+    switch (table) {
+      case 'repair_order_statuses':
+      case 'branches':
+      case 'phone_categories':
+      case 'problem_categories':
+        return trx(table)
+          .whereIn('id', ids)
+          .select<NameLookupRow[]>('id', 'name_uz', 'name_ru', 'name_en');
+      case 'repair_order_reject_causes':
+        return trx(table).whereIn('id', ids).select<NameLookupRow[]>('id', 'name');
+      case 'repair_order_regions':
+        return trx(table).whereIn('id', ids).select<NameLookupRow[]>('id', 'title');
+      default:
+        return trx(table)
+          .whereIn('id', ids)
+          .select<NameLookupRow[]>('id', 'name_uz', 'name_ru', 'name_en', 'name', 'title');
+    }
+  }
+
+  private async preloadLookupLabels(trx: DbClient, table: string, ids: string[]): Promise<void> {
+    const missingIds = [...new Set(ids)].filter((id) => !this.lookupCache.has(`${table}:${id}`));
+    if (!missingIds.length) return;
+
+    const rows = await this.selectLookupRows(trx, table, missingIds);
+    for (const id of missingIds) {
+      const row = rows.find((r) => r.id === id);
+      const value = row?.name_uz ?? row?.name_ru ?? row?.name_en ?? row?.name ?? row?.title ?? null;
+      this.lookupCache.set(`${table}:${id}`, value);
+    }
+  }
+
+  private async preloadRepairParts(trx: DbClient, partIds: string[]): Promise<void> {
+    const missingIds = [...new Set(partIds)].filter(
+      (id) => !this.lookupCache.has(`repair_parts:${id}`),
+    );
+    if (!missingIds.length) return;
+
+    const parts = await trx('repair_parts')
+      .whereIn('id', missingIds)
+      .select<NameLookupRow[]>('id', 'part_name_uz', 'part_name_ru', 'part_name_en');
+
+    for (const id of missingIds) {
+      const part = parts.find((p) => p.id === id);
+      const value = part?.part_name_uz ?? part?.part_name_ru ?? part?.part_name_en ?? null;
+      this.lookupCache.set(`repair_parts:${id}`, value);
     }
   }
 
