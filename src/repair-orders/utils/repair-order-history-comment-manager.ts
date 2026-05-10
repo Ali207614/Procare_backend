@@ -1227,6 +1227,25 @@ export class RepairOrderHistoryCommentManager {
   }
 
   private async resolveAdminNames(trx: DbClient, adminIds: string[]): Promise<string[]> {
+    const uniqueIds = Array.from(new Set(adminIds.filter(Boolean)));
+    const missingIds = uniqueIds.filter((id) => !this.lookupCache.has(`admins:${id}`));
+
+    if (missingIds.length > 0) {
+      const admins = await trx('admins')
+        .whereIn('id', missingIds)
+        .select<NameLookupRow[]>('id', 'first_name', 'last_name');
+
+      const adminMap = new Map(admins.map((admin) => [admin.id, admin]));
+
+      for (const id of missingIds) {
+        const admin = adminMap.get(id);
+        const value = admin
+          ? [admin.first_name, admin.last_name].filter(Boolean).join(' ').trim() || null
+          : null;
+        this.lookupCache.set(`admins:${id}`, value);
+      }
+    }
+
     const names = await Promise.all(adminIds.map((adminId) => this.resolveAdminName(trx, adminId)));
 
     return names.filter((name): name is string => Boolean(name));
