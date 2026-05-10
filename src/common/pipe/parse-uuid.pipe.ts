@@ -2,7 +2,7 @@ import { PipeTransform, BadRequestException } from '@nestjs/common';
 import { validate as isUUID } from 'uuid';
 
 export class ParseUUIDPipe implements PipeTransform<string | undefined, string | undefined> {
-  constructor(private readonly options: { isOptional?: boolean } = {}) {}
+  constructor(private readonly options: { isOptional?: boolean; location?: string } = {}) {}
 
   transform(value: string | undefined): string | undefined {
     if (!value) {
@@ -11,7 +11,7 @@ export class ParseUUIDPipe implements PipeTransform<string | undefined, string |
       }
       throw new BadRequestException({
         message: 'UUID is required',
-        location: 'params_id',
+        location: this.options.location ?? 'params_id',
       });
     }
 
@@ -23,7 +23,7 @@ export class ParseUUIDPipe implements PipeTransform<string | undefined, string |
     if (!isUUID(value)) {
       throw new BadRequestException({
         message: 'Invalid UUID format',
-        location: 'params_id',
+        location: this.options.location ?? 'params_id',
       });
     }
     return value;
