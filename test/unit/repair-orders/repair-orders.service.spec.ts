@@ -234,10 +234,87 @@ describe('RepairOrdersService', () => {
         /ro\.branch_id <> :motherBranchId AND \([\s\S]*LIKE :searchTextPattern/,
       );
       expect(rawCalls[0].sql).toMatch(
-        /ro\.branch_id = :motherBranchId AND NOT EXISTS \([\s\S]*\) AND \([\s\S]*= :searchTextExact/,
+        /ro\.branch_id = :motherBranchId AND \([\s\S]*= :searchTextExact/,
       );
+      expect(rawCalls[0].sql).not.toContain('NOT EXISTS (SELECT 1 FROM repair_order_assign_admins');
       expect(rawCalls[0].params.searchTextPattern).toBe('%iphone 14%');
       expect(rawCalls[0].params.searchTextExact).toBe('iphone 14');
+    });
+
+    it('should include Mother Branch exact matches when searching from a child branch', async () => {
+      const admin = { id: 'admin-123', roles: [{ id: 'role-1', name: 'Operator' }] };
+      const query = { branch_ids: ['branch-a'], search: '998505026225', limit: 20, offset: 0 } as any;
+      const rawCalls: any[] = [];
+
+      (service as any).branchHierarchy.getVisibleBranchIds = jest
+        .fn()
+        .mockResolvedValue([MOTHER_BRANCH_ID, 'branch-a']);
+      mockPermissionService.findByRolesAndBranch.mockResolvedValue([
+        {
+          branch_id: 'branch-a',
+          role_id: 'role-1',
+          status_id: 'visible-status',
+          can_view: true,
+        },
+      ]);
+      mockRedis.get.mockResolvedValue(null);
+      mockKnex.raw.mockImplementation((sql: string, params: Record<string, unknown>) => {
+        rawCalls.push({ sql, params });
+        return Promise.resolve({ rows: [] });
+      });
+
+      await service.findAllByAdminBranch(admin as any, query.branch_ids, query, {
+        viewableEndpoint: true,
+      });
+
+      expect(rawCalls[0].params.branchIds).toEqual([MOTHER_BRANCH_ID, 'branch-a']);
+      expect(rawCalls[0].params.permissionBranchIds).toEqual(['branch-a']);
+      expect(rawCalls[0].params.viewerBranchId).toBe('branch-a');
+      expect(rawCalls[0].sql).toContain('ro.branch_id = :motherBranchId');
+      expect(rawCalls[0].sql).not.toContain('NOT EXISTS (SELECT 1 FROM repair_order_assign_admins');
+    });
+
+    it('should not apply assignment filters to Mother Branch search matches', async () => {
+      const admin = { id: 'admin-123', roles: [{ id: 'role-1', name: 'Operator' }] };
+      const query = {
+        branch_ids: ['branch-a'],
+        search: '998505026225',
+        assigned_filter: 'Mine',
+        assigned_admin_ids: ['admin-456'],
+        limit: 20,
+        offset: 0,
+      } as any;
+      const rawCalls: any[] = [];
+
+      (service as any).branchHierarchy.getVisibleBranchIds = jest
+        .fn()
+        .mockResolvedValue([MOTHER_BRANCH_ID, 'branch-a']);
+      mockPermissionService.findByRolesAndBranch.mockResolvedValue([
+        {
+          branch_id: 'branch-a',
+          role_id: 'role-1',
+          status_id: 'visible-status',
+          can_view: true,
+        },
+      ]);
+      mockRedis.get.mockResolvedValue(null);
+      mockKnex.raw.mockImplementation((sql: string, params: Record<string, unknown>) => {
+        rawCalls.push({ sql, params });
+        return Promise.resolve({ rows: [] });
+      });
+
+      await service.findAllByAdminBranch(admin as any, query.branch_ids, query, {
+        viewableEndpoint: true,
+      });
+
+      expect(rawCalls[0].sql).toContain(
+        'ro.branch_id = :motherBranchId OR EXISTS (SELECT 1 FROM repair_order_assign_admins aa WHERE aa.repair_order_id = ro.id AND aa.admin_id = :currentAdminId)',
+      );
+      expect(rawCalls[0].sql).toContain(
+        'ro.branch_id = :motherBranchId OR EXISTS (SELECT 1 FROM repair_order_assign_admins aa WHERE aa.repair_order_id = ro.id AND aa.admin_id = ANY(:assignedAdminIds))',
+      );
+      expect(rawCalls[0].params.currentAdminId).toBe('admin-123');
+      expect(rawCalls[0].params.assignedAdminIds).toEqual(['admin-456']);
     });
 
     it('should sanitize viewable rows without changing the legacy row shape', () => {

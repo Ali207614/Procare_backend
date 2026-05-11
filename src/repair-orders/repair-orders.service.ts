@@ -74,6 +74,7 @@ type FindAllBranchScope = {
   ownerBranchIds: string[];
   permissionBranchIds: string[];
   viewerBranchId: string;
+  canIncludeMotherBranchSearch: boolean;
 };
 type RepairOrderBranchInput = string | string[] | undefined;
 type RepairOrderListQueryDto = FindAllRepairOrdersQueryDto | FindViewableRepairOrdersQueryDto;
@@ -1063,6 +1064,7 @@ export class RepairOrdersService {
         ownerBranchIds,
         permissionBranchIds: [branchId],
         viewerBranchId: branchId,
+        canIncludeMotherBranchSearch: false,
       };
     }
 
@@ -1081,7 +1083,46 @@ export class RepairOrdersService {
       ownerBranchIds: requestedBranchIds,
       permissionBranchIds: requestedBranchIds,
       viewerBranchId: includesMotherBranch ? MOTHER_BRANCH_ID : requestedBranchIds[0],
+      canIncludeMotherBranchSearch: visibleBranchIds.includes(MOTHER_BRANCH_ID),
     };
+  }
+
+  private resolveViewableQueryBranchIds(
+    branchScope: FindAllBranchScope,
+    query: RepairOrderListQueryDto,
+    isViewableEndpoint: boolean,
+  ): string[] {
+    if (
+      !isViewableEndpoint ||
+      !branchScope.canIncludeMotherBranchSearch ||
+      !this.hasViewableSearchFilter(query) ||
+      branchScope.ownerBranchIds.includes(MOTHER_BRANCH_ID)
+    ) {
+      return branchScope.ownerBranchIds;
+    }
+
+    return [...new Set([MOTHER_BRANCH_ID, ...branchScope.ownerBranchIds])];
+  }
+
+  private hasViewableSearchFilter(query: RepairOrderListQueryDto): boolean {
+    return [
+      query.search,
+      query.customer_name,
+      query.phone_number,
+      query.device_model,
+      query.order_number,
+    ].some((value) => typeof value === 'string' && this.normalizeSearchTerm(value).length > 0);
+  }
+
+  private buildAssignmentFilterCondition(
+    assignmentSql: string,
+    ignoreMotherBranchAssignments: boolean,
+  ): string {
+    if (!ignoreMotherBranchAssignments) {
+      return assignmentSql;
+    }
+
+    return `(ro.branch_id = :motherBranchId OR ${assignmentSql})`;
   }
 
   async findAllByAdminBranch(
@@ -1130,6 +1171,11 @@ export class RepairOrdersService {
       options.viewableEndpoint === true,
     );
     const { requestedBranchIds, ownerBranchIds, permissionBranchIds, viewerBranchId } = branchScope;
+    const queryBranchIds = this.resolveViewableQueryBranchIds(
+      branchScope,
+      query,
+      options.viewableEndpoint === true,
+    );
     const primaryRoleId = admin.roles[0]?.id ?? null;
     const permissions: RepairOrderStatusPermission[] = (
       await Promise.all(
@@ -1146,7 +1192,7 @@ export class RepairOrdersService {
       : permissions;
     let statusIds: string[] = [...new Set(statusPermissions.map((p) => p.status_id))];
 
-    if (!statusIds.length || !ownerBranchIds.length) {
+    if (!statusIds.length || !queryBranchIds.length) {
       return {};
     }
 
@@ -1185,13 +1231,14 @@ export class RepairOrdersService {
       agreedDateStatusIds,
       requestedBranchIds,
       ownerBranchIds,
+      queryBranchIds,
       permissionBranchIds,
       viewerBranchId,
       viewableEndpoint: options.viewableEndpoint === true,
     });
 
     const endpointCacheSegment = options.viewableEndpoint ? 'viewable-card-v3' : 'legacy';
-    const cacheKey = `${this.table}:${requestedBranchIds.join(',')}:${admin.id}:${ownerBranchIds.join(',')}:${sort_by}:${sort_order}:${offset}:${limit}:${endpointCacheSegment}:${Buffer.from(filterHash).toString('base64')}`;
+    const cacheKey = `${this.table}:${requestedBranchIds.join(',')}:${admin.id}:${queryBranchIds.join(',')}:${sort_by}:${sort_order}:${offset}:${limit}:${endpointCacheSegment}:${Buffer.from(filterHash).toString('base64')}`;
     const cached: ViewableRepairOrdersByStatus<
       FreshRepairOrder | ViewableRepairOrderListItem
     > | null = await this.redisService.get(cacheKey);
@@ -1205,7 +1252,7 @@ export class RepairOrdersService {
     const queryParams: Record<string, unknown> = {
       branchId: viewerBranchId,
       viewerBranchId,
-      branchIds: ownerBranchIds,
+      branchIds: queryBranchIds,
       permissionBranchIds,
       motherBranchId: MOTHER_BRANCH_ID,
       primaryRoleId: admin.roles[0]?.id ?? null,
@@ -1214,6 +1261,10 @@ export class RepairOrdersService {
       offset,
       endRow,
     };
+    const ignoreAssignmentFiltersForMotherBranch =
+      options.viewableEndpoint === true &&
+      this.hasViewableSearchFilter(query) &&
+      queryBranchIds.includes(MOTHER_BRANCH_ID);
 
     // Filter by source types
     if (source_types?.length) {
@@ -1353,7 +1404,10 @@ export class RepairOrdersService {
     // Filter by current admin assignments
     if (assigned_filter === 'Mine') {
       whereConditions.push(
-        `EXISTS (SELECT 1 FROM repair_order_assign_admins aa WHERE aa.repair_order_id = ro.id AND aa.admin_id = :currentAdminId)`,
+        this.buildAssignmentFilterCondition(
+          `EXISTS (SELECT 1 FROM repair_order_assign_admins aa WHERE aa.repair_order_id = ro.id AND aa.admin_id = :currentAdminId)`,
+          ignoreAssignmentFiltersForMotherBranch,
+        ),
       );
       queryParams.currentAdminId = admin.id;
     }
@@ -1361,7 +1415,10 @@ export class RepairOrdersService {
     // Filter by assigned admin IDs
     if (assigned_admin_ids?.length) {
       whereConditions.push(
-        `EXISTS (SELECT 1 FROM repair_order_assign_admins aa WHERE aa.repair_order_id = ro.id AND aa.admin_id = ANY(:assignedAdminIds))`,
+        this.buildAssignmentFilterCondition(
+          `EXISTS (SELECT 1 FROM repair_order_assign_admins aa WHERE aa.repair_order_id = ro.id AND aa.admin_id = ANY(:assignedAdminIds))`,
+          ignoreAssignmentFiltersForMotherBranch,
+        ),
       );
       queryParams.assignedAdminIds = assigned_admin_ids;
     }
@@ -1666,7 +1723,7 @@ export class RepairOrdersService {
 
     if (exactMotherCondition) {
       branchClauses.push(
-        `(ro.branch_id = :motherBranchId AND NOT EXISTS (SELECT 1 FROM repair_order_assign_admins aa WHERE aa.repair_order_id = ro.id) AND ${exactMotherCondition.sql})`,
+        `(ro.branch_id = :motherBranchId AND ${exactMotherCondition.sql})`,
       );
       Object.assign(params, exactMotherCondition.params);
     }
