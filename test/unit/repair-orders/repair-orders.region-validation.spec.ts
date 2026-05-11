@@ -196,6 +196,7 @@ describe('RepairOrdersService region validation', () => {
     can_view_payments: true,
     can_manage_rental_phone: true,
     can_view_history: true,
+    can_view_viewable: true,
     can_user_manage: true,
     can_create_user: true,
     cannot_continue_without_imei: false,

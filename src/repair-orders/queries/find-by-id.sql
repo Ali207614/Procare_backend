@@ -13,6 +13,9 @@ SELECT
     ro.source,
     ro.call_count,
     ro.missed_calls AS missed_call_count,
+    ro.customer_no_answer_count,
+    ro.last_customer_no_answer_at,
+    ro.customer_no_answer_due_at,
     CASE
         WHEN ro.agreed_date IS NULL OR BTRIM(ro.agreed_date::text) = '' THEN NULL
         ELSE TO_CHAR(NULLIF(BTRIM(ro.agreed_date::text), '')::timestamp, 'YYYY-MM-DD HH24:MI')
@@ -64,7 +67,21 @@ SELECT
         'color', s.color,
         'bg_color', s.bg_color,
         'can_user_view', s.can_user_view,
-        'transitions', '[]'::json
+        'transitions', COALESCE((
+            SELECT json_agg(
+                jsonb_build_object(
+                    'id', t.to_status_id,
+                    'name_uz', s2.name_uz,
+                    'name_ru', s2.name_ru,
+                    'name_en', s2.name_en,
+                    'can_user_view', s2.can_user_view
+                )
+            )
+            FROM "repair-order-status-transitions" t
+            INNER JOIN repair_order_statuses s2
+                ON s2.id = t.to_status_id
+            WHERE t.from_status_id = s.id
+        ), '[]'::json)
     )
 ), '{}'::jsonb) AS repair_order_status,
     COALESCE((jsonb_build_object(

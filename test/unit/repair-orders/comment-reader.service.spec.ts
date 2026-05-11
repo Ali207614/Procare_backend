@@ -116,7 +116,7 @@ describe('CommentReaderService', () => {
     } as any);
 
     expect(onlinePbxRecordingService.getFreshDownloadUrl).toHaveBeenCalledWith('call-uuid');
-    expect(rowsQuery.orderByRaw).not.toHaveBeenCalled();
+    expect(rowsQuery.orderByRaw).toHaveBeenCalledWith("CASE WHEN c.comment_type = 'manual' THEN 1 ELSE 2 END ASC");
     expect(rowsQuery.orderBy).toHaveBeenNthCalledWith(1, 'c.created_at', 'desc');
     expect(rowsQuery.orderBy).toHaveBeenNthCalledWith(2, 'c.id', 'desc');
     expect(updateSpy).toHaveBeenCalledWith({

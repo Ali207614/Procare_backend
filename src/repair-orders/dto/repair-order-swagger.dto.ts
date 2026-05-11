@@ -267,4 +267,7 @@ export class RepairOrderDetailsSwaggerDto extends RepairOrderListItemSwaggerDto 
 
   @ApiProperty({ type: 'object', additionalProperties: true })
   delivery!: Record<string, unknown>;
+
+  @ApiProperty({ type: 'array', items: { type: 'object', additionalProperties: true } })
+  viewable_statuses?: Record<string, unknown>[];
 }

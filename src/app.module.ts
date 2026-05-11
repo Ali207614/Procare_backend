@@ -179,13 +179,5 @@ export class AppModule implements NestModule {
     consumer.apply(JwtMiddleware, RateLimiterMiddleware).forRoutes(...RateLimitedAdminRoutes);
 
     consumer.apply(LoggingMiddleware).forRoutes('*');
-
-    // consumer
-    //   .apply(VerifyRawBodyMiddleware, VerifyPaymeSignatureMiddleware)
-    //   .forRoutes({ path: 'payments/payme/callback', method: RequestMethod.POST });
-
-    // consumer
-    //   .apply(VerifyClickSignatureMiddleware)
-    //   .forRoutes({ path: 'payments/click/callback', method: RequestMethod.POST });
   }
 }

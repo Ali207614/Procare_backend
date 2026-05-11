@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import * as crypto from 'crypto';
 
 export interface SmsMessage {
   recipient: string;
@@ -195,11 +196,9 @@ export class SmsService {
    */
   private generateMessageId(): string {
     const prefix = Array.from({ length: 3 }, () =>
-      String.fromCharCode(97 + Math.floor(Math.random() * 26)),
+      String.fromCharCode(97 + crypto.randomInt(0, 26)),
     ).join('');
-    const suffix = Math.floor(Math.random() * 1000000000)
-      .toString()
-      .padStart(9, '0');
+    const suffix = crypto.randomInt(0, 1000000000).toString().padStart(9, '0');
 
     return `${prefix}${suffix}`;
   }

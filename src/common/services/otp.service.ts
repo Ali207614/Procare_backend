@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Knex } from 'knex';
 import { InjectKnex } from 'nestjs-knex';
 import { v4 as uuidv4 } from 'uuid';
+import * as crypto from 'crypto';
 import { SmsService } from './sms.service';
 
 export interface OtpRecord {
@@ -386,6 +387,7 @@ export class OtpService {
 
     const min = Math.pow(10, this.codeLength - 1);
     const max = Math.pow(10, this.codeLength) - 1;
-    return Math.floor(Math.random() * (max - min + 1) + min).toString();
+
+    return crypto.randomInt(min, max + 1).toString();
   }
 }
