@@ -2,7 +2,13 @@ import { Min, Max, IsNumber } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UpdateProblemCategorySortDto {
-  @ApiProperty({ example: 1, description: 'Sorting order of the branch' })
+  @ApiProperty({
+    example: 1,
+    description: 'Sorting order of the problem category',
+    minimum: 0,
+    maximum: 9999,
+    type: 'integer',
+  })
   @IsNumber()
   @Min(0)
   @Max(9999)

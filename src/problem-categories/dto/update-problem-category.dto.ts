@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsInt,
@@ -11,7 +11,12 @@ import {
 } from 'class-validator';
 
 export class UpdateProblemCategoryDto {
-  @ApiPropertyOptional({ description: 'Problem name in Uzbek', example: 'Ekran sinishi' })
+  @ApiPropertyOptional({
+    description: 'Problem name in Uzbek',
+    example: 'Ekran sinishi',
+    minLength: 1,
+    maxLength: 100,
+  })
   @IsOptional()
   @IsString({ message: 'Name (UZ) must be a string', context: { location: 'name_uz' } })
   @MinLength(1, {
@@ -24,7 +29,12 @@ export class UpdateProblemCategoryDto {
   })
   name_uz?: string;
 
-  @ApiPropertyOptional({ description: 'Problem name in Russian', example: 'Поломка экрана' })
+  @ApiPropertyOptional({
+    description: 'Problem name in Russian',
+    example: 'Поломка экрана',
+    minLength: 1,
+    maxLength: 100,
+  })
   @IsOptional()
   @IsString({ message: 'Name (RU) must be a string', context: { location: 'name_ru' } })
   @MinLength(1, {
@@ -37,7 +47,12 @@ export class UpdateProblemCategoryDto {
   })
   name_ru?: string;
 
-  @ApiPropertyOptional({ description: 'Problem name in English', example: 'Screen damage' })
+  @ApiPropertyOptional({
+    description: 'Problem name in English',
+    example: 'Screen damage',
+    minLength: 1,
+    maxLength: 100,
+  })
   @IsOptional()
   @IsString({ message: 'Name (EN) must be a string', context: { location: 'name_en' } })
   @MinLength(1, {
@@ -50,13 +65,18 @@ export class UpdateProblemCategoryDto {
   })
   name_en?: string;
 
-  @ApiPropertyOptional({ description: 'Price of the problem', example: 100000 })
+  @ApiPropertyOptional({ description: 'Price of the problem', example: 100000, minimum: 0 })
   @IsOptional()
   @IsNumber({}, { message: 'Price must be a number', context: { location: 'price' } })
   @Min(0, { message: 'Price cannot be negative', context: { location: 'price' } })
   price?: number;
 
-  @ApiPropertyOptional({ description: 'Estimated minutes for repair', example: 60 })
+  @ApiPropertyOptional({
+    description: 'Estimated minutes for repair',
+    example: 60,
+    minimum: 0,
+    type: 'integer',
+  })
   @IsOptional()
   @IsInt({
     message: 'Estimated minutes must be an integer',
@@ -68,7 +88,7 @@ export class UpdateProblemCategoryDto {
   })
   estimated_minutes?: number;
 
-  @ApiProperty({ example: true, description: 'Whether the category is active' })
+  @ApiPropertyOptional({ example: true, description: 'Whether the category is active' })
   @IsOptional()
   @IsBoolean()
   is_active?: boolean;

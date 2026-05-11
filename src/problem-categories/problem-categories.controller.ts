@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -11,7 +12,18 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+  ApiBadRequestResponse,
+  ApiNotFoundResponse,
+} from '@nestjs/swagger';
 import { ProblemCategoriesService } from './problem-categories.service';
 import { CreateProblemCategoryDto } from './dto/create-problem-category.dto';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
@@ -22,14 +34,20 @@ import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { ParseUUIDPipe } from 'src/common/pipe/parse-uuid.pipe';
 import { UpdateProblemCategorySortDto } from './dto/update-problem-category-sort.dto';
 import { UpdateProblemCategoryDto } from './dto/update-problem-category.dto';
-import { PhoneCategory } from 'src/common/types/phone-category.interface';
-import { ProblemCategoryWithMeta } from 'src/common/types/problem-category.interface';
 import { FindAllProblemCategoriesDto } from 'src/problem-categories/dto/find-all-problem-categories.dto';
-import { PaginationResult } from 'src/common/utils/pagination.util';
 import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
+import {
+  ErrorResponseDto,
+  MessageResponseDto,
+  ProblemCategoryPaginationResponseDto,
+  ProblemCategoryResponseDto,
+} from './dto/problem-category-response.dto';
+import { ProblemCategory } from 'src/common/types/problem-category.interface';
 
 @ApiTags('Problem Categories')
 @ApiBearerAuth()
+@ApiUnauthorizedResponse({ description: 'Unauthorized' })
+@ApiForbiddenResponse({ description: 'Forbidden - Missing required permissions' })
 @UseGuards(JwtAdminAuthGuard)
 @Controller('problem-categories')
 export class ProblemCategoriesController {
@@ -38,32 +56,53 @@ export class ProblemCategoriesController {
   @Post()
   @UseGuards(PermissionsGuard)
   @SetPermissions('problem.category.create')
-  @ApiOperation({ summary: 'Create new problem category' })
-  @ApiResponse({ status: 201, description: 'Problem category created successfully' })
-  @ApiResponse({ status: 400, description: 'Validation failed' })
+  @ApiOperation({
+    summary: 'Create new problem category',
+    description:
+      'Creates a new problem category. Either phone_category_id (for root problems) or parent_id (for sub-problems) must be provided.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Problem category created successfully',
+    type: ProblemCategoryResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Validation failed or logic conflict',
+    type: ErrorResponseDto,
+  })
   async create(
     @CurrentAdmin() admin: AdminPayload,
     @Body() dto: CreateProblemCategoryDto,
-  ): Promise<PhoneCategory> {
+  ): Promise<ProblemCategory> {
     return this.service.create(dto, admin.id);
   }
 
   @Get()
   @UseInterceptors(PaginationInterceptor)
-  @ApiOperation({ summary: 'Get root-level or child problems with breadcrumb' })
-  @ApiQuery({ name: 'phone_category_id', required: true })
-  @ApiQuery({ name: 'parent_id', required: false })
-  @ApiResponse({ status: 200, description: 'Problem list' })
-  @ApiResponse({ status: 400, description: 'Invalid query' })
+  @ApiOperation({
+    summary: 'Get root-level or child problems with breadcrumb',
+    description:
+      'Retrieves a paginated list of problem categories. Requires either phone_category_id or parent_id.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of problem categories with pagination and breadcrumbs',
+    type: ProblemCategoryPaginationResponseDto,
+  })
+  @ApiBadRequestResponse({ description: 'Invalid query parameters', type: ErrorResponseDto })
   async find(
     @Query() query: FindAllProblemCategoriesDto,
-  ): Promise<PaginationResult<ProblemCategoryWithMeta>> {
+  ): Promise<ProblemCategoryPaginationResponseDto> {
     if (query?.parent_id) {
-      return this.service.findChildrenWithBreadcrumb(query);
+      return (await this.service.findChildrenWithBreadcrumb(
+        query,
+      )) as unknown as ProblemCategoryPaginationResponseDto;
     }
 
     if (query?.phone_category_id) {
-      return this.service.findRootProblems(query);
+      return (await this.service.findRootProblems(
+        query,
+      )) as unknown as ProblemCategoryPaginationResponseDto;
     }
 
     throw new BadRequestException({
@@ -75,6 +114,15 @@ export class ProblemCategoriesController {
   @Patch(':id')
   @UseGuards(PermissionsGuard)
   @SetPermissions('problem.category.update')
+  @ApiOperation({ summary: 'Update problem category' })
+  @ApiParam({ name: 'id', description: 'Problem category UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Problem category updated successfully',
+    type: MessageResponseDto,
+  })
+  @ApiNotFoundResponse({ description: 'Problem category not found', type: ErrorResponseDto })
+  @ApiBadRequestResponse({ description: 'Validation failed', type: ErrorResponseDto })
   async update(
     @CurrentAdmin() admin: AdminPayload,
     @Param('id', ParseUUIDPipe) id: string,
@@ -84,8 +132,18 @@ export class ProblemCategoriesController {
   }
 
   @Patch(':id/sort')
+  @HttpCode(200)
   @UseGuards(PermissionsGuard)
   @SetPermissions('problem.category.update')
+  @ApiOperation({ summary: 'Update problem category sort order' })
+  @ApiParam({ name: 'id', description: 'Problem category UUID' })
+  @ApiBody({ type: UpdateProblemCategorySortDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Sort order updated successfully',
+    type: MessageResponseDto,
+  })
+  @ApiNotFoundResponse({ description: 'Problem category not found', type: ErrorResponseDto })
   async updateSort(
     @CurrentAdmin() admin: AdminPayload,
     @Param('id', ParseUUIDPipe) id: string,
@@ -97,6 +155,18 @@ export class ProblemCategoriesController {
   @Delete(':id')
   @UseGuards(PermissionsGuard)
   @SetPermissions('problem.category.delete')
+  @ApiOperation({ summary: 'Delete problem category (Soft delete)' })
+  @ApiParam({ name: 'id', description: 'Problem category UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Problem category deleted successfully',
+    type: MessageResponseDto,
+  })
+  @ApiNotFoundResponse({ description: 'Problem category not found', type: ErrorResponseDto })
+  @ApiBadRequestResponse({
+    description: 'Cannot delete category with active children',
+    type: ErrorResponseDto,
+  })
   async delete(
     @CurrentAdmin() admin: AdminPayload,
     @Param('id', ParseUUIDPipe) id: string,

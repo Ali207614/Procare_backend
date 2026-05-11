@@ -333,7 +333,8 @@ SELECT
         FROM repair_order_rental_phones rp
         LEFT JOIN rental_phone_devices rpd
             ON rpd.id = rp.rental_phone_device_id
-        WHERE rp.repair_order_id = ro.id AND rp.status IN ('Pending', 'Active')
+        WHERE rp.repair_order_id = ro.id
+            AND rp.status IN ('Pending', 'Active', 'Returned', 'Cancelled')
         ORDER BY rp.created_at DESC
         LIMIT 1
     ), '{}'::jsonb) AS rental_phone

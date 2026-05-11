@@ -11,7 +11,13 @@ import {
 } from 'class-validator';
 
 export class CreateProblemCategoryDto {
-  @ApiProperty({ description: 'Problem name in Uzbek', example: 'Ekran sinishi', required: true })
+  @ApiProperty({
+    description: 'Problem name in Uzbek',
+    example: 'Ekran sinishi',
+    required: true,
+    minLength: 1,
+    maxLength: 100,
+  })
   @IsString({ message: 'Name (UZ) must be a string', context: { location: 'name_uz' } })
   @MinLength(1, {
     message: 'Name (UZ) must be at least 1 character',
@@ -27,6 +33,8 @@ export class CreateProblemCategoryDto {
     description: 'Problem name in Russian',
     example: 'Поломка экрана',
     required: true,
+    minLength: 1,
+    maxLength: 100,
   })
   @IsString({ message: 'Name (RU) must be a string', context: { location: 'name_ru' } })
   @MinLength(1, {
@@ -39,7 +47,13 @@ export class CreateProblemCategoryDto {
   })
   name_ru!: string;
 
-  @ApiProperty({ description: 'Problem name in English', example: 'Screen damage', required: true })
+  @ApiProperty({
+    description: 'Problem name in English',
+    example: 'Screen damage',
+    required: true,
+    minLength: 1,
+    maxLength: 100,
+  })
   @IsString({ message: 'Name (EN) must be a string', context: { location: 'name_en' } })
   @MinLength(1, {
     message: 'Name (EN) must be at least 1 character',
@@ -52,16 +66,18 @@ export class CreateProblemCategoryDto {
   name_en!: string;
 
   @ApiPropertyOptional({
-    description: 'Parent problem category ID',
+    description: 'Parent problem category ID. Use this to create a sub-problem.',
     example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec',
+    format: 'uuid',
   })
   @IsOptional()
   @IsUUID('all', { message: 'Invalid parent category ID', context: { location: 'parent_id' } })
   parent_id?: string;
 
   @ApiPropertyOptional({
-    description: 'Phone category ID',
+    description: 'Phone category ID. Required for root-level problems.',
     example: 'd3e4b1cd-8f20-4b94-b05c-63156cbe02ec',
+    format: 'uuid',
   })
   @IsOptional()
   @IsUUID('all', {
@@ -70,13 +86,18 @@ export class CreateProblemCategoryDto {
   })
   phone_category_id?: string;
 
-  @ApiPropertyOptional({ description: 'Price of the problem', example: 100000 })
+  @ApiPropertyOptional({ description: 'Price of the problem', example: 100000, minimum: 0 })
   @IsOptional()
   @IsNumber({}, { message: 'Price must be a number', context: { location: 'price' } })
   @Min(0, { message: 'Price cannot be negative', context: { location: 'price' } })
   price?: number;
 
-  @ApiPropertyOptional({ description: 'Estimated minutes for repair', example: 60 })
+  @ApiPropertyOptional({
+    description: 'Estimated minutes for repair',
+    example: 60,
+    minimum: 0,
+    type: 'integer',
+  })
   @IsOptional()
   @IsInt({
     message: 'Estimated minutes must be an integer',
