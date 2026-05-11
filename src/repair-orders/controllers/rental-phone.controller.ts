@@ -9,6 +9,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiResponseOptions,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -67,7 +68,11 @@ function errorResponseSchema(
   };
 }
 
-function errorResponseContent(statusCode: number, defaultError: string, examples: ErrorExample[]) {
+function errorResponseContent(
+  statusCode: number,
+  defaultError: string,
+  examples: ErrorExample[],
+): ApiResponseOptions {
   const first = examples[0];
 
   return {
