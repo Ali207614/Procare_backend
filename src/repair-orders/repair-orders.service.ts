@@ -1665,7 +1665,9 @@ export class RepairOrdersService {
     }
 
     if (exactMotherCondition) {
-      branchClauses.push(`(ro.branch_id = :motherBranchId AND ${exactMotherCondition.sql})`);
+      branchClauses.push(
+        `(ro.branch_id = :motherBranchId AND NOT EXISTS (SELECT 1 FROM repair_order_assign_admins aa WHERE aa.repair_order_id = ro.id) AND ${exactMotherCondition.sql})`,
+      );
       Object.assign(params, exactMotherCondition.params);
     }
 

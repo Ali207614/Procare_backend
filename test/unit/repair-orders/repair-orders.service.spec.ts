@@ -234,7 +234,7 @@ describe('RepairOrdersService', () => {
         /ro\.branch_id <> :motherBranchId AND \([\s\S]*LIKE :searchTextPattern/,
       );
       expect(rawCalls[0].sql).toMatch(
-        /ro\.branch_id = :motherBranchId AND \([\s\S]*= :searchTextExact/,
+        /ro\.branch_id = :motherBranchId AND NOT EXISTS \([\s\S]*\) AND \([\s\S]*= :searchTextExact/,
       );
       expect(rawCalls[0].params.searchTextPattern).toBe('%iphone 14%');
       expect(rawCalls[0].params.searchTextExact).toBe('iphone 14');
