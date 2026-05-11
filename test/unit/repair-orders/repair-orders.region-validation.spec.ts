@@ -13,6 +13,7 @@ import { NotificationService } from 'src/notification/notification.service';
 import { RepairOrder } from 'src/common/types/repair-order.interface';
 import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
+import { MOTHER_BRANCH_ID } from 'src/branches/branch-hierarchy.service';
 
 type Mocked<T> = {
   [K in keyof T]: jest.Mock;
@@ -32,6 +33,7 @@ type QueryBuilderMock = {
   whereNotIn: jest.Mock<QueryBuilderMock, [string, unknown[]]>;
   orderBy: jest.Mock<QueryBuilderMock, [string, ('asc' | 'desc')?]>;
   select: jest.Mock<unknown, unknown[]>;
+  pluck: jest.Mock<Promise<unknown[]>, [string]>;
   first: jest.Mock<Promise<unknown>, []>;
   update: jest.Mock<Promise<number>, [Record<string, unknown>]>;
   insert: jest.Mock<
@@ -72,6 +74,7 @@ function createQueryBuilder(result: unknown, recorder: QueryBuilderRecorder): Qu
 
       return builder;
     }),
+    pluck: jest.fn().mockResolvedValue([]),
     first: jest.fn().mockResolvedValue(result),
     update: jest.fn().mockImplementation((payload: Record<string, unknown>) => {
       recorder.updates.push(payload);
@@ -193,6 +196,7 @@ describe('RepairOrdersService region validation', () => {
     can_view_payments: true,
     can_manage_rental_phone: true,
     can_view_history: true,
+    can_view_viewable: true,
     can_user_manage: true,
     can_create_user: true,
     cannot_continue_without_imei: false,
@@ -348,6 +352,48 @@ describe('RepairOrdersService region validation', () => {
         region_id: 'missing-region-id',
       }),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('allows create in Mother Branch when role has can_add for that branch and status', async () => {
+    const trx = createTransactionMock({
+      repair_orders: [undefined, undefined],
+    });
+    knex.transaction.mockResolvedValue(trx);
+
+    const motherPermission = {
+      ...permission,
+      branch_id: MOTHER_BRANCH_ID,
+    };
+    permissionService.findByRolesAndBranch.mockResolvedValue([motherPermission]);
+    (service as unknown as { branchHierarchy: unknown }).branchHierarchy = {
+      assertChildBranch: jest.fn().mockRejectedValue(new Error('should not require child branch')),
+      assertWritableBranch: jest
+        .fn()
+        .mockRejectedValue(new Error('should not require assigned writable branch')),
+    };
+
+    await expect(
+      service.create(admin, MOTHER_BRANCH_ID, {
+        branch_id: MOTHER_BRANCH_ID,
+        phone_number: '+998901234567',
+      }),
+    ).resolves.toMatchObject({
+      branch_id: MOTHER_BRANCH_ID,
+      status_id: 'status-id',
+    });
+
+    expect(permissionService.findByRolesAndBranch).toHaveBeenCalledWith(
+      admin.roles,
+      MOTHER_BRANCH_ID,
+    );
+    expect(permissionService.checkPermissionsOrThrow).toHaveBeenCalledWith(
+      admin.roles,
+      MOTHER_BRANCH_ID,
+      'status-id',
+      ['can_add'],
+      'repair_order_permission',
+      [motherPermission],
+    );
   });
 
   it('persists region_id during create when the region exists', async () => {

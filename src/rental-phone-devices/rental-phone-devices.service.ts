@@ -187,7 +187,7 @@ export class RentalPhoneDevicesService {
       if (existingImei) {
         throw new BadRequestException({
           message: 'Device with this IMEI already exists',
-          location: 'imei_already_exists',
+          location: 'rental_phone_device_create_imei_exists',
         });
       }
     }
@@ -199,7 +199,7 @@ export class RentalPhoneDevicesService {
     if (quantityAvailable > quantity) {
       throw new BadRequestException({
         message: 'Available quantity cannot be greater than total quantity',
-        location: 'invalid_quantity',
+        location: 'rental_phone_device_create_invalid_quantity',
       });
     }
 
@@ -266,7 +266,7 @@ export class RentalPhoneDevicesService {
       if (imeiExists) {
         throw new BadRequestException({
           message: 'Device with this IMEI already exists',
-          location: 'imei_already_exists',
+          location: 'rental_phone_device_update_imei_exists',
         });
       }
     }
@@ -279,7 +279,7 @@ export class RentalPhoneDevicesService {
       if (newQuantityAvailable > newQuantity) {
         throw new BadRequestException({
           message: 'Available quantity cannot be greater than total quantity',
-          location: 'invalid_quantity',
+          location: 'rental_phone_device_update_invalid_quantity',
         });
       }
     }

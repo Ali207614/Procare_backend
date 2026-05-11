@@ -8,7 +8,7 @@ import { RepairOrder } from 'src/common/types/repair-order.interface';
 import { RepairOrderStatusPermission } from 'src/common/types/repair-order-status-permssion.interface';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import { RedisService } from 'src/common/redis/redis.service';
-import { RemoveAdminsDto } from 'src/branches/dto/remove-admins.dto';
+import { RemoveAdminsDto } from '../dto/remove-admins.dto';
 
 @Injectable()
 export class AssignAdminUpdaterService {
@@ -23,7 +23,6 @@ export class AssignAdminUpdaterService {
   private readonly table = 'repair_orders';
 
   async create(orderId: string, adminIds: string[], admin: AdminPayload): Promise<void> {
-    if (!adminIds?.length) return;
     let branchId: string | null = null;
     await this.knex.transaction(async (trx) => {
       const order: RepairOrder | undefined = await trx<RepairOrder>('repair_orders')
@@ -50,7 +49,28 @@ export class AssignAdminUpdaterService {
         allPermissions,
       );
 
-      const uniqueIds = [...new Set(adminIds)];
+      const uniqueIds = [...new Set(adminIds ?? [])];
+
+      if (uniqueIds.length === 0) {
+        const assignedAdminIds = await trx('repair_order_assign_admins')
+          .where('repair_order_id', orderId)
+          .pluck('admin_id');
+
+        if (assignedAdminIds.length === 0) return;
+
+        await trx('repair_order_assign_admins').where('repair_order_id', orderId).delete();
+
+        await this.changeLogger.logIfChanged(
+          trx,
+          orderId,
+          'admin_ids',
+          assignedAdminIds,
+          [],
+          admin.id,
+        );
+
+        return;
+      }
 
       const existingAdmins = await trx('admins').whereIn('id', uniqueIds).pluck('id');
       const notFound = uniqueIds.filter((id) => !existingAdmins.includes(id));

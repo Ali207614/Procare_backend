@@ -98,11 +98,18 @@ export class RepairOrderStatusPermissionsController {
   @ApiOperation({ summary: 'Get permission for a specific role and status (from Redis)' })
   @ApiParam({ name: 'role_id', description: 'Role ID' })
   @ApiParam({ name: 'status_id', description: 'Status ID' })
+  @ApiQuery({
+    name: 'branch_id',
+    required: false,
+    description: 'Branch ID',
+    schema: { type: 'string', format: 'uuid' },
+  })
   async getByAdminStatus(
     @Param('role_id', ParseUUIDPipe) roleId: string,
     @Param('status_id', ParseUUIDPipe) statusId: string,
+    @Query('branch_id', ParseOptionalUUIDPipe) branchId?: string,
   ): Promise<RepairOrderStatusPermission | null> {
-    return this.service.findByRoleStatus(roleId, statusId);
+    return this.service.findByRoleStatus(roleId, statusId, branchId);
   }
 
   @Get('by-role/:role_id/branch/:branch_id')

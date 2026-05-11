@@ -34,7 +34,7 @@ export class RentalPhoneUpdaterService {
     if (!order) {
       throw new BadRequestException({
         message: 'Repair order not found',
-        location: 'repair_order_id',
+        location: 'rental_phone_create_repair_order_not_found',
       });
     }
 
@@ -56,7 +56,7 @@ export class RentalPhoneUpdaterService {
     if (existing) {
       throw new BadRequestException({
         message: 'Rental phone already assigned to this repair order',
-        location: 'repair_order_id',
+        location: 'rental_phone_create_already_assigned',
       });
     }
 
@@ -68,7 +68,7 @@ export class RentalPhoneUpdaterService {
     if (orderStatus && (orderStatus.type === 'Canceled' || orderStatus.type === 'Completed')) {
       throw new BadRequestException({
         message: `Cannot assign rental phone to a ${orderStatus.type.toLowerCase()} repair order`,
-        location: 'repair_order_id',
+        location: 'rental_phone_create_order_closed',
       });
     }
 
@@ -81,7 +81,7 @@ export class RentalPhoneUpdaterService {
       if (!device) {
         throw new BadRequestException({
           message: 'Rental phone not found',
-          location: 'rental_phone.rental_phone_id',
+          location: 'rental_phone_create_device_unavailable',
         });
       }
     }
@@ -149,7 +149,7 @@ export class RentalPhoneUpdaterService {
     if (!order) {
       throw new BadRequestException({
         message: 'Repair order not found',
-        location: 'repair_order_id',
+        location: 'rental_phone_update_repair_order_not_found',
       });
     }
 
@@ -174,7 +174,7 @@ export class RentalPhoneUpdaterService {
     if (!existing) {
       throw new BadRequestException({
         message: 'No rental phone records found for this repair order',
-        location: 'repair_order_id',
+        location: 'rental_phone_update_record_not_found',
       });
     }
 
@@ -186,14 +186,14 @@ export class RentalPhoneUpdaterService {
       if (currentStatus === 'Active' && newStatus === 'Pending') {
         throw new BadRequestException({
           message: 'Status transition from Active to Pending is not allowed',
-          location: 'status',
+          location: 'rental_phone_update_active_to_pending',
         });
       }
 
       if (['Cancelled', 'Returned'].includes(currentStatus)) {
         throw new BadRequestException({
           message: `Cannot change status once it is ${currentStatus}`,
-          location: 'status',
+          location: 'rental_phone_update_terminal_status',
         });
       }
     }
@@ -209,7 +209,7 @@ export class RentalPhoneUpdaterService {
       if (missingFields.length > 0) {
         throw new BadRequestException({
           message: `Fields required for Active status transition: ${missingFields.join(', ')}`,
-          location: 'status',
+          location: 'rental_phone_update_activation_fields_required',
         });
       }
     }
@@ -222,7 +222,7 @@ export class RentalPhoneUpdaterService {
     ) {
       throw new BadRequestException({
         message: 'Cannot change rental phone after assignment. Please cancel and create again.',
-        location: 'rental_phone.rental_phone_id',
+        location: 'rental_phone_update_device_change_not_allowed',
       });
     }
 
@@ -256,7 +256,7 @@ export class RentalPhoneUpdaterService {
       if (!device) {
         throw new BadRequestException({
           message: 'Selected rental phone is not found or not available',
-          location: 'rental_phone_id',
+          location: 'rental_phone_update_device_unavailable',
         });
       }
 
@@ -305,7 +305,7 @@ export class RentalPhoneUpdaterService {
     if (!order) {
       throw new BadRequestException({
         message: 'Repair order not found',
-        location: 'repair_order_id',
+        location: 'rental_phone_cancel_repair_order_not_found',
       });
     }
 
@@ -328,7 +328,7 @@ export class RentalPhoneUpdaterService {
     if (!existing) {
       throw new BadRequestException({
         message: 'No active rental phone found for this repair order',
-        location: 'repair_order_id',
+        location: 'rental_phone_cancel_active_not_found',
       });
     }
 
@@ -365,7 +365,10 @@ export class RentalPhoneUpdaterService {
       .first();
 
     if (!order) {
-      throw new NotFoundException('Repair order not found');
+      throw new NotFoundException({
+        message: 'Repair order not found',
+        location: 'rental_phone_record_update_repair_order_not_found',
+      });
     }
 
     const allPermissions: RepairOrderStatusPermission[] =
@@ -384,7 +387,10 @@ export class RentalPhoneUpdaterService {
       .first();
 
     if (!existingRental) {
-      throw new NotFoundException('Rental phone not found');
+      throw new NotFoundException({
+        message: 'Rental phone not found',
+        location: 'rental_phone_record_update_not_found',
+      });
     }
 
     const updateFields: Partial<RepairOrderRentalPhone> = {};
@@ -407,7 +413,10 @@ export class RentalPhoneUpdaterService {
       updateFields.price = updateDto.rental_price.toString();
 
     if (Object.keys(updateFields).length === 0) {
-      throw new BadRequestException('No valid fields to update');
+      throw new BadRequestException({
+        message: 'No valid fields to update',
+        location: 'rental_phone_record_update_no_fields',
+      });
     }
 
     updateFields.updated_at = new Date().toISOString();
@@ -444,7 +453,10 @@ export class RentalPhoneUpdaterService {
       .first();
 
     if (!order) {
-      throw new NotFoundException('Repair order not found');
+      throw new NotFoundException({
+        message: 'Repair order not found',
+        location: 'rental_phone_record_delete_repair_order_not_found',
+      });
     }
 
     const allPermissions: RepairOrderStatusPermission[] =
@@ -464,7 +476,10 @@ export class RentalPhoneUpdaterService {
       .returning('*');
 
     if (!deleted.length) {
-      throw new NotFoundException('Rental phone not found');
+      throw new NotFoundException({
+        message: 'Rental phone not found',
+        location: 'rental_phone_record_delete_not_found',
+      });
     }
 
     await this.knex('rental_phone_devices')

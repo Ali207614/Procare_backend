@@ -75,8 +75,23 @@ SELECT
     ro.branch_id AS current_owner_branch,
     (ro.branch_id = :motherBranchId AND :viewerBranchId <> :motherBranchId) AS is_read_only,
     (ro.branch_id = :motherBranchId AND :viewerBranchId <> :motherBranchId) AS can_take,
+    (ro.branch_id <> :motherBranchId AND EXISTS (
+        SELECT 1
+        FROM repair_order_change_histories h
+        WHERE h.repair_order_id = ro.id
+          AND h.field = 'branch_id'
+          AND h.old_value #>> '{}' = :motherBranchId
+          AND h.new_value #>> '{}' <> :motherBranchId
+    )) AS is_taken_from_mother,
     NOT COALESCE(sp.can_view, false) AS is_hidden_status_for_branch,
     ro.call_count,
+    ro.missed_calls,
+    (
+        SELECT COUNT(*)::integer
+        FROM repair_order_comments c
+        WHERE c.repair_order_id = ro.id
+          AND c.status = 'Open'
+    ) AS comments_count,
     ro.customer_no_answer_count,
     ro.last_customer_no_answer_at,
     ro.customer_no_answer_due_at,

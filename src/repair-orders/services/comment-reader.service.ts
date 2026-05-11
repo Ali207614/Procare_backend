@@ -267,6 +267,7 @@ export class CommentReaderService {
       history_change_id: row.history_change_id,
       is_editable: isManual,
       is_deletable: isManual,
+      is_edited: this.isCommentEdited(row),
       created_by_admin: {
         id: row.admin_id,
         first_name: row.admin_first_name,
@@ -285,6 +286,17 @@ export class CommentReaderService {
       created_at_local: this.formatLocalDateTime(row.created_at),
       updated_at_local: this.formatLocalDateTime(row.updated_at),
     };
+  }
+
+  private isCommentEdited(row: RepairOrderCommentRow): boolean {
+    const createdAt = new Date(row.created_at).getTime();
+    const updatedAt = new Date(row.updated_at).getTime();
+
+    if (Number.isNaN(createdAt) || Number.isNaN(updatedAt)) {
+      return row.updated_at !== row.created_at;
+    }
+
+    return updatedAt > createdAt;
   }
 
   private formatLocalDateTime(value: string): string {

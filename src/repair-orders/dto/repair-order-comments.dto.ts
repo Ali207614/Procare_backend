@@ -119,6 +119,12 @@ export class RepairOrderCommentItemDto {
   @ApiProperty({ example: true })
   is_deletable!: boolean;
 
+  @ApiProperty({
+    description: '`true` when the comment text has been changed after creation.',
+    example: false,
+  })
+  is_edited!: boolean;
+
   @ApiProperty({ type: RepairOrderCommentAdminDto })
   created_by_admin!: RepairOrderCommentAdminDto;
 
@@ -196,4 +202,41 @@ export class RepairOrderCommentsResponseDto {
       'All audio files currently linked to this repair order. Recording URLs are refreshed from OnlinePBX before being returned.',
   })
   audio_files!: RepairOrderCommentAudioFileDto[];
+}
+
+export class CreatedRepairOrderCommentDto {
+  @ApiProperty({
+    description: 'Created comment UUID.',
+    example: 'c7a77f42-2f13-4b8e-b8cb-7d5f2c82fbbb',
+  })
+  id!: string;
+
+  @ApiProperty({
+    description: 'Created manual comment text.',
+    example: 'Customer asked to confirm the screen replacement price before repair starts.',
+  })
+  text!: string;
+
+  @ApiProperty({
+    description: 'Comment creation timestamp returned by the database.',
+    example: '2026-04-30T08:15:00.000Z',
+  })
+  created_at!: string;
+}
+
+export class UpdateRepairOrderCommentResponseDto {
+  @ApiProperty({
+    description: 'Human-readable result of the mutation.',
+    enum: ['✅ Comment updated', 'No changes detected'],
+    example: '✅ Comment updated',
+  })
+  message!: string;
+}
+
+export class DeleteRepairOrderCommentResponseDto {
+  @ApiProperty({
+    description: 'Human-readable result of the deletion.',
+    example: '🗑️ Comment deleted',
+  })
+  message!: string;
 }

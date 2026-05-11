@@ -276,12 +276,59 @@ export interface FreshRepairOrder {
   };
 }
 
-export interface ViewableRepairOrdersByStatus {
+export interface ViewableRepairOrderListItem {
+  id: string;
+  number_id: number;
+  status_id: string;
+  name: string | null;
+  phone_number: string | null;
+  agreed_date: string | null;
+  pickup_method: 'Self' | 'Pickup';
+  delivery_method: 'Self' | 'Delivery';
+  reject_cause: {
+    id: string | null;
+    name: string | null;
+  };
+  source: RepairOrderSource | null;
+  call_count: number;
+  missed_call_count: number;
+  comments_count: number;
+  created_at: string;
+  phone_category: {
+    id: string | null;
+    name_uz: string | null;
+    name_ru: string | null;
+    name_en: string | null;
+  };
+  repair_order_status: {
+    id: string | null;
+    name_uz: string | null;
+    name_ru: string | null;
+    name_en: string | null;
+  };
+  branch: {
+    id: string | null;
+    name_uz: string | null;
+    name_ru: string | null;
+    name_en: string | null;
+  };
+  assigned_admins: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    phone_number: string | null;
+    created_at: string;
+  }[];
+  is_mothers: boolean;
+  is_taken_from_mother: boolean;
+}
+
+export interface ViewableRepairOrdersByStatus<TRepairOrder = FreshRepairOrder> {
   [statusId: string]: {
     metrics: {
       total_repair_orders: number;
     };
-    repair_orders: FreshRepairOrder[];
+    repair_orders: TRepairOrder[];
   };
 }
 
@@ -291,10 +338,8 @@ export interface ViewableRepairOrdersResponse {
     limit: number;
     offset: number;
   };
-  data: ViewableRepairOrdersByStatus;
+  data: ViewableRepairOrdersByStatus<ViewableRepairOrderListItem>;
 }
-
-import { RepairOrderStatusWithPermissions } from 'src/common/types/repair-order-status.interface';
 
 export interface RepairOrderStatusTransitionItem {
   id: string;
@@ -302,6 +347,13 @@ export interface RepairOrderStatusTransitionItem {
   name_ru: string;
   name_en: string;
   can_user_view: boolean;
+}
+
+export interface RepairOrderTransferBranch {
+  id: string;
+  name_uz: string;
+  name_ru: string;
+  name_en: string;
 }
 
 export interface RepairOrderDetails {
@@ -328,9 +380,7 @@ export interface RepairOrderDetails {
   };
   source: RepairOrderSource | null;
   call_count: number;
-  customer_no_answer_count: number;
-  last_customer_no_answer_at: string | null;
-  customer_no_answer_due_at: string | null;
+  missed_call_count: number;
   user: {
     id: string | null;
     first_name: string | null;
@@ -350,6 +400,12 @@ export interface RepairOrderDetails {
     name_ru: string | null;
     name_en: string | null;
   };
+  os_type: {
+    id: string | null;
+    name_uz: string | null;
+    name_ru: string | null;
+    name_en: string | null;
+  };
   repair_order_status: {
     id: string;
     name_uz: string;
@@ -364,6 +420,7 @@ export interface RepairOrderDetails {
     name_uz: string;
     name_ru: string;
     name_en: string;
+    transfer_branches?: RepairOrderTransferBranch[];
   };
   assigned_admins: {
     id: string;
@@ -520,7 +577,6 @@ export interface RepairOrderDetails {
       updated_at: string | null;
     } | null;
   };
-  viewable_statuses?: RepairOrderStatusWithPermissions[];
 }
 
 export interface JoinedRepairOrder {

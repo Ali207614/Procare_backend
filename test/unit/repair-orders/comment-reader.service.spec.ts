@@ -20,6 +20,7 @@ function createKnexMock(
   audioExpiresAt: string | null,
   audioUpdatedAt: string,
   updateImplementation: jest.Mock<any, any> = jest.fn().mockResolvedValue(1),
+  commentOverrides: Record<string, unknown> = {},
 ) {
   const commentRows = [
     {
@@ -39,6 +40,7 @@ function createKnexMock(
       status_name_ru: 'Новый',
       status_name_en: 'New',
       status_can_user_view: true,
+      ...commentOverrides,
     },
   ];
   const audioFiles = [
@@ -85,14 +87,14 @@ function createKnexMock(
     throw new Error(`Unexpected table ${table}`);
   });
 
-  return { knex, updateSpy };
+  return { knex, rowsQuery, updateSpy };
 }
 
 describe('CommentReaderService', () => {
   it('refreshes the OnlinePBX recording URL on each comments request', async () => {
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     const oldUpdatedAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const { knex, updateSpy } = createKnexMock(expiresAt, oldUpdatedAt);
+    const { knex, rowsQuery, updateSpy } = createKnexMock(expiresAt, oldUpdatedAt);
     const permissionService = {
       findByRolesAndBranch: jest.fn().mockResolvedValue([]),
       checkPermissionsOrThrow: jest.fn().mockResolvedValue(undefined),
@@ -114,6 +116,9 @@ describe('CommentReaderService', () => {
     } as any);
 
     expect(onlinePbxRecordingService.getFreshDownloadUrl).toHaveBeenCalledWith('call-uuid');
+    expect(rowsQuery.orderByRaw).toHaveBeenCalledWith("CASE WHEN c.comment_type = 'manual' THEN 1 ELSE 2 END ASC");
+    expect(rowsQuery.orderBy).toHaveBeenNthCalledWith(1, 'c.created_at', 'desc');
+    expect(rowsQuery.orderBy).toHaveBeenNthCalledWith(2, 'c.id', 'desc');
     expect(updateSpy).toHaveBeenCalledWith({
       download_url: 'https://api2.onlinepbx.ru/calls-records/download/fresh/rec.mp3',
       download_url_expires_at: expect.any(String),
@@ -132,6 +137,37 @@ describe('CommentReaderService', () => {
       expect.objectContaining({
         created_at_local: '2026-04-30 13:00:00',
         updated_at_local: '2026-04-30 13:00:00',
+        is_edited: false,
+      }),
+    );
+  });
+
+  it('marks comments as edited when updated after creation', async () => {
+    const { knex } = createKnexMock(null, new Date().toISOString(), undefined, {
+      updated_at: '2026-04-30T08:05:00.000Z',
+    });
+    const permissionService = {
+      findByRolesAndBranch: jest.fn().mockResolvedValue([]),
+      checkPermissionsOrThrow: jest.fn().mockResolvedValue(undefined),
+    };
+    const onlinePbxRecordingService = {
+      getFreshDownloadUrl: jest.fn().mockResolvedValue(null),
+    };
+    const service = new CommentReaderService(
+      knex as any,
+      permissionService as any,
+      onlinePbxRecordingService as any,
+    );
+
+    const result = await service.findByRepairOrder({ id: 'admin-1', roles: [] } as any, 'order-1', {
+      limit: 20,
+      offset: 0,
+    } as any);
+
+    expect(result.comments[0]).toEqual(
+      expect.objectContaining({
+        is_edited: true,
+        updated_at_local: '2026-04-30 13:05:00',
       }),
     );
   });

@@ -86,8 +86,10 @@ export class AgreedDateCronService {
         `[AgreedDateCron] Found ${matchingOrders.length} repair order(s) to trigger.`,
       );
 
-      // 4. Process each matching order
+      // 4. Process each matching order sequentially to avoid deadlocks on row shifting,
+      // but defer notifications to process them concurrently in batch.
       const affectedBranchIds = new Set<string>();
+      const successfulOrders: RepairOrder[] = [];
 
       for (const order of matchingOrders) {
         const trx = await this.knex.transaction();
@@ -97,30 +99,48 @@ export class AgreedDateCronService {
           await trx.commit();
 
           affectedBranchIds.add(order.branch_id);
+          successfulOrders.push(order);
 
-          // 5. Send socket notification with is_trigger: true
-          const richMeta = await this.helper.getRepairOrderNotificationMeta(order.id);
-          if (richMeta) {
-            const payload: BroadcastMessage<RepairNotificationMeta & { is_trigger: boolean }> = {
-              title: 'Kelishilgan vaqt yetib keldi',
-              message: `Buyurtma #${order.number_id} uchun kelishilgan vaqt yetib keldi`,
-              meta: {
-                ...richMeta,
-                is_trigger: true,
-              },
-            };
-
-            this.gateway.broadcastToBranch(order.branch_id, payload);
-          }
-
-          this.logger.log(
-            `[AgreedDateCron] Moved order ${order.id} (#${order.number_id}) to top and notified branch ${order.branch_id}.`,
-          );
+          this.logger.log(`[AgreedDateCron] Moved order ${order.id} (#${order.number_id}) to top.`);
         } catch (error) {
           await trx.rollback();
           const message = error instanceof Error ? error.message : String(error);
           this.logger.error(`[AgreedDateCron] Failed to process order ${order.id}: ${message}`);
         }
+      }
+
+      // 5. Send socket notifications concurrently in bounded chunks
+      const CHUNK_SIZE = 10;
+      for (let i = 0; i < successfulOrders.length; i += CHUNK_SIZE) {
+        const chunk = successfulOrders.slice(i, i + CHUNK_SIZE);
+        await Promise.all(
+          chunk.map(async (order) => {
+            try {
+              const richMeta = await this.helper.getRepairOrderNotificationMeta(order.id);
+              if (richMeta) {
+                const payload: BroadcastMessage<RepairNotificationMeta & { is_trigger: boolean }> =
+                  {
+                    title: 'Kelishilgan vaqt yetib keldi',
+                    message: `Buyurtma #${order.number_id} uchun kelishilgan vaqt yetib keldi`,
+                    meta: {
+                      ...richMeta,
+                      is_trigger: true,
+                    },
+                  };
+
+                this.gateway.broadcastToBranch(order.branch_id, payload);
+              }
+              this.logger.log(
+                `[AgreedDateCron] Notified branch ${order.branch_id} for order ${order.id}.`,
+              );
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              this.logger.error(
+                `[AgreedDateCron] Failed to send notification for order ${order.id}: ${message}`,
+              );
+            }
+          }),
+        );
       }
 
       // 6. Flush Redis cache for affected branches

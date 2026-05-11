@@ -750,12 +750,19 @@ export class HistoryService {
       baseQuery.clone().count<{ count: string }>('id as count').first(),
     ]);
 
-    const rows = await Promise.all(
-      events.map(async (event) => ({
-        event,
-        ...(await this.getEventParts(event.id)),
-      })),
-    );
+    const resultEventIds = events.map((e) => e.id);
+
+    // Performance optimization: Resolves an N+1 query vulnerability by
+    // replacing sequential/concurrent individual queries (4 queries per event)
+    // with a single batched fetch (4 queries total) using whereIn.
+    // Expected impact: Drastically reduces database roundtrips and latency
+    // when fetching large entity timelines.
+    const partsMap = await this.getMultipleEventsParts(resultEventIds);
+
+    const rows = events.map((event) => ({
+      event,
+      ...(partsMap.get(event.id) ?? this.emptyEventParts()),
+    }));
 
     return {
       rows,
@@ -810,6 +817,64 @@ export class HistoryService {
     ]);
 
     return { actors, entities, inputs, changes };
+  }
+
+  private async getMultipleEventsParts(eventIds: string[]): Promise<
+    Map<
+      string,
+      {
+        actors: Record<string, unknown>[];
+        entities: Record<string, unknown>[];
+        inputs: Record<string, unknown>[];
+        changes: HistoryFieldChangeRow[];
+      }
+    >
+  > {
+    if (eventIds.length === 0) return new Map();
+
+    const [allActors, allEntities, allInputs, allChanges] = await Promise.all([
+      this.knex<Record<string, unknown>>('history_event_actors')
+        .whereIn('event_id', eventIds)
+        .orderBy('id', 'asc'),
+      this.knex<Record<string, unknown>>('history_event_entities')
+        .whereIn('event_id', eventIds)
+        .orderBy('created_at', 'asc'),
+      this.knex<Record<string, unknown>>('history_event_inputs')
+        .whereIn('event_id', eventIds)
+        .orderBy('input_key', 'asc'),
+      this.knex<HistoryFieldChangeRow>('history_field_changes')
+        .whereIn('event_id', eventIds)
+        .orderBy('changed_at', 'asc'),
+    ]);
+
+    const partsMap = new Map<
+      string,
+      {
+        actors: Record<string, unknown>[];
+        entities: Record<string, unknown>[];
+        inputs: Record<string, unknown>[];
+        changes: HistoryFieldChangeRow[];
+      }
+    >();
+
+    for (const id of eventIds) {
+      partsMap.set(id, this.emptyEventParts());
+    }
+
+    for (const actor of allActors) {
+      partsMap.get(actor.event_id as string)!.actors.push(actor);
+    }
+    for (const entity of allEntities) {
+      partsMap.get(entity.event_id as string)!.entities.push(entity);
+    }
+    for (const input of allInputs) {
+      partsMap.get(input.event_id as string)!.inputs.push(input);
+    }
+    for (const change of allChanges) {
+      partsMap.get(change.event_id)!.changes.push(change);
+    }
+
+    return partsMap;
   }
 
   private emptyEventParts(): {

@@ -86,8 +86,7 @@ export class RepairOrderStatusPermissionsService {
 
       await trx.commit();
 
-      await Promise.all(inserted.map((row) => this.flushAndReloadCacheByRole(row)));
-      await this.redisService.flushByPrefix(`${this.redisKeyView}${branch_id}:`);
+      await this.invalidateCachesForPermissions(inserted);
 
       return {
         message: 'Permissions assigned successfully to selected role and statuses',
@@ -122,8 +121,9 @@ export class RepairOrderStatusPermissionsService {
   async findByRoleStatus(
     roleId: string,
     statusId: string,
+    branchId?: string,
   ): Promise<RepairOrderStatusPermission | null> {
-    const key = `${this.redisKeyByRoleStatus}:${roleId}:${statusId}`;
+    const key = this.buildRoleStatusCacheKey(roleId, statusId, branchId);
     const cached: RepairOrderStatusPermission | null =
       await this.redisService.get<RepairOrderStatusPermission>(key);
     if (cached !== null) return cached;
@@ -137,7 +137,13 @@ export class RepairOrderStatusPermissionsService {
       .andWhere('branches.status', 'Open')
       .andWhere('roles.status', 'Open')
       .andWhere('repair_order_statuses.status', 'Open')
+      .modify((qb) => {
+        if (branchId) {
+          void qb.andWhere(`${this.table}.branch_id`, branchId);
+        }
+      })
       .select(`${this.table}.*`)
+      .orderBy(`${this.table}.updated_at`, 'desc')
       .first()) as RepairOrderStatusPermission | undefined;
 
     await this.redisService.set(key, permission ?? null, 3600);
@@ -225,8 +231,8 @@ export class RepairOrderStatusPermissionsService {
         return [];
       }
 
-      const keys: string[] = roleIds.map(
-        (roleId: string): string => `${this.redisKeyByRoleBranch}:${roleId}:${branchId}`,
+      const keys: string[] = roleIds.map((roleId: string): string =>
+        this.buildRoleBranchCacheKey(roleId, branchId),
       );
       const cachedResults = await Promise.all(
         keys.map((key) => this.redisService.get<RepairOrderStatusPermission[]>(key)),
@@ -255,7 +261,7 @@ export class RepairOrderStatusPermissionsService {
       await Promise.all(
         missingRoleIds.map((roleId) => {
           const perRole = sortPermissions(missingPermissions.filter((p) => p.role_id === roleId));
-          const key = `${this.redisKeyByRoleBranch}:${roleId}:${branchId}`;
+          const key = this.buildRoleBranchCacheKey(roleId, branchId);
           return this.redisService.set(key, perRole, 3600);
         }),
       );
@@ -274,25 +280,7 @@ export class RepairOrderStatusPermissionsService {
   }
 
   async flushAndReloadCacheByRole(permission: RepairOrderStatusPermission): Promise<void> {
-    const { role_id, status_id, branch_id } = permission;
-
-    const keyByStatus = `${this.redisKeyByRoleStatus}:${role_id}:${status_id}`;
-    const keyByBranch = `${this.redisKeyByRoleBranch}:${role_id}:${branch_id}`;
-
-    await Promise.all([this.redisService.del(keyByStatus), this.redisService.del(keyByBranch)]);
-
-    const [statusPermission, branchPermissions] = await Promise.all([
-      this.knex<RepairOrderStatusPermission>(this.table).where({ role_id, status_id }).first(),
-      this.knex<RepairOrderStatusPermission>(this.table).where({
-        role_id,
-        branch_id,
-      }),
-    ]);
-
-    await Promise.all([
-      this.redisService.set(keyByStatus, statusPermission ?? null, 3600),
-      this.redisService.set(keyByBranch, branchPermissions, 3600),
-    ]);
+    await this.invalidateCachesForPermissions([permission]);
   }
 
   async checkPermissionsOrThrow(
@@ -343,12 +331,7 @@ export class RepairOrderStatusPermissionsService {
 
     await this.knex(this.table).where({ role_id: roleId }).del();
 
-    await Promise.all(
-      permissions.map(
-        (permission: RepairOrderStatusPermission): Promise<void> =>
-          this.flushAndReloadCacheByRole(permission),
-      ),
-    );
+    await this.invalidateCachesForPermissions(permissions);
   }
 
   async deletePermissionsByBranch(branchId: string): Promise<void> {
@@ -360,12 +343,7 @@ export class RepairOrderStatusPermissionsService {
 
     await this.knex(this.table).where({ branch_id: branchId }).del();
 
-    await Promise.all(
-      permissions.map(
-        (permission: RepairOrderStatusPermission): Promise<void> =>
-          this.flushAndReloadCacheByRole(permission),
-      ),
-    );
+    await this.invalidateCachesForPermissions(permissions);
   }
 
   async deletePermissionsByStatus(statusId: string): Promise<void> {
@@ -377,11 +355,40 @@ export class RepairOrderStatusPermissionsService {
 
     await this.knex(this.table).where({ status_id: statusId }).del();
 
-    await Promise.all(
-      permissions.map(
-        (permission: RepairOrderStatusPermission): Promise<void> =>
-          this.flushAndReloadCacheByRole(permission),
+    await this.invalidateCachesForPermissions(permissions);
+  }
+
+  private buildRoleStatusCacheKey(roleId: string, statusId: string, branchId?: string): string {
+    return `${this.redisKeyByRoleStatus}:${roleId}:${statusId}:${branchId ?? 'all'}`;
+  }
+
+  private buildLegacyRoleStatusCacheKey(roleId: string, statusId: string): string {
+    return `${this.redisKeyByRoleStatus}:${roleId}:${statusId}`;
+  }
+
+  private buildRoleBranchCacheKey(roleId: string, branchId: string): string {
+    return `${this.redisKeyByRoleBranch}:${roleId}:${branchId}`;
+  }
+
+  private async invalidateCachesForPermissions(
+    permissions: RepairOrderStatusPermission[],
+  ): Promise<void> {
+    const keys = new Set<string>();
+    const branchIds = new Set<string>();
+
+    permissions.forEach(({ role_id, status_id, branch_id }) => {
+      keys.add(this.buildLegacyRoleStatusCacheKey(role_id, status_id));
+      keys.add(this.buildRoleStatusCacheKey(role_id, status_id));
+      keys.add(this.buildRoleStatusCacheKey(role_id, status_id, branch_id));
+      keys.add(this.buildRoleBranchCacheKey(role_id, branch_id));
+      branchIds.add(branch_id);
+    });
+
+    await Promise.all([
+      ...Array.from(keys).map((key) => this.redisService.del(key)),
+      ...Array.from(branchIds).map((branchId) =>
+        this.redisService.flushByPrefix(`${this.redisKeyView}${branchId}:`),
       ),
-    );
+    ]);
   }
 }

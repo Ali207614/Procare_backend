@@ -1,15 +1,31 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { OtpService, GenerateOtpResult } from '../../../../src/common/services/otp.service';
-import { SmsService } from '../../../../src/common/services/sms.service';
+import { Knex } from 'knex';
+import { getKnexConnectionToken } from 'nestjs-knex';
+import { OtpService } from 'src/common/services/otp.service';
+import { SmsService } from 'src/common/services/sms.service';
 
 describe('OtpService', () => {
   let service: OtpService;
+  let knex: jest.Mocked<Knex>;
   let smsService: jest.Mocked<SmsService>;
   let configService: jest.Mocked<ConfigService>;
-  let knex: any;
+
+  const mockKnexQueryBuilder = {
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    first: jest.fn(),
+    insert: jest.fn(),
+    update: jest.fn(),
+    del: jest.fn(),
+  };
 
   beforeEach(async () => {
+    knex = Object.assign(jest.fn(() => mockKnexQueryBuilder), {
+      transaction: jest.fn(),
+    }) as any;
+
     smsService = {
       sendOtpSms: jest.fn(),
     } as any;
@@ -26,62 +42,107 @@ describe('OtpService', () => {
       }),
     } as any;
 
-    knex = jest.fn();
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OtpService,
-        { provide: SmsService, useValue: smsService },
-        { provide: ConfigService, useValue: configService },
-        { provide: 'default_KnexModuleConnectionToken', useValue: knex },
+        {
+          provide: getKnexConnectionToken('default'),
+          useValue: knex,
+        },
+        {
+          provide: SmsService,
+          useValue: smsService,
+        },
+        {
+          provide: ConfigService,
+          useValue: configService,
+        },
       ],
     }).compile();
 
     service = module.get<OtpService>(OtpService);
   });
 
-  describe('resendOtp', () => {
-    it('should deactivate existing otps and generate a new one', async () => {
-      // Mock methods inside service
-      const deactivateSpy = jest.spyOn(service as any, 'deactivateExistingOtps').mockResolvedValue(undefined);
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
 
-      const expectedResult: GenerateOtpResult = {
-        success: true,
-        otpId: 'new-otp-id',
-        expiresAt: new Date(),
-        message: 'Sent',
-      };
-      const generateSpy = jest.spyOn(service as any, 'generateAndSendOtp').mockResolvedValue(expectedResult);
+  describe('hasVerifiedOtp', () => {
+    const phoneNumber = '+998901234567';
+    const type = 'registration';
 
-      const formatPhoneSpy = jest.spyOn(service as any, 'formatPhoneNumber').mockReturnValue('+998901234567');
+    it('should return true when a verified OTP exists within the time limit', async () => {
+      // Arrange
+      mockKnexQueryBuilder.first.mockResolvedValue({ id: 'some-otp-id', verified: true });
+      const now = Date.now();
+      jest.spyOn(Date, 'now').mockReturnValue(now);
 
-      const result = await service.resendOtp('901234567', 'login', 'uz');
+      // Act
+      const result = await service.hasVerifiedOtp(phoneNumber, type);
 
-      expect(formatPhoneSpy).toHaveBeenCalledWith('901234567');
-      expect(deactivateSpy).toHaveBeenCalledWith('+998901234567', 'login');
-      expect(generateSpy).toHaveBeenCalledWith('+998901234567', 'login', 'uz');
-      expect(result).toEqual(expectedResult);
+      // Assert
+      expect(result).toBe(true);
+      expect(knex).toHaveBeenCalledWith('otp_verifications');
+      expect(mockKnexQueryBuilder.where).toHaveBeenCalledWith({
+        phone_number: phoneNumber,
+        type: type,
+        verified: true,
+      });
+      expect(mockKnexQueryBuilder.andWhere).toHaveBeenCalledWith(
+        'created_at',
+        '>=',
+        new Date(now - 10 * 60 * 1000)
+      );
+
+      jest.restoreAllMocks();
     });
 
-    it('should use default language if not provided', async () => {
-      const deactivateSpy = jest.spyOn(service as any, 'deactivateExistingOtps').mockResolvedValue(undefined);
+    it('should return false when no verified OTP exists', async () => {
+      // Arrange
+      mockKnexQueryBuilder.first.mockResolvedValue(undefined);
 
-      const expectedResult: GenerateOtpResult = {
-        success: true,
-        otpId: 'new-otp-id',
-        expiresAt: new Date(),
-        message: 'Sent',
-      };
-      const generateSpy = jest.spyOn(service as any, 'generateAndSendOtp').mockResolvedValue(expectedResult);
+      // Act
+      const result = await service.hasVerifiedOtp(phoneNumber, type);
 
-      const formatPhoneSpy = jest.spyOn(service as any, 'formatPhoneNumber').mockReturnValue('+998901234567');
+      // Assert
+      expect(result).toBe(false);
+    });
 
-      const result = await service.resendOtp('901234567', 'login');
+    it('should use the custom withinMinutes argument correctly', async () => {
+       // Arrange
+       mockKnexQueryBuilder.first.mockResolvedValue({ id: 'some-otp-id', verified: true });
+       const customMinutes = 5;
+       const now = Date.now();
+       jest.spyOn(Date, 'now').mockReturnValue(now);
 
-      expect(formatPhoneSpy).toHaveBeenCalledWith('901234567');
-      expect(deactivateSpy).toHaveBeenCalledWith('+998901234567', 'login');
-      expect(generateSpy).toHaveBeenCalledWith('+998901234567', 'login', 'uz');
-      expect(result).toEqual(expectedResult);
+       // Act
+       const result = await service.hasVerifiedOtp(phoneNumber, type, customMinutes);
+
+       // Assert
+       expect(result).toBe(true);
+       expect(mockKnexQueryBuilder.andWhere).toHaveBeenCalledWith(
+         'created_at',
+         '>=',
+         new Date(now - customMinutes * 60 * 1000)
+       );
+
+       jest.restoreAllMocks();
+    });
+
+    it('should format the phone number correctly before querying', async () => {
+      // Arrange
+      mockKnexQueryBuilder.first.mockResolvedValue({ id: 'some-otp-id', verified: true });
+      const unformattedPhoneNumber = '901234567'; // Missing prefix
+
+      // Act
+      await service.hasVerifiedOtp(unformattedPhoneNumber, type);
+
+      // Assert
+      expect(mockKnexQueryBuilder.where).toHaveBeenCalledWith(
+        expect.objectContaining({
+          phone_number: '+998901234567', // Should be formatted
+        })
+      );
     });
   });
 });

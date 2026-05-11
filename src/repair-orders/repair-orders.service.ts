@@ -15,7 +15,10 @@ import { parseAgreedDateInput } from 'src/common/utils/agreed-date.util';
 import {
   RepairOrder,
   RepairOrderDetails,
+  RepairOrderTransferBranch,
+  RepairOrderStatusTransitionItem,
   FreshRepairOrder,
+  ViewableRepairOrderListItem,
   ViewableRepairOrdersByStatus,
   ViewableRepairOrdersResponse,
 } from 'src/common/types/repair-order.interface';
@@ -74,11 +77,21 @@ type FindAllBranchScope = {
 };
 type RepairOrderBranchInput = string | string[] | undefined;
 type RepairOrderListQueryDto = FindAllRepairOrdersQueryDto | FindViewableRepairOrdersQueryDto;
+type RepairOrderProblemCleanupConfig = {
+  problemType: 'initial' | 'final';
+  problemTable: 'repair_order_initial_problems' | 'repair_order_final_problems';
+  problemIdColumn: 'repair_order_initial_problem_id' | 'repair_order_final_problem_id';
+  historyField: 'initial_problems' | 'final_problems';
+};
 type FreshRepairOrderRow = FreshRepairOrder & {
   current_owner_branch?: string | null;
   is_read_only?: boolean;
   can_take?: boolean;
+  is_taken_from_mother?: boolean;
   is_hidden_status_for_branch?: boolean;
+  missed_calls?: number;
+  comments_count?: number;
+  created_at: string;
 };
 const ASSIGNMENT_SOURCE_TELEPHONY_AUTO: RepairOrderAssignmentSource = 'telephony_auto';
 const ASSIGNMENT_SOURCE_TELEPHONY_ANSWERED: RepairOrderAssignmentSource = 'telephony_answered';
@@ -87,8 +100,6 @@ const AUTO_REPLACEABLE_ASSIGNMENT_SOURCES: RepairOrderAssignmentSource[] = [
   ASSIGNMENT_SOURCE_TELEPHONY_AUTO,
 ];
 const REPAIR_WORKER_ROLE_TYPES = new Set<RoleType>([RoleType.SPECIALIST, RoleType.MASTER]);
-
-import { RepairOrderStatusesService } from 'src/repair-order-statuses/repair-order-statuses.service';
 
 @Injectable()
 export class RepairOrdersService {
@@ -112,7 +123,6 @@ export class RepairOrdersService {
     private readonly webhookService: RepairOrderWebhookService,
     private readonly notificationService: NotificationService,
     private readonly historyService: HistoryService,
-    private readonly statusService: RepairOrderStatusesService,
     @Optional() branchHierarchy?: BranchHierarchyService,
   ) {
     this.hasInjectedBranchHierarchy = Boolean(branchHierarchy);
@@ -147,8 +157,6 @@ export class RepairOrdersService {
   ): Promise<RepairOrder> {
     const trx = await this.knex.transaction();
     try {
-      await this.branchHierarchy.assertChildBranch(branchId, trx);
-      await this.branchHierarchy.assertWritableBranch(admin, branchId, {}, trx);
       const createStatus = await this.resolveCreateStatus(trx, branchId, dto.status_id);
       const permissions: RepairOrderStatusPermission[] =
         await this.permissionService.findByRolesAndBranch(admin.roles, branchId);
@@ -1080,8 +1088,20 @@ export class RepairOrdersService {
     admin: AdminPayload,
     branchIds: RepairOrderBranchInput,
     query: RepairOrderListQueryDto,
+    options: FindAllByAdminBranchOptions & { viewableEndpoint: true },
+  ): Promise<ViewableRepairOrdersByStatus<ViewableRepairOrderListItem>>;
+  async findAllByAdminBranch(
+    admin: AdminPayload,
+    branchIds: RepairOrderBranchInput,
+    query: RepairOrderListQueryDto,
+    options?: FindAllByAdminBranchOptions,
+  ): Promise<ViewableRepairOrdersByStatus<FreshRepairOrder>>;
+  async findAllByAdminBranch(
+    admin: AdminPayload,
+    branchIds: RepairOrderBranchInput,
+    query: RepairOrderListQueryDto,
     options: FindAllByAdminBranchOptions = {},
-  ): Promise<ViewableRepairOrdersByStatus> {
+  ): Promise<ViewableRepairOrdersByStatus<FreshRepairOrder | ViewableRepairOrderListItem>> {
     const {
       offset,
       limit,
@@ -1170,8 +1190,11 @@ export class RepairOrdersService {
       viewableEndpoint: options.viewableEndpoint === true,
     });
 
-    const cacheKey = `${this.table}:${requestedBranchIds.join(',')}:${admin.id}:${ownerBranchIds.join(',')}:${sort_by}:${sort_order}:${offset}:${limit}:${options.viewableEndpoint ? 'viewable' : 'legacy'}:${Buffer.from(filterHash).toString('base64')}`;
-    const cached: ViewableRepairOrdersByStatus | null = await this.redisService.get(cacheKey);
+    const endpointCacheSegment = options.viewableEndpoint ? 'viewable-card-v3' : 'legacy';
+    const cacheKey = `${this.table}:${requestedBranchIds.join(',')}:${admin.id}:${ownerBranchIds.join(',')}:${sort_by}:${sort_order}:${offset}:${limit}:${endpointCacheSegment}:${Buffer.from(filterHash).toString('base64')}`;
+    const cached: ViewableRepairOrdersByStatus<
+      FreshRepairOrder | ViewableRepairOrderListItem
+    > | null = await this.redisService.get(cacheKey);
     if (cached) {
       return cached;
     }
@@ -1204,7 +1227,10 @@ export class RepairOrdersService {
       queryParams.priorities = priorities;
     }
 
-    const searchCondition = this.buildViewableSearchCondition(search);
+    const searchCondition = this.buildBranchScopedSearchCondition(
+      this.buildViewableSearchCondition(search),
+      this.buildViewableExactSearchCondition(search),
+    );
     if (searchCondition) {
       whereConditions.push(searchCondition.sql);
       Object.assign(queryParams, searchCondition.params);
@@ -1213,37 +1239,103 @@ export class RepairOrdersService {
     // Filter by customer name
     if (customer_name) {
       whereConditions.push(
-        `(
+        this.buildBranchScopedSearchCondition(
+          {
+            sql: `(
           LOWER(COALESCE(u.first_name || ' ' || u.last_name, ro.name, '')) ILIKE LOWER(:customerName)
           OR LOWER(COALESCE(u.first_name, ro.name, '')) ILIKE LOWER(:customerName)
           OR LOWER(COALESCE(u.last_name, ro.name, '')) ILIKE LOWER(:customerName)
           OR LOWER(COALESCE(ro.name, '')) ILIKE LOWER(:customerName)
         )`,
+            params: { customerName: `%${customer_name}%` },
+          },
+          {
+            sql: `(
+          ${this.repairOrderNameSearchSql()} = :customerNameExact
+          OR ${this.userFullNameSearchSql()} = :customerNameExact
+          OR LOWER(BTRIM(COALESCE(u.first_name, ''))) = :customerNameExact
+          OR LOWER(BTRIM(COALESCE(u.last_name, ''))) = :customerNameExact
+        )`,
+            params: { customerNameExact: this.buildExactTextValue(customer_name) },
+          },
+        )?.sql ?? 'FALSE',
       );
       queryParams.customerName = `%${customer_name}%`;
+      queryParams.customerNameExact = this.buildExactTextValue(customer_name);
     }
 
     // Filter by phone number
     if (phone_number) {
       const normalizedPhone = this.normalizePhoneNumber(phone_number);
+      const phoneCandidates = this.getPhoneLookupCandidates(normalizedPhone);
       whereConditions.push(
-        `(u.phone_number1 ILIKE :phoneNumber OR u.phone_number2 ILIKE :phoneNumber OR ro.phone_number LIKE :phoneNumber)`,
+        this.buildBranchScopedSearchCondition(
+          {
+            sql: `(u.phone_number1 ILIKE :phoneNumber OR u.phone_number2 ILIKE :phoneNumber OR ro.phone_number LIKE :phoneNumber)`,
+            params: { phoneNumber: `%${normalizedPhone}%` },
+          },
+          phoneCandidates.length
+            ? {
+                sql: `(
+          ro.phone_number = ANY(:phoneNumberExactCandidates)
+          OR u.phone_number1 = ANY(:phoneNumberExactCandidates)
+          OR u.phone_number2 = ANY(:phoneNumberExactCandidates)
+        )`,
+                params: { phoneNumberExactCandidates: phoneCandidates },
+              }
+            : null,
+        )?.sql ?? 'FALSE',
       );
       queryParams.phoneNumber = `%${normalizedPhone}%`;
+      if (phoneCandidates.length) {
+        queryParams.phoneNumberExactCandidates = phoneCandidates;
+      }
     }
 
     // Filter by device model
     if (device_model) {
       whereConditions.push(
-        `LOWER(pc.name_uz) ILIKE LOWER(:deviceModel) OR LOWER(pc.name_ru) ILIKE LOWER(:deviceModel) OR LOWER(pc.name_en) LIKE LOWER(:deviceModel)`,
+        this.buildBranchScopedSearchCondition(
+          {
+            sql: `(LOWER(pc.name_uz) ILIKE LOWER(:deviceModel) OR LOWER(pc.name_ru) ILIKE LOWER(:deviceModel) OR LOWER(pc.name_en) LIKE LOWER(:deviceModel))`,
+            params: { deviceModel: `%${device_model}%` },
+          },
+          {
+            sql: `(
+          LOWER(BTRIM(COALESCE(pc.name_uz, ''))) = :deviceModelExact
+          OR LOWER(BTRIM(COALESCE(pc.name_ru, ''))) = :deviceModelExact
+          OR LOWER(BTRIM(COALESCE(pc.name_en, ''))) = :deviceModelExact
+        )`,
+            params: { deviceModelExact: this.buildExactTextValue(device_model) },
+          },
+        )?.sql ?? 'FALSE',
       );
       queryParams.deviceModel = `%${device_model}%`;
+      queryParams.deviceModelExact = this.buildExactTextValue(device_model);
     }
 
     // Filter by order number
     if (order_number) {
-      whereConditions.push(`ro.number_id::text ILIKE :orderNumber`);
+      const trimmedOrderNumber = order_number.trim();
+      const parsedOrderNumber = trimmedOrderNumber ? Number(trimmedOrderNumber) : Number.NaN;
+      whereConditions.push(
+        this.buildBranchScopedSearchCondition(
+          {
+            sql: `ro.number_id::text ILIKE :orderNumber`,
+            params: { orderNumber: `%${order_number}%` },
+          },
+          Number.isSafeInteger(parsedOrderNumber)
+            ? {
+                sql: `ro.number_id = :orderNumberExact`,
+                params: { orderNumberExact: parsedOrderNumber },
+              }
+            : null,
+        )?.sql ?? 'FALSE',
+      );
       queryParams.orderNumber = `%${order_number}%`;
+      if (Number.isSafeInteger(parsedOrderNumber)) {
+        queryParams.orderNumberExact = parsedOrderNumber;
+      }
     }
 
     // Filter by delivery methods
@@ -1349,15 +1441,15 @@ export class RepairOrdersService {
         {} as Record<string, number>,
       );
 
-      const freshOrders: FreshRepairOrder[] = options.viewableEndpoint
-        ? freshOrdersRaw.map((order) => this.toViewableRepairOrder(order))
-        : freshOrdersRaw;
-
-      const result: ViewableRepairOrdersByStatus = {};
+      const result: ViewableRepairOrdersByStatus<FreshRepairOrder | ViewableRepairOrderListItem> =
+        {};
       for (const statusId of statusIds) {
-        const ordersForStatus = freshOrders.filter(
-          (o: FreshRepairOrder) => o.repair_order_status.id === statusId,
+        const rawOrdersForStatus = freshOrdersRaw.filter(
+          (order) => order.repair_order_status.id === statusId,
         );
+        const ordersForStatus = options.viewableEndpoint
+          ? rawOrdersForStatus.map((order) => this.toViewableRepairOrder(order))
+          : rawOrdersForStatus;
 
         result[statusId] = {
           metrics: {
@@ -1400,30 +1492,71 @@ export class RepairOrdersService {
     };
   }
 
-  private toViewableRepairOrder(order: FreshRepairOrderRow): FreshRepairOrder {
-    const sanitized = { ...order };
-    const currentOwnerBranch = sanitized.current_owner_branch ?? sanitized.branch?.id;
-    delete sanitized.current_owner_branch;
-    delete sanitized.is_read_only;
-    delete sanitized.can_take;
-    delete sanitized.is_hidden_status_for_branch;
-
-    const branch = sanitized.branch ?? {
+  private toViewableRepairOrder(order: FreshRepairOrderRow): ViewableRepairOrderListItem {
+    const branch = order.branch ?? {
       id: null,
       name_uz: null,
       name_ru: null,
       name_en: null,
     };
+    const phoneCategory = order.phone_category ?? {
+      id: null,
+      name_uz: null,
+      name_ru: null,
+      name_en: null,
+    };
+    const repairOrderStatus = order.repair_order_status ?? {
+      id: null,
+      name_uz: null,
+      name_ru: null,
+      name_en: null,
+    };
+    const rejectCause = order.reject_cause ?? {
+      id: null,
+      name: null,
+    };
+    const userName = [order.user?.first_name, order.user?.last_name].filter(Boolean).join(' ');
 
     return {
-      ...sanitized,
+      id: order.id,
+      number_id: order.number_id,
+      status_id: order.status_id,
+      name: order.name ?? (userName || null),
+      phone_number:
+        order.phone_number ?? order.user?.phone_number1 ?? order.user?.phone_number2 ?? null,
+      agreed_date: order.agreed_date,
+      pickup_method: order.pickup_method,
+      delivery_method: order.delivery_method,
+      reject_cause: {
+        id: rejectCause.id,
+        name: rejectCause.name,
+      },
+      source: order.source,
+      call_count: order.call_count,
+      missed_call_count: Number(order.missed_calls ?? 0),
+      comments_count: Number(order.comments_count ?? 0),
+      created_at: order.created_at,
+      phone_category: {
+        id: phoneCategory.id,
+        name_en: phoneCategory.name_en,
+        name_ru: phoneCategory.name_ru,
+        name_uz: phoneCategory.name_uz,
+      },
+      repair_order_status: {
+        id: repairOrderStatus.id,
+        name_en: repairOrderStatus.name_en,
+        name_ru: repairOrderStatus.name_ru,
+        name_uz: repairOrderStatus.name_uz,
+      },
       branch: {
         id: branch.id,
         name_en: branch.name_en,
         name_ru: branch.name_ru,
         name_uz: branch.name_uz,
       },
-      is_mothers: currentOwnerBranch === MOTHER_BRANCH_ID,
+      assigned_admins: order.assigned_admins ?? [],
+      is_mothers: order.can_take === true,
+      is_taken_from_mother: order.is_taken_from_mother === true,
     };
   }
 
@@ -1515,6 +1648,33 @@ export class RepairOrdersService {
     };
   }
 
+  private buildBranchScopedSearchCondition(
+    partialCondition: RepairOrderSearchCondition | null,
+    exactMotherCondition: RepairOrderSearchCondition | null,
+  ): RepairOrderSearchCondition | null {
+    if (!partialCondition && !exactMotherCondition) {
+      return null;
+    }
+
+    const branchClauses: string[] = [];
+    const params: Record<string, unknown> = {};
+
+    if (partialCondition) {
+      branchClauses.push(`(ro.branch_id <> :motherBranchId AND ${partialCondition.sql})`);
+      Object.assign(params, partialCondition.params);
+    }
+
+    if (exactMotherCondition) {
+      branchClauses.push(`(ro.branch_id = :motherBranchId AND ${exactMotherCondition.sql})`);
+      Object.assign(params, exactMotherCondition.params);
+    }
+
+    return {
+      sql: `(${branchClauses.join('\n        OR ')})`,
+      params,
+    };
+  }
+
   private buildViewableSearchCondition(search?: string): RepairOrderSearchCondition | null {
     const normalizedSearch = this.normalizeSearchTerm(search);
     if (!normalizedSearch) {
@@ -1538,6 +1698,76 @@ export class RepairOrdersService {
 
     if (!hasLetters && digits.length > 0) {
       this.addOrderNumberSearchClauses(clauses, params, digits);
+    }
+
+    if (!clauses.length) {
+      return null;
+    }
+
+    return {
+      sql: `(${clauses.join('\n        OR ')})`,
+      params,
+    };
+  }
+
+  private buildViewableExactSearchCondition(search?: string): RepairOrderSearchCondition | null {
+    const normalizedSearch = this.normalizeSearchTerm(search);
+    if (!normalizedSearch) {
+      return null;
+    }
+
+    const digits = normalizedSearch.replace(/\D/g, '');
+    const hasLetters = this.hasSearchLetters(normalizedSearch);
+    const clauses: string[] = [];
+    const params: Record<string, unknown> = {};
+
+    if (this.shouldRouteSearchToPhone(normalizedSearch, digits, hasLetters) && digits.length >= 9) {
+      const phoneCandidates = this.getPhoneLookupCandidates(normalizedSearch);
+      if (phoneCandidates.length) {
+        params.searchPhoneExactCandidates = phoneCandidates;
+        clauses.push(
+          `(
+          ro.phone_number = ANY(:searchPhoneExactCandidates)
+          OR ro.user_id IN (
+            SELECT search_u.id
+            FROM users search_u
+            WHERE search_u.phone_number1 = ANY(:searchPhoneExactCandidates)
+               OR search_u.phone_number2 = ANY(:searchPhoneExactCandidates)
+          )
+        )`,
+        );
+      }
+    }
+
+    if (hasLetters) {
+      params.searchTextExact = this.buildExactTextValue(normalizedSearch);
+      clauses.push(
+        `(
+          ${this.repairOrderNameSearchSql()} = :searchTextExact
+          OR ro.user_id IN (
+            SELECT search_u.id
+            FROM users search_u
+            WHERE ${this.userFullNameSearchSql('search_u')} = :searchTextExact
+               OR LOWER(BTRIM(COALESCE(search_u.first_name, ''))) = :searchTextExact
+               OR LOWER(BTRIM(COALESCE(search_u.last_name, ''))) = :searchTextExact
+          )
+          OR ro.phone_category_id IN (
+            SELECT search_pc.id
+            FROM phone_categories search_pc
+            WHERE LOWER(BTRIM(COALESCE(search_pc.name_uz, ''))) = :searchTextExact
+               OR LOWER(BTRIM(COALESCE(search_pc.name_ru, ''))) = :searchTextExact
+               OR LOWER(BTRIM(COALESCE(search_pc.name_en, ''))) = :searchTextExact
+          )
+        )`,
+      );
+    }
+
+    if (!hasLetters && digits.length > 0) {
+      const parsedOrderNumber = Number(digits);
+      if (Number.isSafeInteger(parsedOrderNumber)) {
+        params.searchOrderNumberExact = parsedOrderNumber;
+        clauses.push(`ro.number_id = :searchOrderNumberExact`);
+      }
     }
 
     if (!clauses.length) {
@@ -1672,6 +1902,10 @@ export class RepairOrdersService {
     return search.replace(/\s/g, '').length < 3 ? `${escapedSearch}%` : `%${escapedSearch}%`;
   }
 
+  private buildExactTextValue(search: string): string {
+    return this.normalizeSearchTerm(search).toLowerCase();
+  }
+
   private escapeSqlLikePattern(value: string): string {
     return value.replace(/[\\%_]/g, (char) => `\\${char}`);
   }
@@ -1771,14 +2005,20 @@ export class RepairOrdersService {
         permissions,
       );
 
-      // Add viewable statuses using exact logic of GET repair-order-statuses/viewable
-      const viewableStatusesResult = await this.statusService.findViewable(
+      order.repair_order_status.transitions = await this.findAllowedStatusTransitions(
         admin,
-        order.branch.id,
-        0,
-        1000,
+        order.repair_order_status.id,
+        permissionBranchId,
+        permissions,
       );
-      order.viewable_statuses = viewableStatusesResult.rows;
+      order.branch.transfer_branches = await this.findTransferBranches(
+        admin,
+        {
+          branch_id: order.branch.id,
+          status_id: order.repair_order_status.id,
+        },
+        permissions,
+      );
 
       return order;
     } catch (err) {
@@ -2217,18 +2457,38 @@ export class RepairOrdersService {
 
     updateFields.updated_at = new Date();
 
-    const updated = await this.knex(this.table)
-      .where({ id: repairOrderId })
-      .update(updateFields)
-      .returning('*');
+    const trx = await this.knex.transaction();
+    let updated: RepairOrder[] = [];
+    try {
+      updated = await trx(this.table)
+        .where({ id: repairOrderId })
+        .update(updateFields)
+        .returning('*');
 
-    await this.changeLogger.logMultipleFieldsIfChanged(
-      this.knex,
-      repairOrderId,
-      historyFields,
-      admin.id,
-    );
-    await this.autoAssignRepairWorkerFromUpdateIfNeeded(this.knex, repairOrderId, admin);
+      await this.changeLogger.logMultipleFieldsIfChanged(
+        trx,
+        repairOrderId,
+        historyFields,
+        admin.id,
+      );
+
+      if (updateDto.phone_category_id !== undefined) {
+        await this.cleanupProblemsForPhoneCategory(
+          trx,
+          repairOrderId,
+          updateDto.phone_category_id,
+          admin,
+        );
+      }
+
+      await this.autoAssignRepairWorkerFromUpdateIfNeeded(trx, repairOrderId, admin);
+      await trx.commit();
+    } catch (err) {
+      await trx.rollback();
+      this.logger.error(`Failed to update product info for repair order ${repairOrderId}`);
+      throw err;
+    }
+
     await this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`);
 
     // Notify branch about the update
@@ -2422,16 +2682,19 @@ export class RepairOrdersService {
       throw new NotFoundException('Repair order not found');
     }
 
-    if (this.branchHierarchy.isMotherBranch(order.branch_id)) {
+    if (
+      this.branchHierarchy.isMotherBranch(order.branch_id) &&
+      !(await this.canTransferFromMotherBranch(admin))
+    ) {
       throw new BadRequestException({
-        message: 'Mother Branch orders must be taken before they can be transferred',
-        location: 'branch_id',
+        message: 'Mother Branch orders can only be transferred by admins assigned to Mother Branch',
+        location: 'mother_branch',
       });
     }
 
     await this.branchHierarchy.assertChildBranch(transferDto.new_branch_id);
     await this.assertRepairOrderWritable(admin, order);
-    await this.branchHierarchy.assertWritableBranch(admin, transferDto.new_branch_id);
+    await this.assertTransferTargetBranchWritable(admin, transferDto.new_branch_id);
     const permissionBranchId = await this.getPermissionBranchIdForOrder(admin, order.branch_id);
     const currentPermissions = await this.permissionService.findByRolesAndBranch(
       admin.roles,
@@ -2541,6 +2804,102 @@ export class RepairOrdersService {
     }
   }
 
+  private async findTransferBranches(
+    admin: AdminPayload,
+    order: Pick<RepairOrder, 'branch_id' | 'status_id'>,
+    currentPermissions?: RepairOrderStatusPermission[],
+    db: Knex | Knex.Transaction = this.knex,
+  ): Promise<RepairOrderTransferBranch[]> {
+    if (
+      this.branchHierarchy.isMotherBranch(order.branch_id) &&
+      !(await this.canTransferFromMotherBranch(admin, db))
+    ) {
+      return [];
+    }
+
+    const permissionBranchId = await this.getPermissionBranchIdForOrder(admin, order.branch_id, db);
+    const permissions =
+      currentPermissions ??
+      (await this.permissionService.findByRolesAndBranch(admin.roles, permissionBranchId));
+
+    try {
+      await this.assertRepairOrderWritable(admin, order, db);
+      await this.permissionService.checkPermissionsOrThrow(
+        admin.roles,
+        permissionBranchId,
+        order.status_id,
+        ['can_update'],
+        'repair_order_update',
+        permissions,
+      );
+    } catch (error) {
+      if (error instanceof ForbiddenException) {
+        return [];
+      }
+
+      throw error;
+    }
+
+    const [targetBranchIds, visibleBranchIds] = await Promise.all([
+      this.getTransferTargetBranchIds(admin, db),
+      this.branchHierarchy.getVisibleBranchIds(admin, db),
+    ]);
+    const validBranchIds = targetBranchIds.filter((branchId) =>
+      visibleBranchIds.includes(branchId),
+    );
+
+    if (!validBranchIds.length) {
+      return [];
+    }
+
+    return db<RepairOrderTransferBranch>('branches')
+      .whereIn('id', validBranchIds)
+      .andWhere('parent_branch_id', MOTHER_BRANCH_ID)
+      .andWhere('status', 'Open')
+      .andWhere('is_active', true)
+      .select('id', 'name_uz', 'name_ru', 'name_en')
+      .orderBy('sort', 'asc');
+  }
+
+  private async canTransferFromMotherBranch(
+    admin: AdminPayload,
+    db: Knex | Knex.Transaction = this.knex,
+  ): Promise<boolean> {
+    if (this.branchHierarchy.isSuperAdmin(admin)) {
+      return true;
+    }
+
+    const assignedBranchIds = await this.branchHierarchy.getAdminAssignedBranchIds(admin.id, db);
+    return assignedBranchIds.includes(MOTHER_BRANCH_ID);
+  }
+
+  private async getTransferTargetBranchIds(
+    admin: AdminPayload,
+    db: Knex | Knex.Transaction = this.knex,
+  ): Promise<string[]> {
+    const childBranchIds = await this.branchHierarchy.getChildBranchIds(db);
+    if (this.branchHierarchy.isSuperAdmin(admin)) {
+      return childBranchIds;
+    }
+
+    const assignedBranchIds = await this.branchHierarchy.getAdminAssignedBranchIds(admin.id, db);
+    return assignedBranchIds.filter((branchId) => childBranchIds.includes(branchId));
+  }
+
+  private async assertTransferTargetBranchWritable(
+    admin: AdminPayload,
+    branchId: string,
+    db: Knex | Knex.Transaction = this.knex,
+  ): Promise<void> {
+    const transferTargetBranchIds = await this.getTransferTargetBranchIds(admin, db);
+    if (!transferTargetBranchIds.includes(branchId)) {
+      throw new ForbiddenException({
+        message: 'You do not have write access to this branch',
+        location: 'branch_id',
+      });
+    }
+  }
+
   async take(
     repairOrderId: string,
     targetBranchId: string,
@@ -2609,34 +2968,183 @@ export class RepairOrdersService {
         this.redisService.flushByPrefix(`${this.table}:${targetBranchId}`),
       ]);
 
-      void this.helper
-        .getRepairOrderNotificationMeta(repairOrderId)
-        .then((richMeta) => {
-          const meta = { ...richMeta, action: 'order_updated' } as Record<string, unknown>;
-          void this.notificationService.notifyBranch(this.knex, MOTHER_BRANCH_ID, {
-            title: 'Buyurtma filialga olindi',
-            message: `Buyurtma #${order.number_id} filial tomonidan olindi`,
-            type: 'info',
-            meta,
-          });
-          void this.notificationService.notifyBranch(this.knex, targetBranchId, {
-            title: 'Yangi buyurtma olindi',
-            message: `Mother Branchdan buyurtma olindi: #${order.number_id}`,
-            type: 'info',
-            meta,
-          });
-        })
-        .catch((err: Error) => {
-          this.logger.error(
-            `Failed to send branch notification for take on order ${repairOrderId}: ${err.message}`,
-          );
-        });
+      this.notifyMotherBranchMovement(repairOrderId, order.number_id, {
+        action: 'take',
+        childBranchId: targetBranchId,
+      });
 
       return { message: 'Repair order taken successfully' };
     } catch (error) {
       await trx.rollback();
       throw error;
     }
+  }
+
+  async restoreToMother(repairOrderId: string, admin: AdminPayload): Promise<{ message: string }> {
+    const trx = await this.knex.transaction();
+    try {
+      const order: RepairOrder | undefined = await trx<RepairOrder>(this.table)
+        .where({ id: repairOrderId, status: 'Open' })
+        .forUpdate()
+        .first();
+
+      if (!order) {
+        throw new NotFoundException({
+          message: 'Repair order not found',
+          location: 'repair_order',
+        });
+      }
+
+      if (this.branchHierarchy.isMotherBranch(order.branch_id)) {
+        throw new BadRequestException({
+          message: 'Repair order is already in Mother Branch',
+          location: 'branch_id',
+        });
+      }
+
+      await this.assertRepairOrderWritable(admin, order, trx);
+      const permissionBranchId = await this.getPermissionBranchIdForOrder(
+        admin,
+        order.branch_id,
+        trx,
+      );
+      const permissions = await this.permissionService.findByRolesAndBranch(
+        admin.roles,
+        permissionBranchId,
+      );
+      await this.permissionService.checkPermissionsOrThrow(
+        admin.roles,
+        permissionBranchId,
+        order.status_id,
+        ['can_update'],
+        'repair_order_restore',
+        permissions,
+      );
+
+      const wasTakenFromMother = await this.wasRepairOrderTakenFromMother(trx, repairOrderId);
+      if (!wasTakenFromMother) {
+        throw new BadRequestException({
+          message: 'Only repair orders taken from Mother Branch can be restored',
+          location: 'repair_order',
+        });
+      }
+
+      await trx(this.table)
+        .where({ branch_id: order.branch_id, status_id: order.status_id, status: 'Open' })
+        .andWhere('sort', '>', order.sort)
+        .decrement('sort', 1);
+
+      const [updated] = await trx<RepairOrder>(this.table)
+        .where({ id: repairOrderId })
+        .update({
+          branch_id: MOTHER_BRANCH_ID,
+          sort: 999999,
+          updated_at: new Date().toISOString(),
+        })
+        .returning('*');
+
+      await this.moveToTop(trx, updated);
+      await this.changeLogger.logIfChanged(
+        trx,
+        repairOrderId,
+        'branch_id',
+        order.branch_id,
+        MOTHER_BRANCH_ID,
+        admin.id,
+      );
+      await trx.commit();
+
+      await Promise.all([
+        this.redisService.flushByPrefix(`${this.table}:${order.branch_id}`),
+        this.redisService.flushByPrefix(`${this.table}:${MOTHER_BRANCH_ID}`),
+      ]);
+
+      this.notifyMotherBranchMovement(repairOrderId, order.number_id, {
+        action: 'restore',
+        childBranchId: order.branch_id,
+      });
+
+      return { message: 'Repair order restored to Mother Branch successfully' };
+    } catch (error) {
+      await trx.rollback();
+      throw error;
+    }
+  }
+
+  private async wasRepairOrderTakenFromMother(
+    db: Knex | Knex.Transaction,
+    repairOrderId: string,
+  ): Promise<boolean> {
+    const history = await db('repair_order_change_histories')
+      .where({ repair_order_id: repairOrderId, field: 'branch_id' })
+      .whereRaw("old_value #>> '{}' = ?", [MOTHER_BRANCH_ID])
+      .whereRaw("new_value #>> '{}' <> ?", [MOTHER_BRANCH_ID])
+      .first('id');
+
+    return Boolean(history);
+  }
+
+  private notifyMotherBranchMovement(
+    repairOrderId: string,
+    numberId: number,
+    options: { action: 'take' | 'restore'; childBranchId: string },
+  ): void {
+    const isTake = options.action === 'take';
+    const fromBranchId = isTake ? MOTHER_BRANCH_ID : options.childBranchId;
+    const toBranchId = isTake ? options.childBranchId : MOTHER_BRANCH_ID;
+
+    void this.helper
+      .getRepairOrderNotificationMeta(repairOrderId)
+      .then((richMeta) => {
+        const meta = {
+          ...richMeta,
+          action: 'order_updated',
+          branch_action: isTake ? 'order_taken_from_mother' : 'order_restored_to_mother',
+          from_branch_id: fromBranchId,
+          to_branch_id: toBranchId,
+        } as Record<string, unknown>;
+
+        const motherPayload = isTake
+          ? {
+              title: 'Buyurtma filialga olindi',
+              message: `Buyurtma #${numberId} filial tomonidan olindi`,
+            }
+          : {
+              title: 'Buyurtma qaytarildi',
+              message: `Filialdan buyurtma Mother Branchga qaytarildi: #${numberId}`,
+            };
+        const childPayload = isTake
+          ? {
+              title: 'Yangi buyurtma olindi',
+              message: `Mother Branchdan buyurtma olindi: #${numberId}`,
+            }
+          : {
+              title: 'Buyurtma Mother Branchga qaytarildi',
+              message: `Buyurtma #${numberId} Mother Branchga qaytarildi`,
+            };
+
+        void Promise.all([
+          this.notificationService.notifyBranch(this.knex, MOTHER_BRANCH_ID, {
+            ...motherPayload,
+            type: 'info',
+            meta,
+          }),
+          this.notificationService.notifyBranch(this.knex, options.childBranchId, {
+            ...childPayload,
+            type: 'info',
+            meta,
+          }),
+        ]).catch((err: Error) => {
+          this.logger.error(
+            `Failed to send branch notification for ${options.action} on order ${repairOrderId}: ${err.message}`,
+          );
+        });
+      })
+      .catch((err: Error) => {
+        this.logger.error(
+          `Failed to fetch meta for branch notification for ${options.action} on order ${repairOrderId}: ${err.message}`,
+        );
+      });
   }
 
   async findOpenOrderByPhoneNumber(
@@ -4170,8 +4678,66 @@ export class RepairOrdersService {
     return rule || null;
   }
 
+  private async findAllowedStatusTransitions(
+    admin: AdminPayload,
+    fromStatusId: string,
+    permissionBranchId: string,
+    permissions: RepairOrderStatusPermission[],
+  ): Promise<RepairOrderStatusTransitionItem[]> {
+    const currentPermission = permissions.find(
+      (permission) => permission.status_id === fromStatusId,
+    );
+    if (!currentPermission?.can_change_status) {
+      return [];
+    }
+
+    const primaryRole = this.getPrimaryRoleOrThrow(admin);
+    const useRoleScope = await this.hasRoleScopedTransitions(
+      this.knex,
+      MOTHER_BRANCH_ID,
+      primaryRole.id,
+    );
+
+    const permittedTargetStatusIds = new Set(
+      permissions
+        .filter(
+          (permission) =>
+            permission.role_id === primaryRole.id && permission.branch_id === permissionBranchId,
+        )
+        .map((permission) => permission.status_id),
+    );
+
+    if (!permittedTargetStatusIds.size) {
+      return [];
+    }
+
+    let query = this.knex('repair-order-status-transitions as transition')
+      .join('repair_order_statuses as target_status', 'transition.to_status_id', 'target_status.id')
+      .where('transition.from_status_id', fromStatusId)
+      .whereIn('transition.to_status_id', Array.from(permittedTargetStatusIds))
+      .andWhere({
+        'target_status.branch_id': MOTHER_BRANCH_ID,
+        'target_status.status': 'Open',
+        'target_status.is_active': true,
+      })
+      .select<RepairOrderStatusTransitionItem[]>(
+        'target_status.id',
+        'target_status.name_uz',
+        'target_status.name_ru',
+        'target_status.name_en',
+        'target_status.can_user_view',
+      )
+      .orderBy('target_status.sort', 'asc');
+
+    query = useRoleScope
+      ? query.andWhere('transition.role_id', primaryRole.id)
+      : query.whereNull('transition.role_id');
+
+    return query;
+  }
+
   private async hasRoleScopedTransitions(
-    trx: Knex.Transaction,
+    trx: Knex | Knex.Transaction,
     branchId: string,
     roleId: string,
   ): Promise<boolean> {
@@ -4442,6 +5008,147 @@ export class RepairOrdersService {
         .andWhere('sort', '>', order.sort)
         .update({ sort: this.knex.raw('sort - 1') });
     }
+  }
+
+  private async cleanupProblemsForPhoneCategory(
+    trx: Knex.Transaction,
+    repairOrderId: string,
+    phoneCategoryId: string,
+    admin: AdminPayload,
+  ): Promise<void> {
+    const configs: RepairOrderProblemCleanupConfig[] = [
+      {
+        problemType: 'initial',
+        problemTable: 'repair_order_initial_problems',
+        problemIdColumn: 'repair_order_initial_problem_id',
+        historyField: 'initial_problems',
+      },
+      {
+        problemType: 'final',
+        problemTable: 'repair_order_final_problems',
+        problemIdColumn: 'repair_order_final_problem_id',
+        historyField: 'final_problems',
+      },
+    ];
+
+    for (const config of configs) {
+      await this.cleanupProblemTypeForPhoneCategory(
+        trx,
+        repairOrderId,
+        phoneCategoryId,
+        admin,
+        config,
+      );
+    }
+  }
+
+  private async cleanupProblemTypeForPhoneCategory(
+    trx: Knex.Transaction,
+    repairOrderId: string,
+    phoneCategoryId: string,
+    admin: AdminPayload,
+    config: RepairOrderProblemCleanupConfig,
+  ): Promise<void> {
+    const problems = await trx(config.problemTable)
+      .where({ repair_order_id: repairOrderId })
+      .select<{ id: string; problem_category_id: string }[]>('id', 'problem_category_id');
+
+    if (!problems.length) {
+      return;
+    }
+
+    const old = await this.getProblemHistorySnapshot(trx, repairOrderId, config.problemType);
+    const problemCategoryIds = [...new Set(problems.map((problem) => problem.problem_category_id))];
+    const allowedProblemCategoryIds = await this.getAllowedProblemCategoryIdsForPhoneCategory(
+      trx,
+      phoneCategoryId,
+      problemCategoryIds,
+    );
+    const invalidProblemIds = problems
+      .filter((problem) => !allowedProblemCategoryIds.has(problem.problem_category_id))
+      .map((problem) => problem.id);
+
+    let changed = false;
+    if (invalidProblemIds.length) {
+      await trx('repair_order_parts')
+        .where({ repair_order_id: repairOrderId })
+        .whereIn(config.problemIdColumn, invalidProblemIds)
+        .delete();
+      await trx(config.problemTable).whereIn('id', invalidProblemIds).delete();
+      changed = true;
+    }
+
+    const invalidPartRows = await trx('repair_order_parts as rop')
+      .join(
+        `${config.problemTable} as repair_order_problem`,
+        `rop.${config.problemIdColumn}`,
+        'repair_order_problem.id',
+      )
+      .leftJoin('repair_part_assignments as rpa', function () {
+        this.on('rpa.repair_part_id', '=', 'rop.repair_part_id').andOn(
+          'rpa.problem_category_id',
+          '=',
+          'repair_order_problem.problem_category_id',
+        );
+      })
+      .where('rop.repair_order_id', repairOrderId)
+      .whereNotNull(`rop.${config.problemIdColumn}`)
+      .whereNull('rpa.id')
+      .select<{ id: string }[]>('rop.id');
+
+    const invalidPartIds = invalidPartRows.map((part) => part.id);
+    if (invalidPartIds.length) {
+      await trx('repair_order_parts').whereIn('id', invalidPartIds).delete();
+      changed = true;
+    }
+
+    if (!changed) {
+      return;
+    }
+
+    const current = await this.getProblemHistorySnapshot(trx, repairOrderId, config.problemType);
+    await this.changeLogger.logIfChanged(
+      trx,
+      repairOrderId,
+      config.historyField,
+      old,
+      current,
+      admin.id,
+    );
+  }
+
+  private async getAllowedProblemCategoryIdsForPhoneCategory(
+    trx: Knex.Transaction,
+    phoneCategoryId: string,
+    problemCategoryIds: string[],
+  ): Promise<Set<string>> {
+    if (!problemCategoryIds.length) {
+      return new Set();
+    }
+
+    const pathRows = await trx
+      .withRecursive('problem_path', (qb) => {
+        void qb
+          .select('id', 'parent_id', 'id as start_id')
+          .from('problem_categories')
+          .whereIn('id', problemCategoryIds)
+          .unionAll(function () {
+            void this.select('p.id', 'p.parent_id', 'pp.start_id')
+              .from('problem_categories as p')
+              .join('problem_path as pp', 'pp.parent_id', 'p.id');
+          });
+      })
+      .select<{ id: string; start_id: string }[]>('id', 'start_id')
+      .from('problem_path');
+
+    const mappedCategoryIds: string[] = await trx('phone_problem_mappings')
+      .where({ phone_category_id: phoneCategoryId })
+      .pluck('problem_category_id');
+    const mappedCategoryIdSet = new Set(mappedCategoryIds);
+
+    return new Set(
+      pathRows.filter((row) => mappedCategoryIdSet.has(row.id)).map((row) => String(row.start_id)),
+    );
   }
 
   private async getProblemHistorySnapshot(

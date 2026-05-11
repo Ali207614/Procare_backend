@@ -22,7 +22,12 @@ export class AssignAdminController {
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<{ message: string }> {
     await this.assignAdminUpdater.create(orderId, dto.admin_ids, admin);
-    return { message: '✅ Admins assigned successfully' };
+    return {
+      message:
+        dto.admin_ids.length === 0
+          ? '🗑️ Admins removed from order'
+          : '✅ Admins assigned successfully',
+    };
   }
 
   @Delete(':admin_id')

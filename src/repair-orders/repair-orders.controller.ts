@@ -59,6 +59,7 @@ import {
 import {
   RepairOrderDetailsSwaggerDto,
   RepairOrderListItemSwaggerDto,
+  ViewableRepairOrderListItemSwaggerDto,
 } from './dto/repair-order-swagger.dto';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 
@@ -266,7 +267,11 @@ export class OpenRepairOrdersController {
 @ApiTags('Repair Orders')
 @ApiBearerAuth()
 @UseGuards(JwtAdminAuthGuard)
-@ApiExtraModels(RepairOrderListItemSwaggerDto, RepairOrderDetailsSwaggerDto)
+@ApiExtraModels(
+  RepairOrderListItemSwaggerDto,
+  RepairOrderDetailsSwaggerDto,
+  ViewableRepairOrderListItemSwaggerDto,
+)
 @Controller('repair-orders')
 export class RepairOrdersController {
   constructor(private readonly service: RepairOrdersService) {}
@@ -278,7 +283,7 @@ export class RepairOrdersController {
     @Req() req: AuthenticatedRequest,
     @Body() dto: CreateRepairOrderDto,
   ): Promise<RepairOrder> {
-    return this.service.create(req.admin, req.branch.id, dto);
+    return this.service.create(req.admin, dto.branch_id, dto);
   }
 
   @Patch(':repair_order_id')
@@ -302,6 +307,16 @@ export class RepairOrdersController {
     @Body() dto: TakeRepairOrderDto,
   ): Promise<{ message: string }> {
     return this.service.take(repairOrderId, dto.branch_id, req.admin);
+  }
+
+  @Delete(':repair_order_id/restore')
+  @ApiOperation({ summary: 'Restore a taken Mother Branch repair order back to Mother Branch' })
+  @ApiParam({ name: 'repair_order_id', description: 'Repair Order ID' })
+  restoreToMother(
+    @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ message: string }> {
+    return this.service.restoreToMother(repairOrderId, req.admin);
   }
 
   @Get()
@@ -376,7 +391,7 @@ export class RepairOrdersController {
               },
               repair_orders: {
                 type: 'array',
-                items: { $ref: getSchemaPath(RepairOrderListItemSwaggerDto) },
+                items: { $ref: getSchemaPath(ViewableRepairOrderListItemSwaggerDto) },
               },
             },
           },

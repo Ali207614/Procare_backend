@@ -20,6 +20,136 @@ export class RepairOrderRegionSwaggerDto {
   description!: string | null;
 }
 
+export class RepairOrderLookupSwaggerDto {
+  @ApiProperty({ nullable: true, example: 'c7a77f42-2f13-4b8e-b8cb-7d5f2c82fbbb' })
+  id!: string | null;
+
+  @ApiProperty({ nullable: true, example: 'iPhone 13 Pro Max' })
+  name_uz!: string | null;
+
+  @ApiProperty({ nullable: true, example: 'iPhone 13 Pro Max' })
+  name_ru!: string | null;
+
+  @ApiProperty({ nullable: true, example: 'iPhone 13 Pro Max' })
+  name_en!: string | null;
+}
+
+export class RepairOrderTransferBranchSwaggerDto {
+  @ApiProperty({ example: 'c7a77f42-2f13-4b8e-b8cb-7d5f2c82fbbb' })
+  id!: string;
+
+  @ApiProperty({ example: "Farg'ona Filial" })
+  name_uz!: string;
+
+  @ApiProperty({ example: 'Фергана Филиал' })
+  name_ru!: string;
+
+  @ApiProperty({ example: 'Fergana Branch' })
+  name_en!: string;
+}
+
+export class RepairOrderDetailsBranchSwaggerDto extends RepairOrderLookupSwaggerDto {
+  [key: string]: unknown;
+
+  @ApiProperty({
+    type: [RepairOrderTransferBranchSwaggerDto],
+    description:
+      'Active child branches that PATCH /repair-orders/:repair_order_id/transfer-branch accepts for the current admin and that are visible to the admin.',
+  })
+  transfer_branches!: RepairOrderTransferBranchSwaggerDto[];
+}
+
+export class ViewableRepairOrderAssignedAdminSwaggerDto {
+  @ApiProperty({ example: 'c7a77f42-2f13-4b8e-b8cb-7d5f2c82fbbb' })
+  id!: string;
+
+  @ApiProperty({ nullable: true, example: 'Alisher' })
+  first_name!: string | null;
+
+  @ApiProperty({ nullable: true, example: 'Odilov' })
+  last_name!: string | null;
+
+  @ApiProperty({ nullable: true, example: '+998901234567' })
+  phone_number!: string | null;
+
+  @ApiProperty({ example: '2026-03-24T09:00:00.000Z' })
+  created_at!: string;
+}
+
+export class ViewableRepairOrderListItemSwaggerDto {
+  @ApiProperty({ example: 'c7a77f42-2f13-4b8e-b8cb-7d5f2c82fbbb' })
+  id!: string;
+
+  @ApiProperty({ example: 12901 })
+  number_id!: number;
+
+  @ApiProperty({ example: 'a9bf2d77-2f13-4b8e-b8cb-7d5f2c82f111' })
+  status_id!: string;
+
+  @ApiProperty({ nullable: true, example: 'Alisher Odilov' })
+  name!: string | null;
+
+  @ApiProperty({ nullable: true, example: '+998900000612' })
+  phone_number!: string | null;
+
+  @ApiProperty({
+    nullable: true,
+    example: '2026-04-16 10:00',
+    description: 'Agreed date in YYYY-MM-DD HH:mm format',
+  })
+  agreed_date!: string | null;
+
+  @ApiProperty({ enum: ['Self', 'Pickup'] })
+  pickup_method!: 'Self' | 'Pickup';
+
+  @ApiProperty({ enum: ['Self', 'Delivery'] })
+  delivery_method!: 'Self' | 'Delivery';
+
+  @ApiProperty({ type: RepairOrderRejectCauseSwaggerDto })
+  reject_cause!: RepairOrderRejectCauseSwaggerDto;
+
+  @ApiProperty({ nullable: true, enum: REPAIR_ORDER_SOURCES, example: 'Telegram' })
+  source!: string | null;
+
+  @ApiProperty({ example: 12 })
+  call_count!: number;
+
+  @ApiProperty({ example: 2 })
+  missed_call_count!: number;
+
+  @ApiProperty({ example: 28 })
+  comments_count!: number;
+
+  @ApiProperty({ example: '2026-03-24T09:00:00.000Z' })
+  created_at!: string;
+
+  @ApiProperty({ type: RepairOrderLookupSwaggerDto })
+  phone_category!: RepairOrderLookupSwaggerDto;
+
+  @ApiProperty({ type: RepairOrderLookupSwaggerDto })
+  repair_order_status!: RepairOrderLookupSwaggerDto;
+
+  @ApiProperty({ type: RepairOrderLookupSwaggerDto })
+  branch!: RepairOrderLookupSwaggerDto;
+
+  @ApiProperty({ type: [ViewableRepairOrderAssignedAdminSwaggerDto] })
+  assigned_admins!: ViewableRepairOrderAssignedAdminSwaggerDto[];
+
+  @ApiProperty({
+    example: false,
+    description:
+      'True only when the current view can take a Mother Branch repair order into a child branch.',
+  })
+  is_mothers!: boolean;
+
+  @ApiProperty({
+    example: true,
+    description:
+      'True when the repair order was previously in Mother Branch and has been taken into a child branch.',
+  })
+  is_taken_from_mother!: boolean;
+}
+
 export class RepairOrderListItemSwaggerDto {
   @ApiProperty({ example: 'c7a77f42-2f13-4b8e-b8cb-7d5f2c82fbbb' })
   id!: string;
@@ -79,6 +209,9 @@ export class RepairOrderListItemSwaggerDto {
   @ApiProperty({ example: 0, description: 'Number of calls made to the customer' })
   call_count!: number;
 
+  @ApiProperty({ example: 2 })
+  missed_call_count!: number;
+
   @ApiProperty({ nullable: true, example: '2026-03-27T07:15:00.000Z' })
   deadline_at!: string | null;
 
@@ -123,6 +256,12 @@ export class RepairOrderListItemSwaggerDto {
 }
 
 export class RepairOrderDetailsSwaggerDto extends RepairOrderListItemSwaggerDto {
+  @ApiProperty({ type: RepairOrderDetailsBranchSwaggerDto })
+  branch!: RepairOrderDetailsBranchSwaggerDto;
+
+  @ApiProperty({ type: RepairOrderLookupSwaggerDto })
+  os_type!: RepairOrderLookupSwaggerDto;
+
   @ApiProperty({ type: 'object', additionalProperties: true })
   pickups!: Record<string, unknown>;
 
