@@ -1,4 +1,4 @@
-import { IsUUID, IsString, MaxLength, IsOptional, MinLength } from 'class-validator';
+import { IsUUID, IsString, IsOptional, Matches } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateProductDto {
@@ -16,7 +16,6 @@ export class UpdateProductDto {
   })
   @IsOptional()
   @IsString()
-  @MinLength(15)
-  @MaxLength(15)
+  @Matches(/^$|^\d{15}$/, { message: 'IMEI must be exactly 15 digits or empty' })
   imei?: string;
 }
