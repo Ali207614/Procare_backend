@@ -521,6 +521,16 @@ export class RepairOrderCreateHelperService {
     orderId: string,
     trx: Knex | Knex.Transaction = this.knex,
   ): Promise<RepairNotificationMeta | null> {
+    const metas = await this.getRepairOrdersNotificationMeta([orderId], trx);
+    return metas[0] || null;
+  }
+
+  async getRepairOrdersNotificationMeta(
+    orderIds: string[],
+    trx: Knex | Knex.Transaction = this.knex,
+  ): Promise<RepairNotificationMeta[]> {
+    if (!orderIds.length) return [];
+
     const query = `
       SELECT
         ro.id as order_id,
@@ -542,10 +552,10 @@ export class RepairOrderCreateHelperService {
       FROM repair_orders ro
       LEFT JOIN phone_categories pc ON pc.id = ro.phone_category_id
       LEFT JOIN users u ON u.id = ro.user_id
-      WHERE ro.id = ?
+      WHERE ro.id IN (?)
     `;
 
-    const result = await trx.raw(query, [orderId]);
-    return (result.rows[0] as RepairNotificationMeta) || null;
+    const result = await trx.raw(query, [orderIds]);
+    return result.rows as RepairNotificationMeta[];
   }
 }

@@ -111,12 +111,18 @@ export class AgreedDateCronService {
 
       // 5. Send socket notifications concurrently in bounded chunks
       const CHUNK_SIZE = 10;
+
+      // ⚡ Bolt: Pre-fetch notification metadata for all orders in bulk to prevent N+1 queries.
+      const successfulOrderIds = successfulOrders.map((o) => o.id);
+      const metas = await this.helper.getRepairOrdersNotificationMeta(successfulOrderIds);
+      const metaMap = new Map(metas.map((m) => [m.order_id, m]));
+
       for (let i = 0; i < successfulOrders.length; i += CHUNK_SIZE) {
         const chunk = successfulOrders.slice(i, i + CHUNK_SIZE);
         await Promise.all(
-          chunk.map(async (order) => {
+          chunk.map((order) => {
             try {
-              const richMeta = await this.helper.getRepairOrderNotificationMeta(order.id);
+              const richMeta = metaMap.get(order.id);
               if (richMeta) {
                 const payload: BroadcastMessage<RepairNotificationMeta & { is_trigger: boolean }> =
                   {
@@ -139,6 +145,7 @@ export class AgreedDateCronService {
                 `[AgreedDateCron] Failed to send notification for order ${order.id}: ${message}`,
               );
             }
+            return Promise.resolve();
           }),
         );
       }

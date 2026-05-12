@@ -12,7 +12,7 @@ import * as bcrypt from 'bcrypt';
 import { AuthService } from 'src/auth/auth.service';
 import { AdminsService } from 'src/admins/admins.service';
 import { RedisService } from 'src/common/redis/redis.service';
-import { AdminFactory } from '../../../factories/admin.factory';
+import { AdminFactory } from '../../factories/admin.factory';
 
 // Mock bcrypt
 jest.mock('bcrypt');

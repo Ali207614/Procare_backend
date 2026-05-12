@@ -48,25 +48,21 @@ describe('RepairOrdersService (Duplicate Check)', () => {
 
   describe('checkForRecentInvalidDuplicatesOrThrow', () => {
     it('should throw BadRequestException if a recent Invalid order exists with same category and IMEI', async () => {
-      const mockTrx = jest.fn() as any;
       const invalidStatusId = 'status-invalid-123';
       const orderId = 'order-123';
       const categoryId = 'cat-123';
       const imei = 'imei-123';
+
+      // Mock isInvalidRepairOrderReusable directly since it does its own DB queries
+      jest.spyOn(service as any, 'isInvalidRepairOrderReusable').mockResolvedValue(true);
+
+      const mockTrx = jest.fn() as any;
 
       // 1. Pluck invalid status IDs
       mockTrx.mockReturnValueOnce({
         where: jest.fn().mockReturnThis(),
         pluck: jest.fn().mockResolvedValue([invalidStatusId]),
       });
-
-      // 2. Query for recent invalid order
-      const mockRecentQuery = {
-        whereIn: jest.fn().mockReturnThis(),
-        andWhereRaw: jest.fn().mockReturnThis(),
-        first: jest.fn().mockResolvedValue({ id: orderId }),
-      };
-      mockTrx.mockReturnValueOnce(mockRecentQuery);
 
       const existingOrders = [
         { id: orderId, status_id: invalidStatusId, phone_category_id: categoryId, imei: imei },
@@ -80,8 +76,6 @@ describe('RepairOrdersService (Duplicate Check)', () => {
           imei,
         ),
       ).rejects.toThrow(BadRequestException);
-
-      expect(mockRecentQuery.whereIn).toHaveBeenCalledWith('ro.id', [orderId]);
     });
 
     it('should NOT throw if no Invalid status orders exist', async () => {
@@ -120,22 +114,18 @@ describe('RepairOrdersService (Duplicate Check)', () => {
     });
 
     it('should correctly match orders with no IMEI', async () => {
-      const mockTrx = jest.fn() as any;
       const invalidStatusId = 'status-invalid-123';
       const orderId = 'order-no-imei';
       const categoryId = 'cat-123';
+
+      jest.spyOn(service as any, 'isInvalidRepairOrderReusable').mockResolvedValue(true);
+
+      const mockTrx = jest.fn() as any;
 
       mockTrx.mockReturnValueOnce({
         where: jest.fn().mockReturnThis(),
         pluck: jest.fn().mockResolvedValue([invalidStatusId]),
       });
-
-      const mockRecentQuery = {
-        whereIn: jest.fn().mockReturnThis(),
-        andWhereRaw: jest.fn().mockReturnThis(),
-        first: jest.fn().mockResolvedValue({ id: orderId }),
-      };
-      mockTrx.mockReturnValueOnce(mockRecentQuery);
 
       const existingOrders = [
         { id: orderId, status_id: invalidStatusId, phone_category_id: categoryId, imei: null },

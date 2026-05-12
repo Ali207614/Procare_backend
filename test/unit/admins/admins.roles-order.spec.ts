@@ -29,6 +29,7 @@ describe('AdminsService role ordering', () => {
       knex as unknown as Knex,
       redisService as unknown as RedisService,
       permissionsService,
+      {} as any,
     );
 
     await service.findRolesByAdminId('admin-id');

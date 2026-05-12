@@ -1722,9 +1722,7 @@ export class RepairOrdersService {
     }
 
     if (exactMotherCondition) {
-      branchClauses.push(
-        `(ro.branch_id = :motherBranchId AND ${exactMotherCondition.sql})`,
-      );
+      branchClauses.push(`(ro.branch_id = :motherBranchId AND ${exactMotherCondition.sql})`);
       Object.assign(params, exactMotherCondition.params);
     }
 
