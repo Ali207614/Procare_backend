@@ -356,21 +356,19 @@ export class HistoryService {
     return db.transaction(async (trx) => {
       const requestContext = getRequestAuditContext();
       const requestId =
-        payload.requestId === undefined ? (requestContext?.requestId ?? null) : payload.requestId;
+        payload.requestId === undefined ? requestContext?.requestId ?? null : payload.requestId;
       const correlationId =
         payload.correlationId === undefined
-          ? (requestContext?.correlationId ?? null)
+          ? requestContext?.correlationId ?? null
           : payload.correlationId;
       const httpMethod =
-        payload.httpMethod === undefined
-          ? (requestContext?.httpMethod ?? null)
-          : payload.httpMethod;
+        payload.httpMethod === undefined ? requestContext?.httpMethod ?? null : payload.httpMethod;
       const httpPath =
-        payload.httpPath === undefined ? (requestContext?.httpPath ?? null) : payload.httpPath;
+        payload.httpPath === undefined ? requestContext?.httpPath ?? null : payload.httpPath;
       const ipAddress =
-        payload.ipAddress === undefined ? (requestContext?.ipAddress ?? null) : payload.ipAddress;
+        payload.ipAddress === undefined ? requestContext?.ipAddress ?? null : payload.ipAddress;
       const userAgent =
-        payload.userAgent === undefined ? (requestContext?.userAgent ?? null) : payload.userAgent;
+        payload.userAgent === undefined ? requestContext?.userAgent ?? null : payload.userAgent;
       const previousEvent = await trx<HistoryEventRow>('history_events')
         .select('event_hash')
         .whereNotNull('event_hash')
@@ -533,7 +531,7 @@ export class HistoryService {
           .insert({
             event_id: updatedEvent.id,
             event_entity_id: change.eventEntityKey
-              ? (entityKeyToId.get(change.eventEntityKey) ?? null)
+              ? entityKeyToId.get(change.eventEntityKey) ?? null
               : null,
             entity_table: change.entityTable,
             entity_pk: change.entityPk,
