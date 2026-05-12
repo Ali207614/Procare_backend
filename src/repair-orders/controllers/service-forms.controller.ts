@@ -97,7 +97,7 @@ export class ServiceFormsController {
         });
       };
 
-      void (async () => {
+      void (async (): Promise<void> => {
         try {
           await this.serviceFormsService.createWarrantyAgreement(
             repairOrderId,
