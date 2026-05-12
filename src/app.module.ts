@@ -17,6 +17,7 @@ import { CampaignsModule } from './campaigns/campaigns.module';
 import { JwtMiddleware } from './common/middleware/jwt.middleware';
 import { LoggingMiddleware } from './common/middleware/logging.middleware';
 import { MaintenanceMiddleware } from './common/middleware/maintenance.middleware';
+import { AuthRateLimiterMiddleware } from './common/middleware/auth-rate-limiter.middleware';
 import { RateLimiterByIpMiddleware } from './common/middleware/rate-limiter-by-ip.middleware';
 import { RateLimiterMiddleware } from './common/middleware/rate-limiter.middleware';
 import { RequestAuditContextMiddleware } from './common/middleware/request-audit-context.middleware';
@@ -173,6 +174,16 @@ export class AppModule implements NestModule {
     consumer.apply(MaintenanceMiddleware).forRoutes('*');
 
     consumer.apply(RateLimiterByIpMiddleware).forRoutes(...PublicRoutes);
+
+    consumer
+      .apply(AuthRateLimiterMiddleware)
+      .forRoutes(
+        'auth/admin/login',
+        'auth/admin/send-code',
+        'auth/admin/verify-code',
+        'auth/admin/forgot-password',
+        'auth/admin/reset-password',
+      );
 
     consumer.apply(JwtMiddleware, RateLimiterMiddleware).forRoutes(...RateLimitedUserRoutes);
 
