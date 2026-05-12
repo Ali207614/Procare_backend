@@ -12,11 +12,11 @@ This documentation provides a comprehensive guide for integrating the Service Fo
 
 ---
 
-## 1. Create/Update Service Form
-Generates a new service form PDF, uploads it to cloud storage (MinIO), and saves the form data. If a service form already exists for the given repair order, it will be replaced.
+## 1. Create/Update Service Form (SSE)
+Generates a new service form PDF, uploads it to cloud storage (MinIO), and saves the form data. This endpoint uses **Server-Sent Events (SSE)** to provide real-time updates on the generation process. If a service form already exists for the given repair order, it will be replaced.
 
 ### Endpoint
-`POST /repair-orders/service-forms/:repair_order_id`
+`POST /repair-orders/service-forms/:repair_order_id/check-list`
 
 ### URL Parameters
 | Parameter | Type | Description |
@@ -60,11 +60,45 @@ The request body requires detailed information about the device's state upon acc
     - Categories: `display`, `body`, `ports-1`, `ports`, `other`.
 - **`comments`** (`string`, optional): Additional notes regarding the device condition.
 
-### Response (`201 Created`)
+### Response (Server-Sent Events)
+This endpoint returns a `text/event-stream`. Each event contains a JSON payload in the `data` field.
+
+#### Event Types:
+- `started`: Generation process has begun.
+- `data_loaded`: Repair order data has been retrieved from the database.
+- `storage_prepared`: Old service form files have been cleaned up from storage.
+- `pdf_generated`: The PDF document has been successfully generated.
+- `uploaded`: The PDF has been uploaded to cloud storage.
+- `completed`: The process is finished. The `result` field contains the `warranty_id`.
+- `failed`: An error occurred during generation.
+
+#### Success Example (`event: completed`):
 ```json
 {
-  "warranty_id": "SF-A3B9K2",
-  "message": "Service form generated successfully"
+  "success": true,
+  "data": {
+    "state": "completed",
+    "message": "Service form generated successfully",
+    "result": {
+      "warranty_id": "SF-A3B9K2",
+      "message": "Service form generated successfully"
+    }
+  }
+}
+```
+
+#### Failure Example (`event: failed`):
+```json
+{
+  "success": false,
+  "data": {
+    "state": "failed",
+    "message": "Repair order not found"
+  },
+  "statusCode": 404,
+  "message": "Repair order not found",
+  "error": "NotFoundException",
+  "timestamp": "2026-05-12T10:00:00.000Z"
 }
 ```
 
@@ -74,7 +108,7 @@ The request body requires detailed information about the device's state upon acc
 | `400 Bad Request` | Validation error (e.g., missing required fields). |
 | `401 Unauthorized` | Invalid or missing Bearer token. |
 | `404 Not Found` | Repair order not found. |
-| `500 Internal Error` | PDF generation or storage upload failed. |
+| `500 Internal Error` | PDF generation or storage upload failed (sent as a `failed` event). |
 
 ---
 
