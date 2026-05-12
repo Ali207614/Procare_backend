@@ -14,6 +14,17 @@ export class PdfService {
   private readonly logger = new Logger(PdfService.name);
 
   async generateProcareServiceForm(payload: PdfPayload): Promise<Buffer> {
+    return this.generatePdfFromTemplates(payload, ['page_1.html', 'page_2.html']);
+  }
+
+  async generateWarrantyAgreement(payload: PdfPayload): Promise<Buffer> {
+    return this.generatePdfFromTemplates(payload, ['page_4.html', 'page_5.html']);
+  }
+
+  private async generatePdfFromTemplates(
+    payload: PdfPayload,
+    pagesToRender: string[],
+  ): Promise<Buffer> {
     const browser = await puppeteer.launch({
       headless: true,
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
@@ -22,10 +33,9 @@ export class PdfService {
 
     try {
       const mergedPdf = await PDFDocument.create();
-      const pagesToRender = ['page_1.html', 'page_2.html'];
 
       // ⚡ Bolt: Process pages in parallel
-      // Performance Impact: Renders `page_1.html` and `page_2.html` concurrently,
+      // Performance Impact: Renders all selected templates concurrently,
       // reducing total Puppeteer rendering time by up to ~50%.
       const pdfBuffers = await Promise.all(
         pagesToRender.map(async (fileName) => {
@@ -80,7 +90,7 @@ export class PdfService {
     } catch (error) {
       this.logger.error('Failed to generate PDF', error);
       throw new InternalServerErrorException(
-        `Failed to generate service form document: ${(error as Error)?.message || 'Unknown Context'}`,
+        `Failed to generate PDF document: ${(error as Error)?.message || 'Unknown Context'}`,
       );
     } finally {
       await browser.close();

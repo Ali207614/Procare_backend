@@ -273,6 +273,12 @@ export class RepairOrderHistoryCommentManager {
           `servis formasini yangiladi`,
           this.describeServiceFormChange(history.new_value),
         );
+      case 'warranty_agreement_generated':
+        return this.buildActorComment(
+          actor,
+          `kafolat shartnomasini yaratdi`,
+          this.describeServiceFormChange(history.new_value),
+        );
       case 'rental_phone_updated':
         return this.buildActorComment(
           actor,
@@ -909,7 +915,8 @@ export class RepairOrderHistoryCommentManager {
           ]
         : field === 'final_problems' ||
             field === 'service_form_created' ||
-            field === 'service_form_updated'
+            field === 'service_form_updated' ||
+            field === 'warranty_agreement_generated'
           ? [
               RoleType.MASTER,
               RoleType.SPECIALIST,
