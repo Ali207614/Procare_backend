@@ -17,6 +17,7 @@ import {
 } from '../dto/create-service-form.dto';
 import {
   CreateWarrantyAgreementResponseDto,
+  CreateServiceFormResponseDto,
   GetServiceFormResponseDto,
 } from '../dto/service-form-response.dto';
 import { PdfPayload } from 'src/pdf/interfaces/pdf-payload.interface';
@@ -38,6 +39,23 @@ export interface WarrantyAgreementGenerationEvent {
 }
 
 type WarrantyAgreementProgressHandler = (event: WarrantyAgreementGenerationEvent) => void;
+
+export type ServiceFormGenerationState =
+  | 'started'
+  | 'data_loaded'
+  | 'storage_prepared'
+  | 'pdf_generated'
+  | 'uploaded'
+  | 'completed'
+  | 'failed';
+
+export interface ServiceFormGenerationEvent {
+  state: ServiceFormGenerationState;
+  message: string;
+  result?: CreateServiceFormResponseDto;
+}
+
+type ServiceFormProgressHandler = (event: ServiceFormGenerationEvent) => void;
 
 interface ServiceFormRow {
   id: string;
@@ -112,7 +130,13 @@ export class ServiceFormsService {
     repairOrderId: string,
     dto: CreateServiceFormDto,
     admin: AdminPayload,
-  ): Promise<{ warranty_id: string; message: string }> {
+    onProgress?: ServiceFormProgressHandler,
+  ): Promise<CreateServiceFormResponseDto> {
+    this.emitServiceFormProgress(onProgress, {
+      state: 'started',
+      message: 'Service form generation started',
+    });
+
     // 1. Fetch all data in a single SQL query
     const data = await this.getRepairOrderServiceFormData(repairOrderId);
 
@@ -120,6 +144,11 @@ export class ServiceFormsService {
       .where({ repair_order_id: repairOrderId })
       .orderBy('created_at', 'desc')
       .first();
+
+    this.emitServiceFormProgress(onProgress, {
+      state: 'data_loaded',
+      message: 'Repair order data loaded',
+    });
 
     // Check MinIO directly to ensure we clean up old PDF files
     const prefix = `service-forms/${repairOrderId}/`;
@@ -145,6 +174,11 @@ export class ServiceFormsService {
         );
       }
     }
+
+    this.emitServiceFormProgress(onProgress, {
+      state: 'storage_prepared',
+      message: 'Existing service form files cleaned up',
+    });
 
     // 2. Generate unique warranty ID
     const warrantyId = this.generateWarrantyId();
@@ -211,6 +245,11 @@ export class ServiceFormsService {
       );
     }
 
+    this.emitServiceFormProgress(onProgress, {
+      state: 'pdf_generated',
+      message: 'Service form PDF generated',
+    });
+
     // 5. Upload to MinIO
     const filePath = `service-forms/${repairOrderId}/${warrantyId}.pdf`;
     try {
@@ -227,6 +266,11 @@ export class ServiceFormsService {
         `Failed to upload service form to storage: ${(error as Error)?.message || 'Unknown Error'}`,
       );
     }
+
+    this.emitServiceFormProgress(onProgress, {
+      state: 'uploaded',
+      message: 'Service form uploaded to storage',
+    });
 
     // 6. Save record to DB and write a routed history comment
     const now = new Date().toISOString();
@@ -255,7 +299,15 @@ export class ServiceFormsService {
       );
     });
 
-    return { warranty_id: warrantyId, message: 'Service form generated successfully' };
+    const result = { warranty_id: warrantyId, message: 'Service form generated successfully' };
+
+    this.emitServiceFormProgress(onProgress, {
+      state: 'completed',
+      message: 'Service form generated successfully',
+      result,
+    });
+
+    return result;
   }
 
   async createWarrantyAgreement(
@@ -458,6 +510,13 @@ export class ServiceFormsService {
   private emitWarrantyAgreementProgress(
     onProgress: WarrantyAgreementProgressHandler | undefined,
     event: WarrantyAgreementGenerationEvent,
+  ): void {
+    onProgress?.(event);
+  }
+
+  private emitServiceFormProgress(
+    onProgress: ServiceFormProgressHandler | undefined,
+    event: ServiceFormGenerationEvent,
   ): void {
     onProgress?.(event);
   }

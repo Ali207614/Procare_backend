@@ -4,14 +4,17 @@ import {
   Get,
   Header,
   HttpException,
+  HttpCode,
   MessageEvent,
   Param,
   ParseUUIDPipe,
   Post,
+  Res,
   Sse,
   UseGuards,
 } from '@nestjs/common';
 import {
+  ApiBody,
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
@@ -19,11 +22,13 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { Observable } from 'rxjs';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
 import { AdminPayload } from 'src/common/types/admin-payload.interface';
 import {
+  ServiceFormGenerationEvent,
   ServiceFormsService,
   WarrantyAgreementGenerationEvent,
 } from '../services/service-forms.service';
@@ -41,7 +46,12 @@ export class ServiceFormsController {
   constructor(private readonly serviceFormsService: ServiceFormsService) {}
 
   @Post('service-forms/:repair_order_id')
-  @ApiOperation({ summary: 'Generate a service form PDF and store it in MinIO' })
+  @ApiOperation({
+    summary: 'Generate a service form PDF and store it in MinIO',
+    description:
+      'Deprecated. Use POST /repair-orders/service-forms/{repair_order_id}/check-list for the SSE-based service form generation flow.',
+    deprecated: true,
+  })
   @ApiParam({ name: 'repair_order_id', description: 'Repair Order UUID' })
   @ApiResponse({
     status: 201,
@@ -56,6 +66,66 @@ export class ServiceFormsController {
     @CurrentAdmin() admin: AdminPayload,
   ): Promise<CreateServiceFormResponseDto> {
     return this.serviceFormsService.createServiceForm(repairOrderId, dto, admin);
+  }
+
+  @Post('service-forms/:repair_order_id/check-list')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Generate a service form PDF as a Server-Sent Events stream',
+    description:
+      'Streams service form generation states and finishes with the generated warranty ID.',
+  })
+  @ApiParam({ name: 'repair_order_id', description: 'Repair Order UUID' })
+  @ApiBody({ type: CreateServiceFormDto })
+  @ApiProduces('text/event-stream')
+  @ApiResponse({
+    status: 200,
+    description: 'SSE stream with generation progress and final service form result',
+    schema: {
+      type: 'string',
+      example:
+        'event: completed\n' +
+        'data: {"success":true,"data":{"state":"completed","message":"Service form generated successfully","result":{"warranty_id":"SF-A3B9K2","message":"Service form generated successfully"}}}\n\n',
+    },
+  })
+  @ApiResponse({ status: 400, description: 'IMEI is missing in repair order' })
+  @ApiResponse({ status: 404, description: 'Repair order not found' })
+  async createServiceFormChecklistStream(
+    @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
+    @Body() dto: CreateServiceFormDto,
+    @CurrentAdmin() admin: AdminPayload,
+    @Res() response: Response,
+  ): Promise<void> {
+    this.prepareSseResponse(response);
+
+    let isClosed = false;
+    response.on('close', () => {
+      isClosed = true;
+    });
+
+    const emitProgress = (event: ServiceFormGenerationEvent): void => {
+      if (isClosed || response.writableEnded) return;
+
+      this.writeSseEvent(response, {
+        type: event.state,
+        data: {
+          success: true,
+          data: event,
+        },
+      });
+    };
+
+    try {
+      await this.serviceFormsService.createServiceForm(repairOrderId, dto, admin, emitProgress);
+    } catch (error) {
+      if (!isClosed && !response.writableEnded) {
+        this.writeSseEvent(response, this.toFailedSseEvent(error));
+      }
+    } finally {
+      if (!isClosed && !response.writableEnded) {
+        response.end();
+      }
+    }
   }
 
   @Sse('service-forms/:repair_order_id/warranty-agreement')
@@ -110,7 +180,7 @@ export class ServiceFormsController {
           }
         } catch (error) {
           if (!subscriber.closed) {
-            subscriber.next(this.toWarrantyAgreementErrorEvent(error));
+            subscriber.next(this.toFailedSseEvent(error));
             subscriber.complete();
           }
         }
@@ -128,7 +198,24 @@ export class ServiceFormsController {
     return this.serviceFormsService.getServiceForm(repairOrderId);
   }
 
-  private toWarrantyAgreementErrorEvent(error: unknown): MessageEvent {
+  private prepareSseResponse(response: Response): void {
+    response.status(200);
+    response.set({
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    response.flushHeaders();
+  }
+
+  private writeSseEvent(response: Response, event: MessageEvent): void {
+    response.write(`event: ${event.type ?? 'message'}\n`);
+    response.write(`data: ${JSON.stringify(event.data)}\n\n`);
+    (response as Response & { flush?: () => void }).flush?.();
+  }
+
+  private toFailedSseEvent(error: unknown): MessageEvent {
     const response = error instanceof HttpException ? error.getResponse() : null;
     const statusCode = error instanceof HttpException ? error.getStatus() : 500;
     const responseObject =
