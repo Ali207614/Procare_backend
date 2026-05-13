@@ -431,22 +431,26 @@ export class HistoryService {
           .insert(actorInserts)
           .returning('*')) as { id: string; actor_label: string | null; actor_role: string }[];
 
-        for (let i = 0; i < actorRows.length; i++) {
-          const actorRow = actorRows[i];
-          const actor = actors[i];
+        const actorNodeInserts = actorRows.map((actorRow) => ({
+          node_type: 'actor' as const,
+          label: actorRow.actor_label ?? null,
+          actor_id: actorRow.id,
+        }));
 
-          const actorNode = await this.findOrCreateNode(trx, {
-            node_type: 'actor',
-            label: actorRow.actor_label,
-            actor_id: actorRow.id,
-          });
+        const actorNodes = await trx<HistoryNodeRow>('history_nodes')
+          .insert(actorNodeInserts)
+          .returning('*');
 
-          await this.createEdge(trx, {
-            from_node_id: actorNode.id,
-            to_node_id: eventNode.id,
-            edge_type: this.actorEdgeType(actor.actorRole),
-            event_id: updatedEvent.id,
-          });
+        const actorEdgeInserts = actorNodes.map((actorNode, i) => ({
+          from_node_id: actorNode.id,
+          to_node_id: eventNode.id,
+          edge_type: this.actorEdgeType(actors[i].actorRole),
+          event_id: updatedEvent.id,
+          confidence: 1,
+        }));
+
+        if (actorEdgeInserts.length > 0) {
+          await trx('history_edges').insert(actorEdgeInserts);
         }
       }
 
@@ -472,27 +476,44 @@ export class HistoryService {
           .insert(entityInserts)
           .returning('*')) as { id: string; entity_label: string | null; entity_role: string }[];
 
+        const entityNodeInserts = entityRows.map((entityRow) => ({
+          node_type: 'entity' as const,
+          label: entityRow.entity_label ?? null,
+          event_entity_id: entityRow.id,
+        }));
+
+        const entityNodes = await trx<HistoryNodeRow>('history_nodes')
+          .insert(entityNodeInserts)
+          .returning('*');
+
+        const entityEdgeInserts: {
+          from_node_id: string;
+          to_node_id: string;
+          edge_type: HistoryEdgeType;
+          event_id: string;
+          confidence: number;
+        }[] = [];
         for (let i = 0; i < entityRows.length; i++) {
           const entityRow = entityRows[i];
           const entity = entities[i];
-
-          const entityNode = await this.findOrCreateNode(trx, {
-            node_type: 'entity',
-            label: entityRow.entity_label,
-            event_entity_id: entityRow.id,
-          });
+          const entityNode = entityNodes[i];
 
           if (entity.key) {
             entityKeyToId.set(entity.key, entityRow.id);
             entityKeyToNode.set(entity.key, entityNode);
           }
 
-          await this.createEdge(trx, {
+          entityEdgeInserts.push({
             from_node_id: eventNode.id,
             to_node_id: entityNode.id,
             edge_type: this.entityEdgeType(entity.entityRole),
             event_id: updatedEvent.id,
+            confidence: 1,
           });
+        }
+
+        if (entityEdgeInserts.length > 0) {
+          await trx('history_edges').insert(entityEdgeInserts);
         }
       }
 
@@ -521,23 +542,29 @@ export class HistoryService {
           .insert(inputInserts)
           .returning('*')) as { id: string; input_key: string }[];
 
-        for (let i = 0; i < inputRows.length; i++) {
-          const inputRow = inputRows[i];
-          const { input } = preparedInputs[i];
+        const inputNodeInserts = inputRows.map((inputRow, i) => ({
+          node_type: 'event_input' as const,
+          label: preparedInputs[i].input.inputKey,
+          event_input_id: inputRow.id,
+        }));
 
-          const inputNode = await this.findOrCreateNode(trx, {
-            node_type: 'event_input',
-            label: input.inputKey,
-            event_input_id: inputRow.id,
-          });
-          inputKeyToNode.set(input.inputKey, inputNode);
+        const inputNodes = await trx<HistoryNodeRow>('history_nodes')
+          .insert(inputNodeInserts)
+          .returning('*');
 
-          await this.createEdge(trx, {
+        const inputEdgeInserts = inputNodes.map((inputNode, i) => {
+          inputKeyToNode.set(preparedInputs[i].input.inputKey, inputNode);
+          return {
             from_node_id: eventNode.id,
             to_node_id: inputNode.id,
-            edge_type: 'read_from',
+            edge_type: 'read_from' as const,
             event_id: updatedEvent.id,
-          });
+            confidence: 1,
+          };
+        });
+
+        if (inputEdgeInserts.length > 0) {
+          await trx('history_edges').insert(inputEdgeInserts);
         }
       }
 
@@ -591,37 +618,51 @@ export class HistoryService {
           .insert(changeInserts)
           .returning('*')) as HistoryFieldChangeRow[];
 
+        const changeNodeInserts = changeRows.map((changeRow, i) => ({
+          node_type: 'field_change' as const,
+          label: `${preparedChanges[i].change.entityTable}.${preparedChanges[i].change.fieldPath}`,
+          field_change_id: changeRow.id,
+        }));
+
+        const changeNodes = await trx<HistoryNodeRow>('history_nodes')
+          .insert(changeNodeInserts)
+          .returning('*');
+
+        const changeEdgeInserts: {
+          from_node_id: string;
+          to_node_id: string;
+          edge_type: HistoryEdgeType;
+          event_id: string;
+          confidence: number;
+        }[] = [];
         for (let i = 0; i < changeRows.length; i++) {
           const changeRow = changeRows[i];
           const { change, trackedField, newPrepared } = preparedChanges[i];
+          const changeNode = changeNodes[i];
 
-          const changeNode = await this.findOrCreateNode(trx, {
-            node_type: 'field_change',
-            label: `${change.entityTable}.${change.fieldPath}`,
-            field_change_id: changeRow.id,
-          });
-
-          await this.createEdge(trx, {
+          changeEdgeInserts.push({
             from_node_id: eventNode.id,
             to_node_id: changeNode.id,
             edge_type: 'changed',
             event_id: updatedEvent.id,
+            confidence: 1,
           });
 
           if (change.eventEntityKey) {
             const entityNode = entityKeyToNode.get(change.eventEntityKey);
             if (entityNode) {
-              await this.createEdge(trx, {
+              changeEdgeInserts.push({
                 from_node_id: changeNode.id,
                 to_node_id: entityNode.id,
                 edge_type: 'affected',
                 event_id: updatedEvent.id,
+                confidence: 1,
               });
             }
           }
 
           for (const inputNode of inputKeyToNode.values()) {
-            await this.createEdge(trx, {
+            changeEdgeInserts.push({
               from_node_id: changeNode.id,
               to_node_id: inputNode.id,
               edge_type: 'derived_from',
@@ -635,6 +676,10 @@ export class HistoryService {
           if (shouldTrackCurrent) {
             await this.upsertCurrentValue(trx, change, changeRow, newPrepared);
           }
+        }
+
+        if (changeEdgeInserts.length > 0) {
+          await trx('history_edges').insert(changeEdgeInserts);
         }
       }
 
