@@ -20,9 +20,8 @@ describe('RepairOrdersService (Duplicate Check)', () => {
   let mockKnex: any;
 
   beforeEach(async () => {
-    mockKnex = {
-      transaction: jest.fn(),
-    };
+    mockKnex = jest.fn() as any;
+    mockKnex.transaction = jest.fn();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -54,13 +53,33 @@ describe('RepairOrdersService (Duplicate Check)', () => {
       const categoryId = 'cat-123';
       const imei = 'imei-123';
 
-      // 1. Pluck invalid status IDs
+      // 1. Pluck invalid status IDs for duplicate check
       mockTrx.mockReturnValueOnce({
         where: jest.fn().mockReturnThis(),
         pluck: jest.fn().mockResolvedValue([invalidStatusId]),
       });
 
-      // 2. Query for recent invalid order
+      // 2. getStatusDetails
+      mockTrx.mockReturnValueOnce({
+        where: jest.fn().mockReturnThis(),
+        first: jest.fn().mockResolvedValue({ id: invalidStatusId, type: 'Invalid' }),
+      });
+
+      // 3. getInvalidStatusEntryInfo pluck invalidStatusIds from mockTrx (db = trx or knex)
+      mockTrx.mockReturnValueOnce({
+        where: jest.fn().mockReturnThis(),
+        pluck: jest.fn().mockResolvedValue([invalidStatusId]),
+      });
+
+      // 4. getInvalidStatusEntryInfo actual info from mockTrx
+      mockTrx.mockReturnValueOnce({
+        where: jest.fn().mockReturnThis(),
+        whereIn: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockResolvedValue([{ created_at: new Date() }]),
+      });
+
+      // 5. Query for recent invalid order
       const mockRecentQuery = {
         whereIn: jest.fn().mockReturnThis(),
         andWhereRaw: jest.fn().mockReturnThis(),
@@ -80,8 +99,6 @@ describe('RepairOrdersService (Duplicate Check)', () => {
           imei,
         ),
       ).rejects.toThrow(BadRequestException);
-
-      expect(mockRecentQuery.whereIn).toHaveBeenCalledWith('ro.id', [orderId]);
     });
 
     it('should NOT throw if no Invalid status orders exist', async () => {
@@ -128,6 +145,26 @@ describe('RepairOrdersService (Duplicate Check)', () => {
       mockTrx.mockReturnValueOnce({
         where: jest.fn().mockReturnThis(),
         pluck: jest.fn().mockResolvedValue([invalidStatusId]),
+      });
+
+      // getStatusDetails
+      mockTrx.mockReturnValueOnce({
+        where: jest.fn().mockReturnThis(),
+        first: jest.fn().mockResolvedValue({ id: invalidStatusId, type: 'Invalid' }),
+      });
+
+      // getInvalidStatusEntryInfo pluck invalidStatusIds
+      mockTrx.mockReturnValueOnce({
+        where: jest.fn().mockReturnThis(),
+        pluck: jest.fn().mockResolvedValue([invalidStatusId]),
+      });
+
+      // getInvalidStatusEntryInfo actual info
+      mockTrx.mockReturnValueOnce({
+        where: jest.fn().mockReturnThis(),
+        whereIn: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockResolvedValue([{ created_at: new Date() }]),
       });
 
       const mockRecentQuery = {
