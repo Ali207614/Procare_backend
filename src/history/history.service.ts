@@ -414,121 +414,153 @@ export class HistoryService {
         event_id: updatedEvent.id,
       });
 
-      for (const actor of payload.actors ?? []) {
-        const [actorRow] = (await trx('history_event_actors')
-          .insert({
-            event_id: updatedEvent.id,
-            actor_role: actor.actorRole,
-            actor_type: actor.actorType,
-            actor_table: actor.actorTable ?? null,
-            actor_pk: actor.actorPk ?? null,
-            actor_label: actor.actorLabel ?? null,
-            auth_subject: actor.authSubject ?? null,
-            permission_name: actor.permissionName ?? null,
-          })
+      const actors = payload.actors ?? [];
+      if (actors.length > 0) {
+        const actorInserts = actors.map((actor) => ({
+          event_id: updatedEvent.id,
+          actor_role: actor.actorRole,
+          actor_type: actor.actorType,
+          actor_table: actor.actorTable ?? null,
+          actor_pk: actor.actorPk ?? null,
+          actor_label: actor.actorLabel ?? null,
+          auth_subject: actor.authSubject ?? null,
+          permission_name: actor.permissionName ?? null,
+        }));
+
+        const actorRows = (await trx('history_event_actors')
+          .insert(actorInserts)
           .returning('*')) as { id: string; actor_label: string | null; actor_role: string }[];
 
-        const actorNode = await this.findOrCreateNode(trx, {
-          node_type: 'actor',
-          label: actorRow.actor_label,
-          actor_id: actorRow.id,
-        });
+        for (let i = 0; i < actorRows.length; i++) {
+          const actorRow = actorRows[i];
+          const actor = actors[i];
 
-        await this.createEdge(trx, {
-          from_node_id: actorNode.id,
-          to_node_id: eventNode.id,
-          edge_type: this.actorEdgeType(actor.actorRole),
-          event_id: updatedEvent.id,
-        });
+          const actorNode = await this.findOrCreateNode(trx, {
+            node_type: 'actor',
+            label: actorRow.actor_label,
+            actor_id: actorRow.id,
+          });
+
+          await this.createEdge(trx, {
+            from_node_id: actorNode.id,
+            to_node_id: eventNode.id,
+            edge_type: this.actorEdgeType(actor.actorRole),
+            event_id: updatedEvent.id,
+          });
+        }
       }
 
       const entityKeyToId = new Map<string, string>();
       const entityKeyToNode = new Map<string, HistoryNodeRow>();
 
-      for (const entity of payload.entities ?? []) {
-        const [entityRow] = (await trx('history_event_entities')
-          .insert({
-            event_id: updatedEvent.id,
-            entity_table: entity.entityTable,
-            entity_pk: entity.entityPk,
-            entity_label: entity.entityLabel ?? null,
-            entity_role: entity.entityRole,
-            root_entity_table: entity.rootEntityTable ?? payload.rootEntityTable ?? null,
-            root_entity_pk: entity.rootEntityPk ?? payload.rootEntityPk ?? null,
-            branch_id: entity.branchId ?? payload.branchId ?? null,
-            before_exists: entity.beforeExists ?? null,
-            after_exists: entity.afterExists ?? null,
-          })
+      const entities = payload.entities ?? [];
+      if (entities.length > 0) {
+        const entityInserts = entities.map((entity) => ({
+          event_id: updatedEvent.id,
+          entity_table: entity.entityTable,
+          entity_pk: entity.entityPk,
+          entity_label: entity.entityLabel ?? null,
+          entity_role: entity.entityRole,
+          root_entity_table: entity.rootEntityTable ?? payload.rootEntityTable ?? null,
+          root_entity_pk: entity.rootEntityPk ?? payload.rootEntityPk ?? null,
+          branch_id: entity.branchId ?? payload.branchId ?? null,
+          before_exists: entity.beforeExists ?? null,
+          after_exists: entity.afterExists ?? null,
+        }));
+
+        const entityRows = (await trx('history_event_entities')
+          .insert(entityInserts)
           .returning('*')) as { id: string; entity_label: string | null; entity_role: string }[];
 
-        const entityNode = await this.findOrCreateNode(trx, {
-          node_type: 'entity',
-          label: entityRow.entity_label,
-          event_entity_id: entityRow.id,
-        });
+        for (let i = 0; i < entityRows.length; i++) {
+          const entityRow = entityRows[i];
+          const entity = entities[i];
 
-        if (entity.key) {
-          entityKeyToId.set(entity.key, entityRow.id);
-          entityKeyToNode.set(entity.key, entityNode);
+          const entityNode = await this.findOrCreateNode(trx, {
+            node_type: 'entity',
+            label: entityRow.entity_label,
+            event_entity_id: entityRow.id,
+          });
+
+          if (entity.key) {
+            entityKeyToId.set(entity.key, entityRow.id);
+            entityKeyToNode.set(entity.key, entityNode);
+          }
+
+          await this.createEdge(trx, {
+            from_node_id: eventNode.id,
+            to_node_id: entityNode.id,
+            edge_type: this.entityEdgeType(entity.entityRole),
+            event_id: updatedEvent.id,
+          });
         }
-
-        await this.createEdge(trx, {
-          from_node_id: eventNode.id,
-          to_node_id: entityNode.id,
-          edge_type: this.entityEdgeType(entity.entityRole),
-          event_id: updatedEvent.id,
-        });
       }
 
       const inputKeyToNode = new Map<string, HistoryNodeRow>();
-      for (const input of payload.inputs ?? []) {
-        const prepared = this.prepareScalarValue(input, null);
-        const [inputRow] = (await trx('history_event_inputs')
-          .insert({
-            event_id: updatedEvent.id,
-            input_key: input.inputKey,
-            value_type: input.valueType,
-            value_text: prepared.value_text,
-            value_normalized: prepared.value_normalized,
-            value_hash: prepared.value_hash,
-            is_sensitive: input.isSensitive ?? false,
-            ref_table: prepared.ref_table,
-            ref_pk: prepared.ref_pk,
-            ref_label: prepared.ref_label,
-          })
+      const inputs = payload.inputs ?? [];
+      if (inputs.length > 0) {
+        const preparedInputs = inputs.map((input) => ({
+          input,
+          prepared: this.prepareScalarValue(input, null),
+        }));
+
+        const inputInserts = preparedInputs.map(({ input, prepared }) => ({
+          event_id: updatedEvent.id,
+          input_key: input.inputKey,
+          value_type: input.valueType,
+          value_text: prepared.value_text,
+          value_normalized: prepared.value_normalized,
+          value_hash: prepared.value_hash,
+          is_sensitive: input.isSensitive ?? false,
+          ref_table: prepared.ref_table,
+          ref_pk: prepared.ref_pk,
+          ref_label: prepared.ref_label,
+        }));
+
+        const inputRows = (await trx('history_event_inputs')
+          .insert(inputInserts)
           .returning('*')) as { id: string; input_key: string }[];
 
-        const inputNode = await this.findOrCreateNode(trx, {
-          node_type: 'event_input',
-          label: input.inputKey,
-          event_input_id: inputRow.id,
-        });
-        inputKeyToNode.set(input.inputKey, inputNode);
+        for (let i = 0; i < inputRows.length; i++) {
+          const inputRow = inputRows[i];
+          const { input } = preparedInputs[i];
 
-        await this.createEdge(trx, {
-          from_node_id: eventNode.id,
-          to_node_id: inputNode.id,
-          edge_type: 'read_from',
-          event_id: updatedEvent.id,
-        });
+          const inputNode = await this.findOrCreateNode(trx, {
+            node_type: 'event_input',
+            label: input.inputKey,
+            event_input_id: inputRow.id,
+          });
+          inputKeyToNode.set(input.inputKey, inputNode);
+
+          await this.createEdge(trx, {
+            from_node_id: eventNode.id,
+            to_node_id: inputNode.id,
+            edge_type: 'read_from',
+            event_id: updatedEvent.id,
+          });
+        }
       }
 
       const trackedFields = await this.loadTrackedFieldMap(trx, payload.changes ?? []);
-      for (const change of payload.changes ?? []) {
-        const trackedField = trackedFields.get(
-          this.trackedFieldKey(change.entityTable, change.fieldPath),
-        );
-        const oldPrepared = this.prepareScalarValue(
-          change.oldValue ?? { valueType: change.valueType, valueText: null },
-          trackedField ?? null,
-        );
-        const newPrepared = this.prepareScalarValue(
-          change.newValue ?? { valueType: change.valueType, valueText: null },
-          trackedField ?? null,
-        );
+      const changes = payload.changes ?? [];
+      if (changes.length > 0) {
+        const preparedChanges = changes.map((change) => {
+          const trackedField = trackedFields.get(
+            this.trackedFieldKey(change.entityTable, change.fieldPath),
+          );
+          const oldPrepared = this.prepareScalarValue(
+            change.oldValue ?? { valueType: change.valueType, valueText: null },
+            trackedField ?? null,
+          );
+          const newPrepared = this.prepareScalarValue(
+            change.newValue ?? { valueType: change.valueType, valueText: null },
+            trackedField ?? null,
+          );
+          return { change, trackedField, oldPrepared, newPrepared };
+        });
 
-        const [changeRow] = (await trx('history_field_changes')
-          .insert({
+        const changeInserts = preparedChanges.map(
+          ({ change, trackedField, oldPrepared, newPrepared }) => ({
             event_id: updatedEvent.id,
             event_entity_id: change.eventEntityKey
               ? entityKeyToId.get(change.eventEntityKey) ?? null
@@ -552,48 +584,57 @@ export class HistoryService {
             new_ref_label: newPrepared.ref_label,
             is_sensitive: change.isSensitive ?? trackedField?.is_sensitive ?? false,
             changed_at: change.changedAt ?? new Date(),
-          })
+          }),
+        );
+
+        const changeRows = (await trx('history_field_changes')
+          .insert(changeInserts)
           .returning('*')) as HistoryFieldChangeRow[];
 
-        const changeNode = await this.findOrCreateNode(trx, {
-          node_type: 'field_change',
-          label: `${change.entityTable}.${change.fieldPath}`,
-          field_change_id: changeRow.id,
-        });
+        for (let i = 0; i < changeRows.length; i++) {
+          const changeRow = changeRows[i];
+          const { change, trackedField, newPrepared } = preparedChanges[i];
 
-        await this.createEdge(trx, {
-          from_node_id: eventNode.id,
-          to_node_id: changeNode.id,
-          edge_type: 'changed',
-          event_id: updatedEvent.id,
-        });
+          const changeNode = await this.findOrCreateNode(trx, {
+            node_type: 'field_change',
+            label: `${change.entityTable}.${change.fieldPath}`,
+            field_change_id: changeRow.id,
+          });
 
-        if (change.eventEntityKey) {
-          const entityNode = entityKeyToNode.get(change.eventEntityKey);
-          if (entityNode) {
+          await this.createEdge(trx, {
+            from_node_id: eventNode.id,
+            to_node_id: changeNode.id,
+            edge_type: 'changed',
+            event_id: updatedEvent.id,
+          });
+
+          if (change.eventEntityKey) {
+            const entityNode = entityKeyToNode.get(change.eventEntityKey);
+            if (entityNode) {
+              await this.createEdge(trx, {
+                from_node_id: changeNode.id,
+                to_node_id: entityNode.id,
+                edge_type: 'affected',
+                event_id: updatedEvent.id,
+              });
+            }
+          }
+
+          for (const inputNode of inputKeyToNode.values()) {
             await this.createEdge(trx, {
               from_node_id: changeNode.id,
-              to_node_id: entityNode.id,
-              edge_type: 'affected',
+              to_node_id: inputNode.id,
+              edge_type: 'derived_from',
               event_id: updatedEvent.id,
+              confidence: 0.5,
             });
           }
-        }
 
-        for (const inputNode of inputKeyToNode.values()) {
-          await this.createEdge(trx, {
-            from_node_id: changeNode.id,
-            to_node_id: inputNode.id,
-            edge_type: 'derived_from',
-            event_id: updatedEvent.id,
-            confidence: 0.5,
-          });
-        }
-
-        const shouldTrackCurrent =
-          change.trackCurrentValue ?? trackedField?.track_current_value ?? true;
-        if (shouldTrackCurrent) {
-          await this.upsertCurrentValue(trx, change, changeRow, newPrepared);
+          const shouldTrackCurrent =
+            change.trackCurrentValue ?? trackedField?.track_current_value ?? true;
+          if (shouldTrackCurrent) {
+            await this.upsertCurrentValue(trx, change, changeRow, newPrepared);
+          }
         }
       }
 
