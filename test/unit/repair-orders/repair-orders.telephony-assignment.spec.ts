@@ -796,7 +796,7 @@ describe('RepairOrdersService telephony assignment', () => {
     );
   });
 
-  it('assigns a fallback admin to an existing missed-call order with no assignees', async () => {
+  it('does not assign a fallback admin to an existing missed-call order', async () => {
     const orderBuilder = createBuilder();
     orderBuilder.first.mockResolvedValue({
       id: 'order-1',
@@ -805,24 +805,8 @@ describe('RepairOrdersService telephony assignment', () => {
       status: 'Open',
     });
 
-    const assignBuilder = createBuilder();
-    assignBuilder.first.mockResolvedValue(undefined);
-
-    const adminsBuilder = createBuilder();
-    adminsBuilder.first.mockResolvedValue({ id: 'admin-least-busy' });
-
-    const targetRolesBuilder = createBuilder();
-    targetRolesBuilder.select.mockResolvedValue([{ role_id: 'role-1', role_name: 'Master' }]);
-
-    const sharedRoleBuilder = createBuilder();
-    sharedRoleBuilder.first.mockResolvedValue(undefined);
-
     const trx = jest.fn((table: string) => {
       if (table === 'repair_orders') return orderBuilder;
-      if (table === 'repair_order_assign_admins') return assignBuilder;
-      if (table === 'admins') return adminsBuilder;
-      if (table === 'admin_roles as ar') return targetRolesBuilder;
-      if (table === 'repair_order_assign_admins as raa') return sharedRoleBuilder;
       throw new Error(`Unexpected table ${table}`);
     }) as TransactionMock;
 
@@ -835,34 +819,17 @@ describe('RepairOrdersService telephony assignment', () => {
 
     knex.transaction.mockResolvedValue(trx);
 
-    const workContextSpy = jest
-      .spyOn(service as any, 'getCurrentWorkContext')
-      .mockReturnValue({ currentDayStr: 'monday', currentHHmm: '21:00' });
-
     await service.incrementMissedCallCount('order-1');
 
-    expect(assignBuilder.insert).toHaveBeenCalledWith(
+    expect(orderBuilder.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        repair_order_id: 'order-1',
-        admin_id: 'admin-least-busy',
+        missed_calls: expect.anything(),
+        updated_at: expect.any(String),
       }),
     );
-    expect(adminsBuilder.andWhereRaw).toHaveBeenCalledWith(
-      `(admins.work_days->>?)::boolean = true`,
-      ['monday'],
-    );
-    expect(adminsBuilder.andWhere).not.toHaveBeenCalledWith(
-      'admins.work_start_time',
-      '<=',
-      expect.any(String),
-    );
-    expect(adminsBuilder.andWhere).not.toHaveBeenCalledWith(
-      'admins.work_end_time',
-      '>=',
-      expect.any(String),
-    );
-
-    workContextSpy.mockRestore();
+    // No admin assignment should happen for missed calls
+    expect(trx).not.toHaveBeenCalledWith('admins');
+    expect(trx).not.toHaveBeenCalledWith('repair_order_assign_admins');
   });
 
   it('matches legacy raw local-phone orders during PBX lookups', async () => {

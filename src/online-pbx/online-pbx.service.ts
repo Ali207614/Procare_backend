@@ -447,8 +447,8 @@ export class OnlinePbxService {
             }
           } else if (event === 'call_missed') {
             if (!openOrder) {
-              // Missed call: create and use fallback logic
-              await createOrderHelper(null, true, 'telephony_auto');
+              // Missed call: create without assigning any admin
+              await createOrderHelper(null, false);
             } else {
               // Increment missed calls count on existing order
               await this.repairOrderService.incrementMissedCallCount(openOrder.id);
