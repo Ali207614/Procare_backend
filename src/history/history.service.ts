@@ -671,6 +671,16 @@ export class HistoryService {
             });
           }
 
+        const derivedEdges = Array.from(inputKeyToNode.values()).map((inputNode) => ({
+          from_node_id: changeNode.id,
+          to_node_id: inputNode.id,
+          edge_type: 'derived_from' as const,
+          event_id: updatedEvent.id,
+          confidence: 0.5,
+        }));
+
+        if (derivedEdges.length > 0) {
+          await this.createEdges(trx, derivedEdges);
           const shouldTrackCurrent =
             change.trackCurrentValue ?? trackedField?.track_current_value ?? true;
           if (shouldTrackCurrent) {
@@ -1334,6 +1344,39 @@ export class HistoryService {
       confidence: edge.confidence ?? 1,
       note: edge.note ?? null,
     });
+  }
+
+  private async createEdges(
+    trx: Knex.Transaction,
+    edges: Array<{
+      from_node_id: string;
+      to_node_id: string;
+      edge_type: HistoryEdgeType;
+      event_id?: string | null;
+      confidence?: number;
+      note?: string | null;
+    }>,
+  ): Promise<void> {
+    const validEdges = edges.filter((e) => e.from_node_id !== e.to_node_id);
+    if (validEdges.length === 0) {
+      return;
+    }
+
+    // Process in chunks to avoid any query parameter limits, though bulk insert handles typical sizes well.
+    const chunkSize = 500;
+    for (let i = 0; i < validEdges.length; i += chunkSize) {
+      const chunk = validEdges.slice(i, i + chunkSize);
+      await trx('history_edges').insert(
+        chunk.map((edge) => ({
+          from_node_id: edge.from_node_id,
+          to_node_id: edge.to_node_id,
+          edge_type: edge.edge_type,
+          event_id: edge.event_id ?? null,
+          confidence: edge.confidence ?? 1,
+          note: edge.note ?? null,
+        })),
+      );
+    }
   }
 
   private async loadTrackedFieldMap(
