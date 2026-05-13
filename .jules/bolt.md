@@ -9,7 +9,7 @@
 ## 2026-05-12 - Prevent N+1 loops using Map caching
 **Learning:** Found O(N^2) complexity bottlenecks in `repair-order-history-comment-manager.ts` and `repair-order-statuses.service.ts` where an array was mapped/looped over and `Array.prototype.find()` was used inside to look up related records.
 **Action:** Always pre-compute a `Map` of related records mapped by ID before the loop when joining arrays in memory, so the lookup within the loop is O(1) instead of O(N). This reduces the total time complexity from O(N^2) to O(N).
+## 2026-05-13 - Optimize History Event Creation
 
-## 2024-05-18 - Avoid Sequential I/O inside Loops
-**Learning:** Performing network requests, redis, or database operations sequentially using `await` inside loops like `for...of` creates an N+1 performance bottleneck that drastically increases latency.
-**Action:** Parallelize independent network/database I/O operations by gathering promises and using `Promise.all`. For large sets of data, process the promises concurrently in batches/chunks (e.g., 50 at a time) to prevent resource exhaustion or event loop blocking.
+**Learning:** Inserting rows individually inside loops causes massive N+1 query performance degradation.
+**Action:** Refactored `HistoryService.createEvent` to batch arrays of data (actors, entities, inputs, changes) and perform a single bulk `.insert().returning('*')` query for each table, significantly dropping total queries from 709 to 23 for large events.
