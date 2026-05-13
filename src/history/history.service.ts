@@ -671,16 +671,6 @@ export class HistoryService {
             });
           }
 
-        const derivedEdges = Array.from(inputKeyToNode.values()).map((inputNode) => ({
-          from_node_id: changeNode.id,
-          to_node_id: inputNode.id,
-          edge_type: 'derived_from' as const,
-          event_id: updatedEvent.id,
-          confidence: 0.5,
-        }));
-
-        if (derivedEdges.length > 0) {
-          await this.createEdges(trx, derivedEdges);
           const shouldTrackCurrent =
             change.trackCurrentValue ?? trackedField?.track_current_value ?? true;
           if (shouldTrackCurrent) {
