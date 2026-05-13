@@ -1391,8 +1391,11 @@ export class RepairOrderHistoryCommentManager {
     if (!missingIds.length) return;
 
     const rows = await this.selectLookupRows(trx, table, missingIds);
+    // Optimization: Create a map for O(1) lookups instead of O(N) Array.find inside the loop
+    const rowMap = new Map(rows.map((r) => [r.id, r]));
+
     for (const id of missingIds) {
-      const row = rows.find((r) => r.id === id);
+      const row = rowMap.get(id);
       const value = row?.name_uz ?? row?.name_ru ?? row?.name_en ?? row?.name ?? row?.title ?? null;
       this.lookupCache.set(`${table}:${id}`, value);
     }
@@ -1408,8 +1411,11 @@ export class RepairOrderHistoryCommentManager {
       .whereIn('id', missingIds)
       .select<NameLookupRow[]>('id', 'part_name_uz', 'part_name_ru', 'part_name_en');
 
+    // Optimization: Create a map for O(1) lookups instead of O(N) Array.find inside the loop
+    const partMap = new Map(parts.map((p) => [p.id, p]));
+
     for (const id of missingIds) {
-      const part = parts.find((p) => p.id === id);
+      const part = partMap.get(id);
       const value = part?.part_name_uz ?? part?.part_name_ru ?? part?.part_name_en ?? null;
       this.lookupCache.set(`repair_parts:${id}`, value);
     }
