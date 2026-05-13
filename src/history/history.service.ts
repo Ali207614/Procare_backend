@@ -415,7 +415,7 @@ export class HistoryService {
       });
 
       if (payload.actors && payload.actors.length > 0) {
-        const actorInserts = payload.actors.map(actor => ({
+        const actorInserts = payload.actors.map((actor) => ({
           event_id: updatedEvent.id,
           actor_role: actor.actorRole,
           actor_type: actor.actorType,
@@ -450,7 +450,7 @@ export class HistoryService {
       const entityKeyToNode = new Map<string, HistoryNodeRow>();
 
       if (payload.entities && payload.entities.length > 0) {
-        const entityInserts = payload.entities.map(entity => ({
+        const entityInserts = payload.entities.map((entity) => ({
           event_id: updatedEvent.id,
           entity_table: entity.entityTable,
           entity_pk: entity.entityPk,
@@ -465,11 +465,22 @@ export class HistoryService {
 
         const entityRows = (await trx('history_event_entities')
           .insert(entityInserts)
-          .returning('*')) as { id: string; entity_label: string | null; entity_role: string }[];
+          .returning('*')) as {
+          id: string;
+          entity_table: string;
+          entity_pk: string;
+          entity_label: string | null;
+          entity_role: string;
+        }[];
 
         for (let i = 0; i < payload.entities.length; i++) {
           const entity = payload.entities[i];
-          const entityRow = entityRows[i];
+          // Fallback to finding by matching properties if exact order isn't guaranteed
+          const entityRow =
+            entityRows[i] ??
+            entityRows.find(
+              (r) => r.entity_table === entity.entityTable && r.entity_pk === entity.entityPk,
+            );
 
           const entityNode = await this.findOrCreateNode(trx, {
             node_type: 'entity',
@@ -493,7 +504,7 @@ export class HistoryService {
 
       const inputKeyToNode = new Map<string, HistoryNodeRow>();
       if (payload.inputs && payload.inputs.length > 0) {
-        const inputInserts = payload.inputs.map(input => {
+        const inputInserts = payload.inputs.map((input) => {
           const prepared = this.prepareScalarValue(input, null);
           return {
             event_id: updatedEvent.id,
@@ -517,6 +528,12 @@ export class HistoryService {
           const input = payload.inputs[i];
           const inputRow = inputRows[i];
 
+          if (!inputRow) {
+            throw new Error(
+              'PostgreSQL did not return the expected row sequence for history_event_inputs',
+            );
+          }
+
           const inputNode = await this.findOrCreateNode(trx, {
             node_type: 'event_input',
             label: input.inputKey,
@@ -535,7 +552,7 @@ export class HistoryService {
 
       const trackedFields = await this.loadTrackedFieldMap(trx, payload.changes ?? []);
       if (payload.changes && payload.changes.length > 0) {
-        const changeInserts = payload.changes.map(change => {
+        const changeInserts = payload.changes.map((change) => {
           const trackedField = trackedFields.get(
             this.trackedFieldKey(change.entityTable, change.fieldPath),
           );
@@ -573,20 +590,29 @@ export class HistoryService {
             is_sensitive: change.isSensitive ?? trackedField?.is_sensitive ?? false,
             changed_at: change.changedAt ?? new Date(),
             _newPrepared: newPrepared,
-            _trackedField: trackedField
+            _trackedField: trackedField,
           };
         });
 
         const changeRows = (await trx('history_field_changes')
-          .insert(changeInserts.map(c => {
-            const { _newPrepared, _trackedField, ...row } = c;
-            return row;
-          }))
+          .insert(
+            changeInserts.map((c) => {
+              const { _newPrepared, _trackedField, ...row } = c;
+              return row;
+            }),
+          )
           .returning('*')) as HistoryFieldChangeRow[];
 
         for (let i = 0; i < payload.changes.length; i++) {
           const change = payload.changes[i];
           const changeRow = changeRows[i];
+
+          if (!changeRow) {
+            throw new Error(
+              'PostgreSQL did not return the expected row sequence for history_field_changes',
+            );
+          }
+
           const changeInsert = changeInserts[i];
           const newPrepared = changeInsert._newPrepared;
           const trackedField = changeInsert._trackedField;
