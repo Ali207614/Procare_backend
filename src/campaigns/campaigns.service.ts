@@ -449,14 +449,12 @@ export class CampaignsService {
     }
 
     const batchSize = 1000;
-    const insertedIds: { id: string }[] = [];
-    for (let i = 0; i < recipients.length; i += batchSize) {
-      const chunk = recipients.slice(i, i + batchSize);
-      const ids: { id: string }[] = await trx('campaign_recipient').insert(chunk).returning('id');
-      insertedIds.push(...ids);
-    }
+    const insertedIdsArrays = await trx
+      .batchInsert('campaign_recipient', recipients, batchSize)
+      // @ts-expect-error knex batchInsert with returning array type limitation
+      .returning('id');
 
-    return insertedIds;
+    return (insertedIdsArrays as unknown as { id: string }[][]).flat();
   }
 
   private async enqueueRecipients(
