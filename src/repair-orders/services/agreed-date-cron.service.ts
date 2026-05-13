@@ -114,8 +114,14 @@ export class AgreedDateCronService {
 
       // ⚡ Bolt: Pre-fetch notification metadata for all orders in bulk to prevent N+1 queries.
       const successfulOrderIds = successfulOrders.map((o) => o.id);
-      const metas = await this.helper.getRepairOrdersNotificationMeta(successfulOrderIds);
-      const metaMap = new Map(metas.map((m) => [m.order_id, m]));
+      let metaMap = new Map<string, RepairNotificationMeta>();
+      try {
+        const metas = await this.helper.getRepairOrdersNotificationMeta(successfulOrderIds);
+        metaMap = new Map(metas.map((m) => [m.order_id, m]));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.error(`[AgreedDateCron] Bulk notification metadata fetch failed: ${message}`);
+      }
 
       for (let i = 0; i < successfulOrders.length; i += CHUNK_SIZE) {
         const chunk = successfulOrders.slice(i, i + CHUNK_SIZE);
