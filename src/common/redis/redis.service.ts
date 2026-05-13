@@ -131,6 +131,16 @@ export class RedisService {
     }
   }
 
+  async delMany(keys: string[]): Promise<void> {
+    if (!(await this.ensureConnected()) || keys.length === 0) return;
+    try {
+      const prefixedKeys = keys.map((key) => this.buildKey(key));
+      await this.client!.del(...prefixedKeys);
+    } catch (err) {
+      this.handleError(err, `Redis DEL multiple keys error`);
+    }
+  }
+
   async ttl(key: string): Promise<number> {
     if (!(await this.ensureConnected())) return -1;
     try {

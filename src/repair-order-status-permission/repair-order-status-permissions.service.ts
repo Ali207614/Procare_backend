@@ -323,37 +323,34 @@ export class RepairOrderStatusPermissionsService {
   }
 
   async deletePermissionsByRole(roleId: string): Promise<void> {
-    const permissions: RepairOrderStatusPermission[] = await this.knex(this.table).where({
-      role_id: roleId,
-    });
+    const permissions: RepairOrderStatusPermission[] = await this.knex(this.table)
+      .where({ role_id: roleId })
+      .del()
+      .returning('*');
 
     if (permissions.length === 0) return;
-
-    await this.knex(this.table).where({ role_id: roleId }).del();
 
     await this.invalidateCachesForPermissions(permissions);
   }
 
   async deletePermissionsByBranch(branchId: string): Promise<void> {
-    const permissions: RepairOrderStatusPermission[] = await this.knex(this.table).where({
-      branch_id: branchId,
-    });
+    const permissions: RepairOrderStatusPermission[] = await this.knex(this.table)
+      .where({ branch_id: branchId })
+      .del()
+      .returning('*');
 
     if (permissions.length === 0) return;
-
-    await this.knex(this.table).where({ branch_id: branchId }).del();
 
     await this.invalidateCachesForPermissions(permissions);
   }
 
   async deletePermissionsByStatus(statusId: string): Promise<void> {
-    const permissions: RepairOrderStatusPermission[] = await this.knex(this.table).where({
-      status_id: statusId,
-    });
+    const permissions: RepairOrderStatusPermission[] = await this.knex(this.table)
+      .where({ status_id: statusId })
+      .del()
+      .returning('*');
 
     if (permissions.length === 0) return;
-
-    await this.knex(this.table).where({ status_id: statusId }).del();
 
     await this.invalidateCachesForPermissions(permissions);
   }
@@ -384,11 +381,16 @@ export class RepairOrderStatusPermissionsService {
       branchIds.add(branch_id);
     });
 
-    await Promise.all([
-      ...Array.from(keys).map((key) => this.redisService.del(key)),
-      ...Array.from(branchIds).map((branchId) =>
-        this.redisService.flushByPrefix(`${this.redisKeyView}${branchId}:`),
-      ),
-    ]);
+    const tasks: Promise<void>[] = [];
+
+    if (keys.size > 0) {
+      tasks.push(this.redisService.delMany(Array.from(keys)));
+    }
+
+    branchIds.forEach((branchId) => {
+      tasks.push(this.redisService.flushByPrefix(`${this.redisKeyView}${branchId}:`));
+    });
+
+    await Promise.all(tasks);
   }
 }
