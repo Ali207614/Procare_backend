@@ -414,8 +414,9 @@ export class HistoryService {
         event_id: updatedEvent.id,
       });
 
-      if (payload.actors && payload.actors.length > 0) {
-        const actorInserts = payload.actors.map((actor) => ({
+      const actors = payload.actors ?? [];
+      if (actors.length > 0) {
+        const actorInserts = actors.map((actor) => ({
           event_id: updatedEvent.id,
           actor_role: actor.actorRole,
           actor_type: actor.actorType,
@@ -430,27 +431,35 @@ export class HistoryService {
           .insert(actorInserts)
           .returning('*')) as { id: string; actor_label: string | null; actor_role: string }[];
 
-        for (const actorRow of actorRows) {
-          const actorNode = await this.findOrCreateNode(trx, {
-            node_type: 'actor',
-            label: actorRow.actor_label,
-            actor_id: actorRow.id,
-          });
+        const actorNodeInserts = actorRows.map((actorRow) => ({
+          node_type: 'actor' as const,
+          label: actorRow.actor_label ?? null,
+          actor_id: actorRow.id,
+        }));
 
-          await this.createEdge(trx, {
-            from_node_id: actorNode.id,
-            to_node_id: eventNode.id,
-            edge_type: this.actorEdgeType(actorRow.actor_role),
-            event_id: updatedEvent.id,
-          });
+        const actorNodes = await trx<HistoryNodeRow>('history_nodes')
+          .insert(actorNodeInserts)
+          .returning('*');
+
+        const actorEdgeInserts = actorNodes.map((actorNode, i) => ({
+          from_node_id: actorNode.id,
+          to_node_id: eventNode.id,
+          edge_type: this.actorEdgeType(actors[i].actorRole),
+          event_id: updatedEvent.id,
+          confidence: 1,
+        }));
+
+        if (actorEdgeInserts.length > 0) {
+          await trx('history_edges').insert(actorEdgeInserts);
         }
       }
 
       const entityKeyToId = new Map<string, string>();
       const entityKeyToNode = new Map<string, HistoryNodeRow>();
 
-      if (payload.entities && payload.entities.length > 0) {
-        const entityInserts = payload.entities.map((entity) => ({
+      const entities = payload.entities ?? [];
+      if (entities.length > 0) {
+        const entityInserts = entities.map((entity) => ({
           event_id: updatedEvent.id,
           entity_table: entity.entityTable,
           entity_pk: entity.entityPk,
@@ -465,94 +474,104 @@ export class HistoryService {
 
         const entityRows = (await trx('history_event_entities')
           .insert(entityInserts)
-          .returning('*')) as {
-          id: string;
-          entity_table: string;
-          entity_pk: string;
-          entity_label: string | null;
-          entity_role: string;
-        }[];
+          .returning('*')) as { id: string; entity_label: string | null; entity_role: string }[];
 
-        for (let i = 0; i < payload.entities.length; i++) {
-          const entity = payload.entities[i];
-          // Fallback to finding by matching properties if exact order isn't guaranteed
-          const entityRow =
-            entityRows[i] ??
-            entityRows.find(
-              (r) => r.entity_table === entity.entityTable && r.entity_pk === entity.entityPk,
-            );
+        const entityNodeInserts = entityRows.map((entityRow) => ({
+          node_type: 'entity' as const,
+          label: entityRow.entity_label ?? null,
+          event_entity_id: entityRow.id,
+        }));
 
-          const entityNode = await this.findOrCreateNode(trx, {
-            node_type: 'entity',
-            label: entityRow.entity_label,
-            event_entity_id: entityRow.id,
-          });
+        const entityNodes = await trx<HistoryNodeRow>('history_nodes')
+          .insert(entityNodeInserts)
+          .returning('*');
+
+        const entityEdgeInserts: {
+          from_node_id: string;
+          to_node_id: string;
+          edge_type: HistoryEdgeType;
+          event_id: string;
+          confidence: number;
+        }[] = [];
+        for (let i = 0; i < entityRows.length; i++) {
+          const entityRow = entityRows[i];
+          const entity = entities[i];
+          const entityNode = entityNodes[i];
 
           if (entity.key) {
             entityKeyToId.set(entity.key, entityRow.id);
             entityKeyToNode.set(entity.key, entityNode);
           }
 
-          await this.createEdge(trx, {
+          entityEdgeInserts.push({
             from_node_id: eventNode.id,
             to_node_id: entityNode.id,
             edge_type: this.entityEdgeType(entity.entityRole),
             event_id: updatedEvent.id,
+            confidence: 1,
           });
+        }
+
+        if (entityEdgeInserts.length > 0) {
+          await trx('history_edges').insert(entityEdgeInserts);
         }
       }
 
       const inputKeyToNode = new Map<string, HistoryNodeRow>();
-      if (payload.inputs && payload.inputs.length > 0) {
-        const inputInserts = payload.inputs.map((input) => {
-          const prepared = this.prepareScalarValue(input, null);
-          return {
-            event_id: updatedEvent.id,
-            input_key: input.inputKey,
-            value_type: input.valueType,
-            value_text: prepared.value_text,
-            value_normalized: prepared.value_normalized,
-            value_hash: prepared.value_hash,
-            is_sensitive: input.isSensitive ?? false,
-            ref_table: prepared.ref_table,
-            ref_pk: prepared.ref_pk,
-            ref_label: prepared.ref_label,
-          };
-        });
+      const inputs = payload.inputs ?? [];
+      if (inputs.length > 0) {
+        const preparedInputs = inputs.map((input) => ({
+          input,
+          prepared: this.prepareScalarValue(input, null),
+        }));
+
+        const inputInserts = preparedInputs.map(({ input, prepared }) => ({
+          event_id: updatedEvent.id,
+          input_key: input.inputKey,
+          value_type: input.valueType,
+          value_text: prepared.value_text,
+          value_normalized: prepared.value_normalized,
+          value_hash: prepared.value_hash,
+          is_sensitive: input.isSensitive ?? false,
+          ref_table: prepared.ref_table,
+          ref_pk: prepared.ref_pk,
+          ref_label: prepared.ref_label,
+        }));
 
         const inputRows = (await trx('history_event_inputs')
           .insert(inputInserts)
           .returning('*')) as { id: string; input_key: string }[];
 
-        for (let i = 0; i < payload.inputs.length; i++) {
-          const input = payload.inputs[i];
-          const inputRow = inputRows[i];
+        const inputNodeInserts = inputRows.map((inputRow, i) => ({
+          node_type: 'event_input' as const,
+          label: preparedInputs[i].input.inputKey,
+          event_input_id: inputRow.id,
+        }));
 
-          if (!inputRow) {
-            throw new Error(
-              'PostgreSQL did not return the expected row sequence for history_event_inputs',
-            );
-          }
+        const inputNodes = await trx<HistoryNodeRow>('history_nodes')
+          .insert(inputNodeInserts)
+          .returning('*');
 
-          const inputNode = await this.findOrCreateNode(trx, {
-            node_type: 'event_input',
-            label: input.inputKey,
-            event_input_id: inputRow.id,
-          });
-          inputKeyToNode.set(input.inputKey, inputNode);
-
-          await this.createEdge(trx, {
+        const inputEdgeInserts = inputNodes.map((inputNode, i) => {
+          inputKeyToNode.set(preparedInputs[i].input.inputKey, inputNode);
+          return {
             from_node_id: eventNode.id,
             to_node_id: inputNode.id,
-            edge_type: 'read_from',
+            edge_type: 'read_from' as const,
             event_id: updatedEvent.id,
-          });
+            confidence: 1,
+          };
+        });
+
+        if (inputEdgeInserts.length > 0) {
+          await trx('history_edges').insert(inputEdgeInserts);
         }
       }
 
       const trackedFields = await this.loadTrackedFieldMap(trx, payload.changes ?? []);
-      if (payload.changes && payload.changes.length > 0) {
-        const changeInserts = payload.changes.map((change) => {
+      const changes = payload.changes ?? [];
+      if (changes.length > 0) {
+        const preparedChanges = changes.map((change) => {
           const trackedField = trackedFields.get(
             this.trackedFieldKey(change.entityTable, change.fieldPath),
           );
@@ -564,8 +583,11 @@ export class HistoryService {
             change.newValue ?? { valueType: change.valueType, valueText: null },
             trackedField ?? null,
           );
+          return { change, trackedField, oldPrepared, newPrepared };
+        });
 
-          return {
+        const changeInserts = preparedChanges.map(
+          ({ change, trackedField, oldPrepared, newPrepared }) => ({
             event_id: updatedEvent.id,
             event_entity_id: change.eventEntityKey
               ? entityKeyToId.get(change.eventEntityKey) ?? null
@@ -589,62 +611,58 @@ export class HistoryService {
             new_ref_label: newPrepared.ref_label,
             is_sensitive: change.isSensitive ?? trackedField?.is_sensitive ?? false,
             changed_at: change.changedAt ?? new Date(),
-            _newPrepared: newPrepared,
-            _trackedField: trackedField,
-          };
-        });
+          }),
+        );
 
         const changeRows = (await trx('history_field_changes')
-          .insert(
-            changeInserts.map((c) => {
-              const { _newPrepared, _trackedField, ...row } = c;
-              return row;
-            }),
-          )
+          .insert(changeInserts)
           .returning('*')) as HistoryFieldChangeRow[];
 
-        for (let i = 0; i < payload.changes.length; i++) {
-          const change = payload.changes[i];
+        const changeNodeInserts = changeRows.map((changeRow, i) => ({
+          node_type: 'field_change' as const,
+          label: `${preparedChanges[i].change.entityTable}.${preparedChanges[i].change.fieldPath}`,
+          field_change_id: changeRow.id,
+        }));
+
+        const changeNodes = await trx<HistoryNodeRow>('history_nodes')
+          .insert(changeNodeInserts)
+          .returning('*');
+
+        const changeEdgeInserts: {
+          from_node_id: string;
+          to_node_id: string;
+          edge_type: HistoryEdgeType;
+          event_id: string;
+          confidence: number;
+        }[] = [];
+        for (let i = 0; i < changeRows.length; i++) {
           const changeRow = changeRows[i];
+          const { change, trackedField, newPrepared } = preparedChanges[i];
+          const changeNode = changeNodes[i];
 
-          if (!changeRow) {
-            throw new Error(
-              'PostgreSQL did not return the expected row sequence for history_field_changes',
-            );
-          }
-
-          const changeInsert = changeInserts[i];
-          const newPrepared = changeInsert._newPrepared;
-          const trackedField = changeInsert._trackedField;
-
-          // Wait until next PR for further edge optimizations, but bulk inserting saves roundtrips
-          const changeNode = await this.findOrCreateNode(trx, {
-            node_type: 'field_change',
-            label: `${change.entityTable}.${change.fieldPath}`,
-            field_change_id: changeRow.id,
-          });
-
-          await this.createEdge(trx, {
+          changeEdgeInserts.push({
             from_node_id: eventNode.id,
             to_node_id: changeNode.id,
             edge_type: 'changed',
             event_id: updatedEvent.id,
+            confidence: 1,
           });
 
           if (change.eventEntityKey) {
             const entityNode = entityKeyToNode.get(change.eventEntityKey);
             if (entityNode) {
-              await this.createEdge(trx, {
+              changeEdgeInserts.push({
                 from_node_id: changeNode.id,
                 to_node_id: entityNode.id,
                 edge_type: 'affected',
                 event_id: updatedEvent.id,
+                confidence: 1,
               });
             }
           }
 
           for (const inputNode of inputKeyToNode.values()) {
-            await this.createEdge(trx, {
+            changeEdgeInserts.push({
               from_node_id: changeNode.id,
               to_node_id: inputNode.id,
               edge_type: 'derived_from',
@@ -653,11 +671,25 @@ export class HistoryService {
             });
           }
 
+        const derivedEdges = Array.from(inputKeyToNode.values()).map((inputNode) => ({
+          from_node_id: changeNode.id,
+          to_node_id: inputNode.id,
+          edge_type: 'derived_from' as const,
+          event_id: updatedEvent.id,
+          confidence: 0.5,
+        }));
+
+        if (derivedEdges.length > 0) {
+          await this.createEdges(trx, derivedEdges);
           const shouldTrackCurrent =
             change.trackCurrentValue ?? trackedField?.track_current_value ?? true;
           if (shouldTrackCurrent) {
             await this.upsertCurrentValue(trx, change, changeRow, newPrepared);
           }
+        }
+
+        if (changeEdgeInserts.length > 0) {
+          await trx('history_edges').insert(changeEdgeInserts);
         }
       }
 
@@ -1312,6 +1344,39 @@ export class HistoryService {
       confidence: edge.confidence ?? 1,
       note: edge.note ?? null,
     });
+  }
+
+  private async createEdges(
+    trx: Knex.Transaction,
+    edges: Array<{
+      from_node_id: string;
+      to_node_id: string;
+      edge_type: HistoryEdgeType;
+      event_id?: string | null;
+      confidence?: number;
+      note?: string | null;
+    }>,
+  ): Promise<void> {
+    const validEdges = edges.filter((e) => e.from_node_id !== e.to_node_id);
+    if (validEdges.length === 0) {
+      return;
+    }
+
+    // Process in chunks to avoid any query parameter limits, though bulk insert handles typical sizes well.
+    const chunkSize = 500;
+    for (let i = 0; i < validEdges.length; i += chunkSize) {
+      const chunk = validEdges.slice(i, i + chunkSize);
+      await trx('history_edges').insert(
+        chunk.map((edge) => ({
+          from_node_id: edge.from_node_id,
+          to_node_id: edge.to_node_id,
+          edge_type: edge.edge_type,
+          event_id: edge.event_id ?? null,
+          confidence: edge.confidence ?? 1,
+          note: edge.note ?? null,
+        })),
+      );
+    }
   }
 
   private async loadTrackedFieldMap(
