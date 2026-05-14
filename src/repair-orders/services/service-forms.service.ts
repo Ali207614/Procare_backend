@@ -15,10 +15,47 @@ import {
   ServiceFormChecklistDto,
   ServiceFormFormDto,
 } from '../dto/create-service-form.dto';
-import { GetServiceFormResponseDto } from '../dto/service-form-response.dto';
+import {
+  CreateWarrantyAgreementResponseDto,
+  CreateServiceFormResponseDto,
+  GetServiceFormResponseDto,
+} from '../dto/service-form-response.dto';
 import { PdfPayload } from 'src/pdf/interfaces/pdf-payload.interface';
 import { randomBytes } from 'crypto';
 import { RepairOrderChangeLoggerService } from './repair-order-change-logger.service';
+
+export type WarrantyAgreementGenerationState =
+  | 'started'
+  | 'data_loaded'
+  | 'pdf_generated'
+  | 'uploaded'
+  | 'completed'
+  | 'failed';
+
+export interface WarrantyAgreementGenerationEvent {
+  state: WarrantyAgreementGenerationState;
+  message: string;
+  result?: CreateWarrantyAgreementResponseDto;
+}
+
+type WarrantyAgreementProgressHandler = (event: WarrantyAgreementGenerationEvent) => void;
+
+export type ServiceFormGenerationState =
+  | 'started'
+  | 'data_loaded'
+  | 'storage_prepared'
+  | 'pdf_generated'
+  | 'uploaded'
+  | 'completed'
+  | 'failed';
+
+export interface ServiceFormGenerationEvent {
+  state: ServiceFormGenerationState;
+  message: string;
+  result?: CreateServiceFormResponseDto;
+}
+
+type ServiceFormProgressHandler = (event: ServiceFormGenerationEvent) => void;
 
 interface ServiceFormRow {
   id: string;
@@ -70,12 +107,9 @@ export class ServiceFormsService {
     return `SF-${suffix}`;
   }
 
-  async createServiceForm(
+  private async getRepairOrderServiceFormData(
     repairOrderId: string,
-    dto: CreateServiceFormDto,
-    admin: AdminPayload,
-  ): Promise<{ warranty_id: string; message: string }> {
-    // 1. Fetch all data in a single SQL query
+  ): Promise<RepairOrderServiceFormData> {
     const sql = loadSQL('repair-orders/queries/get-service-form-data.sql');
     const result: { rows: RepairOrderServiceFormData[] } = await this.knex.raw(sql, {
       repairOrderId,
@@ -89,10 +123,32 @@ export class ServiceFormsService {
       });
     }
 
+    return data;
+  }
+
+  async createServiceForm(
+    repairOrderId: string,
+    dto: CreateServiceFormDto,
+    admin: AdminPayload,
+    onProgress?: ServiceFormProgressHandler,
+  ): Promise<CreateServiceFormResponseDto> {
+    this.emitServiceFormProgress(onProgress, {
+      state: 'started',
+      message: 'Service form generation started',
+    });
+
+    // 1. Fetch all data in a single SQL query
+    const data = await this.getRepairOrderServiceFormData(repairOrderId);
+
     const existingForm = await this.knex<ServiceFormRow>('service_forms')
       .where({ repair_order_id: repairOrderId })
       .orderBy('created_at', 'desc')
       .first();
+
+    this.emitServiceFormProgress(onProgress, {
+      state: 'data_loaded',
+      message: 'Repair order data loaded',
+    });
 
     // Check MinIO directly to ensure we clean up old PDF files
     const prefix = `service-forms/${repairOrderId}/`;
@@ -118,6 +174,11 @@ export class ServiceFormsService {
         );
       }
     }
+
+    this.emitServiceFormProgress(onProgress, {
+      state: 'storage_prepared',
+      message: 'Existing service form files cleaned up',
+    });
 
     // 2. Generate unique warranty ID
     const warrantyId = this.generateWarrantyId();
@@ -184,6 +245,11 @@ export class ServiceFormsService {
       );
     }
 
+    this.emitServiceFormProgress(onProgress, {
+      state: 'pdf_generated',
+      message: 'Service form PDF generated',
+    });
+
     // 5. Upload to MinIO
     const filePath = `service-forms/${repairOrderId}/${warrantyId}.pdf`;
     try {
@@ -200,6 +266,11 @@ export class ServiceFormsService {
         `Failed to upload service form to storage: ${(error as Error)?.message || 'Unknown Error'}`,
       );
     }
+
+    this.emitServiceFormProgress(onProgress, {
+      state: 'uploaded',
+      message: 'Service form uploaded to storage',
+    });
 
     // 6. Save record to DB and write a routed history comment
     const now = new Date().toISOString();
@@ -228,7 +299,131 @@ export class ServiceFormsService {
       );
     });
 
-    return { warranty_id: warrantyId, message: 'Service form generated successfully' };
+    const result = { warranty_id: warrantyId, message: 'Service form generated successfully' };
+
+    this.emitServiceFormProgress(onProgress, {
+      state: 'completed',
+      message: 'Service form generated successfully',
+      result,
+    });
+
+    return result;
+  }
+
+  async createWarrantyAgreement(
+    repairOrderId: string,
+    admin: AdminPayload,
+    onProgress?: WarrantyAgreementProgressHandler,
+  ): Promise<CreateWarrantyAgreementResponseDto> {
+    this.emitWarrantyAgreementProgress(onProgress, {
+      state: 'started',
+      message: 'Warranty agreement generation started',
+    });
+
+    const data = await this.getRepairOrderServiceFormData(repairOrderId);
+    const existingForm = await this.knex<ServiceFormRow>('service_forms')
+      .where({ repair_order_id: repairOrderId })
+      .orderBy('created_at', 'desc')
+      .first();
+
+    const warrantyId = this.getValidString(existingForm?.warranty_id) || this.generateWarrantyId();
+    const payload = this.buildWarrantyAgreementPayload(data, existingForm, warrantyId);
+
+    this.emitWarrantyAgreementProgress(onProgress, {
+      state: 'data_loaded',
+      message: 'Repair order data loaded',
+    });
+
+    let pdfBuffer: Buffer;
+    try {
+      pdfBuffer = await this.pdfService.generateWarrantyAgreement(payload);
+    } catch (error) {
+      this.logger.error(
+        'Failed to generate warranty agreement PDF',
+        JSON.stringify({
+          errorMessage: (error as Error)?.message,
+          stack: (error as Error)?.stack,
+        }),
+      );
+      throw new InternalServerErrorException(
+        `Failed to generate warranty agreement PDF: ${(error as Error)?.message || 'Unknown Error'}`,
+      );
+    }
+
+    this.emitWarrantyAgreementProgress(onProgress, {
+      state: 'pdf_generated',
+      message: 'Warranty agreement PDF generated',
+    });
+
+    const prefix = `warranty-agreements/${repairOrderId}/`;
+    const filePath = `${prefix}${warrantyId}.pdf`;
+    let existingFiles: string[] = [];
+
+    try {
+      existingFiles = await this.storageService.listFiles(prefix);
+    } catch (error) {
+      this.logger.error(
+        'Failed to list existing warranty agreements from MinIO',
+        (error as Error)?.stack,
+      );
+    }
+
+    try {
+      await this.storageService.upload(filePath, pdfBuffer, { 'Content-Type': 'application/pdf' });
+    } catch (error) {
+      this.logger.error(
+        'Failed to upload warranty agreement to storage',
+        JSON.stringify({
+          errorMessage: (error as Error)?.message,
+          stack: (error as Error)?.stack,
+        }),
+      );
+      throw new InternalServerErrorException(
+        `Failed to upload warranty agreement to storage: ${(error as Error)?.message || 'Unknown Error'}`,
+      );
+    }
+
+    for (const file of existingFiles.filter((file) => file !== filePath)) {
+      try {
+        await this.storageService.delete(file);
+        this.logger.log(`Deleted existing warranty agreement file from MinIO: ${file}`);
+      } catch (error) {
+        this.logger.error(
+          `Failed to delete existing warranty agreement from MinIO: ${file}`,
+          (error as Error)?.stack,
+        );
+      }
+    }
+
+    this.emitWarrantyAgreementProgress(onProgress, {
+      state: 'uploaded',
+      message: 'Warranty agreement uploaded to storage',
+    });
+
+    await this.knex.transaction(async (trx) => {
+      await this.changeLogger.logAction(
+        trx,
+        repairOrderId,
+        'warranty_agreement_generated',
+        { warranty_id: warrantyId },
+        admin.id,
+      );
+    });
+
+    const url = await this.storageService.generateUrl(filePath, 3600);
+    const result = {
+      warranty_id: warrantyId,
+      url,
+      message: 'Warranty agreement generated successfully',
+    };
+
+    this.emitWarrantyAgreementProgress(onProgress, {
+      state: 'completed',
+      message: 'Warranty agreement generated successfully',
+      result,
+    });
+
+    return result;
   }
 
   async getServiceForm(repairOrderId: string): Promise<GetServiceFormResponseDto | object> {
@@ -253,5 +448,76 @@ export class ServiceFormsService {
       checklist: record.checklist ?? ({} as ServiceFormChecklistDto),
       comments: record.comments,
     };
+  }
+
+  private buildWarrantyAgreementPayload(
+    data: RepairOrderServiceFormData,
+    existingForm: ServiceFormRow | undefined,
+    warrantyId: string,
+  ): PdfPayload {
+    const storedForm = existingForm?.form ?? ({} as Partial<ServiceFormFormDto>);
+    const date =
+      this.getValidDateString(storedForm.date) || this.getValidDateString(data.created_at);
+
+    return {
+      warranty_id: warrantyId,
+      pattern: existingForm?.pattern ?? [],
+      device_points: existingForm?.device_points ?? {},
+      checklist: existingForm?.checklist ?? {
+        display: [],
+        body: [],
+        'ports-1': [],
+        ports: [],
+        other: [],
+      },
+      comments: this.getValidString(existingForm?.comments),
+      form: {
+        date,
+        pin: this.getValidString(storedForm.pin),
+        customer_name: this.getValidString(data.customer_name),
+        phone_number: this.getValidString(data.phone_number),
+        device_name: this.getValidString(data.device_name),
+        imei: this.getValidString(data.imei),
+        specialist_name: this.getValidString(data.specialist_name),
+        promo_code: '',
+        repair_id: warrantyId,
+        source: this.getValidString(data.source_type),
+        total_amount: Number(data.total_amount || 0),
+        warranty_period: '',
+      },
+      offer_content: '',
+    };
+  }
+
+  private getValidString(value: unknown): string {
+    if (value === null || value === undefined) return '';
+
+    const stringValue = String(value).trim();
+    return stringValue.length > 0 ? stringValue : '';
+  }
+
+  private getValidDateString(value: unknown): string {
+    const stringValue = this.getValidString(value);
+    if (!stringValue) return '';
+
+    const isoDate = stringValue.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (isoDate) return isoDate[1];
+
+    const date = new Date(stringValue);
+    return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+  }
+
+  private emitWarrantyAgreementProgress(
+    onProgress: WarrantyAgreementProgressHandler | undefined,
+    event: WarrantyAgreementGenerationEvent,
+  ): void {
+    onProgress?.(event);
+  }
+
+  private emitServiceFormProgress(
+    onProgress: ServiceFormProgressHandler | undefined,
+    event: ServiceFormGenerationEvent,
+  ): void {
+    onProgress?.(event);
   }
 }

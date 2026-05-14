@@ -1,0 +1,66 @@
+import { Injectable, Inject, NestMiddleware } from '@nestjs/common';
+import { Request, Response, NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
+import RedisStore, { type RedisReply } from 'rate-limit-redis';
+import Redis from 'ioredis';
+import { LoggerService } from '../logger/logger.service';
+import { HttpStatus } from '@nestjs/common';
+import { getClientIp } from '../utils/request-ip.util';
+
+@Injectable()
+export class AuthRateLimiterMiddleware implements NestMiddleware {
+  private readonly limiter;
+
+  constructor(
+    @Inject('REDIS_CLIENT') private readonly redisClient: Redis | null,
+    private readonly logger: LoggerService,
+  ) {
+    const isRedisAvailable = !!this.redisClient;
+
+    this.limiter = rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 50, // Limit each IP to 50 requests per `window` to prevent locking out NATs/offices while stopping rapid brute-force
+      keyGenerator: (req: Request) => getClientIp(req),
+
+      handler: (req: Request, res: Response) => {
+        const statusCode = 429;
+        const statusMessage = HttpStatus[statusCode] || 'Too Many Requests';
+
+        const logMessage = `[${req.method}] ${req.originalUrl} - ${statusCode} ${statusMessage} - ip=${getClientIp(req)} - AUTH RATE LIMIT EXCEEDED`;
+        this.logger.warn(logMessage);
+
+        res.status(statusCode).json({
+          statusCode,
+          message:
+            'Too many authentication requests from this IP. Please try again after 15 minutes.',
+          error: 'TooManyRequests',
+          location: 'auth_rate_limit',
+          timestamp: new Date().toISOString(),
+          path: req.originalUrl,
+        });
+      },
+
+      ...(isRedisAvailable
+        ? {
+            store: new RedisStore({
+              prefix: 'rl:auth:',
+              sendCommand: (...args: [string, ...string[]]): Promise<RedisReply> => {
+                if (!this.redisClient) {
+                  this.logger.warn('⚠️ Redis not available during sendCommand');
+                  return Promise.resolve('' as RedisReply); // fallback
+                }
+                return this.redisClient.call(...args) as unknown as Promise<RedisReply>;
+              },
+            }),
+          }
+        : ((): Record<string, never> => {
+            this.logger.warn('⚠️ Redis is not connected. Auth Rate limiting will use MemoryStore.');
+            return {};
+          })()),
+    });
+  }
+
+  use(req: Request, res: Response, next: NextFunction): void {
+    this.limiter(req, res, next);
+  }
+}

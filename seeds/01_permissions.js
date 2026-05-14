@@ -124,6 +124,10 @@ exports.seed = async function (knex) {
     { id: '00000000-0000-4000-8000-000000000088', name: 'repair.order.reject.cause.create', description: 'Reject sababini yaratish' },
     { id: '00000000-0000-4000-8000-000000000089', name: 'repair.order.reject.cause.update', description: 'Reject sababini tahrirlash' },
     { id: '00000000-0000-4000-8000-000000000090', name: 'repair.order.reject.cause.delete', description: 'Reject sababini ochirish' },
+
+    // Analytics
+    { id: '00000000-0000-4000-8000-000000000096', name: 'analytics.repair_orders.view', description: 'Repair order analytics view' },
+    { id: '00000000-0000-4000-8000-000000000097', name: 'analytics.repair_orders.view_all', description: 'Repair order analytics across all branches' },
   ];
 
 

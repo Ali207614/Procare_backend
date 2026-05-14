@@ -452,6 +452,33 @@ describe('OnlinePbxService gateway filtering', () => {
     );
   });
 
+  it('creates a repair order without admin assignment on missed inbound call when no open order exists', async () => {
+    repairOrderService.findOpenOrderByPhoneNumber.mockResolvedValue(undefined);
+    repairOrderService.createFromWebhook.mockResolvedValue({
+      id: 'order-missed-new',
+      user_id: null,
+    });
+
+    await service.handleWebhook({
+      uuid: 'call-missed-no-order-1',
+      gateway: '+998781133774',
+      direction: 'inbound',
+      event: 'call_missed',
+      caller: '+998901234567',
+      callee: '120',
+    });
+
+    expect(repairOrderService.createFromWebhook).toHaveBeenCalledWith({
+      userId: null,
+      branchId: '00000000-0000-4000-8000-000000000000',
+      statusId: '50000000-0000-0000-0001-001000000000',
+      phoneNumber: '+998901234567',
+      source: 'Kiruvchi qongiroq',
+      onlinepbxCode: null,
+      fallbackToFewestOpen: false,
+    });
+  });
+
   it('records customer no-answer on outbound call_end when dialog_duration is zero', async () => {
     repairOrderService.findOpenOrderByPhoneNumber.mockResolvedValue({
       id: 'order-1',

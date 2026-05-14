@@ -449,14 +449,12 @@ export class CampaignsService {
     }
 
     const batchSize = 1000;
-    const insertedIds: { id: string }[] = [];
-    for (let i = 0; i < recipients.length; i += batchSize) {
-      const chunk = recipients.slice(i, i + batchSize);
-      const ids: { id: string }[] = await trx('campaign_recipient').insert(chunk).returning('id');
-      insertedIds.push(...ids);
-    }
+    const insertedIdsArrays = await trx
+      .batchInsert('campaign_recipient', recipients, batchSize)
+      // @ts-expect-error knex batchInsert with returning array type limitation
+      .returning('id');
 
-    return insertedIds;
+    return (insertedIdsArrays as unknown as { id: string }[][]).flat();
   }
 
   private async enqueueRecipients(
@@ -505,10 +503,14 @@ export class CampaignsService {
     await this.knex('campaigns').where('id', campaignId).update({ status: 'paused' });
 
     const jobs = await this.queue.getJobs(['waiting', 'delayed', 'active']);
-    for (const job of jobs) {
-      if (job.data.campaignId === campaignId) {
-        await job.remove();
-      }
+    const jobsToRemove = jobs.filter((job) => job.data.campaignId === campaignId);
+
+    // Performance Optimization: Process job removals concurrently in chunks
+    // to avoid N+1 sequential await delays while preventing Redis overload.
+    const chunkSize = 50;
+    for (let i = 0; i < jobsToRemove.length; i += chunkSize) {
+      const chunk = jobsToRemove.slice(i, i + chunkSize);
+      await Promise.all(chunk.map((job) => job.remove()));
     }
 
     this.logger.log(`Paused campaign ${campaignId} and removed pending jobs`);

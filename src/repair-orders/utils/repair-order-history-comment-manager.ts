@@ -273,6 +273,12 @@ export class RepairOrderHistoryCommentManager {
           `servis formasini yangiladi`,
           this.describeServiceFormChange(history.new_value),
         );
+      case 'warranty_agreement_generated':
+        return this.buildActorComment(
+          actor,
+          `kafolat shartnomasini yaratdi`,
+          this.describeServiceFormChange(history.new_value),
+        );
       case 'rental_phone_updated':
         return this.buildActorComment(
           actor,
@@ -290,45 +296,94 @@ export class RepairOrderHistoryCommentManager {
     trx: DbClient,
     history: RepairOrderChangeHistory,
   ): Promise<boolean> {
-    const existing = await trx('repair_order_comments')
-      .where({ history_change_id: history.id })
-      .first('id');
+    const result = await this.ensureCommentsForHistories(trx, [history]);
+    return result.created > 0;
+  }
 
-    if (existing) {
-      return false;
+  async ensureCommentsForHistories(
+    trx: DbClient,
+    histories: RepairOrderChangeHistory[],
+  ): Promise<{ processed: number; created: number; skipped: number }> {
+    if (!histories.length) {
+      return { processed: 0, created: 0, skipped: 0 };
     }
 
-    const text = await this.buildCommentText(trx, history);
-    if (!text) {
-      return false;
+    // ⚡ Bolt: Preload admin names to minimize duplicate N+1 queries.
+    const adminIds = histories
+      .map((row) => row.created_by)
+      .filter((id): id is string => Boolean(id));
+
+    if (adminIds.length > 0) {
+      await this.resolveAdminNames(trx, adminIds);
     }
 
-    const createdBy = await this.resolveCommentCreatorId(trx, history.created_by);
-    const statusBy = await this.resolveStatusBy(trx, history);
+    // ⚡ Bolt: Bulk fetch existing comments to prevent N+1 existence checks.
+    const rowIds = histories.map((row) => row.id);
+    const existingRows = await trx('repair_order_comments')
+      .whereIn('history_change_id', rowIds)
+      .select<{ history_change_id: string }[]>('history_change_id');
+    const existingIds = new Set(existingRows.map((r) => r.history_change_id));
 
-    if (!statusBy) {
-      this.logger?.warn?.(
-        `[HistoryComment] Status could not be resolved for history ${history.id}, skipping comment generation.`,
+    const payloads: Record<string, unknown>[] = [];
+    let skipped = 0;
+
+    // ⚡ Bolt: Use batched concurrency. We chunk the missing histories into batches of 20
+    // to build text and lookup remaining relations efficiently without exhausting DB connections.
+    const CHUNK_SIZE = 20;
+    const pendingHistories = histories.filter((h) => {
+      if (existingIds.has(h.id)) {
+        skipped += 1;
+        return false;
+      }
+      return true;
+    });
+
+    for (let i = 0; i < pendingHistories.length; i += CHUNK_SIZE) {
+      const chunk = pendingHistories.slice(i, i + CHUNK_SIZE);
+      await Promise.all(
+        chunk.map(async (history) => {
+          const text = await this.buildCommentText(trx, history);
+          if (!text) {
+            skipped += 1;
+            return;
+          }
+
+          const createdBy = await this.resolveCommentCreatorId(trx, history.created_by);
+          const statusBy = await this.resolveStatusBy(trx, history);
+
+          if (!statusBy) {
+            this.logger?.warn?.(
+              `[HistoryComment] Status could not be resolved for history ${history.id}, skipping comment generation.`,
+            );
+            skipped += 1;
+            return;
+          }
+
+          payloads.push({
+            repair_order_id: history.repair_order_id,
+            text,
+            status: 'Open',
+            comment_type: 'history',
+            history_change_id: history.id,
+            created_by: createdBy,
+            status_by: statusBy,
+            created_at: history.created_at,
+            updated_at: history.created_at,
+          });
+        }),
       );
-      return false;
     }
 
-    await trx('repair_order_comments')
-      .insert({
-        repair_order_id: history.repair_order_id,
-        text,
-        status: 'Open',
-        comment_type: 'history',
-        history_change_id: history.id,
-        created_by: createdBy,
-        status_by: statusBy,
-        created_at: history.created_at,
-        updated_at: history.created_at,
-      })
-      .onConflict('history_change_id')
-      .ignore();
+    // ⚡ Bolt: Bulk insert comments to replace individual N+1 insert queries.
+    if (payloads.length > 0) {
+      await trx('repair_order_comments').insert(payloads).onConflict('history_change_id').ignore();
+    }
 
-    return true;
+    return {
+      processed: histories.length,
+      created: payloads.length,
+      skipped,
+    };
   }
 
   async backfillMissingComments(batchSize = 200): Promise<{
@@ -347,15 +402,10 @@ export class RepairOrderHistoryCommentManager {
       if (!rows.length) break;
 
       await this.knex.transaction(async (trx) => {
-        for (const row of rows) {
-          processed += 1;
-          const wasCreated = await this.ensureCommentForHistory(trx, row);
-          if (wasCreated) {
-            created += 1;
-          } else {
-            skipped += 1;
-          }
-        }
+        const batchResult = await this.ensureCommentsForHistories(trx, rows);
+        processed += batchResult.processed;
+        created += batchResult.created;
+        skipped += batchResult.skipped;
       });
 
       const lastRow = rows[rows.length - 1];
@@ -909,7 +959,8 @@ export class RepairOrderHistoryCommentManager {
           ]
         : field === 'final_problems' ||
             field === 'service_form_created' ||
-            field === 'service_form_updated'
+            field === 'service_form_updated' ||
+            field === 'warranty_agreement_generated'
           ? [
               RoleType.MASTER,
               RoleType.SPECIALIST,
@@ -1384,8 +1435,11 @@ export class RepairOrderHistoryCommentManager {
     if (!missingIds.length) return;
 
     const rows = await this.selectLookupRows(trx, table, missingIds);
+    // Optimization: Create a map for O(1) lookups instead of O(N) Array.find inside the loop
+    const rowMap = new Map(rows.map((r) => [r.id, r]));
+
     for (const id of missingIds) {
-      const row = rows.find((r) => r.id === id);
+      const row = rowMap.get(id);
       const value = row?.name_uz ?? row?.name_ru ?? row?.name_en ?? row?.name ?? row?.title ?? null;
       this.lookupCache.set(`${table}:${id}`, value);
     }
@@ -1401,8 +1455,11 @@ export class RepairOrderHistoryCommentManager {
       .whereIn('id', missingIds)
       .select<NameLookupRow[]>('id', 'part_name_uz', 'part_name_ru', 'part_name_en');
 
+    // Optimization: Create a map for O(1) lookups instead of O(N) Array.find inside the loop
+    const partMap = new Map(parts.map((p) => [p.id, p]));
+
     for (const id of missingIds) {
-      const part = parts.find((p) => p.id === id);
+      const part = partMap.get(id);
       const value = part?.part_name_uz ?? part?.part_name_ru ?? part?.part_name_en ?? null;
       this.lookupCache.set(`repair_parts:${id}`, value);
     }

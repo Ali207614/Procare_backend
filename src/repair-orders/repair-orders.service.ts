@@ -3277,7 +3277,7 @@ export class RepairOrdersService {
         });
 
       await this.moveToTop(trx, order);
-      await this.assignFallbackAdminIfOrderHasNone(trx, order.id, order.branch_id);
+
       await trx.commit();
 
       void this.notifyRepairOrderUpdate(order, {
@@ -4687,7 +4687,7 @@ export class RepairOrdersService {
               ),
               ro.updated_at,
               ro.created_at
-            )::date) < 3
+            )::date) < 7
             AND (
               (
                 SELECT COUNT(*)
@@ -5345,10 +5345,10 @@ export class RepairOrdersService {
     }
 
     if (latestDate) {
-      return isWithinCalendarDays(latestDate, 3);
+      return isWithinCalendarDays(latestDate, 7);
     }
 
-    return isWithinCalendarDays(order.updated_at || order.created_at, 3);
+    return isWithinCalendarDays(order.updated_at || order.created_at, 7);
   }
 
   private async getLastDialogueDuration(

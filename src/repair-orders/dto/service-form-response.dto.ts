@@ -13,6 +13,34 @@ export class CreateServiceFormResponseDto {
   message!: string;
 }
 
+export class CreateWarrantyAgreementResponseDto {
+  @ApiProperty({ example: 'SF-A3B9K2', description: 'Warranty ID used for the agreement PDF' })
+  warranty_id!: string;
+
+  @ApiProperty({
+    example: 'https://storage.procare.uz/warranty-agreements/uuid/SF-A3B9K2.pdf',
+    description: 'Presigned URL to download the generated warranty agreement PDF',
+  })
+  url!: string;
+
+  @ApiProperty({ example: 'Warranty agreement generated successfully' })
+  message!: string;
+}
+
+export class WarrantyAgreementSseDataDto {
+  @ApiProperty({
+    example: 'pdf_generated',
+    enum: ['started', 'data_loaded', 'pdf_generated', 'uploaded', 'completed', 'failed'],
+  })
+  state!: string;
+
+  @ApiProperty({ example: 'Warranty agreement PDF generated' })
+  message!: string;
+
+  @ApiProperty({ type: CreateWarrantyAgreementResponseDto, required: false })
+  result?: CreateWarrantyAgreementResponseDto;
+}
+
 export class GetServiceFormResponseDto {
   @ApiProperty({ example: 'SF-A3B9K2', description: 'Latest warranty ID for this repair order' })
   warranty_id!: string;

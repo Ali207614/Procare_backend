@@ -59,8 +59,14 @@ export class RepairOrderChangeLoggerService {
     adminId: string,
     options?: RepairOrderHistoryLogOptions,
   ): Promise<void> {
-    for (const { key, oldVal, newVal } of fields) {
-      await this.logIfChanged(trx, orderId, key, oldVal, newVal, adminId, options);
+    const chunkSize = 5;
+    for (let i = 0; i < fields.length; i += chunkSize) {
+      const chunk = fields.slice(i, i + chunkSize);
+      await Promise.all(
+        chunk.map(({ key, oldVal, newVal }) =>
+          this.logIfChanged(trx, orderId, key, oldVal, newVal, adminId, options),
+        ),
+      );
     }
   }
 
