@@ -47,7 +47,6 @@ describe('RepairOrdersService (Duplicate Check)', () => {
 
   describe('checkForRecentInvalidDuplicatesOrThrow', () => {
     it('should throw BadRequestException if a recent Invalid order exists with same category and IMEI', async () => {
-      const mockTrx = jest.fn() as any;
       const invalidStatusId = 'status-invalid-123';
       const orderId = 'order-123';
       const categoryId = 'cat-123';
@@ -137,10 +136,13 @@ describe('RepairOrdersService (Duplicate Check)', () => {
     });
 
     it('should correctly match orders with no IMEI', async () => {
-      const mockTrx = jest.fn() as any;
       const invalidStatusId = 'status-invalid-123';
       const orderId = 'order-no-imei';
       const categoryId = 'cat-123';
+
+      jest.spyOn(service as any, 'isInvalidRepairOrderReusable').mockResolvedValue(true);
+
+      const mockTrx = jest.fn() as any;
 
       mockTrx.mockReturnValueOnce({
         where: jest.fn().mockReturnThis(),
