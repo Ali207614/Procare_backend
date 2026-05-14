@@ -37,8 +37,7 @@ export class RepairOrderAnalyticsController {
 
   @Get('by-reject-causes')
   @ApiOperation({
-    summary:
-      'Repair-order lead analytics grouped by reject cause for moves into Invalid statuses',
+    summary: 'Repair-order lead analytics grouped by reject cause for moves into Invalid statuses',
   })
   getByRejectCauses(
     @CurrentAdmin() admin: AdminPayload,
