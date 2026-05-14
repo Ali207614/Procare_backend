@@ -269,10 +269,17 @@ export class RepairOrderStatusesService {
         return acc;
       }, {});
 
+      // ⚡ Bolt: Replace O(N^2) Array.find inside loop with O(1) Map lookup
+      const permissionsMap = new Map<string, RepairOrderStatusPermission>();
+      for (const p of permissions) {
+        if (!permissionsMap.has(p.status_id)) {
+          permissionsMap.set(p.status_id, p);
+        }
+      }
+
       const merged: RepairOrderStatusWithPermissions[] = statuses.map((status) => ({
         ...status,
-        permissions:
-          permissions.find((p) => p.status_id === status.id) ?? ({} as RepairOrderStatusPermission),
+        permissions: permissionsMap.get(status.id) ?? ({} as RepairOrderStatusPermission),
         transitions: transitionsMap[status.id] || [],
         metrics: {
           total_repair_orders: countsMap[status.id] || 0,
