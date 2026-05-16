@@ -28,7 +28,7 @@ const config = {
 const repairOrderUUID = process.argv[2];
 if (!repairOrderUUID) {
   console.error('❌ Error: Repair order UUID not provided');
-  console.error('Usage: ts-node get-repair-order.ts <repair-order-uuid>');
+  console.error('Usage: ts-node scripts/get-repair-order.ts <repair-order-uuid>');
   process.exit(1);
 }
 

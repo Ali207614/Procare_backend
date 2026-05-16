@@ -27,7 +27,7 @@ Run the script with a repair order UUID:
 npm run get:repair-order <repair-order-uuid>
 
 # Or using ts-node directly
-ts-node -r tsconfig-paths/register get-repair-order.ts <repair-order-uuid>
+ts-node -r tsconfig-paths/register scripts/get-repair-order.ts <repair-order-uuid>
 
 # Example
 npm run get:repair-order 550e8400-e29b-41d4-a716-446655440000
