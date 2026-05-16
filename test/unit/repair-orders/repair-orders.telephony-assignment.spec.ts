@@ -580,6 +580,66 @@ describe('RepairOrdersService telephony assignment', () => {
     workContextSpy.mockRestore();
   });
 
+  it('sends an open-menu notification to the requested admin for an existing order', async () => {
+    const orderBuilder = createBuilder();
+    orderBuilder.first.mockResolvedValue({
+      id: 'order-1',
+      number_id: 1001,
+      branch_id: 'branch-1',
+      status: 'Open',
+    });
+
+    const adminBuilder = createBuilder();
+    adminBuilder.first.mockResolvedValue({ id: 'admin-1' });
+
+    knex.mockImplementation((table: string) => {
+      if (table === 'repair_orders') return orderBuilder;
+      if (table === 'admins') return adminBuilder;
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    const helper = (service as any).helper as {
+      getRepairOrderNotificationMeta: jest.Mock;
+    };
+    helper.getRepairOrderNotificationMeta.mockResolvedValue({
+      order_id: 'order-1',
+      number_id: '1001',
+      sort: 1,
+      phone_category_name: null,
+      user_full_name: 'Test User',
+      user_phone_number: '+998901234567',
+      pickup_method: 'Self',
+      delivery_method: 'Self',
+      priority: 'Medium',
+      source: 'Web',
+      assigned_admins: 'Assigned Admin',
+    });
+
+    const notificationService = (service as any).notificationService as {
+      notifyAdmins: jest.Mock;
+    };
+
+    await service.notifyAdminToOpenRepairOrder('order-1', 'admin-1');
+
+    expect(orderBuilder.where).toHaveBeenCalledWith({ id: 'order-1', status: 'Open' });
+    expect(adminBuilder.where).toHaveBeenCalledWith({
+      id: 'admin-1',
+      status: 'Open',
+      is_active: true,
+    });
+    expect(notificationService.notifyAdmins).toHaveBeenCalledWith(
+      knex,
+      ['admin-1'],
+      expect.objectContaining({
+        meta: expect.objectContaining({
+          order_id: 'order-1',
+          open_menu: true,
+          action: 'order_updated',
+        }),
+      }),
+    );
+  });
+
   it('treats active non-terminal statuses as reusable for PBX lookups', async () => {
     const orderBuilder = createBuilder();
     orderBuilder.first.mockResolvedValue({

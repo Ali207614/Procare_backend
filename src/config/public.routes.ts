@@ -9,6 +9,7 @@ export const PublicRoutes = [
   { path: 'auth/admin/forgot-password', method: RequestMethod.POST },
   { path: 'auth/admin/reset-password', method: RequestMethod.POST },
   { path: 'repair-orders/open', method: RequestMethod.POST },
+  { path: 'repair-orders/open/notify-admin', method: RequestMethod.GET },
   { path: 'support-agent/send-application-to-crm', method: RequestMethod.POST },
   { path: 'support-agent/instructions', method: RequestMethod.GET },
   // Features

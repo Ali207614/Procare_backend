@@ -28,6 +28,7 @@ import {
   ApiOperation,
   ApiParam,
   ApiProduces,
+  ApiQuery,
   ApiTags,
   getSchemaPath,
 } from '@nestjs/swagger';
@@ -261,6 +262,38 @@ export class OpenRepairOrdersController {
   })
   createOpenApplication(@Body() dto: OpenRepairOrderApplicationDto): Promise<RepairOrder> {
     return this.service.createOpenApplication(dto);
+  }
+
+  @Get('notify-admin')
+  @ApiOperation({
+    summary: 'Send public open-menu notification to an admin',
+    description:
+      'No authorization is required. Validates the repair order and admin IDs from query parameters, then sends the selected admin a notification with meta.open_menu=true.',
+  })
+  @ApiQuery({
+    name: 'repair_order_id',
+    required: true,
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiQuery({
+    name: 'admin_id',
+    required: true,
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiOkResponse({
+    description: 'Notification sent to the selected admin',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Notification sent' },
+      },
+    },
+  })
+  notifyAdminToOpenRepairOrder(
+    @Query('repair_order_id', ParseUUIDPipe) repairOrderId: string,
+    @Query('admin_id', ParseUUIDPipe) adminId: string,
+  ): Promise<{ message: string }> {
+    return this.service.notifyAdminToOpenRepairOrder(repairOrderId, adminId);
   }
 }
 

@@ -4202,6 +4202,46 @@ export class RepairOrdersService {
     }
   }
 
+  async notifyAdminToOpenRepairOrder(
+    repairOrderId: string,
+    adminId: string,
+  ): Promise<{ message: string }> {
+    const [order, admin] = await Promise.all([
+      this.knex<RepairOrder>(this.table).where({ id: repairOrderId, status: 'Open' }).first(),
+      this.knex('admins')
+        .where({ id: adminId, status: 'Open', is_active: true })
+        .first<{ id: string }>('id'),
+    ]);
+
+    if (!order) {
+      throw new NotFoundException({ message: 'Order not found', location: 'repair_order_id' });
+    }
+
+    if (!admin) {
+      throw new NotFoundException({ message: 'Admin not found', location: 'admin_id' });
+    }
+
+    const richMeta = await this.helper.getRepairOrderNotificationMeta(order.id, this.knex);
+    if (!richMeta) {
+      throw new NotFoundException({ message: 'Order not found', location: 'repair_order_id' });
+    }
+
+    const meta: RepairNotificationMeta = {
+      ...richMeta,
+      action: 'order_updated',
+      open_menu: true,
+    };
+
+    await this.notificationService.notifyAdmins(this.knex, [admin.id], {
+      title: 'Buyurtmani ochish',
+      message: `Buyurtma #${order.number_id} uchun menyuni oching`,
+      type: 'info',
+      meta: meta as unknown as Record<string, unknown>,
+    });
+
+    return { message: 'Notification sent' };
+  }
+
   private isNoAnswerTrackableStatus(status: RepairOrderStatus | null): boolean {
     return status?.type === 'Open' || status?.type === 'Missed';
   }
