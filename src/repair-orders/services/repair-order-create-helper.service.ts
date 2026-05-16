@@ -552,7 +552,7 @@ export class RepairOrderCreateHelperService {
       FROM repair_orders ro
       LEFT JOIN phone_categories pc ON pc.id = ro.phone_category_id
       LEFT JOIN users u ON u.id = ro.user_id
-      WHERE ro.id IN (?)
+      WHERE ro.id = ANY(?::uuid[])
     `;
 
     const result = await trx.raw(query, [orderIds]);
