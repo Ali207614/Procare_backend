@@ -88,7 +88,7 @@ export class PhoneOsTypesService {
         values: inserted[0] as unknown as Record<string, unknown>,
       });
 
-      (await this.redisService.del(this.redisKey), await trx.commit());
+      await this.redisService.del(this.redisKey), await trx.commit();
 
       return inserted[0];
     } catch (err) {
@@ -206,7 +206,7 @@ export class PhoneOsTypesService {
         fields: Object.keys(dto),
       });
 
-      (await this.redisService.del(this.redisKey), await trx.commit());
+      await this.redisService.del(this.redisKey), await trx.commit();
 
       return { message: 'Phone OS type updated successfully' };
     } catch (err) {
