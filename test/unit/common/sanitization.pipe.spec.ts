@@ -49,4 +49,24 @@ describe('SanitizationPipe', () => {
       },
     });
   });
+
+  it('sanitizes items in arrays', () => {
+    expect(
+      pipe.transform({
+        tags: ['<script>alert(1)</script>safe', 'normal tag'],
+        nested: [{ field: '<script>alert(2)</script>ok' }],
+        matrix: [['<script>alert(3)</script>cell']],
+      }),
+    ).toEqual({
+      tags: ['safe', 'normal tag'],
+      nested: [{ field: 'ok' }],
+      matrix: [['cell']],
+    });
+  });
+
+  it('sanitizes root level arrays', () => {
+    expect(
+      pipe.transform(['<script>alert(1)</script>first', { x: '<script>alert(2)</script>second' }]),
+    ).toEqual(['first', { x: 'second' }]);
+  });
 });

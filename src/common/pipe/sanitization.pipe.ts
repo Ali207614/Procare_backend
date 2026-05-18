@@ -18,6 +18,10 @@ export class SanitizationPipe implements PipeTransform {
   transform(value: unknown): unknown {
     if (Buffer.isBuffer(value)) return value;
 
+    if (Array.isArray(value)) {
+      return value.map((item) => this.sanitizeItem(item));
+    }
+
     if (typeof value === 'object' && value !== null) {
       return this.sanitizeObject(value as Record<string, unknown>);
     }
@@ -44,7 +48,7 @@ export class SanitizationPipe implements PipeTransform {
       } else if (typeof val === 'string') {
         cleanObj[key] = sanitizeHtml(val);
       } else if (Array.isArray(val)) {
-        cleanObj[key] = val;
+        cleanObj[key] = val.map((item) => this.sanitizeItem(item));
       } else if (typeof val === 'object' && val !== null) {
         cleanObj[key] = this.sanitizeObject(val as Record<string, unknown>);
       } else {
@@ -53,6 +57,15 @@ export class SanitizationPipe implements PipeTransform {
     }
 
     return cleanObj;
+  }
+
+  private sanitizeItem(item: unknown): unknown {
+    if (Buffer.isBuffer(item)) return item;
+    if (Array.isArray(item)) return item.map((i) => this.sanitizeItem(i));
+    if (typeof item === 'object' && item !== null)
+      return this.sanitizeObject(item as Record<string, unknown>);
+    if (typeof item === 'string') return sanitizeHtml(item);
+    return item;
   }
 
   private isSensitiveField(key: string): boolean {

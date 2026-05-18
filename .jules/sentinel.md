@@ -6,3 +6,7 @@
 **Vulnerability:** Public authentication endpoints (e.g. login, send-code, reset-password) lacked specific strict rate-limiting, making them susceptible to rapid brute-force or credential stuffing attacks. The standard public routes limiter only blocked at a very high general threshold.
 **Learning:** Even if overall rate limiting exists, sensitive authentication flows require their own stricter isolated threshold to deter enumeration and brute-forcing while balancing UX (e.g. allowing NAT IPs).
 **Prevention:** Apply a dedicated strict RateLimit middleware (e.g., `AuthRateLimiterMiddleware`) to all authentication-related endpoints explicitly via `consumer.apply().forRoutes(...)` in `AppModule`.
+## 2026-05-18 - Incomplete Array Sanitization in Pipes
+**Vulnerability:** The `SanitizationPipe` logic intended to use `sanitize-html` to prevent XSS. However, it skipped processing array elements entirely (`cleanObj[key] = val;` if value is an Array). This allowed malicious scripts nested inside arrays to bypass sanitization entirely, creating an XSS risk.
+**Learning:** Naive data structure iteration in custom validation/sanitization pipes can inadvertently skip nested fields, rendering the entire sanitization check ineffective for complex JSON payloads.
+**Prevention:** Always write recursive functions for sanitizing generic/unknown objects or use reliable object-traversal libraries to ensure every primitive string is visited and sanitized, including within root-level arrays and arrays of objects.
