@@ -16,6 +16,7 @@ interface FinalProblemInput {
   problem_category_id: string;
   price: number;
   estimated_minutes: number;
+  is_done?: boolean;
   parts?: PartInput[];
 }
 
@@ -24,6 +25,7 @@ interface ExistingFinalProblem {
   problem_category_id: string;
   price: string;
   estimated_minutes: number;
+  is_done: boolean;
   parts?: Array<{
     repair_part_id: string;
     quantity: number;
@@ -154,6 +156,7 @@ export class FinalProblemUpdaterService {
       problem_category_id: p.problem_category_id,
       price: p.price,
       estimated_minutes: p.estimated_minutes,
+      is_done: p.is_done ?? false,
       created_by: admin.id,
       created_at: now,
       updated_at: now,
@@ -246,9 +249,10 @@ export class FinalProblemUpdaterService {
       problem_category_id: string;
       price: string | number;
       estimated_minutes: number;
+      is_done: boolean | null;
     }>('repair_order_final_problems')
       .where({ repair_order_id: orderId })
-      .select('id', 'problem_category_id', 'price', 'estimated_minutes')
+      .select('id', 'problem_category_id', 'price', 'estimated_minutes', 'is_done')
       .orderBy('created_at', 'asc');
 
     if (!problems.length) return [];
@@ -288,6 +292,7 @@ export class FinalProblemUpdaterService {
       problem_category_id: String(problem.problem_category_id),
       price: String(problem.price),
       estimated_minutes: Number(problem.estimated_minutes),
+      is_done: Boolean(problem.is_done),
       parts: partsByProblemId.get(String(problem.id)) ?? [],
     }));
   }

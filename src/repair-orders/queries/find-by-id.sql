@@ -165,6 +165,7 @@ SELECT
                 ),
                 'price', fp.price,
                 'estimated_minutes', fp.estimated_minutes,
+                'is_done', fp.is_done,
                 'created_by', fp.created_by,
                 'created_at', fp.created_at,
                 'updated_at', fp.updated_at,

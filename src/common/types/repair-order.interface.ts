@@ -173,6 +173,7 @@ export interface FreshRepairOrder {
     };
     price: string;
     estimated_minutes: number;
+    is_done: boolean;
     created_by: string;
     created_at: string;
     updated_at: string;
@@ -476,6 +477,7 @@ export interface RepairOrderDetails {
     };
     price: string;
     estimated_minutes: number;
+    is_done: boolean;
     created_by: string;
     created_at: string;
     updated_at: string;

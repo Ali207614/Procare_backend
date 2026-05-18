@@ -12,6 +12,7 @@ import {
   IsPhoneNumber,
   Equals,
   ValidateIf,
+  IsBoolean,
 } from 'class-validator';
 import { Transform, TransformFnParams, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
@@ -66,6 +67,17 @@ class ProblemDto {
   @ValidateNested({ each: true })
   @Type(() => ProblemPartDto)
   parts?: ProblemPartDto[];
+}
+
+class FinalProblemDto extends ProblemDto {
+  @ApiPropertyOptional({
+    description: 'Whether the final problem has been completed',
+    default: false,
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  is_done?: boolean;
 }
 
 export class UpdateRepairOrderDto {
@@ -156,11 +168,11 @@ export class UpdateRepairOrderDto {
   @Type(() => ProblemDto)
   initial_problems?: ProblemDto[];
 
-  @ApiPropertyOptional({ type: [ProblemDto] })
+  @ApiPropertyOptional({ type: [FinalProblemDto] })
   @IsOptional()
   @ValidateNested({ each: true })
-  @Type(() => ProblemDto)
-  final_problems?: ProblemDto[];
+  @Type(() => FinalProblemDto)
+  final_problems?: FinalProblemDto[];
 
   @ApiPropertyOptional({
     nullable: true,

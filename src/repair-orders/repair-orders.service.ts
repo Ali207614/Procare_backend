@@ -5262,6 +5262,7 @@ export class RepairOrdersService {
       problem_category_id: string;
       price: string;
       estimated_minutes: number;
+      is_done?: boolean;
       parts: Array<{
         repair_part_id: string;
         quantity: number;
@@ -5282,9 +5283,14 @@ export class RepairOrdersService {
       problem_category_id: string;
       price: string;
       estimated_minutes: number;
+      is_done?: boolean | null;
     }>(problemTableName)
       .where({ repair_order_id: repairOrderId })
-      .select('id', 'problem_category_id', 'price', 'estimated_minutes')
+      .select(
+        problemType === 'final'
+          ? ['id', 'problem_category_id', 'price', 'estimated_minutes', 'is_done']
+          : ['id', 'problem_category_id', 'price', 'estimated_minutes'],
+      )
       .orderBy('created_at', 'asc');
 
     const problemIds = problems.map((problem) => problem.id);
@@ -5316,6 +5322,7 @@ export class RepairOrdersService {
       problem_category_id: String(problem.problem_category_id),
       price: String(problem.price),
       estimated_minutes: Number(problem.estimated_minutes),
+      ...(problemType === 'final' ? { is_done: Boolean(problem.is_done) } : {}),
       parts: partsByProblemId.get(String(problem.id)) ?? [],
     }));
   }

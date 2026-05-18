@@ -1082,6 +1082,9 @@ export class RepairOrderHistoryCommentManager {
 
         if (price) segments.push(price);
         if (minutes) segments.push(minutes);
+        if (typeof item.is_done === 'boolean') {
+          segments.push(`Holat: ${item.is_done ? 'bajarildi' : 'bajarilmadi'}`);
+        }
         if (partsSummary) segments.push(`Qismlar: ${partsSummary}`);
 
         return segments.join(', ');
