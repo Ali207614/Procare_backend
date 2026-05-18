@@ -8,12 +8,16 @@ import { AssignRepairPartsToCategoryDto } from 'src/repair-parts/dto/assign-repa
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { FindAllPartsDto } from 'src/repair-parts/dto/find-all.dto';
 import { HistoryService } from 'src/history/history.service';
+import { RedisService } from 'src/common/redis/redis.service';
 
 @Injectable()
 export class RepairPartsService {
+  private readonly problemCategoriesCachePrefix = 'problem_categories:';
+
   constructor(
     @InjectKnex() private readonly knex: Knex,
     private readonly historyService: HistoryService,
+    private readonly redisService: RedisService,
   ) {}
 
   async assignRepairPartsToProblemCategory(
@@ -73,6 +77,8 @@ export class RepairPartsService {
         afterIds: nextIds,
       });
     });
+
+    await this.flushProblemCategoriesCache();
   }
 
   async create(createRepairPartDto: CreateRepairPartDto, createdBy: string): Promise<RepairPart> {
@@ -260,6 +266,8 @@ export class RepairPartsService {
         fields: Object.keys(updateRepairPartDto),
       });
     });
+
+    await this.flushProblemCategoriesCache();
     return { message: 'Repair part updated successfully' };
   }
 
@@ -289,7 +297,13 @@ export class RepairPartsService {
         fields: ['status'],
       });
     });
+
+    await this.flushProblemCategoriesCache();
     return { message: 'Repair part deleted successfully' };
+  }
+
+  private async flushProblemCategoriesCache(): Promise<void> {
+    await this.redisService.flushByPrefix(this.problemCategoriesCachePrefix);
   }
 
   private async recordRelationDiff(

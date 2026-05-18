@@ -10,6 +10,8 @@ import {
   MinLength,
   MaxLength,
   IsPhoneNumber,
+  Equals,
+  ValidateIf,
 } from 'class-validator';
 import { Transform, TransformFnParams, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
@@ -169,7 +171,17 @@ export class UpdateRepairOrderDto {
   @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
     message: 'Invalid reject cause ID',
   })
-  reject_cause_id?: string;
+  reject_cause_id?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Set to null to clear the reject cause',
+    example: null,
+  })
+  @ValidateIf((_, value) => value !== undefined)
+  @Equals(null, { message: 'reject_cause must be null when provided' })
+  reject_cause?: null;
 
   @ApiPropertyOptional({
     nullable: true,

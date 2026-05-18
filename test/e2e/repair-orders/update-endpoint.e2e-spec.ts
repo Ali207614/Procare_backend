@@ -21,6 +21,7 @@ import { NotificationService } from 'src/notification/notification.service';
 import { PdfService } from 'src/pdf/pdf.service';
 import { RedisService } from 'src/common/redis/redis.service';
 import { LoggerService } from 'src/common/logger/logger.service';
+import { HistoryService } from 'src/history/history.service';
 
 type FakeState = {
   repair_orders: RepairOrder[];
@@ -38,7 +39,7 @@ class FakeQueryBuilder {
 
   constructor(
     private readonly state: FakeState,
-    private readonly table: keyof FakeState,
+    private readonly table: string,
   ) {}
 
   where(arg1: string | Record<string, unknown>, arg2?: unknown, arg3?: unknown): this {
@@ -50,7 +51,7 @@ class FakeQueryBuilder {
   }
 
   whereIn(column: string, values: unknown[]): this {
-    this.filters.push((row) => values.includes(row[column]));
+    this.filters.push((row) => values.includes(this.getValue(row, column)));
     return this;
   }
 
@@ -61,6 +62,15 @@ class FakeQueryBuilder {
 
   andWhereNot(criteria: Record<string, unknown>): this {
     return this.whereNot(criteria);
+  }
+
+  join(): this {
+    return this;
+  }
+
+  whereNull(column: string): this {
+    this.filters.push((row) => this.getValue(row, column) == null);
+    return this;
   }
 
   whereRaw(sql: string, value: string): this {
@@ -108,7 +118,8 @@ class FakeQueryBuilder {
       id: row.id ?? uuidv4(),
       ...row,
     }));
-    this.state[this.table].push(...(inserted as never[]));
+    const tableName = this.table.split(' as ')[0] as keyof FakeState;
+    this.state[tableName].push(...(inserted as never[]));
 
     return {
       returning: async (cols: string[] | string): Promise<unknown[]> => {
@@ -134,13 +145,16 @@ class FakeQueryBuilder {
     }
 
     if (typeof arg1 === 'string' && arg3 === undefined) {
-      this.filters.push((row) => row[arg1] === arg2);
+      this.filters.push((row) => {
+        const value = this.getValue(row, arg1);
+        return arg2 === null ? value == null : value === arg2;
+      });
       return this;
     }
 
     if (typeof arg1 === 'string') {
       this.filters.push((row) => {
-        const value = row[arg1] as number; // Assuming numeric comparisons for > < ops
+        const value = this.getValue(row, arg1) as number; // Assuming numeric comparisons for > < ops
         switch (arg2) {
           case '>':
             return value > (arg3 as number);
@@ -160,17 +174,28 @@ class FakeQueryBuilder {
   }
 
   private matchesObject(row: Record<string, unknown>, criteria: Record<string, unknown>): boolean {
-    return Object.entries(criteria).every(([key, value]) => row[key] === value);
+    return Object.entries(criteria).every(([key, value]) => {
+      const rowValue = this.getValue(row, key);
+      return value === null ? rowValue == null : rowValue === value;
+    });
+  }
+
+  private getValue(row: Record<string, unknown>, key: string): unknown {
+    if (key in row) return row[key];
+
+    const unaliasedKey = key.split('.').pop();
+    return unaliasedKey ? row[unaliasedKey] : undefined;
   }
 
   private getRows(): Record<string, unknown>[] {
-    const tableData = this.state[this.table] as Array<Record<string, unknown>>;
+    const tableName = this.table.split(' as ')[0] as keyof FakeState;
+    const tableData = this.state[tableName] as Array<Record<string, unknown>>;
     return tableData.filter((row) => this.filters.every((filter) => filter(row)));
   }
 }
 
 function createFakeKnex(state: FakeState): unknown {
-  const trx = ((table: keyof FakeState) => new FakeQueryBuilder(state, table)) as unknown as {
+  const trx = ((table: string) => new FakeQueryBuilder(state, table)) as unknown as {
     commit: jest.Mock;
     rollback: jest.Mock;
   };
@@ -311,6 +336,10 @@ describe('PATCH /api/v1/repair-orders/:repair_order_id', () => {
           useValue: {
             notifyBranch: jest.fn().mockResolvedValue(undefined),
           },
+        },
+        {
+          provide: HistoryService,
+          useValue: {},
         },
       ],
     })
@@ -682,6 +711,42 @@ describe('PATCH /api/v1/repair-orders/:repair_order_id', () => {
 
     expect(state.repair_orders[0].status_id).toBe(openStatusId);
     expect(state.repair_orders[0].reject_cause_id).toBe(rejectCauseId);
+  });
+
+  it('clears reject cause when reject_cause_id is null', async () => {
+    const existingRejectCauseId = uuidv4();
+
+    state.repair_order_status_permissions.push(makePermission('status-open'));
+    const order = seedOrder({
+      reject_cause_id: existingRejectCauseId,
+    });
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/repair-orders/${order.id}`)
+      .send({
+        reject_cause_id: null,
+      })
+      .expect(200);
+
+    expect(state.repair_orders[0].reject_cause_id).toBeNull();
+  });
+
+  it('clears reject cause when reject_cause is null', async () => {
+    const existingRejectCauseId = uuidv4();
+
+    state.repair_order_status_permissions.push(makePermission('status-open'));
+    const order = seedOrder({
+      reject_cause_id: existingRejectCauseId,
+    });
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/repair-orders/${order.id}`)
+      .send({
+        reject_cause: null,
+      })
+      .expect(200);
+
+    expect(state.repair_orders[0].reject_cause_id).toBeNull();
   });
 
   it('normalizes phone_number payloads before validation', async () => {

@@ -795,28 +795,33 @@ export class RepairOrdersService {
         }
       }
 
-      if (dto.reject_cause_id !== undefined && dto.reject_cause_id !== order.reject_cause_id) {
-        const cause = await trx('repair_order_reject_causes')
-          .where({ id: dto.reject_cause_id, status: 'Open', is_active: true })
-          .first();
-        if (!cause) {
-          throw new BadRequestException({
-            message: 'Reject cause not found',
-            location: 'reject_cause_id',
-          });
+      const hasRejectCauseUpdate = dto.reject_cause_id !== undefined || dto.reject_cause === null;
+      const nextRejectCauseId: string | null =
+        dto.reject_cause === null ? null : dto.reject_cause_id ?? null;
+      if (hasRejectCauseUpdate && nextRejectCauseId !== order.reject_cause_id) {
+        if (nextRejectCauseId !== null) {
+          const cause = await trx('repair_order_reject_causes')
+            .where({ id: nextRejectCauseId, status: 'Open', is_active: true })
+            .first();
+          if (!cause) {
+            throw new BadRequestException({
+              message: 'Reject cause not found',
+              location: 'reject_cause_id',
+            });
+          }
         }
 
         await trx(this.table).where({ id: orderId }).update({
-          reject_cause_id: dto.reject_cause_id,
+          reject_cause_id: nextRejectCauseId,
           updated_at: new Date(),
         });
 
         logFields.push({
           key: 'reject_cause_id',
           oldVal: order.reject_cause_id,
-          newVal: dto.reject_cause_id,
+          newVal: nextRejectCauseId,
         });
-        order.reject_cause_id = dto.reject_cause_id;
+        order.reject_cause_id = nextRejectCauseId;
       }
 
       const fieldsToCheck: (keyof RepairOrder)[] = [

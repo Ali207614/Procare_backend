@@ -1,4 +1,5 @@
-import { IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsInt, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateRepairPartDto {
@@ -29,6 +30,13 @@ export class UpdateRepairPartDto {
   @IsOptional()
   @IsNumber({}, { context: { location: 'quantity' } })
   quantity?: number;
+
+  @ApiPropertyOptional({ example: 90, description: 'Warranty period value' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ context: { location: 'warranty_period' } })
+  @Min(0, { context: { location: 'warranty_period' } })
+  warranty_period?: number;
 
   @ApiPropertyOptional()
   @IsOptional()

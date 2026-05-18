@@ -217,6 +217,7 @@ export class ProblemCategoriesService {
               'part_name_ru', rp.part_name_ru,
               'part_name_en', rp.part_name_en,
               'part_price', rp.part_price,
+              'warranty_period', rp.warranty_period,
               'is_required', rpa.is_required
             )), '[]'::json)
             FROM repair_part_assignments rpa
@@ -322,6 +323,7 @@ export class ProblemCategoriesService {
               'part_name_ru', rp.part_name_ru,
               'part_name_en', rp.part_name_en,
               'part_price', rp.part_price,
+              'warranty_period', rp.warranty_period,
               'is_required', rpa.is_required
             )), '[]'::json)
             FROM repair_part_assignments rpa

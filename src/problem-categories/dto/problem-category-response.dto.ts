@@ -77,6 +77,12 @@ export class RepairPartPartialResponseDto {
 
   @ApiProperty({ example: 100000 })
   part_price!: number;
+
+  @ApiProperty({ example: 90, description: 'Warranty period value' })
+  warranty_period!: number;
+
+  @ApiProperty({ example: false })
+  is_required!: boolean;
 }
 
 export class ProblemCategoryWithMetaResponseDto extends ProblemCategoryResponseDto {

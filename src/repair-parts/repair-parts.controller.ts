@@ -24,6 +24,10 @@ import { AssignRepairPartsToCategoryDto } from 'src/repair-parts/dto/assign-repa
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { PaginationInterceptor } from 'src/common/interceptors/pagination.interceptor';
 import { FindAllPartsDto } from 'src/repair-parts/dto/find-all.dto';
+import {
+  RepairPartPaginationResponseDto,
+  RepairPartResponseDto,
+} from 'src/repair-parts/dto/repair-part-response.dto';
 
 @ApiTags('Repair parts')
 @ApiBearerAuth()
@@ -36,7 +40,11 @@ export class RepairPartsController {
   @UseGuards(PermissionsGuard)
   @SetPermissions('repair.part.create')
   @ApiOperation({ summary: 'Create a new repair part' })
-  @ApiResponse({ status: 201, description: 'Repair part successfully created' })
+  @ApiResponse({
+    status: 201,
+    description: 'Repair part successfully created',
+    type: RepairPartResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Validation failed or part already exists' })
   async create(
     @Body() createRepairPartDto: CreateRepairPartDto,
@@ -62,14 +70,18 @@ export class RepairPartsController {
   @Get()
   @UseInterceptors(PaginationInterceptor)
   @ApiOperation({ summary: 'Get all repair parts' })
-  @ApiResponse({ status: 200, description: 'List of all repair parts' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of all repair parts',
+    type: RepairPartPaginationResponseDto,
+  })
   async findAll(@Query() query: FindAllPartsDto): Promise<PaginationResult<RepairPart>> {
     return this.repairPartsService.findAll(query);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a single repair part by ID' })
-  @ApiResponse({ status: 200, description: 'Repair part found' })
+  @ApiResponse({ status: 200, description: 'Repair part found', type: RepairPartResponseDto })
   @ApiResponse({ status: 404, description: 'Repair part not found' })
   async findOne(@Param('id') id: string): Promise<RepairPart> {
     return this.repairPartsService.findOne(id);

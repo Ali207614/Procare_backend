@@ -5,6 +5,7 @@ export interface RepairPart {
   part_name_en: string;
   part_price: number;
   quantity: number;
+  warranty_period: number;
   description_uz?: string;
   description_ru?: string;
   description_en?: string;
