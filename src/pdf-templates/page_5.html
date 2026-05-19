@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Procare - Kafolat Sertifikati (Ichki qism)</title>
+    <title>Procare - Kafolat Sertifikati</title>
     <!-- Premium Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -16,7 +16,12 @@
         --primary-blue: #00a0e3;
         --text-dark: #222;
         --text-gray: #555;
-        --border-color: #eee;
+        --border-color: #e1e1e1;
+        --soft-blue: #eef9fe;
+      }
+
+      * {
+        box-sizing: border-box;
       }
 
       body {
@@ -28,43 +33,143 @@
         justify-content: center;
         align-items: center;
         min-height: 100vh;
+        color: var(--text-dark);
       }
 
       .page-container {
-        width: 297mm;
-        height: 210mm;
+        width: 210mm;
+        height: 297mm;
         background: #fff;
         position: relative;
         overflow: hidden;
         box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        grid-template-rows: repeat(2, 1fr);
-        box-sizing: border-box;
+        padding: 16mm 18mm;
       }
 
-      .card {
+      .page-bg-accent {
+        position: absolute;
+        right: -32mm;
+        bottom: -30mm;
+        width: 104mm;
+        height: 104mm;
+        opacity: 0.035;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .document {
         position: relative;
-        box-sizing: border-box;
-        border: 0.2mm dashed #ddd;
-        padding: 12mm 8mm;
+        z-index: 1;
+        height: 100%;
         display: flex;
         flex-direction: column;
-        font-size: 11.5px;
-        line-height: 1.4;
+      }
+
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8mm;
+        padding-bottom: 6mm;
+        border-bottom: 0.4mm solid var(--primary-blue);
+        position: relative;
+      }
+
+      .header::before {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 0;
+        bottom: 0;
+        margin: auto;
+        transform: translateX(-50%);
+        width: 0.4mm;
+        height: 11mm;
+        background: #000;
+        z-index: 1;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 5mm;
+        min-width: 0;
+      }
+
+      .brand-left {
+        display: flex;
+        align-items: center;
+        gap: 5mm;
+        min-width: 0;
+      }
+
+      .logo-img {
+        width: auto;
+        height: 14mm;
+        flex: none;
+      }
+
+      .brand-divider {
+        display: none;
+      }
+
+      .tagline {
+        color: var(--text-dark);
+        font-size: 18px;
+        font-weight: 400;
+        line-height: 18px;
+        display: inline-flex;
+        align-items: center;
+        align-self: flex-end;
+        margin-bottom: 6px;
+        white-space: nowrap;
+      }
+
+      .content-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 7mm;
+        flex: 1;
+        padding-top: 7mm;
+        min-height: 0;
+      }
+
+      .terms {
+        display: grid;
+        grid-template-columns: 1fr;
+        row-gap: 4.5mm;
+        align-content: start;
+      }
+
+      .intro {
+        grid-column: 1 / -1;
+        font-size: 12.6px;
+        line-height: 1.5;
         color: var(--text-dark);
       }
 
-      h2 {
-        font-size: 15px;
-        font-weight: 700;
-        color: var(--primary-blue);
-        margin: 0 0 10px 0;
-        line-height: 1.2;
+      .intro p,
+      .section-text {
+        margin: 0 0 6px 0;
       }
 
-      .section-text {
-        margin-bottom: 12px;
+      .section {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      h2 {
+        color: var(--primary-blue);
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1.25;
+        margin: 0 0 7px 0;
+      }
+
+      .section-text,
+      .bullet-list {
+        font-size: 11.5px;
+        line-height: 1.45;
       }
 
       .bullet-list {
@@ -75,7 +180,7 @@
 
       .bullet-list li {
         margin-bottom: 5px;
-        padding-left: 10px;
+        padding-left: 11px;
         position: relative;
       }
 
@@ -85,53 +190,95 @@
         left: 0;
       }
 
-      /* Information Fields */
+      .info-panel {
+        border: 0.3mm solid var(--border-color);
+        padding: 6mm;
+        width: 100%;
+        background: rgba(255, 255, 255, 0.92);
+      }
+
+      .info-title {
+        color: var(--primary-blue);
+        font-size: 14px;
+        font-weight: 800;
+        line-height: 1.25;
+        margin-bottom: 5mm;
+        text-transform: uppercase;
+      }
+
       .info-fields {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: 8mm;
+        row-gap: 3.5mm;
       }
 
       .field-row {
         display: flex;
         flex-direction: column;
-        margin-bottom: 2px;
+        min-width: 0;
+      }
+
+      .field-row-wide {
+        grid-column: 1 / -1;
       }
 
       .field-label {
-        font-size: 10px;
+        font-size: 10.5px;
         font-weight: 500;
         color: var(--text-gray);
+        margin-bottom: 1mm;
       }
 
       .field-value {
-        border-bottom: 1px solid #ccc;
-        min-height: 15px;
+        border-bottom: 0.25mm solid #cfcfcf;
+        min-height: 5.5mm;
         font-weight: 600;
-        font-size: 11px;
-        padding: 2px 0;
+        font-size: 11.5px;
+        line-height: 1.25;
+        padding: 0 0 1.2mm 0;
+        overflow-wrap: anywhere;
       }
 
       .signature-line {
-        margin-top: 10px;
-        border-top: 1px solid #ccc;
-        padding-top: 2px;
-        font-size: 9px;
+        grid-column: 1 / -1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        margin-top: 2mm;
+      }
+
+      .signature-line .field-label {
+        font-size: 10.5px;
+        font-weight: 500;
         color: var(--text-gray);
+        margin-bottom: 1mm;
+      }
+
+      .signature-line .field-value {
+        border-bottom: 0.25mm solid #cfcfcf;
+        min-height: 7mm;
+        font-weight: 600;
+        font-size: 11.5px;
+        line-height: 1.25;
+        padding: 0 0 1.2mm 0;
+        overflow-wrap: anywhere;
       }
 
       @media print {
         body {
           background: none;
         }
+
         .page-container {
           margin: 0;
           box-shadow: none;
-          width: 297mm;
-          height: 210mm;
+          width: 210mm;
+          height: 297mm;
         }
+
         @page {
-          size: A4 landscape;
+          size: A4 portrait;
           margin: 0;
         }
       }
@@ -139,128 +286,126 @@
   </head>
   <body>
     <div class="page-container" id="pageContainer">
-      <!-- Row 1 will be duplicated in Row 2 via JS or manual -->
-      <!-- Panel 1 -->
-      <div class="card">
-        <div class="section-text">
-          Ushbu kafolat sertifikati Procare servis markazi tomonidan ta'mirlangan qurilmaga yoki
-          o'rnatilgan ehtiyot qismga nisbatan kafolat muddatini tasdiqlaydi.
-        </div>
-        <div class="section-text">
-          Quyida keltirilgan shartlar asosida mijoz kafolat xizmatlaridan foydalanishi mumkin:
-        </div>
-        <h2>1. Kafolat muddati</h2>
-        <div class="section-text">
-          Kafolat muddati ta'mirlangan qurilma yoki o'rnatilgan ehtiyot qism bo'yicha 30 kunni
-          tashkil qiladi, agar boshqa muddat servis qabul varaqasida ko'rsatilmagan bo'lsa.
-        </div>
-      </div>
+      <img src="assets/half_logo.svg" class="page-bg-accent" alt="" />
 
-      <!-- Panel 2 -->
-      <div class="card">
-        <div class="section-text">
-          Kafolat muddati davrida ta'mirlangan qurilma qismi bilan yuzaga kelishi mumkin bo'lgan
-          muammolar Procare servisi tomonidan bepulga qayta ta'mirlanadi. (ushbu sertifikatning
-          3-bo'limidagi holatlar bundan mustasno)
-        </div>
-        <h2>2. Kafolat quyidagi holatlarni qamrab oladi:</h2>
-        <ul class="bullet-list">
-          <li>Procare tomonidan o'rnatilgan ehtiyot qismlarning nuqsonlari</li>
-          <li>Procare tomonidan amalga oshirilgan ta'mir ishlaridagi texnik xatoliklar</li>
-        </ul>
-      </div>
+      <main class="document">
+        <header class="header">
+          <div class="brand-left">
+            <img src="assets/logo.png" class="logo-img" alt="Procare" />
+          </div>
+          <div class="tagline">Where experts Meet</div>
+        </header>
 
-      <!-- Panel 3 -->
-      <div class="card" style="font-size: 10.5px">
-        <h2>3. Kafolat quyidagi holatlarda amal qilmaydi:</h2>
-        <ul class="bullet-list">
-          <li>Qurilma boshqa servis markazida ta'mirlangan bo'lsa</li>
-          <li>
-            Qurilma mexanik zarba, suyuqlik yoki noto'g'ri foydalanish oqibatida buzilgan bo'lsa
-          </li>
-          <li>Qurilmadagi buzilish kafolat muddatidan keyin aniqlangan bo'lsa</li>
-          <li>Qurilma Procare diagnostika qoidalariga zid ravishda ishlatilgan bo'lsa</li>
-        </ul>
-        <div class="section-text" style="margin-top: 10px; font-size: 10px">
-          Procare servisi quvvatlash bilan bog'liq bo'lgan ta'mirni amalga oshirganda (noto'g'ri
-          quvvatlash oqibatida yuzaga kelgan muammolar), kafolat muddati 10 kunga teng. Agar 10
-          kundan keyin ushbu muammo takrorlansa, mijozdan birinchi narxning 50% olinadi.
-        </div>
-      </div>
-
-      <!-- Panel 4 -->
-      <div class="card">
-        <h2 style="font-size: 13px">Mijoz va qurilma ma'lumotlari:</h2>
-        <div class="info-fields">
-          <div class="field-row">
-            <span class="field-label">F.I.SH:</span>
-            <div class="field-value" id="field-customer_name"></div>
-          </div>
-          <div class="field-row">
-            <span class="field-label">Telefon raqami:</span>
-            <div class="field-value" id="field-phone_number"></div>
-          </div>
-          <div class="field-row">
-            <span class="field-label">Qurilma raqami:</span>
-            <div class="field-value" id="field-device_name"></div>
-          </div>
-          <div class="field-row">
-            <span class="field-label">IMEI / Seriya raqami:</span>
-            <div class="field-value" id="field-imei"></div>
-          </div>
-          <div class="field-row" style="flex-direction: row; justify-content: space-between">
-            <div style="width: 48%">
-              <span class="field-label">Ta'mir sanasi:</span>
-              <div class="field-value" id="field-date"></div>
+        <section class="content-grid">
+          <div class="terms">
+            <div class="intro">
+              <p>
+                Ushbu kafolat sertifikati Procare servis markazi tomonidan ta'mirlangan qurilmaga
+                yoki o'rnatilgan ehtiyot qismga nisbatan kafolat muddatini tasdiqlaydi.
+              </p>
+              <p>
+                Quyida keltirilgan shartlar asosida mijoz kafolat xizmatlaridan foydalanishi
+                mumkin.
+              </p>
             </div>
-            <div style="width: 48%">
-              <span class="field-label">Kafolat muddati:</span>
-              <div class="field-value" id="field-warranty_period"></div>
+
+            <section class="section">
+              <h2>1. Kafolat muddati</h2>
+              <div class="section-text">
+                Kafolat muddati ta'mirlangan qurilma yoki o'rnatilgan ehtiyot qism bo'yicha 30
+                kunni tashkil qiladi, agar boshqa muddat servis qabul varaqasida ko'rsatilmagan
+                bo'lsa.
+              </div>
+            </section>
+
+            <section class="section">
+              <h2>2. Kafolat quyidagi holatlarni qamrab oladi:</h2>
+              <div class="section-text">
+                Kafolat muddati davrida ta'mirlangan qurilma qismi bilan yuzaga kelishi mumkin
+                bo'lgan muammolar Procare servisi tomonidan bepulga qayta ta'mirlanadi.
+              </div>
+              <ul class="bullet-list">
+                <li>Procare tomonidan o'rnatilgan ehtiyot qismlarning nuqsonlari</li>
+                <li>Procare tomonidan amalga oshirilgan ta'mir ishlaridagi texnik xatoliklar</li>
+              </ul>
+            </section>
+
+            <section class="section">
+              <h2>3. Kafolat quyidagi holatlarda amal qilmaydi:</h2>
+              <ul class="bullet-list">
+                <li>Qurilma boshqa servis markazida ta'mirlangan bo'lsa</li>
+                <li>
+                  Qurilma mexanik zarba, suyuqlik yoki noto'g'ri foydalanish oqibatida buzilgan
+                  bo'lsa
+                </li>
+                <li>Qurilmadagi buzilish kafolat muddatidan keyin aniqlangan bo'lsa</li>
+                <li>Qurilma Procare diagnostika qoidalariga zid ravishda ishlatilgan bo'lsa</li>
+              </ul>
+            </section>
+
+            <div class="section-text">
+              Procare servisi quvvatlash bilan bog'liq bo'lgan ta'mirni amalga oshirganda
+              (noto'g'ri quvvatlash oqibatida yuzaga kelgan muammolar), kafolat muddati 10 kunga
+              teng. Agar 10 kundan keyin ushbu muammo takrorlansa, mijozdan birinchi narxning 50%
+              olinadi.
             </div>
           </div>
-          <div class="field-row">
-            <span class="field-label">Mijoz imzosi:</span>
-            <div class="field-value"></div>
-          </div>
-        </div>
-      </div>
 
-      <!-- Row 2 is exactly same. We will clone using JS or just paste. -->
-      <div id="row2-marker"></div>
+          <aside class="info-panel">
+            <div class="info-title">Mijoz va qurilma ma'lumotlari</div>
+            <div class="info-fields">
+              <div class="field-row">
+                <span class="field-label">F.I.SH:</span>
+                <div class="field-value" id="field-customer_name"></div>
+              </div>
+              <div class="field-row">
+                <span class="field-label">Telefon raqami:</span>
+                <div class="field-value" id="field-phone_number"></div>
+              </div>
+              <div class="field-row">
+                <span class="field-label">Qurilma nomi:</span>
+                <div class="field-value" id="field-device_name"></div>
+              </div>
+              <div class="field-row">
+                <span class="field-label">IMEI / Seriya raqami:</span>
+                <div class="field-value" id="field-imei"></div>
+              </div>
+              <div class="signature-line">
+                <span class="field-label">Procare vakili:</span>
+                <div class="field-value"></div>
+              </div>
+              <div class="field-row">
+                <span class="field-label">Ta'mir sanasi:</span>
+                <div class="field-value" id="field-date"></div>
+              </div>
+              <div class="field-row">
+                <span class="field-label">Topshirish sanasi:</span>
+                <div class="field-value" id="field-delivery_date"></div>
+              </div>
+              <div class="field-row field-row-wide">
+                <span class="field-label">Kafolat muddati:</span>
+                <div class="field-value" id="field-warranty_period"></div>
+              </div>
+            </div>
+          </aside>
+        </section>
+      </main>
     </div>
 
     <script>
       window.renderApp = function (payload) {
-        if (!payload) {
-          window.isRendered = true;
-          return;
-        }
+        const form = (payload && payload.form) || {};
 
-        const form = payload.form || {};
-
-        // Populate fields
         const elements = document.querySelectorAll('[id^="field-"]');
         elements.forEach((el) => {
           const key = el.id.replace('field-', '');
-          if (key === 'date' && form.date) {
-            const parts = form.date.split('-');
-            el.textContent = parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : form.date;
+          if ((key === 'date' || key === 'delivery_date') && form[key]) {
+            const parts = form[key].split('-');
+            el.textContent = parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : form[key];
           } else {
             el.textContent = form[key] || '';
           }
         });
-
-        // Clone row 1 into row 2
-        const container = document.getElementById('pageContainer');
-        const panels = Array.from(container.children).slice(0, 4);
-        panels.forEach((p) => {
-          const clone = p.cloneNode(true);
-          container.appendChild(clone);
-        });
-
-        // Remove row2-marker
-        const marker = document.getElementById('row2-marker');
-        if (marker) marker.remove();
 
         window.isRendered = true;
       };
@@ -269,7 +414,6 @@
         if (typeof PAYLOAD !== 'undefined') {
           window.renderApp(PAYLOAD);
         } else {
-          // Local viewing logic
           setTimeout(() => {
             if (!window.isRendered) window.renderApp({});
           }, 500);

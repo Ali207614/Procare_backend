@@ -128,6 +128,13 @@ exports.seed = async function (knex) {
     // Analytics
     { id: '00000000-0000-4000-8000-000000000096', name: 'analytics.repair_orders.view', description: 'Repair order analytics view' },
     { id: '00000000-0000-4000-8000-000000000097', name: 'analytics.repair_orders.view_all', description: 'Repair order analytics across all branches' },
+
+    // Warranty document permissions
+    { id: '00000000-0000-4000-8000-000000000098', name: 'warranty_documents.view_all', description: "Kafolat hujjatlarini ko'rish" },
+    { id: '00000000-0000-4000-8000-000000000099', name: 'warranty_documents.view', description: "Kafolat hujjatini ko'rish" },
+    { id: '00000000-0000-4000-8000-000000000100', name: 'warranty_documents.create', description: 'Kafolat hujjati yaratish' },
+    { id: '00000000-0000-4000-8000-000000000101', name: 'warranty_documents.update', description: 'Kafolat hujjatini tahrirlash' },
+    { id: '00000000-0000-4000-8000-000000000102', name: 'warranty_documents.delete', description: "Kafolat hujjatini o'chirish" },
   ];
 
 

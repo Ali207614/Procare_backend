@@ -83,6 +83,9 @@ import { CalculatorController } from './calculator/calculator.controller';
 import { CalculatorService } from './calculator/calculator.service';
 import { SupportAgentModule } from './support-agent/support-agent.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { WarrantyDocumentsModule } from './warranty-documents/warranty-documents.module';
+import { WarrantyDocumentsController } from './warranty-documents/warranty-documents.controller';
+import { WarrantyDocumentsService } from './warranty-documents/warranty-documents.service';
 @Module({
   imports: [
     BullModule.forRoot({
@@ -127,6 +130,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     CalculatorModule,
     SupportAgentModule,
     AnalyticsModule,
+    WarrantyDocumentsModule,
   ],
   controllers: [
     AuthController,
@@ -147,6 +151,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     RepairOrderRejectCausesController,
     RepairOrderRegionsController,
     CalculatorController,
+    WarrantyDocumentsController,
   ],
   providers: [
     RepairPartsService,
@@ -167,6 +172,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     RepairOrderRejectCausesService,
     RepairOrderRegionsService,
     CalculatorService,
+    WarrantyDocumentsService,
   ],
 })
 export class AppModule implements NestModule {

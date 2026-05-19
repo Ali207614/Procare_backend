@@ -41,11 +41,12 @@ export class PdfService {
         pagesToRender.map(async (fileName) => {
           this.logger.debug(`Rendering ${fileName}...`);
           const page = await browser.newPage();
+          const isPortraitTemplate = fileName === 'page_5.html';
 
           try {
             await page.setViewport({
-              width: 1122,
-              height: 794,
+              width: isPortraitTemplate ? 794 : 1122,
+              height: isPortraitTemplate ? 1122 : 794,
               deviceScaleFactor: 2,
             });
 
@@ -68,7 +69,7 @@ export class PdfService {
 
             return await page.pdf({
               format: 'A4',
-              landscape: true,
+              landscape: !isPortraitTemplate,
               printBackground: true,
               margin: { top: '0', right: '0', bottom: '0', left: '0' },
             });

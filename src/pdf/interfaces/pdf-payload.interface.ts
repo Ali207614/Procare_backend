@@ -10,6 +10,7 @@ export interface PdfFormPayload {
   repair_id: string;
   source: string;
   total_amount: number;
+  delivery_date?: string;
   warranty_period?: string;
 }
 
