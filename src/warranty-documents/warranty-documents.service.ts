@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Knex } from 'knex';
 import { InjectConnection } from 'nestjs-knex';
 import sanitizeHtml from 'sanitize-html';
@@ -8,6 +8,8 @@ import { PaginationResult } from 'src/common/utils/pagination.util';
 import { PdfService } from 'src/pdf/pdf.service';
 import { CreateWarrantyDocumentDto } from './dto/create-warranty-document.dto';
 import { FindAllWarrantyDocumentsDto } from './dto/find-all-warranty-documents.dto';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
+import { RoleType } from 'src/common/types/role-type.enum';
 
 const WARRANTY_DOCUMENT_PDF_PATH = 'warranty-documents/current.pdf';
 const WARRANTY_DOCUMENT_PDF_URL_EXPIRY_SECONDS = 3600;
@@ -21,7 +23,7 @@ export class WarrantyDocumentsService {
   ) {}
 
   async findAll(dto: FindAllWarrantyDocumentsDto): Promise<PaginationResult<WarrantyDocument>> {
-    const { limit = 10, offset = 0, status } = dto;
+    const { limit = 10, offset = 0, status, is_active } = dto;
 
     const baseQuery = this.knex<WarrantyDocument>('warranty_documents')
       .orderBy('is_active', 'desc')
@@ -29,6 +31,10 @@ export class WarrantyDocumentsService {
 
     if (status) {
       void baseQuery.where('status', status);
+    }
+
+    if (is_active !== undefined) {
+      void baseQuery.where('is_active', is_active);
     }
 
     const [{ count }] = await baseQuery
@@ -95,10 +101,6 @@ export class WarrantyDocumentsService {
     const nextVersion = latestWarrantyDocument
       ? this.smartIncrement(latestWarrantyDocument, createWarrantyDocumentDto)
       : 'v1.0.0';
-    const pdfBuffer = await this.pdfService.generateOfferPdf(
-      this.toWarrantyDocumentPdfHtml(createWarrantyDocumentDto.content_uz),
-    );
-
     const newWarrantyDocument = await this.knex.transaction(async (trx) => {
       await trx('warranty_documents').update({ is_active: false });
 
@@ -113,15 +115,54 @@ export class WarrantyDocumentsService {
         })
         .returning('*');
 
-      await this.storageService.upload(WARRANTY_DOCUMENT_PDF_PATH, pdfBuffer, {
-        'Content-Type': 'application/pdf',
-        'Cache-Control': 'no-cache',
-      });
-
       return createdWarrantyDocument;
     });
 
+    await this.generateAndUploadWarrantyDocumentPdf(createWarrantyDocumentDto.content_uz);
+
     return newWarrantyDocument;
+  }
+
+  async activate(id: string, admin: AdminPayload): Promise<WarrantyDocument> {
+    const isSuperAdmin = admin.roles.some((role) => role.type === RoleType.SUPER_ADMIN);
+    if (!isSuperAdmin) {
+      throw new ForbiddenException({
+        message: 'Only Super Admins can activate warranty document versions.',
+        location: 'super_admin_required',
+      });
+    }
+
+    const targetDocument = await this.findOne(id);
+
+    if (targetDocument.status === 'Deleted') {
+      throw new BadRequestException({
+        message: 'Deleted warranty documents cannot be activated.',
+        location: 'warranty_document_deleted',
+      });
+    }
+
+    if (targetDocument.is_active) {
+      await this.generateAndUploadWarrantyDocumentPdf(targetDocument.content_uz);
+      return targetDocument;
+    }
+
+    const activatedDocument = await this.knex.transaction(async (trx) => {
+      await trx('warranty_documents').update({ is_active: false });
+
+      const [updatedDoc]: WarrantyDocument[] = await trx<WarrantyDocument>('warranty_documents')
+        .where({ id })
+        .update({
+          is_active: true,
+          updated_at: this.knex.fn.now(),
+        })
+        .returning('*');
+
+      return updatedDoc;
+    });
+
+    await this.generateAndUploadWarrantyDocumentPdf(activatedDocument.content_uz);
+
+    return activatedDocument;
   }
 
   async remove(id: string): Promise<void> {

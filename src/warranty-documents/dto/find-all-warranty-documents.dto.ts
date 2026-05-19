@@ -1,5 +1,5 @@
-import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsEnum, IsInt, IsOptional, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class FindAllWarrantyDocumentsDto {
@@ -24,4 +24,10 @@ export class FindAllWarrantyDocumentsDto {
   @IsOptional()
   @IsEnum(['Open', 'Deleted'])
   status?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by active status', example: true })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  is_active?: boolean;
 }

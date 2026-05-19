@@ -1,10 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiCreatedResponse,
   ApiExtraModels,
   ApiForbiddenResponse,
   ApiNoContentResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -24,6 +26,8 @@ import { FindAllWarrantyDocumentsDto } from './dto/find-all-warranty-documents.d
 import { PaginatedWarrantyDocumentsDto, WarrantyDocumentDto } from './dto/warranty-document.dto';
 import { WarrantyDocumentPdfUrlDto } from './dto/warranty-document-pdf-url.dto';
 import { WarrantyDocumentsService } from './warranty-documents.service';
+import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
+import { AdminPayload } from 'src/common/types/admin-payload.interface';
 
 @ApiTags('Warranty Documents')
 @ApiExtraModels(WarrantyDocumentDto, PaginatedWarrantyDocumentsDto)
@@ -118,5 +122,23 @@ export class WarrantyDocumentsController {
   @Delete(':id')
   async remove(@Param('id') id: string): Promise<void> {
     return this.warrantyDocumentsService.remove(id);
+  }
+
+  @ApiOperation({ summary: 'Activate an existing warranty document version' })
+  @ApiBearerAuth()
+  @ApiParam({ name: 'id', description: 'Warranty document ID (UUID)' })
+  @ApiOkResponse({ type: WarrantyDocumentDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+  @ApiForbiddenResponse({ description: 'Forbidden' })
+  @ApiNotFoundResponse({ description: 'Not Found' })
+  @ApiBadRequestResponse({ description: 'Bad Request' })
+  @UseGuards(JwtAdminAuthGuard, PermissionsGuard)
+  @SetPermissions('warranty_documents.update')
+  @Patch(':id/activate')
+  async activate(
+    @Param('id') id: string,
+    @CurrentAdmin() admin: AdminPayload,
+  ): Promise<WarrantyDocument> {
+    return this.warrantyDocumentsService.activate(id, admin);
   }
 }
