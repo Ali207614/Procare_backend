@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Knex } from 'knex';
 import { InjectConnection } from 'nestjs-knex';
 import sanitizeHtml from 'sanitize-html';
