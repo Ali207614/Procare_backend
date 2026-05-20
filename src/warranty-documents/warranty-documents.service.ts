@@ -244,13 +244,10 @@ export class WarrantyDocumentsService {
   }
 
   private async generateAndUploadWarrantyDocumentPdf(content: string): Promise<void> {
-    const pdfBuffer = await this.pdfService.generateOfferPdf(
-      toWarrantyDocumentPdfHtml(content),
-    );
+    const pdfBuffer = await this.pdfService.generateOfferPdf(toWarrantyDocumentPdfHtml(content));
     await this.storageService.upload(WARRANTY_DOCUMENT_PDF_PATH, pdfBuffer, {
       'Content-Type': 'application/pdf',
       'Cache-Control': 'no-cache',
     });
   }
 }
-

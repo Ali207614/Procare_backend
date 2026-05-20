@@ -370,7 +370,7 @@ export class ServiceFormsService {
     this.validateWarrantyAgreementData(data);
 
     // 3. Parse and validate dates from DTO
-    const repairDate = this.parseDateOnly(dto.repair_date, 'repair_date');
+    this.parseDateOnly(dto.repair_date, 'repair_date');
     const deliveryDate = this.parseDateOnly(dto.delivery_date, 'delivery_date');
 
     // 4. Load active warranty document
@@ -390,7 +390,8 @@ export class ServiceFormsService {
     const warrantyPeriodText = this.buildWarrantyPeriodText(repairParts, deliveryDate);
 
     // 7. Determine warranty ID and representative name
-    const warrantyId = this.getValidString(data.service_form_warranty_id) || this.generateWarrantyId();
+    const warrantyId =
+      this.getValidString(data.service_form_warranty_id) || this.generateWarrantyId();
     const representativeName =
       this.getValidString(data.service_form_admin_name) ||
       this.getValidString(data.history_admin_name);
@@ -654,7 +655,7 @@ export class ServiceFormsService {
    * from final problems. Uses max warranty_period per unique part.
    */
   private async getInstalledRepairParts(repairOrderId: string): Promise<WarrantyRepairPart[]> {
-    const rows = await this.knex('repair_order_parts as rop')
+    const rows = (await this.knex('repair_order_parts as rop')
       .join('repair_parts as rp', 'rop.repair_part_id', 'rp.id')
       .where('rop.repair_order_id', repairOrderId)
       .whereNotNull('rop.repair_order_final_problem_id')
@@ -665,7 +666,7 @@ export class ServiceFormsService {
           `COALESCE(NULLIF(rp.part_name_uz, ''), NULLIF(rp.part_name_ru, ''), NULLIF(rp.part_name_en, '')) as part_name`,
         ),
         this.knex.raw('MAX(COALESCE(rp.warranty_period, 0)) as warranty_period'),
-      ) as unknown as WarrantyRepairPart[];
+      )) as unknown as WarrantyRepairPart[];
 
     return rows;
   }
