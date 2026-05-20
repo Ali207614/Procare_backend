@@ -155,13 +155,13 @@ export class RepairOrderTestSetup {
   }
 
   static async createBranch(name: string): Promise<any> {
-    const branch = BranchFactory.create({ name_uz: name, name_en: name });
+    const branch = await BranchFactory.create({ name_uz: name, name_en: name });
     await this.knex('branches').insert(branch);
     return branch;
   }
 
   static async createRole(name: string, permissions: string[]): Promise<any> {
-    const role = RoleFactory.create({ name });
+    const role = await RoleFactory.create({ name });
     await this.knex('roles').insert(role);
 
     // Create permissions if they don't exist and link to role
@@ -194,7 +194,7 @@ export class RepairOrderTestSetup {
   }
 
   static async createAdmin(name: string, branchId: string, roleId: string): Promise<any> {
-    const admin = AdminFactory.create({
+    const admin = await AdminFactory.create({
       first_name: name.split(' ')[0],
       last_name: name.split(' ')[1] || 'Admin',
       phone_number: `+99890${Math.floor(Math.random() * 10000000)}`,
@@ -224,7 +224,7 @@ export class RepairOrderTestSetup {
   }
 
   static async createUser(): Promise<any> {
-    const user = UserFactory.create();
+    const user = await UserFactory.create();
     await this.knex('users').insert(user);
     return user;
   }

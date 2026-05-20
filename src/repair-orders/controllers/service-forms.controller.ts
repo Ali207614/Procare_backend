@@ -33,8 +33,10 @@ import {
   WarrantyAgreementGenerationEvent,
 } from '../services/service-forms.service';
 import { CreateServiceFormDto } from '../dto/create-service-form.dto';
+import { CreateWarrantyAgreementDto } from '../dto/create-warranty-agreement.dto';
 import {
   CreateServiceFormResponseDto,
+  CreateWarrantyAgreementResponseDto,
   GetServiceFormResponseDto,
 } from '../dto/service-form-response.dto';
 
@@ -128,11 +130,51 @@ export class ServiceFormsController {
     }
   }
 
-  @Sse('service-forms/:repair_order_id/warranty-agreement')
+  @Post('service-forms/:repair_order_id/warranty-agreement')
+  @ApiOperation({
+    summary: 'Generate repair order warranty PDF',
+    description:
+      'Generates a warranty agreement PDF for the given repair order using the active warranty document, ' +
+      'repair parts with warranty periods, and the provided repair/delivery dates.',
+  })
+  @ApiParam({ name: 'repair_order_id', description: 'Repair Order UUID' })
+  @ApiBody({
+    type: CreateWarrantyAgreementDto,
+    examples: {
+      default: {
+        summary: 'Generate warranty PDF',
+        value: {
+          repair_date: '2026-05-19',
+          delivery_date: '2026-05-20',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Warranty agreement generated successfully',
+    type: CreateWarrantyAgreementResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation failed (missing fields, unfinished problems, etc.)',
+  })
+  @ApiResponse({ status: 404, description: 'Repair order or warranty document not found' })
+  createWarrantyAgreement(
+    @Param('repair_order_id', ParseUUIDPipe) repairOrderId: string,
+    @Body() dto: CreateWarrantyAgreementDto,
+    @CurrentAdmin() admin: AdminPayload,
+  ): Promise<CreateWarrantyAgreementResponseDto> {
+    return this.serviceFormsService.createWarrantyAgreement(repairOrderId, dto, admin);
+  }
+
+  @Sse('service-forms/:repair_order_id/warranty-agreement-stream')
   @ApiOperation({
     summary: 'Generate a warranty agreement PDF as a Server-Sent Events stream',
     description:
-      'Streams generation states and finishes with a presigned URL for the generated warranty agreement PDF.',
+      'Deprecated. Use POST /repair-orders/service-forms/{repair_order_id}/warranty-agreement instead. ' +
+      'This SSE endpoint does not accept a request body and cannot provide accurate dates.',
+    deprecated: true,
   })
   @ApiParam({ name: 'repair_order_id', description: 'Repair Order UUID' })
   @ApiProduces('text/event-stream')
@@ -167,10 +209,20 @@ export class ServiceFormsController {
         });
       };
 
+      // Use today's date as fallback since SSE cannot accept body
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+      const fallbackDto: CreateWarrantyAgreementDto = {
+        repair_date: todayStr,
+        delivery_date: todayStr,
+      };
+
       void (async (): Promise<void> => {
         try {
           await this.serviceFormsService.createWarrantyAgreement(
             repairOrderId,
+            fallbackDto,
             admin,
             emitProgress,
           );

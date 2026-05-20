@@ -89,13 +89,6 @@
         z-index: 1;
       }
 
-      .brand {
-        display: flex;
-        align-items: center;
-        gap: 5mm;
-        min-width: 0;
-      }
-
       .brand-left {
         display: flex;
         align-items: center;
@@ -107,10 +100,6 @@
         width: auto;
         height: 14mm;
         flex: none;
-      }
-
-      .brand-divider {
-        display: none;
       }
 
       .tagline {
@@ -134,60 +123,56 @@
         min-height: 0;
       }
 
-      .terms {
-        display: grid;
-        grid-template-columns: 1fr;
-        row-gap: 4.5mm;
-        align-content: start;
-      }
-
-      .intro {
-        grid-column: 1 / -1;
-        font-size: 12.6px;
+      /* Dynamic warranty content from database */
+      .warranty-content {
+        font-size: 11.5px;
         line-height: 1.5;
         color: var(--text-dark);
       }
 
-      .intro p,
-      .section-text {
+      .warranty-content p {
         margin: 0 0 6px 0;
       }
 
-      .section {
-        break-inside: avoid;
-        page-break-inside: avoid;
-      }
-
-      h2 {
+      .warranty-content h2 {
         color: var(--primary-blue);
         font-size: 14px;
         font-weight: 700;
         line-height: 1.25;
-        margin: 0 0 7px 0;
+        margin: 10px 0 7px 0;
       }
 
-      .section-text,
-      .bullet-list {
-        font-size: 11.5px;
-        line-height: 1.45;
+      .warranty-content h3 {
+        color: var(--primary-blue);
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1.25;
+        margin: 8px 0 5px 0;
       }
 
-      .bullet-list {
+      .warranty-content ul,
+      .warranty-content ol {
         padding-left: 0;
         list-style: none;
         margin: 0;
       }
 
-      .bullet-list li {
+      .warranty-content ul li,
+      .warranty-content ol li {
         margin-bottom: 5px;
         padding-left: 11px;
         position: relative;
       }
 
-      .bullet-list li::before {
+      .warranty-content ul li::before {
         content: '-';
         position: absolute;
         left: 0;
+      }
+
+      .warranty-content strong,
+      .warranty-content b {
+        font-weight: 700;
       }
 
       .info-panel {
@@ -265,6 +250,12 @@
         overflow-wrap: anywhere;
       }
 
+      /* Warranty period multiline support */
+      #field-warranty_period {
+        white-space: pre-line;
+        line-height: 1.45;
+      }
+
       @media print {
         body {
           background: none;
@@ -297,59 +288,8 @@
         </header>
 
         <section class="content-grid">
-          <div class="terms">
-            <div class="intro">
-              <p>
-                Ushbu kafolat sertifikati Procare servis markazi tomonidan ta'mirlangan qurilmaga
-                yoki o'rnatilgan ehtiyot qismga nisbatan kafolat muddatini tasdiqlaydi.
-              </p>
-              <p>
-                Quyida keltirilgan shartlar asosida mijoz kafolat xizmatlaridan foydalanishi
-                mumkin.
-              </p>
-            </div>
-
-            <section class="section">
-              <h2>1. Kafolat muddati</h2>
-              <div class="section-text">
-                Kafolat muddati ta'mirlangan qurilma yoki o'rnatilgan ehtiyot qism bo'yicha 30
-                kunni tashkil qiladi, agar boshqa muddat servis qabul varaqasida ko'rsatilmagan
-                bo'lsa.
-              </div>
-            </section>
-
-            <section class="section">
-              <h2>2. Kafolat quyidagi holatlarni qamrab oladi:</h2>
-              <div class="section-text">
-                Kafolat muddati davrida ta'mirlangan qurilma qismi bilan yuzaga kelishi mumkin
-                bo'lgan muammolar Procare servisi tomonidan bepulga qayta ta'mirlanadi.
-              </div>
-              <ul class="bullet-list">
-                <li>Procare tomonidan o'rnatilgan ehtiyot qismlarning nuqsonlari</li>
-                <li>Procare tomonidan amalga oshirilgan ta'mir ishlaridagi texnik xatoliklar</li>
-              </ul>
-            </section>
-
-            <section class="section">
-              <h2>3. Kafolat quyidagi holatlarda amal qilmaydi:</h2>
-              <ul class="bullet-list">
-                <li>Qurilma boshqa servis markazida ta'mirlangan bo'lsa</li>
-                <li>
-                  Qurilma mexanik zarba, suyuqlik yoki noto'g'ri foydalanish oqibatida buzilgan
-                  bo'lsa
-                </li>
-                <li>Qurilmadagi buzilish kafolat muddatidan keyin aniqlangan bo'lsa</li>
-                <li>Qurilma Procare diagnostika qoidalariga zid ravishda ishlatilgan bo'lsa</li>
-              </ul>
-            </section>
-
-            <div class="section-text">
-              Procare servisi quvvatlash bilan bog'liq bo'lgan ta'mirni amalga oshirganda
-              (noto'g'ri quvvatlash oqibatida yuzaga kelgan muammolar), kafolat muddati 10 kunga
-              teng. Agar 10 kundan keyin ushbu muammo takrorlansa, mijozdan birinchi narxning 50%
-              olinadi.
-            </div>
-          </div>
+          <!-- Warranty content from active warranty document -->
+          <div class="warranty-content" id="field-warranty_content"></div>
 
           <aside class="info-panel">
             <div class="info-title">Mijoz va qurilma ma'lumotlari</div>
@@ -372,7 +312,7 @@
               </div>
               <div class="signature-line">
                 <span class="field-label">Procare vakili:</span>
-                <div class="field-value"></div>
+                <div class="field-value" id="field-representative_name"></div>
               </div>
               <div class="field-row">
                 <span class="field-label">Ta'mir sanasi:</span>
@@ -394,14 +334,22 @@
 
     <script>
       window.renderApp = function (payload) {
-        const form = (payload && payload.form) || {};
+        var form = (payload && payload.form) || {};
 
-        const elements = document.querySelectorAll('[id^="field-"]');
-        elements.forEach((el) => {
-          const key = el.id.replace('field-', '');
+        var elements = document.querySelectorAll('[id^="field-"]');
+        elements.forEach(function (el) {
+          var key = el.id.replace('field-', '');
+
+          // warranty_content uses innerHTML for sanitized HTML from DB
+          if (key === 'warranty_content') {
+            el.innerHTML = (payload && payload.warranty_content) || '';
+            return;
+          }
+
+          // Format date fields from YYYY-MM-DD to DD.MM.YYYY
           if ((key === 'date' || key === 'delivery_date') && form[key]) {
-            const parts = form[key].split('-');
-            el.textContent = parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : form[key];
+            var parts = form[key].split('-');
+            el.textContent = parts.length === 3 ? parts[2] + '.' + parts[1] + '.' + parts[0] : form[key];
           } else {
             el.textContent = form[key] || '';
           }
@@ -410,11 +358,11 @@
         window.isRendered = true;
       };
 
-      document.addEventListener('DOMContentLoaded', () => {
+      document.addEventListener('DOMContentLoaded', function () {
         if (typeof PAYLOAD !== 'undefined') {
           window.renderApp(PAYLOAD);
         } else {
-          setTimeout(() => {
+          setTimeout(function () {
             if (!window.isRendered) window.renderApp({});
           }, 500);
         }

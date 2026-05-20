@@ -17,6 +17,7 @@ import { UpdateRepairOrderDto } from './dto/update-repair-order.dto';
 import { BranchExistGuard } from 'src/common/guards/branch-exist.guard';
 import { RepairOrderStatusExistGuard } from 'src/common/guards/repair-order-status-exist.guard';
 import {
+  ApiBasicAuth,
   ApiBearerAuth,
   ApiBadRequestResponse,
   ApiBody,
@@ -33,6 +34,7 @@ import {
   getSchemaPath,
 } from '@nestjs/swagger';
 import { JwtAdminAuthGuard } from 'src/common/guards/jwt-admin.guard';
+import { NotifyAdminBasicAuthGuard } from 'src/common/guards/notify-admin-basic-auth.guard';
 import { MoveRepairOrderDto } from './dto/move-repair-order.dto';
 import { UpdateRepairOrderSortDto } from './dto/update-repair-order-sort.dto';
 import { CurrentAdmin } from 'src/common/decorators/current-admin.decorator';
@@ -265,10 +267,12 @@ export class OpenRepairOrdersController {
   }
 
   @Get('notify-admin')
+  @UseGuards(NotifyAdminBasicAuthGuard)
+  @ApiBasicAuth()
   @ApiOperation({
     summary: 'Send public open-menu notification to an admin',
     description:
-      'No authorization is required. Validates the repair order and admin IDs from query parameters, then sends the selected admin a notification with meta.open_menu=true.',
+      'Requires Basic authentication. Validates the repair order and admin IDs from query parameters, then sends the selected admin a notification with meta.open_menu=true.',
   })
   @ApiQuery({
     name: 'repair_order_id',

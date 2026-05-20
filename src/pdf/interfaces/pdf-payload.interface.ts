@@ -12,6 +12,7 @@ export interface PdfFormPayload {
   total_amount: number;
   delivery_date?: string;
   warranty_period?: string;
+  representative_name?: string;
 }
 
 export interface PdfChecklistItem {
@@ -35,4 +36,5 @@ export interface PdfPayload {
   checklist: PdfChecklist;
   comments: string;
   offer_content?: string;
+  warranty_content?: string;
 }

@@ -6,8 +6,8 @@ import {
 } from '@nestjs/common';
 import { Knex } from 'knex';
 import { InjectConnection } from 'nestjs-knex';
-import sanitizeHtml from 'sanitize-html';
 import { StorageService } from 'src/common/storage/storage.service';
+import { toWarrantyDocumentPdfHtml } from 'src/common/utils/warranty-document-html.util';
 import { WarrantyDocument } from 'src/common/types/warranty-document.interface';
 import { PaginationResult } from 'src/common/utils/pagination.util';
 import { PdfService } from 'src/pdf/pdf.service';
@@ -245,85 +245,12 @@ export class WarrantyDocumentsService {
 
   private async generateAndUploadWarrantyDocumentPdf(content: string): Promise<void> {
     const pdfBuffer = await this.pdfService.generateOfferPdf(
-      this.toWarrantyDocumentPdfHtml(content),
+      toWarrantyDocumentPdfHtml(content),
     );
     await this.storageService.upload(WARRANTY_DOCUMENT_PDF_PATH, pdfBuffer, {
       'Content-Type': 'application/pdf',
       'Cache-Control': 'no-cache',
     });
   }
-
-  private toWarrantyDocumentPdfHtml(content: string): string {
-    const trimmed = content.trim();
-
-    if (this.containsHtml(trimmed)) {
-      return sanitizeHtml(trimmed, {
-        allowedTags: [
-          'p',
-          'br',
-          'strong',
-          'b',
-          'em',
-          'i',
-          'u',
-          'ol',
-          'ul',
-          'li',
-          'h1',
-          'h2',
-          'h3',
-          'span',
-        ],
-        allowedAttributes: {},
-      });
-    }
-
-    return this.plainTextToHtml(trimmed);
-  }
-
-  private containsHtml(value: string): boolean {
-    return /<\/?[a-z][\s\S]*>/i.test(value);
-  }
-
-  private plainTextToHtml(value: string): string {
-    const blocks = value
-      .split(/\n{2,}/)
-      .map((block) => block.trim())
-      .filter(Boolean);
-
-    return blocks
-      .map((block) => {
-        const lines = block
-          .split(/\n/)
-          .map((line) => line.trim())
-          .filter(Boolean);
-
-        if (lines.length > 0 && lines.every((line) => /^[-*]\s+/.test(line))) {
-          return `<ul>${lines.map((line) => `<li>${this.escapeHtml(line.replace(/^[-*]\s+/, ''))}</li>`).join('')}</ul>`;
-        }
-
-        const escaped = this.escapeHtml(lines.join(' '));
-        const numberedSection = escaped.match(/^(\d+\.\s*[^:]+:)(\s*.*)$/);
-
-        if (numberedSection) {
-          return `<p><strong>${numberedSection[1]}</strong>${numberedSection[2]}</p>`;
-        }
-
-        if (/^[^.!?]+:$/.test(escaped)) {
-          return `<p><strong>${escaped}</strong></p>`;
-        }
-
-        return `<p>${escaped}</p>`;
-      })
-      .join('');
-  }
-
-  private escapeHtml(value: string): string {
-    return value
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
 }
+

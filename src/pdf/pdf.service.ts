@@ -18,7 +18,7 @@ export class PdfService {
   }
 
   async generateWarrantyAgreement(payload: PdfPayload): Promise<Buffer> {
-    return this.generatePdfFromTemplates(payload, ['page_4.html', 'page_5.html']);
+    return this.generatePdfFromTemplates(payload, ['page_5.html']);
   }
 
   private async generatePdfFromTemplates(
