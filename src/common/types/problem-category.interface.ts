@@ -9,6 +9,7 @@ export interface ProblemCategory {
   parent_id: string | null;
   price: string; // yoki number, agar `.toString()` qilinmasa
   estimated_minutes: number;
+  warranty_period: number;
   sort: number;
   is_active: boolean;
   status: 'Open' | 'Deleted';

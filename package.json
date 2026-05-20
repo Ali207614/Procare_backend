@@ -162,7 +162,8 @@
     "coverageDirectory": "./coverage/unit",
     "testEnvironment": "node",
     "moduleNameMapper": {
-      "^src/(.*)$": "<rootDir>/src/$1"
+      "^src/(.*)$": "<rootDir>/src/$1",
+      "^marked$": "<rootDir>/node_modules/marked/lib/marked.umd.js"
     },
     "coverageThreshold": {
       "global": {

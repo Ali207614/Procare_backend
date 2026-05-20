@@ -114,10 +114,10 @@ interface WarrantyAgreementData {
   specialist_name: string;
 }
 
-/** Repair part info for warranty period calculation */
-interface WarrantyRepairPart {
-  repair_part_id: string;
-  part_name: string;
+/** Warranty item info for warranty period calculation */
+interface WarrantyItem {
+  id: string;
+  name: string;
   warranty_period: number;
 }
 
@@ -376,18 +376,18 @@ export class ServiceFormsService {
     // 4. Load active warranty document
     const activeWarrantyDocument = await this.getActiveWarrantyDocument();
 
-    // 5. Load installed repair parts
-    const repairParts = await this.getInstalledRepairParts(repairOrderId);
+    // 5. Load completed final problems
+    const warrantyItems = await this.getWarrantyItems(repairOrderId);
 
-    if (repairParts.length === 0) {
+    if (warrantyItems.length === 0) {
       throw new BadRequestException({
-        message: 'At least one repair part is required to generate warranty PDF',
-        location: 'repair_parts',
+        message: 'At least one final problem is required to generate warranty PDF',
+        location: 'final_problems',
       });
     }
 
     // 6. Build warranty period text
-    const warrantyPeriodText = this.buildWarrantyPeriodText(repairParts, deliveryDate);
+    const warrantyPeriodText = this.buildWarrantyPeriodText(warrantyItems, deliveryDate);
 
     // 7. Determine warranty ID and representative name
     const warrantyId =
@@ -650,37 +650,35 @@ export class ServiceFormsService {
   }
 
   /**
-   * Fetches installed repair parts for this repair order.
-   * Groups by repair_part_id to avoid duplicates, preferring parts
-   * from final problems. Uses max warranty_period per unique part.
+   * Fetches final problems with warranty periods for this repair order.
+   * Groups by problem_category_id to avoid duplicates.
    */
-  private async getInstalledRepairParts(repairOrderId: string): Promise<WarrantyRepairPart[]> {
-    const rows = (await this.knex('repair_order_parts as rop')
-      .join('repair_parts as rp', 'rop.repair_part_id', 'rp.id')
-      .where('rop.repair_order_id', repairOrderId)
-      .whereNotNull('rop.repair_order_final_problem_id')
-      .groupBy('rp.id', 'rp.part_name_uz', 'rp.part_name_ru', 'rp.part_name_en')
+  private async getWarrantyItems(repairOrderId: string): Promise<WarrantyItem[]> {
+    const rows = (await this.knex('repair_order_final_problems as rofp')
+      .join('problem_categories as pc', 'rofp.problem_category_id', 'pc.id')
+      .where('rofp.repair_order_id', repairOrderId)
+      .groupBy('pc.id', 'pc.name_uz', 'pc.name_ru', 'pc.name_en', 'pc.warranty_period')
       .select(
-        'rp.id as repair_part_id',
+        'pc.id as id',
         this.knex.raw(
-          `COALESCE(NULLIF(rp.part_name_uz, ''), NULLIF(rp.part_name_ru, ''), NULLIF(rp.part_name_en, '')) as part_name`,
+          `COALESCE(NULLIF(pc.name_uz, ''), NULLIF(pc.name_ru, ''), NULLIF(pc.name_en, '')) as name`,
         ),
-        this.knex.raw('MAX(COALESCE(rp.warranty_period, 0)) as warranty_period'),
-      )) as unknown as WarrantyRepairPart[];
+        'pc.warranty_period as warranty_period',
+      )) as unknown as WarrantyItem[];
 
     return rows;
   }
 
   /**
    * Builds the multiline warranty period text for the PDF.
-   * Format per line: "PartName: DD.MM.YYYY"
+   * Format per line: "CategoryName: DD.MM.YYYY"
    * Expiration = deliveryDate + warranty_period months
    */
-  private buildWarrantyPeriodText(parts: WarrantyRepairPart[], deliveryDate: Date): string {
-    return parts
-      .map((part) => {
-        const expirationDate = this.addMonths(deliveryDate, part.warranty_period);
-        return `${part.part_name}: ${this.formatDateUz(expirationDate)}`;
+  private buildWarrantyPeriodText(items: WarrantyItem[], deliveryDate: Date): string {
+    return items
+      .map((item) => {
+        const expirationDate = this.addMonths(deliveryDate, item.warranty_period);
+        return `${item.name}: ${this.formatDateUz(expirationDate)}`;
       })
       .join('\n');
   }

@@ -12,6 +12,7 @@ interface ProblemCategoryWithCost {
   parent_id: string | null;
   price: string;
   estimated_minutes: number;
+  warranty_period: number;
   sort: number;
   cost: string;
 }
@@ -101,7 +102,7 @@ export class CalculatorService {
     const result = await this.knex.raw<{ rows: ProblemCategoryWithCost[] }>(
       `
       SELECT 
-        p.id, p.name_uz, p.name_ru, p.name_en, p.parent_id, p.price, p.estimated_minutes, p.sort,
+        p.id, p.name_uz, p.name_ru, p.name_en, p.parent_id, p.price, p.estimated_minutes, p.sort, p.warranty_period,
         (
             CAST(p.price AS DECIMAL) + COALESCE((
                 SELECT SUM(rp.part_price)

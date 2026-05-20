@@ -1,6 +1,6 @@
 /* Mock ESM-only modules before any imports */
 jest.mock('marked', () => ({
-  marked: { parse: jest.fn().mockResolvedValue('<p>mocked</p>') },
+  marked: { parse: jest.fn((text: string) => `<p>${text}</p>`) },
 }));
 jest.mock('sanitize-html', () => jest.fn((html: string) => html));
 jest.mock('src/common/utils/sql-loader.util', () => ({
@@ -23,7 +23,7 @@ function createMockedService() {
     first: jest.fn().mockResolvedValue(null),
   };
 
-  const repairPartsQueryMock = {
+  const warrantyItemsQueryMock = {
     join: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
     whereNotNull: jest.fn().mockReturnThis(),
@@ -33,7 +33,7 @@ function createMockedService() {
 
   const mockKnexCallable = jest.fn().mockImplementation((table: string) => {
     if (table === 'warranty_documents') return warrantyDocQueryMock;
-    if (table === 'repair_order_parts as rop') return repairPartsQueryMock;
+    if (table === 'repair_order_final_problems as rofp') return warrantyItemsQueryMock;
     return {
       where: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
@@ -99,7 +99,7 @@ function createMockedService() {
     service,
     mockKnex,
     warrantyDocQueryMock,
-    repairPartsQueryMock,
+    warrantyItemsQueryMock,
     mockPdfService,
     mockStorageService,
     mockLogger,
@@ -153,16 +153,16 @@ const activeWarrantyDoc = {
   updated_at: new Date('2026-01-01'),
 };
 
-const installedParts = [
-  { repair_part_id: 'part-1', part_name: 'Batareyka', warranty_period: 3 },
-  { repair_part_id: 'part-2', part_name: 'Ekran', warranty_period: 6 },
+const warrantyItems = [
+  { id: 'problem-1', name: 'Batareya almashtirish', warranty_period: 3 },
+  { id: 'problem-2', name: 'Ekran singan', warranty_period: 6 },
 ];
 
 /** Sets up mocks for a successful warranty generation scenario */
 function setupSuccess(mocks: ReturnType<typeof createMockedService>, overrides?: Record<string, unknown>) {
   mocks.mockKnex.raw.mockResolvedValue({ rows: [makeValidData(overrides)] });
   mocks.warrantyDocQueryMock.first.mockResolvedValue(activeWarrantyDoc);
-  mocks.repairPartsQueryMock.select.mockResolvedValue(installedParts);
+  mocks.warrantyItemsQueryMock.select.mockResolvedValue(warrantyItems);
 }
 
 describe('ServiceFormsService – createWarrantyAgreement', () => {
@@ -269,7 +269,7 @@ describe('ServiceFormsService – createWarrantyAgreement', () => {
     const mocks = createMockedService();
     mocks.mockKnex.raw.mockResolvedValue({ rows: [makeValidData()] });
     mocks.warrantyDocQueryMock.first.mockResolvedValue(null);
-    mocks.repairPartsQueryMock.select.mockResolvedValue(installedParts);
+    mocks.warrantyItemsQueryMock.select.mockResolvedValue(warrantyItems);
 
     await expect(
       mocks.service.createWarrantyAgreement('ro-uuid-1', validDto, validAdmin),
@@ -291,9 +291,9 @@ describe('ServiceFormsService – createWarrantyAgreement', () => {
     expect(svc['formatDateUz'](exp as never)).toBe('19.08.2026');
 
     // Full text
-    const parts = [{ repair_part_id: 'p1', part_name: 'Batareyka', warranty_period: 3 }];
-    const text = svc['buildWarrantyPeriodText'](parts as never, deliveryDate as never) as string;
-    expect(text).toContain('Batareyka: 19.08.2026');
+    const items = [{ id: 'p1', name: 'Batareya almashtirish', warranty_period: 3 }];
+    const text = svc['buildWarrantyPeriodText'](items as never, deliveryDate as never) as string;
+    expect(text).toContain('Batareya almashtirish: 19.08.2026');
   });
 
   // 10. Uses active warranty_documents.content_uz in PDF payload
@@ -353,30 +353,30 @@ describe('ServiceFormsService – createWarrantyAgreement', () => {
     );
   });
 
-  // 14. Fails when no repair parts exist
-  it('throws BadRequestException when no repair parts found', async () => {
+  // 14. Fails when no final problems exist
+  it('throws BadRequestException when no final problems found', async () => {
     const mocks = createMockedService();
     mocks.mockKnex.raw.mockResolvedValue({ rows: [makeValidData()] });
     mocks.warrantyDocQueryMock.first.mockResolvedValue(activeWarrantyDoc);
-    mocks.repairPartsQueryMock.select.mockResolvedValue([]);
+    mocks.warrantyItemsQueryMock.select.mockResolvedValue([]);
 
     try {
       await mocks.service.createWarrantyAgreement('ro-uuid-1', validDto, validAdmin);
       fail('Expected to throw');
     } catch (e) {
       expect(e).toBeInstanceOf(BadRequestException);
-      expect((e as BadRequestException).getResponse()).toMatchObject({ location: 'repair_parts' });
+      expect((e as BadRequestException).getResponse()).toMatchObject({ location: 'final_problems' });
     }
   });
 
-  // 15. Zero warranty_period still includes part with delivery_date as expiration
-  it('includes part with zero warranty_period using delivery_date as expiration', () => {
+  // 15. Zero warranty_period still includes item with delivery_date as expiration
+  it('includes item with zero warranty_period using delivery_date as expiration', () => {
     const mocks = createMockedService();
     const svc = mocks.service as unknown as Record<string, (...args: never[]) => unknown>;
 
     const deliveryDate = svc['parseDateOnly']('2026-05-19' as never, 'delivery_date' as never) as Date;
-    const parts = [{ repair_part_id: 'p1', part_name: 'Qopqoq', warranty_period: 0 }];
-    const text = svc['buildWarrantyPeriodText'](parts as never, deliveryDate as never) as string;
-    expect(text).toBe('Qopqoq: 19.05.2026');
+    const items = [{ id: 'p1', name: 'Qopqoq muammosi', warranty_period: 0 }];
+    const text = svc['buildWarrantyPeriodText'](items as never, deliveryDate as never) as string;
+    expect(text).toBe('Qopqoq muammosi: 19.05.2026');
   });
 });

@@ -31,8 +31,16 @@ export class ProblemCategoriesService {
   async create(dto: CreateProblemCategoryDto, adminId: string): Promise<ProblemCategory> {
     const trx = await this.knex.transaction();
     try {
-      const { parent_id, name_uz, name_ru, name_en, phone_category_id, price, estimated_minutes } =
-        dto;
+      const {
+        parent_id,
+        name_uz,
+        name_ru,
+        name_en,
+        phone_category_id,
+        price,
+        estimated_minutes,
+        warranty_period,
+      } = dto;
 
       if (parent_id && phone_category_id) {
         throw new BadRequestException({
@@ -118,6 +126,7 @@ export class ProblemCategoriesService {
         parent_id: parent_id ?? null,
         price: price ? String(price) : '0',
         estimated_minutes: estimated_minutes ?? 0,
+        warranty_period: warranty_period ?? 0,
         sort: nextSort,
         is_active: true,
         status: 'Open',
@@ -465,6 +474,7 @@ export class ProblemCategoriesService {
         price: dto.price ?? category.price,
         is_active: dto.is_active ?? category.is_active,
         estimated_minutes: dto.estimated_minutes ?? category.estimated_minutes,
+        warranty_period: dto.warranty_period ?? category.warranty_period,
         updated_at: this.knex.fn.now(),
       };
 

@@ -92,4 +92,21 @@ export class UpdateProblemCategoryDto {
   @IsOptional()
   @IsBoolean()
   is_active?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Warranty period in months',
+    example: 3,
+    minimum: 0,
+    type: 'integer',
+  })
+  @IsOptional()
+  @IsInt({
+    message: 'Warranty period must be an integer',
+    context: { location: 'warranty_period' },
+  })
+  @Min(0, {
+    message: 'Warranty period cannot be negative',
+    context: { location: 'warranty_period' },
+  })
+  warranty_period?: number;
 }

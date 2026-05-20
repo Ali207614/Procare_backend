@@ -95,6 +95,9 @@ export class ProblemCategoryResponseDto {
   @ApiProperty({ example: 60 })
   estimated_minutes!: number;
 
+  @ApiProperty({ example: 3, description: 'Warranty period in months' })
+  warranty_period!: number;
+
   @ApiProperty({ example: 1 })
   sort!: number;
 
