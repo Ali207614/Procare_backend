@@ -478,7 +478,7 @@ export class RepairOrderAnalyticsService {
             AND ro.status <> 'Deleted'
             AND ro.branch_id = ANY(?::uuid[])
             AND h.old_value #>> '{}' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-            AND h.new_value #>> '{}' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            AND h.new_value #>> '{}' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
             ${rejectCauseFilter}
         ) ranked
         WHERE ranked.rn = 1
